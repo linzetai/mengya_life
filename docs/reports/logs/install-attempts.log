@@ -1,0 +1,13 @@
+=== attempt 2: push + pm install ===
+app/build/outputs/apk/debug/app-debug.apk: 1 file pushed, 0 skipped. 253.2 MB/s (9294831 bytes in 0.035s)
+Failure [INSTALL_FAILED_USER_RESTRICTED: Install canceled by user]
+PM_EXIT=1
+=== attempt 3: install --user 0 ===
+Performing Streamed Install
+adb: failed to install app/build/outputs/apk/debug/app-debug.apk: Failure [INSTALL_FAILED_USER_RESTRICTED: Install canceled by user]
+
+U0_EXIT=1
+=== attempt 4 (after wake) 2026-11-01T17:13:11Z ===
+Performing Streamed Install
+Success
+EXIT=0

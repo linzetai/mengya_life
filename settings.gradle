@@ -1,0 +1,28 @@
+// 萌芽人生 Mengya Life —— Gate 0：最小单模块工程
+// 仓库优先级：国内可达镜像优先，官方源兜底。
+// 说明：本环境直连 dl.google.com 可用但 developer.android.com 不可达，
+//       因此统一走 aliyun 镜像，避免构建时长时间挂起。
+
+pluginManagement {
+    repositories {
+        maven { url = uri('https://maven.aliyun.com/repository/google') }
+        maven { url = uri('https://maven.aliyun.com/repository/gradle-plugin') }
+        maven { url = uri('https://maven.aliyun.com/repository/public') }
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        maven { url = uri('https://maven.aliyun.com/repository/google') }
+        maven { url = uri('https://maven.aliyun.com/repository/public') }
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'MengyaLife'
+include ':app'

@@ -1,0 +1,7 @@
+// 根构建脚本：只声明插件版本，不在根工程应用。
+// 版本选择依据见 README.md「版本矩阵」与 docs/reports/REPORT-G0-Android-Build.md。
+plugins {
+    id 'com.android.application' version '8.7.3' apply false
+    id 'org.jetbrains.kotlin.android' version '2.2.0' apply false
+    id 'org.jetbrains.kotlin.plugin.compose' version '2.2.0' apply false
+}

@@ -1,0 +1,22 @@
+# Gradle
+.gradle/
+build/
+app/build/
+.kotlin/
+
+# 设备/SDK 本地路径（AGP 通过 ANDROID_HOME 解析，本项目通常不需要该文件）
+local.properties
+
+# IDE
+.idea/
+*.iml
+captures/
+
+# 日志（保留 docs/reports/logs/ 下的构建与验证证据）
+*.log
+!docs/reports/logs/*.log
+
+# 产物
+*.apk
+*.aab
+!docs/reports/logs/*.apk.sha256
