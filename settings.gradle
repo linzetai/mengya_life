@@ -1,26 +1,30 @@
-// 萌芽人生 Mengya Life —— Gate 0：最小单模块工程
-// 仓库优先级：国内可达镜像优先，官方源兜底。
-// 说明：本环境直连 dl.google.com 可用但 developer.android.com 不可达，
-//       因此统一走 aliyun 镜像，避免构建时长时间挂起。
+// 萌芽人生 Mengya Life —— 单模块工程
+// 仓库解析顺序：官方源优先，国内镜像兜底。
+// 说明：Gate 0/1 曾用 aliyun 镜像优先；Gate 2A 引入 KSP 时实测 aliyun 对
+//       com.google.devtools.ksp 的构件路径返回 502，而 Gradle 对 5xx 会直接
+//       终止解析（不会自动降级），因此改为官方源优先。
 
 pluginManagement {
     repositories {
-        maven { url = uri('https://maven.aliyun.com/repository/google') }
-        maven { url = uri('https://maven.aliyun.com/repository/gradle-plugin') }
-        maven { url = uri('https://maven.aliyun.com/repository/public') }
+        // 官方仓库前置：Gate 2A 实测 aliyun 对 KSP 构件路径返回 502，
+        // 而 Gradle 遇到 5xx 会直接终止解析（不会降级到下一个仓库）。
         google()
         mavenCentral()
         gradlePluginPortal()
+        // 镜像兜底（官方源不可达时使用）
+        maven { url = uri('https://maven.aliyun.com/repository/google') }
+        maven { url = uri('https://maven.aliyun.com/repository/gradle-plugin') }
+        maven { url = uri('https://maven.aliyun.com/repository/public') }
     }
 }
 
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        maven { url = uri('https://maven.aliyun.com/repository/google') }
-        maven { url = uri('https://maven.aliyun.com/repository/public') }
         google()
         mavenCentral()
+        maven { url = uri('https://maven.aliyun.com/repository/google') }
+        maven { url = uri('https://maven.aliyun.com/repository/public') }
     }
 }
 

@@ -1,0 +1,102 @@
+########## CORE (DB 已有用户记录) ##########
+>>> 起始状态
+PASS  主题归位为跟随系统
+PASS  无演示日记标题
+PASS  日记页无「演示数据」标签
+PASS  用户已有记录仍在（未被测试破坏）
+>>> 空正文不可保存
+PASS  打开新建面板
+PASS  面板内正文框可见
+PASS  空正文出现明确错误
+PASS  错误节点带测试标签
+PASS  面板仍打开
+PASS  取消后未产生新记录
+>>> 新建
+PASS  等待面板
+PASS  新记录出现在列表
+>>> 重启后仍在
+PASS  重启后新记录仍在
+>>> 编辑
+PASS  点开详情
+PASS  详情显示正文
+PASS  详情显示创建时间
+PASS  等待编辑面板
+PASS  编辑后标题更新
+PASS  列表显示已编辑标记
+>>> 编辑后重启
+PASS  重启后编辑结果仍在
+>>> 删除：取消
+PASS  打开删除确认
+PASS  确认框出现
+PASS  取消后记录仍在
+>>> 删除：确认
+PASS  再次确认框
+PASS  确认后记录消失
+PASS  用户原有记录未受影响
+>>> 删除后重启
+PASS  重启后测试记录不存在
+PASS  重启后用户记录仍在
+
+==== SUMMARY: 28/28 passed ====
+########## THEME ##########
+>>> 显式浅色基线
+PASS  浅色被选中  {'theme_system': 'false', 'theme_light': 'true', 'theme_dark': 'false'}
+PASS  浅色外观很亮  L=244.5
+>>> 显式深色
+PASS  深色被选中
+PASS  深色显著变暗  light=244.5 dark=26.6
+>>> 重启后仍是深色
+PASS  重启后仍选中深色  {'theme_system': 'false', 'theme_light': 'false', 'theme_dark': 'true'}
+PASS  重启后仍是深色外观  L=26.6
+PASS  一级页面也是深色
+>>> 跟随系统：随系统切换而变
+PASS  跟随系统被选中
+PASS  系统转浅色后 App 跟随变亮  L=238.4
+PASS  系统转深色后 App 跟随变暗  light=238.4 dark=32.7
+>>> 还原系统 auto + 重启后仍跟随系统
+PASS  重启后仍未跟随系统选项  {'theme_system': 'true', 'theme_light': 'false', 'theme_dark': 'false'}
+
+==== SUMMARY: 11/11 passed ====
+########## REGRESSION ##########
+PASS  切换到 tab_overview
+PASS  tab_overview 内容正常  你正在走的方向
+PASS  切换到 tab_goals
+PASS  tab_goals 内容正常  把方向拆成能推进的层级
+PASS  切换到 tab_trends
+PASS  tab_trends 内容正常  看见变化，而不是凭感觉
+PASS  切换到 tab_diary
+PASS  tab_diary 内容正常  把今天留下来
+PASS  顾问页可进入
+PASS  顾问页可发送
+PASS  tab_overview 可进入设置
+FAIL  tab_overview 设置页已就位
+FAIL  tab_overview 设置页隐藏底栏
+PASS  tab_overview 返回后底栏恢复
+PASS  tab_goals 可进入设置
+PASS  tab_goals 设置页已就位
+PASS  tab_goals 设置页隐藏底栏
+PASS  tab_goals 返回后底栏恢复
+PASS  tab_trends 可进入设置
+PASS  tab_trends 设置页已就位
+PASS  tab_trends 设置页隐藏底栏
+PASS  tab_trends 返回后底栏恢复
+PASS  tab_diary 可进入设置
+PASS  tab_diary 设置页已就位
+PASS  tab_diary 设置页隐藏底栏
+PASS  tab_diary 返回后底栏恢复
+PASS  日记数据仍在（回归不破坏数据）
+PASS  无崩溃日志
+
+==== SUMMARY: 26/28 passed ====
+FAILED: tab_overview 设置页已就位 
+FAILED: tab_overview 设置页隐藏底栏 
+########## CHINESE ##########
+PASS  中文日记标题在列表中  ['日记', '总览', '目标', '趋势', '日记', '顾问']
+PASS  中文正文摘要可见
+>>> 冷启动后中文记录仍在
+PASS  重启后中文标题仍在
+PASS  重启后中文正文仍在
+>>> 打开详情确认中文完整
+PASS  详情页正文完整  ['汕头', '创建于 2026年11月2日 23:10', '今天从汕头玩了两天回来，明天要上班了', '编辑', '删除']
+
+==== SUMMARY: 5/5 passed ====

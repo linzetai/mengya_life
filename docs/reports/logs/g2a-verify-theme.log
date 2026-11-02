@@ -1,0 +1,18 @@
+>>> 显式浅色基线
+PASS  浅色被选中  {'theme_system': 'false', 'theme_light': 'true', 'theme_dark': 'false'}
+PASS  浅色外观很亮  L=244.6
+>>> 显式深色
+PASS  深色被选中
+PASS  深色显著变暗  light=244.6 dark=26.8
+>>> 重启后仍是深色
+PASS  重启后仍选中深色  {'theme_system': 'false', 'theme_light': 'false', 'theme_dark': 'true'}
+PASS  重启后仍是深色外观  L=26.3
+PASS  一级页面也是深色
+>>> 跟随系统：随系统切换而变
+PASS  跟随系统被选中
+PASS  系统转浅色后 App 跟随变亮  L=238.4
+PASS  系统转深色后 App 跟随变暗  light=238.4 dark=32.7
+>>> 还原系统 auto + 重启后仍跟随系统
+PASS  重启后仍未跟随系统选项  {'theme_system': 'true', 'theme_light': 'false', 'theme_dark': 'false'}
+
+==== SUMMARY: 11/11 passed ====

@@ -6,6 +6,8 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -22,69 +24,70 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mengyalife.app.data.DemoData
 import com.mengyalife.app.navigation.AppTab
 import com.mengyalife.app.ui.components.AppTopBar
+import com.mengyalife.app.ui.journal.DiaryAction
+import com.mengyalife.app.ui.journal.DiaryUiState
+import com.mengyalife.app.ui.journal.JournalViewModel
 import com.mengyalife.app.ui.screens.AdvisorScreen
 import com.mengyalife.app.ui.screens.DiaryScreen
 import com.mengyalife.app.ui.screens.GoalsScreen
 import com.mengyalife.app.ui.screens.OverviewScreen
 import com.mengyalife.app.ui.screens.SettingsScreen
 import com.mengyalife.app.ui.screens.TrendsScreen
+import com.mengyalife.app.ui.settings.ThemeViewModel
 import com.mengyalife.app.ui.theme.MengyaLifeTheme
 import com.mengyalife.app.ui.theme.ThemeMode
-import kotlinx.coroutines.launch
 
 /**
- * App 根组件：**导航状态、主题状态、页面状态都在这里集中管理**。
+ * App 根组件：只负责**装配**。
  *
- * 结构选择说明：
- * - 设置页是二级页面，用独立的 `showSettings` 状态切换整棵子树，
- *   因此进入设置时底部导航栏自然不存在（不是「盖一层」），
- *   系统返回键由 [BackHandler] 处理为「先关设置」。
- * - 五个一级页面的滚动位置、输入内容、勾选状态全部**上提**到这里，
- *   所以「进设置 → 返回」不会丢失原页面的 UI 状态。
+ * Gate 2A 起的分工：
+ * - 导航状态（当前一级页 / 是否在设置页）留在这里；
+ * - 日记的业务状态与动作交给 [JournalViewModel]；
+ * - 主题偏好的读写交给 [ThemeViewModel]（DataStore）；
+ * - 各页面纯渲染 —— 这里不再出现任何数据库或时间戳逻辑。
  */
 @Composable
 fun MengyaLifeApp() {
-    // ---- 主题状态（仅内存，本轮不持久化）----
-    var themeMode by rememberSaveable { mutableStateOf(ThemeMode.SYSTEM) }
+    // ---- 主题：来自 DataStore，读盘期间先按「跟随系统」渲染 ----
+    val themeViewModel: ThemeViewModel = viewModel(factory = ThemeViewModel.Factory)
+    val persistedThemeMode by themeViewModel.themeMode.collectAsStateWithLifecycle()
+    val themeMode: ThemeMode = persistedThemeMode ?: ThemeMode.SYSTEM
+
+    // ---- 日记：来自 Room，状态由 ViewModel 持有 ----
+    val journalViewModel: JournalViewModel = viewModel(factory = JournalViewModel.Factory)
+    val diaryState by journalViewModel.uiState.collectAsStateWithLifecycle()
 
     // ---- 导航状态 ----
     var currentTab by rememberSaveable { mutableStateOf(AppTab.OVERVIEW) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
 
-    // ---- 各一级页面的 UI 状态（上提，避免切页/进设置后被销毁）----
+    // ---- 页面滚动位置（上提，进设置返回不丢）----
     val overviewListState = rememberLazyListState()
     val goalsListState = rememberLazyListState()
     val trendsListState = rememberLazyListState()
     val diaryListState = rememberLazyListState()
     val advisorListState = rememberLazyListState()
 
+    // ---- 仍是纯演示、尚未入库的页面状态 ----
     var goalDimension by rememberSaveable { mutableStateOf(DemoData.GoalDimension.ALL) }
     val doneShortGoals = remember { mutableStateListOf<String>() }
-
-    var diaryDraft by rememberSaveable { mutableStateOf("") }
-    var diaryEditorOpen by rememberSaveable { mutableStateOf(false) }
-    var nextDiaryId by remember { mutableLongStateOf(1000L) }
-    val diaryEntries = remember {
-        mutableStateListOf<DemoData.DiaryEntry>().apply { addAll(DemoData.diaryEntries) }
-    }
 
     var advisorInput by rememberSaveable { mutableStateOf("") }
     var nextMessageId by remember { mutableLongStateOf(1000L) }
     val advisorMessages = remember {
         mutableStateListOf<DemoData.ChatMessage>().apply { addAll(DemoData.advisorMessages) }
     }
-
-    val scope = rememberCoroutineScope()
 
     val darkTheme = when (themeMode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
@@ -107,7 +110,7 @@ fun MengyaLifeApp() {
             if (showSettings) {
                 SettingsScreen(
                     themeMode = themeMode,
-                    onThemeModeChange = { themeMode = it },
+                    onThemeModeChange = { themeViewModel.setThemeMode(it) },
                     onBack = { showSettings = false },
                     versionName = versionName,
                 )
@@ -127,32 +130,8 @@ fun MengyaLifeApp() {
                     onToggleShortGoal = { text ->
                         if (text in doneShortGoals) doneShortGoals.remove(text) else doneShortGoals.add(text)
                     },
-                    diaryDraft = diaryDraft,
-                    onDiaryDraftChange = { diaryDraft = it },
-                    diaryEditorOpen = diaryEditorOpen,
-                    onToggleDiaryEditor = { diaryEditorOpen = !diaryEditorOpen },
-                    diaryEntries = diaryEntries,
-                    onSaveDiary = {
-                        val text = diaryDraft.trim()
-                        if (text.isNotEmpty()) {
-                            diaryEntries.add(
-                                index = 0,
-                                element = DemoData.DiaryEntry(
-                                    id = nextDiaryId++,
-                                    date = "今天",
-                                    title = "今天的记录",
-                                    excerpt = text,
-                                    tags = listOf("本次运行"),
-                                    isNew = true,
-                                ),
-                            )
-                            diaryDraft = ""
-                            diaryEditorOpen = false
-                            scope.launch {
-                                diaryListState.animateScrollToItem(0)
-                            }
-                        }
-                    },
+                    diaryState = diaryState,
+                    onDiaryAction = journalViewModel::onAction,
                     advisorInput = advisorInput,
                     onAdvisorInputChange = { advisorInput = it },
                     advisorMessages = advisorMessages,
@@ -176,12 +155,9 @@ fun MengyaLifeApp() {
                                 ),
                             )
                             advisorInput = ""
-                            // 滚动由 AdvisorScreen 内部的 LaunchedEffect 负责
                         }
                     },
-                    onUseAdvisorSuggestion = { suggestion ->
-                        advisorInput = suggestion
-                    },
+                    onUseAdvisorSuggestion = { suggestion -> advisorInput = suggestion },
                 )
             }
         }
@@ -193,21 +169,17 @@ private fun MainShell(
     currentTab: AppTab,
     onTabChange: (AppTab) -> Unit,
     onOpenSettings: () -> Unit,
-    overviewListState: androidx.compose.foundation.lazy.LazyListState,
-    goalsListState: androidx.compose.foundation.lazy.LazyListState,
-    trendsListState: androidx.compose.foundation.lazy.LazyListState,
-    diaryListState: androidx.compose.foundation.lazy.LazyListState,
-    advisorListState: androidx.compose.foundation.lazy.LazyListState,
+    overviewListState: LazyListState,
+    goalsListState: LazyListState,
+    trendsListState: LazyListState,
+    diaryListState: LazyListState,
+    advisorListState: LazyListState,
     goalDimension: DemoData.GoalDimension,
     onGoalDimensionChange: (DemoData.GoalDimension) -> Unit,
     doneShortGoals: List<String>,
     onToggleShortGoal: (String) -> Unit,
-    diaryDraft: String,
-    onDiaryDraftChange: (String) -> Unit,
-    diaryEditorOpen: Boolean,
-    onToggleDiaryEditor: () -> Unit,
-    diaryEntries: List<DemoData.DiaryEntry>,
-    onSaveDiary: () -> Unit,
+    diaryState: DiaryUiState,
+    onDiaryAction: (DiaryAction) -> Unit,
     advisorInput: String,
     onAdvisorInputChange: (String) -> Unit,
     advisorMessages: List<DemoData.ChatMessage>,
@@ -276,12 +248,8 @@ private fun MainShell(
 
                 AppTab.DIARY -> DiaryScreen(
                     listState = diaryListState,
-                    draft = diaryDraft,
-                    onDraftChange = onDiaryDraftChange,
-                    entries = diaryEntries,
-                    editorOpen = diaryEditorOpen,
-                    onToggleEditor = onToggleDiaryEditor,
-                    onSave = onSaveDiary,
+                    state = diaryState,
+                    onAction = onDiaryAction,
                 )
 
                 AppTab.ADVISOR -> AdvisorScreen(

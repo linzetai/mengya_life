@@ -1,0 +1,9 @@
+=== install 2026-11-02T15:52:21Z ===
+Performing Streamed Install
+Success
+INSTALL_EXIT=0
+=== 安装后书架校验：数据库仍在 ===
+total 204
+-rw-rw---- 1 u0_a439 u0_a439   4096 2026-11-02 22:35 mengya-life.db
+-rw------- 1 u0_a439 u0_a439  32768 2026-11-02 23:52 mengya-life.db-shm
+-rw------- 1 u0_a439 u0_a439 168952 2026-11-02 23:39 mengya-life.db-wal

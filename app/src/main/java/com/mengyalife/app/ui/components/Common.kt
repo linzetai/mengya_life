@@ -56,9 +56,19 @@ fun DemoTag(modifier: Modifier = Modifier) {
     }
 }
 
-/** 页首：标题 + 一行说明 + 演示标记。 */
+/**
+ * 页首：标题 + 一行说明 + 演示标记。
+ *
+ * [showDemoTag] 在**真实数据页面**（如日记）必须传 false，
+ * 否则会把用户的真实记录误标成"演示数据"。
+ */
 @Composable
-fun PageHeader(title: String, subtitle: String, modifier: Modifier = Modifier) {
+fun PageHeader(
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier,
+    showDemoTag: Boolean = true,
+) {
     Column(modifier = modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -67,7 +77,9 @@ fun PageHeader(title: String, subtitle: String, modifier: Modifier = Modifier) {
                 color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.weight(1f),
             )
-            DemoTag()
+            if (showDemoTag) {
+                DemoTag()
+            }
         }
         Spacer(Modifier.height(6.dp))
         Text(
