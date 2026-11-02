@@ -1,0 +1,8 @@
+=== launch 2026-11-02T02:22:06Z ===
+Starting: Intent { cmp=com.mengyalife.app/.MainActivity }
+Status: ok
+LaunchState: COLD
+Activity: com.mengyalife.app/.MainActivity
+TotalTime: 467
+WaitTime: 469
+Complete

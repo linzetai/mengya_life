@@ -1,0 +1,38 @@
+PASS  切换到 tab_overview
+PASS  tab_overview 页面标题正确  你正在走的方向
+PASS  切换到 tab_goals
+PASS  tab_goals 页面标题正确  把方向拆成能推进的层级
+PASS  切换到 tab_trends
+PASS  tab_trends 页面标题正确  看见变化，而不是凭感觉
+PASS  切换到 tab_diary
+PASS  tab_diary 页面标题正确  把今天留下来
+PASS  切换到 tab_advisor
+PASS  顾问页有输入框
+PASS  顾问页有发送按钮
+PASS  tab_overview 打开设置
+PASS  设置页可见
+PASS  设置页隐藏底部导航
+PASS  设置页有返回按钮
+PASS  tab_overview 系统返回键回到原页面  你正在走的方向
+PASS  tab_overview 返回后底部导航恢复
+PASS  tab_goals 打开设置
+PASS  设置页可见
+PASS  设置页隐藏底部导航
+PASS  设置页有返回按钮
+PASS  tab_goals 系统返回键回到原页面  把方向拆成能推进的层级
+PASS  tab_goals 返回后底部导航恢复
+PASS  tab_trends 打开设置
+PASS  设置页可见
+PASS  设置页隐藏底部导航
+PASS  设置页有返回按钮
+PASS  tab_trends 系统返回键回到原页面  看见变化，而不是凭感觉
+PASS  tab_trends 返回后底部导航恢复
+PASS  tab_diary 打开设置
+PASS  设置页可见
+PASS  设置页隐藏底部导航
+PASS  设置页有返回按钮
+PASS  tab_diary 系统返回键回到原页面  把今天留下来
+PASS  tab_diary 返回后底部导航恢复
+PASS  设置页浅色截图
+
+==== SUMMARY: 36/36 passed ====
