@@ -177,7 +177,18 @@ fun DiaryScreen(
             onDismissRequest = { onAction(DiaryAction.DismissDelete) },
             title = { Text("删除这条日记？") },
             text = {
-                Text("删除后无法恢复。将会删除：\n\n" + JournalRules.excerpt(pending.body, 40))
+                Column {
+                    Text("删除后无法恢复。将会删除：\n\n" + JournalRules.excerpt(pending.body, 40))
+                    if (state.deleteError != null) {
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            text = state.deleteError,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.testTag("journal_delete_error"),
+                        )
+                    }
+                }
             },
             confirmButton = {
                 TextButton(

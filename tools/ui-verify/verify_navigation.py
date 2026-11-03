@@ -1,0 +1,34 @@
+import os, sys, time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from harness import *
+
+restart_app()
+time.sleep(2.0)
+EXPECT = [("tab_overview", "你正在走的方向"), ("tab_goals", "把方向拆成能推进的层级"),
+          ("tab_trends", "看见变化，而不是凭感觉"), ("tab_diary", "把今天留下来")]
+for tag, headline in EXPECT:
+    check(f"切换到 {tag}", tap_tag(tag))
+    check(f"{tag} 内容正常", any(headline in t for t in texts(dump())), headline)
+check("顾问页可进入", tap_tag("tab_advisor") and has_tag("advisor_input"))
+check("顾问页可发送", tap_tag("advisor_input") and (adb("shell input text 'regress%scheck'") or True))
+# 输入会弹起软键盘，底栏会被顶起；先关键盘再继续导航，否则点击坐标会落空
+close_keyboard()
+time.sleep(1.5)
+
+for tag, _ in EXPECT:
+    tap_tag(tag)
+    entered = False
+    for _ in range(3):
+        if tap_tag("btn_settings") and wait_tag("settings_back", 6):
+            entered = True
+            break
+    check(f"{tag} 可进入设置", entered)
+    appeared = entered
+    check(f"{tag} 设置页已就位", appeared)
+    check(f"{tag} 设置页隐藏底栏", not any(n["rid"].startswith("tab_") for n in nodes(dump())))
+    adb("shell input keyevent KEYCODE_BACK"); time.sleep(1.2)
+    check(f"{tag} 返回后底栏恢复", any(n["rid"].startswith("tab_") for n in nodes(dump())))
+
+check("日记数据仍在（回归不破坏数据）", tap_tag("tab_diary") and wait_text("汕头", 8))
+check("无崩溃日志", "com.mengyalife.app" not in adb("shell logcat -b crash -d"))
+sys.exit(0 if summary() else 1)

@@ -133,7 +133,7 @@ fun SettingsScreen(
                     )
                     GroupDivider()
                     Column(modifier = Modifier.padding(horizontal = 18.dp)) {
-                        KeyValueRow(label = "当前配置状态", value = "未配置（演示环境）")
+                        KeyValueRow(label = "当前配置状态", value = "未配置（未接入任何模型）")
                     }
                     GroupDivider()
                     SettingsRow(
@@ -176,36 +176,36 @@ fun SettingsScreen(
                 SettingsGroup(title = "数据与隐私") {
                     SettingsRow(
                         title = "本地数据管理",
-                        subtitle = "当前页面内容均为内置演示数据，未写入数据库",
-                        badge = "演示",
-                        dimmed = true,
+                        subtitle = "日记与目标保存在本机数据库（Room），不会上传",
+                        badge = "本机",
+                        dimmed = false,
                         testTag = "settings_local_data",
-                        onClick = { notify("本版本没有本地数据库，页面内容为演示数据") },
+                        onClick = { notify("日记与目标保存在本机数据库；本版本没有上传通道") },
                     )
                     GroupDivider()
                     SettingsRow(
                         title = "数据导入 / 导出",
-                        subtitle = "后续会支持本地文件的导入与导出",
+                        subtitle = "后续会支持把日记与目标导出成本地文件",
                         badge = "后续接入",
                         dimmed = true,
                         testTag = "settings_import_export",
-                        onClick = { notify("后续接入：当前没有可导入或导出的数据") },
+                        onClick = { notify("后续接入：目前还不能导出或导入数据") },
                     )
                     GroupDivider()
                     SettingsRow(
                         title = "数据采集与授权",
-                        subtitle = "本版本不采集任何数据，也不申请网络权限",
+                        subtitle = "不采集任何数据，应用未申请网络权限",
                         dimmed = true,
                         testTag = "settings_data_policy",
-                        onClick = { notify("本版本不采集任何数据，无网络权限") },
+                        onClick = { notify("本版本不采集任何数据，也未申请网络权限") },
                     )
                     GroupDivider()
                     SettingsRow(
                         title = "删除全部数据",
-                        subtitle = "该操作尚未实现，点击不会删除任何内容",
+                        subtitle = "该操作尚未实现：点击不会删除你的日记或目标",
                         dimmed = true,
                         testTag = "settings_delete_data",
-                        onClick = { notify("功能尚未实现：未删除任何数据") },
+                        onClick = { notify("功能尚未实现：未删除任何日记或目标") },
                     )
                 }
             }

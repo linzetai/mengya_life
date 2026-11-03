@@ -39,6 +39,7 @@ class JournalViewModel(
         val sheet: JournalSheet = JournalSheet.Closed,
         val editor: JournalEditor = JournalEditor(),
         val pendingDelete: JournalEntryEntity? = null,
+        val deleteError: String? = null,
     )
 
     private val localState = MutableStateFlow(LocalState())
@@ -55,6 +56,7 @@ class JournalViewModel(
                 sheet = local.sheet,
                 editor = local.editor,
                 pendingDelete = local.pendingDelete,
+                deleteError = local.deleteError,
                 readError = if (result.isFailure) "读取本地日记失败，请重启应用重试" else null,
             )
         }.stateIn(
@@ -98,12 +100,14 @@ class JournalViewModel(
             }
 
             is DiaryAction.RequestDelete -> localState.update {
-                it.copy(pendingDelete = action.entry)
+                it.copy(pendingDelete = action.entry, deleteError = null)
             }
 
             DiaryAction.ConfirmDelete -> confirmDelete()
 
-            DiaryAction.DismissDelete -> localState.update { it.copy(pendingDelete = null) }
+            DiaryAction.DismissDelete -> localState.update {
+                it.copy(pendingDelete = null, deleteError = null)
+            }
         }
     }
 
@@ -144,12 +148,29 @@ class JournalViewModel(
         }
     }
 
+    /**
+     * 删除确认。
+     *
+     * **只有真正删除成功才关闭弹窗**；失败时保留弹窗与记录上下文，并把错误显示出来。
+     * （Gate 2A 的缺陷：这里曾无条件关闭界面，导致删除失败被伪装成成功。）
+     */
     private fun confirmDelete() {
         val target = localState.value.pendingDelete ?: return
         viewModelScope.launch {
-            runCatching { repository.deleteEntry(target.id) }
-            localState.update {
-                it.copy(pendingDelete = null, sheet = JournalSheet.Closed, editor = JournalEditor())
+            val outcome = runCatching { repository.deleteEntry(target.id) }
+            val deleted = outcome.getOrNull() == true
+            if (deleted) {
+                localState.update {
+                    it.copy(
+                        pendingDelete = null,
+                        deleteError = null,
+                        sheet = JournalSheet.Closed,
+                        editor = JournalEditor(),
+                    )
+                }
+            } else {
+                val reason = outcome.exceptionOrNull()?.message ?: "记录不存在或已被删除"
+                localState.update { it.copy(deleteError = "删除失败：$reason") }
             }
         }
     }

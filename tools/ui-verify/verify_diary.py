@@ -1,0 +1,102 @@
+import os, sys, time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from harness import *
+
+# 说明：此时数据库中已有一条用户手动输入的中文日记（不得删除、不得清空）。
+# 因此本脚本不假设「列表为空」，只断言与本轮测试条目相关的行为。
+T1 = "G2Aflow"
+T2 = "G2Aflow-edit"
+
+def list_has(text):
+    return any(text in t for t in texts(dump()))
+
+print(">>> 起始状态")
+restart_app()
+check("主题归位为跟随系统", ensure_light_theme())
+tap_tag("tab_diary")
+time.sleep(1.2)
+check("无演示日记标题", not has_text("把节奏调慢了一档"))
+check("日记页无「演示数据」标签", not has_text("演示数据 · 非真实记录"))
+check("用户已有记录仍在（未被测试破坏）", wait_text("汕头", 6))
+shot("01-diary-existing")
+
+print(">>> 空正文不可保存")
+check("打开新建面板", tap_tag("diary_new"))
+check("面板内正文框可见", wait_tag("journal_body_input", 8))
+close_keyboard()
+tap_tag("journal_save")
+time.sleep(1.2)
+check("空正文出现明确错误", has_text("正文不能为空"))
+check("错误节点带测试标签", has_tag("journal_body_error"))
+check("面板仍打开", has_tag("journal_body_input"))
+shot("02-blank-body-error")
+adb("shell input keyevent KEYCODE_BACK")
+time.sleep(1.0)
+check("取消后未产生新记录", not list_has(T1))
+
+print(">>> 新建")
+tap_tag("diary_new")
+check("等待面板", wait_tag("journal_body_input", 8))
+tap_tag("journal_title_input")
+adb("shell input text '%s'" % T1)
+tap_tag("journal_body_input")
+adb("shell input text 'alpha%sworld'")
+close_keyboard()
+tap_tag("journal_save")
+check("新记录出现在列表", wait_text(T1, 10))
+shot("03-created")
+
+print(">>> 重启后仍在")
+restart_app()
+tap_tag("tab_diary")
+check("重启后新记录仍在", wait_text(T1, 10))
+shot("04-after-restart")
+
+print(">>> 编辑")
+check("点开详情", tap_text(T1))
+check("详情显示正文", wait_text("alpha world", 6))
+check("详情显示创建时间", has_text("创建于"))
+tap_tag("journal_edit")
+check("等待编辑面板", wait_tag("journal_title_input", 8))
+tap_tag("journal_title_input")
+adb("shell input keyevent KEYCODE_MOVE_END")
+adb("shell input text '%s'" % "-edit")
+close_keyboard()
+tap_tag("journal_save")
+check("编辑后标题更新", wait_text(T2, 10))
+check("列表显示已编辑标记", has_text("已编辑"))
+shot("05-edited")
+
+print(">>> 编辑后重启")
+restart_app()
+tap_tag("tab_diary")
+check("重启后编辑结果仍在", wait_text(T2, 10))
+shot("06-after-edit-restart")
+
+print(">>> 删除：取消")
+tap_text(T2)
+time.sleep(0.8)
+check("打开删除确认", tap_tag("journal_delete"))
+check("确认框出现", wait_text("删除这条日记？", 6))
+shot("07-delete-confirm")
+tap_text("取消")
+time.sleep(1.2)
+check("取消后记录仍在", has_text(T2))
+
+print(">>> 删除：确认")
+tap_text(T2)
+time.sleep(1.0)
+tap_tag("journal_delete")
+check("再次确认框", wait_text("删除这条日记？", 6))
+tap_text("删除")
+check("确认后记录消失", wait_gone_text(T2, 10))
+check("用户原有记录未受影响", wait_text("汕头", 6))
+shot("08-deleted")
+
+print(">>> 删除后重启")
+restart_app()
+tap_tag("tab_diary")
+check("重启后测试记录不存在", not has_text(T2))
+check("重启后用户记录仍在", wait_text("汕头", 6))
+
+sys.exit(0 if summary() else 1)

@@ -3,6 +3,7 @@ package com.mengyalife.app.di
 import android.content.Context
 import com.mengyalife.app.data.local.MengyaDatabase
 import com.mengyalife.app.data.preferences.ThemePreferences
+import com.mengyalife.app.data.repository.GoalRepository
 import com.mengyalife.app.data.repository.JournalRepository
 
 /**
@@ -18,6 +19,10 @@ class AppContainer(context: Context) {
 
     val journalRepository: JournalRepository by lazy {
         JournalRepository(database.journalEntryDao())
+    }
+
+    val goalRepository: GoalRepository by lazy {
+        GoalRepository(database.goalDao())
     }
 
     val themePreferences: ThemePreferences by lazy {

@@ -11,12 +11,17 @@ package com.mengyalife.app.data
  */
 object DemoData {
 
-    /** 所有页面统一的演示数据声明。 */
+    /** 用于**仍在演示的卡片**的标记（日记、目标已改为真实数据，不再使用）。 */
     const val NOTICE = "演示数据 · 非真实记录"
 
-    /** 设置页中关于数据来源的统一说明。 */
+    /**
+     * 设置页中关于数据来源的统一说明。
+     *
+     * 必须与实际情况一致：日记与目标已经是真实本地数据，
+     * 只有总览里的趋势与洞察仍是演示内容。
+     */
     const val DATA_SCOPE_NOTE =
-        "当前版本不读取、不上传任何真实数据；页面内容均为内置演示数据。"
+        "日记与目标保存在本机数据库，不会上传；总览中的成长趋势与近期洞察仍是演示内容。"
 
     // -----------------------------------------------------------------------
     // 总览
@@ -50,109 +55,10 @@ object DemoData {
 
     // -----------------------------------------------------------------------
     // 目标
+    //
+    // 注意：Gate 2B 起目标来自 Room（goals / goal_checkins 两张表），
+    // 此处不再保留任何「示例目标」——避免新用户误以为已有自己的目标。
     // -----------------------------------------------------------------------
-
-    enum class GoalDimension(val label: String, val testTag: String) {
-        ALL("全部", "goal_filter_all"),
-        HEALTH("健康", "goal_filter_health"),
-        CAREER("职业", "goal_filter_career"),
-        WEALTH("财富", "goal_filter_wealth"),
-        LIFE("生活", "goal_filter_life"),
-    }
-
-    data class StageGoal(
-        val title: String,
-        val progress: Float,
-        val shortGoals: List<String>,
-    )
-
-    data class LongGoal(
-        val dimension: GoalDimension,
-        val title: String,
-        val horizon: String,
-        val summary: String,
-        val progress: Float,
-        val stages: List<StageGoal>,
-    )
-
-    val goals = listOf(
-        LongGoal(
-            dimension = GoalDimension.HEALTH,
-            title = "把身体状态维持在可持续的基准线上",
-            horizon = "长期 · 10 年",
-            summary = "不追求短期极限，而是让运动、睡眠、饮食形成可以持续十年的默认习惯。",
-            progress = 0.45f,
-            stages = listOf(
-                StageGoal(
-                    title = "阶段：建立稳定的运动习惯",
-                    progress = 0.70f,
-                    shortGoals = listOf("每周完成三次有氧或力量训练", "每周一次较长距离的步行"),
-                ),
-                StageGoal(
-                    title = "阶段：睡眠与精力基线",
-                    progress = 0.40f,
-                    shortGoals = listOf("固定入睡时间段", "每日记录一次精力状态"),
-                ),
-            ),
-        ),
-        LongGoal(
-            dimension = GoalDimension.CAREER,
-            title = "把工程能力沉淀为可复用的方法论",
-            horizon = "长期 · 8 年",
-            summary = "从「能完成需求」走向「能定义问题、沉淀方法、带人一起做对」。",
-            progress = 0.35f,
-            stages = listOf(
-                StageGoal(
-                    title = "阶段：深耕一个技术方向",
-                    progress = 0.60f,
-                    shortGoals = listOf("每季度输出一篇技术复盘", "完成一次系统性学习计划"),
-                ),
-                StageGoal(
-                    title = "阶段：形成可迁移的方法",
-                    progress = 0.30f,
-                    shortGoals = listOf("整理个人知识库索引", "把一次项目经验写成可复用手册"),
-                ),
-            ),
-        ),
-        LongGoal(
-            dimension = GoalDimension.WEALTH,
-            title = "建立与人生阶段匹配的财务安全垫",
-            horizon = "长期 · 10 年",
-            summary = "目标是抗风险能力，而不是收益竞赛；先保证底线，再谈配置。",
-            progress = 0.50f,
-            stages = listOf(
-                StageGoal(
-                    title = "阶段：应急储备",
-                    progress = 0.80f,
-                    shortGoals = listOf("储备覆盖六个月必要支出"),
-                ),
-                StageGoal(
-                    title = "阶段：长期配置计划",
-                    progress = 0.30f,
-                    shortGoals = listOf("制定年度储蓄与配置比例", "每半年复盘一次风险敞口"),
-                ),
-            ),
-        ),
-        LongGoal(
-            dimension = GoalDimension.LIFE,
-            title = "保持与家人和朋友的稳定连接",
-            horizon = "长期 · 持续",
-            summary = "把陪伴写进日程，而不是等有空的时候再说。",
-            progress = 0.55f,
-            stages = listOf(
-                StageGoal(
-                    title = "阶段：固定的陪伴时间",
-                    progress = 0.60f,
-                    shortGoals = listOf("每周一次不被打扰的家庭时间"),
-                ),
-                StageGoal(
-                    title = "阶段：持续学习与兴趣",
-                    progress = 0.40f,
-                    shortGoals = listOf("每月读完一本非技术书"),
-                ),
-            ),
-        ),
-    )
 
     // -----------------------------------------------------------------------
     // 趋势

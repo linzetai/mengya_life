@@ -28,6 +28,7 @@ data class DiaryUiState(
     val sheet: JournalSheet = JournalSheet.Closed,
     val editor: JournalEditor = JournalEditor(),
     val pendingDelete: JournalEntryEntity? = null,
+    val deleteError: String? = null,
     val readError: String? = null,
 )
 

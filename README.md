@@ -1,7 +1,7 @@
 # 萌芽人生 · Mengya Life
 
 > Android 应用。**工程名 MengyaLife**，包名 `com.mengyalife.app`。
-> 当前版本 **0.3.0-g2a**（Gate 2A：本地数据基础 + 日记持久化 + 主题持久化）。
+> 当前版本 **0.4.0-g2b**（Gate 2B：三层目标系统 + 数据库 v2 迁移）。
 >
 > 技术栈：Kotlin + Jetpack Compose + Material 3 + **Room** + **DataStore**，local-first。
 > 本轮仍**不接 AI、不接后端、不申请网络权限**。
@@ -14,16 +14,19 @@
 |---|---|
 | 五个一级页面（总览 / 目标 / 趋势 / 日记 / 顾问） | ✅ 沿用 Gate 1 |
 | 独立设置页 + 三态主题 | ✅ 主题已改为 **DataStore 持久化** |
-| 日记：Room 真实存储 / 新建 / 查看 / 编辑 / 删除确认 / 空状态 | ✅ 本轮完成 |
+| 日记：Room 真实存储 / 新建 / 查看 / 编辑 / 删除确认 / 空状态 | ✅ Gate 2A |
+| 目标：长期→阶段→短期行动 三层、进展记录、状态、删除影响提示 | ✅ **Gate 2B 本轮完成** |
+| 总览：读取真实长期目标与最近进展 | ✅ Gate 2B |
+| 数据库 v2（goals / goal_checkins）+ 真机 v1→v2 迁移验证 | ✅ Gate 2B |
 | 空正文拦截（不静默失败） | ✅ 已实现并验证 |
 | 主题重启后保持 | ✅ 已实现并验证（含「跟随系统」响应系统切换） |
 | 演示数据与真实数据分离 | ✅ 日记页已**移除全部演示日记** |
-| 单元测试（JVM，无需真机） | ✅ 16 个用例全通过 |
-| 真机自动化验收 | ✅ 72 项断言全通过（见 §12） |
+| 单元测试（JVM，无需真机） | ✅ 50 个用例全通过 |
+| 真机自动化验收 | ✅ 80 项断言，单次连续通过（见 §12） |
 | Gate 0 / Gate 1 报告 | `docs/reports/REPORT-G0-Android-Build.md`、`REPORT-G1-UI-SHELL.md` |
-| Gate 2A 报告 | `docs/reports/REPORT-G2A-LOCAL-DATA.md` |
+| Gate 2A / 2B 报告 | `docs/reports/REPORT-G2A-LOCAL-DATA.md`、`REPORT-G2B-GOALS.md` |
 
-**Gate 2A 结论：PASS**。
+**Gate 2B 结论：PASS**。
 
 ---
 
@@ -133,6 +136,22 @@ Compose 编译器 2.2.0 / compileSdk·targetSdk 35 / minSdk 26 / build-tools 35.
 
 ## 6. 数据库
 
+**v2**（Gate 2B）在 v1 基础上新增两张表，`journal_entries` 未改动：
+
+```sql
+-- 目标（自引用，parent_id → goals.id，级联删除）
+CREATE TABLE `goals` (
+  id, title, description, level, parent_id, domain, status,
+  start_date, due_date, created_at, updated_at
+);
+-- 进展记录（goal_id → goals.id，级联删除）
+CREATE TABLE `goal_checkins` (
+  id, goal_id, recorded_at, note, metric_value, metric_unit, source
+);
+```
+
+v1 的表结构（保持不变）：
+
 ```sql
 CREATE TABLE `journal_entries` (
   `id`         INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -144,7 +163,8 @@ CREATE TABLE `journal_entries` (
 CREATE INDEX `index_journal_entries_updated_at` ON `journal_entries` (`updated_at`);
 ```
 
-- 版本 **v1**，`PRAGMA user_version = 1`，schema 导出在 `app/schemas/`（随源码提交）。
+- 版本 **v2**，`PRAGMA user_version = 2`，schema 导出在 `app/schemas/`（1.json / 2.json 均保留）。
+- 迁移 `MIGRATION_1_2` 只建新表，**真机覆盖安装实测日记逐字段未变**。
 - 列表固定 `ORDER BY updated_at DESC, id DESC`。
 - **不使用** `fallbackToDestructiveMigration()`：缺迁移时 Room 抛异常而不是清库。
 - 迁移策略：改表必须 version+1 并提供 `Migration`，对照 `app/schemas/` 两份 JSON 写，
@@ -216,24 +236,25 @@ adb shell am start -W -n com.mengyalife.app/.MainActivity
 
 | 验证 | 方式 | 结果 |
 |---|---|---|
-| 业务规则 / 时间戳 / 仓库行为 | JVM 单元测试 | **16/16** |
-| 新建 → 重启 → 编辑 → 重启 → 删除 → 重启 | 真机自动化 | **28/28** |
-| 主题三态 + 重启保持 + 跟随系统 | 真机自动化（亮度断言） | **11/11** |
-| 五页 / 设置 / 返回回归 | 真机自动化 | **28/28** |
-| 中文日记 + 重启保持 + 详情 | 真机自动化 | **5/5** |
+| 规则 / 时间戳 / 仓库 / ViewModel | JVM 单元测试 | **50/50** |
+| 目标三层 + 层级合法性 + 进展 + 状态 + 编辑 + 删除影响 | 真机自动化 | 见下 |
+| 日记 CRUD / 主题三态 / 导航回归 | 真机自动化 | 见下 |
+| **单次连续完整回归** | 真机自动化 | **80/80** |
 | 数据库内容 | 导出 `.db` + `sqlite3` 查询 | 见报告 §6 |
 
-APK：`10,762,270` 字节，
-SHA-256 `5eb18f17c7546889516c855cfeafb53044c62ff9c305ffe3754adede6d018001`
-（设备内回读哈希与交付 APK **一致**）。
+APK：`11,088,320` 字节，
+SHA-256 `a367460605649d6ca052fc6e6476d590ce87f3f8622611b18c7809d7d91f4907`
+（= 真机验收所用二进制；clean 重建产物字节不同，见 Gate 2B 报告 §7.1）。
 
 ---
 
 ## 13. 已知限制
 
-1. **日记只在本机**：没有导出/备份，卸载应用即丢失（本轮范围）。
+1. **日记与目标只在本机**：没有导出/备份，卸载应用即丢失。
 2. **顾问仍是演示**：发送不调用任何模型；日记的「AI 提取」区是占位，不会分析内容。
-3. **目标 / 趋势仍是静态演示数据**，不做真实计算。
+3. **趋势页仍是静态演示数据**；总览的曲线与洞察也是，已逐张标注「演示」。
+4. **目标不能跨层级移动**；建错只能删除重建（环检测已就绪，留待后续）。
+5. **没有回收站**：目标删除为硬删除，但有影响范围提示 + 二次确认。
 4. **长正文上限 20,000 字**（软护栏），超出会给出明确错误。
 5. **未做迁移测试**：v1 是首个版本，尚无历史迁移可测；规则已写入代码注释与报告。
 6. **主题切换后界面会瞬时重建**，极短时间内可能看到一次重绘。
@@ -242,6 +263,7 @@ SHA-256 `5eb18f17c7546889516c855cfeafb53044c62ff9c305ffe3754adede6d018001`
 
 ## 14. 下一步（Gate 2B 候选）
 
-- Room 迁移测试基建（`MigrationTestHelper`）+ 第二张表（目标）落地前的表设计评审。
-- 日记导出/导入（本地文件），配合「数据与隐私」分组从占位变为可用。
-- 把本轮的真机自动化脚本沉淀到 `tools/ui-verify/`，作为每轮回归基线。
+- Room 迁移测试基建（`MigrationTestHelper`），把 v1→v2 变成可自动重跑的用例。
+- 目标进展可视化（数值目标的历史折线）与「目标移动」。
+- 日记 / 目标导出（注意 WAL：必须同时处理 `-wal`/`-shm` 或先 checkpoint）。
+- `tools/ui-verify/run_all.sh` 已入库，扩成「构建 → 单测 → 装机 → 回归」一条链。

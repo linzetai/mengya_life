@@ -1,0 +1,65 @@
+>>> 清空遗留目标
+PASS  目标库已清空
+>>> 新建长期目标
+PASS  长期目标：面板出现
+PASS  长期目标出现在列表
+>>> 长期目标菜单层级合法性
+PASS  打开长期目标菜单
+PASS  含「新建阶段目标」  ['记录进展', '进展历史', '修改状态', '编辑', '新建阶段目标', '删除']
+PASS  不含「新建短期行动」  ['记录进展', '进展历史', '修改状态', '编辑', '新建阶段目标', '删除']
+PASS  阶段目标：面板出现
+PASS  展开长期目标
+PASS  树上是两层  [7, 8]
+PASS  阶段标题正确
+>>> 阶段菜单层级合法性
+PASS  打开阶段菜单
+PASS  含「新建短期行动」  ['记录进展', '进展历史', '修改状态', '编辑', '新建短期行动', '删除']
+PASS  不含「新建阶段目标」  ['记录进展', '进展历史', '修改状态', '编辑', '新建短期行动', '删除']
+PASS  短期行动：面板出现
+PASS  展开阶段目标
+PASS  树上是三层  [7, 8, 9]
+PASS  行动标题正确
+PASS  三层同时可见
+>>> 记录进展
+PASS  打开阶段菜单
+PASS  进展面板出现
+PASS  进展计数出现
+>>> 进展历史
+PASS  打开阶段菜单
+PASS  历史含说明
+PASS  历史含数值
+>>> 修改状态
+PASS  打开行动菜单
+PASS  状态对话框出现
+PASS  点选已完成
+>>> 编辑短期行动
+FAIL  打开行动菜单
+FAIL  编辑面板出现
+FAIL  编辑生效
+>>> 数据库级校验
+PASS  schema 版本为 2  user_version=2
+PASS  目标是 3 条  [(7, 'LongHealth', 'LONG_TERM', None, 'NOT_STARTED'), (8, 'StageA', 'STAGE', 7, 'IN_PROGRESS'), (9, 'ActionA', 'ACTION', 8, 'NOT_STARTED')]
+PASS  三层齐全  {'ACTION', 'LONG_TERM', 'STAGE'}
+PASS  阶段父级指向长期  (8, 'StageA', 'STAGE', 7, 'IN_PROGRESS')
+PASS  行动父级指向阶段  (9, 'ActionA', 'ACTION', 8, 'NOT_STARTED')
+FAIL  行动状态已持久化为 DONE  NOT_STARTED
+FAIL  行动标题已编辑  ActionA
+PASS  进展记录 1 条且来源 manual  [(3, 8, 'did three sessions', 3.0, 'times', 'manual')]
+PASS  进展绑定到阶段且带数值  (3, 8, 'did three sessions', 3.0, 'times', 'manual')
+PASS  迁移前日记仍在（2 条）  [(6, 'MigrationA', 'alpha v1 content', 1793636289310, 1793636289310), (7, 'MigrationB', 'beta v1 content', 1793636317600, 1793636317600)]
+>>> 重启后保留
+PASS  长期目标仍在
+PASS  阶段仍在
+FAIL  行动标题已编辑
+PASS  进展计数仍在
+>>> 总览读取真实目标
+PASS  总览显示长期目标
+PASS  总览显示真实计数  ['长期目标读的是你的真实记录，其余为演示内容', '长期目标', '共 1 个长期目标']
+
+==== SUMMARY: 40/46 passed ====
+FAILED: 打开行动菜单 
+FAILED: 编辑面板出现 
+FAILED: 编辑生效 
+FAILED: 行动状态已持久化为 DONE NOT_STARTED
+FAILED: 行动标题已编辑 ActionA
+FAILED: 行动标题已编辑 

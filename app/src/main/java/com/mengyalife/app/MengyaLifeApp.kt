@@ -14,14 +14,16 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -33,13 +35,18 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mengyalife.app.data.DemoData
+import com.mengyalife.app.domain.goals.GoalLevel
 import com.mengyalife.app.navigation.AppTab
 import com.mengyalife.app.ui.components.AppTopBar
+import com.mengyalife.app.ui.goals.GoalAction
+import com.mengyalife.app.ui.goals.GoalsUiState
+import com.mengyalife.app.ui.goals.GoalsViewModel
 import com.mengyalife.app.ui.journal.DiaryAction
 import com.mengyalife.app.ui.journal.DiaryUiState
 import com.mengyalife.app.ui.journal.JournalViewModel
 import com.mengyalife.app.ui.screens.AdvisorScreen
 import com.mengyalife.app.ui.screens.DiaryScreen
+import com.mengyalife.app.ui.screens.GoalOverlays
 import com.mengyalife.app.ui.screens.GoalsScreen
 import com.mengyalife.app.ui.screens.OverviewScreen
 import com.mengyalife.app.ui.screens.SettingsScreen
@@ -51,38 +58,37 @@ import com.mengyalife.app.ui.theme.ThemeMode
 /**
  * App 根组件：只负责**装配**。
  *
- * Gate 2A 起的分工：
  * - 导航状态（当前一级页 / 是否在设置页）留在这里；
- * - 日记的业务状态与动作交给 [JournalViewModel]；
- * - 主题偏好的读写交给 [ThemeViewModel]（DataStore）；
- * - 各页面纯渲染 —— 这里不再出现任何数据库或时间戳逻辑。
+ * - 日记 → [JournalViewModel]；目标 → [GoalsViewModel]；主题 → [ThemeViewModel]；
+ * - 各页面纯渲染，根组件里不出现数据库、时间戳或校验逻辑。
  */
 @Composable
 fun MengyaLifeApp() {
-    // ---- 主题：来自 DataStore，读盘期间先按「跟随系统」渲染 ----
+    // ---- 主题 ----
     val themeViewModel: ThemeViewModel = viewModel(factory = ThemeViewModel.Factory)
     val persistedThemeMode by themeViewModel.themeMode.collectAsStateWithLifecycle()
     val themeMode: ThemeMode = persistedThemeMode ?: ThemeMode.SYSTEM
 
-    // ---- 日记：来自 Room，状态由 ViewModel 持有 ----
+    // ---- 日记 ----
     val journalViewModel: JournalViewModel = viewModel(factory = JournalViewModel.Factory)
     val diaryState by journalViewModel.uiState.collectAsStateWithLifecycle()
+
+    // ---- 目标 ----
+    val goalsViewModel: GoalsViewModel = viewModel(factory = GoalsViewModel.Factory)
+    val goalsState by goalsViewModel.uiState.collectAsStateWithLifecycle()
 
     // ---- 导航状态 ----
     var currentTab by rememberSaveable { mutableStateOf(AppTab.OVERVIEW) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
 
-    // ---- 页面滚动位置（上提，进设置返回不丢）----
+    // ---- 页面滚动位置（进设置返回不丢）----
     val overviewListState = rememberLazyListState()
     val goalsListState = rememberLazyListState()
     val trendsListState = rememberLazyListState()
     val diaryListState = rememberLazyListState()
     val advisorListState = rememberLazyListState()
 
-    // ---- 仍是纯演示、尚未入库的页面状态 ----
-    var goalDimension by rememberSaveable { mutableStateOf(DemoData.GoalDimension.ALL) }
-    val doneShortGoals = remember { mutableStateListOf<String>() }
-
+    // ---- 仍是纯演示、尚未入库的页面状态（顾问对话）----
     var advisorInput by rememberSaveable { mutableStateOf("") }
     var nextMessageId by remember { mutableLongStateOf(1000L) }
     val advisorMessages = remember {
@@ -124,14 +130,14 @@ fun MengyaLifeApp() {
                     trendsListState = trendsListState,
                     diaryListState = diaryListState,
                     advisorListState = advisorListState,
-                    goalDimension = goalDimension,
-                    onGoalDimensionChange = { goalDimension = it },
-                    doneShortGoals = doneShortGoals,
-                    onToggleShortGoal = { text ->
-                        if (text in doneShortGoals) doneShortGoals.remove(text) else doneShortGoals.add(text)
-                    },
                     diaryState = diaryState,
                     onDiaryAction = journalViewModel::onAction,
+                    goalsState = goalsState,
+                    onGoalAction = goalsViewModel::onAction,
+                    onCreateGoalFromOverview = {
+                        currentTab = AppTab.GOALS
+                        goalsViewModel.onAction(GoalAction.NewGoal(GoalLevel.LONG_TERM, null))
+                    },
                     advisorInput = advisorInput,
                     onAdvisorInputChange = { advisorInput = it },
                     advisorMessages = advisorMessages,
@@ -139,11 +145,7 @@ fun MengyaLifeApp() {
                         val text = advisorInput.trim()
                         if (text.isNotEmpty()) {
                             advisorMessages.add(
-                                DemoData.ChatMessage(
-                                    id = nextMessageId++,
-                                    fromUser = true,
-                                    text = text,
-                                ),
+                                DemoData.ChatMessage(id = nextMessageId++, fromUser = true, text = text),
                             )
                             advisorMessages.add(
                                 DemoData.ChatMessage(
@@ -160,6 +162,9 @@ fun MengyaLifeApp() {
                     onUseAdvisorSuggestion = { suggestion -> advisorInput = suggestion },
                 )
             }
+
+            // 目标的编辑 / 进展 / 历史 / 删除确认：跨页面可用
+            GoalOverlays(state = goalsState, onAction = goalsViewModel::onAction)
         }
     }
 }
@@ -174,27 +179,32 @@ private fun MainShell(
     trendsListState: LazyListState,
     diaryListState: LazyListState,
     advisorListState: LazyListState,
-    goalDimension: DemoData.GoalDimension,
-    onGoalDimensionChange: (DemoData.GoalDimension) -> Unit,
-    doneShortGoals: List<String>,
-    onToggleShortGoal: (String) -> Unit,
     diaryState: DiaryUiState,
     onDiaryAction: (DiaryAction) -> Unit,
+    goalsState: GoalsUiState,
+    onGoalAction: (GoalAction) -> Unit,
+    onCreateGoalFromOverview: () -> Unit,
     advisorInput: String,
     onAdvisorInputChange: (String) -> Unit,
     advisorMessages: List<DemoData.ChatMessage>,
     onSendAdvisorMessage: () -> Unit,
     onUseAdvisorSuggestion: (String) -> Unit,
 ) {
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // 目标操作的结果提示（删除影响、状态更新、失败原因）
+    LaunchedEffect(goalsState.message) {
+        val message = goalsState.message ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        onGoalAction(GoalAction.ConsumeMessage)
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
-            // 五个一级页面共用同一个顶栏：右侧统一是齿轮设置按钮。
-            AppTopBar(
-                title = currentTab.label,
-                onSettingsClick = onOpenSettings,
-            )
+            AppTopBar(title = currentTab.label, onSettingsClick = onOpenSettings)
         },
         bottomBar = {
             NavigationBar(
@@ -205,12 +215,7 @@ private fun MainShell(
                     NavigationBarItem(
                         selected = currentTab == tab,
                         onClick = { onTabChange(tab) },
-                        icon = {
-                            Icon(
-                                imageVector = tab.icon,
-                                contentDescription = tab.label,
-                            )
-                        },
+                        icon = { Icon(imageVector = tab.icon, contentDescription = tab.label) },
                         label = { Text(text = tab.label, style = MaterialTheme.typography.labelSmall) },
                         modifier = Modifier.testTag(tab.testTag),
                         colors = NavigationBarItemDefaults.colors(
@@ -233,15 +238,16 @@ private fun MainShell(
             when (currentTab) {
                 AppTab.OVERVIEW -> OverviewScreen(
                     listState = overviewListState,
+                    goals = goalsState.snapshot,
+                    onOpenGoals = { onTabChange(AppTab.GOALS) },
+                    onCreateGoal = onCreateGoalFromOverview,
                     onOpenAdvisor = { onTabChange(AppTab.ADVISOR) },
                 )
 
                 AppTab.GOALS -> GoalsScreen(
                     listState = goalsListState,
-                    selectedDimension = goalDimension,
-                    onDimensionChange = onGoalDimensionChange,
-                    doneShortGoals = doneShortGoals.toSet(),
-                    onToggleShortGoal = onToggleShortGoal,
+                    state = goalsState,
+                    onAction = onGoalAction,
                 )
 
                 AppTab.TRENDS -> TrendsScreen(listState = trendsListState)

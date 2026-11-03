@@ -1,0 +1,96 @@
+========== 0. 清理遗留目标 ==========
+PASS  目标库已清空
+PASS  空状态无预置示例目标
+========== 1. 建立三层目标 ==========
+PASS  长期目标：面板出现
+PASS  长期目标出现在列表
+PASS  长期菜单可打开
+PASS  长期菜单含「新建阶段目标」  ['记录进展', '进展历史', '修改状态', '编辑', '新建阶段目标', '删除']
+PASS  长期菜单不含「新建短期行动」（禁止跳级）  ['记录进展', '进展历史', '修改状态', '编辑', '新建阶段目标', '删除']
+PASS  阶段目标：面板出现
+PASS  树上是两层  [18, 19]
+PASS  阶段标题正确
+PASS  阶段菜单可打开
+PASS  阶段菜单含「新建短期行动」  ['记录进展', '进展历史', '修改状态', '编辑', '新建短期行动', '删除']
+PASS  阶段菜单不含「新建阶段目标」（禁止跳级）  ['记录进展', '进展历史', '修改状态', '编辑', '新建短期行动', '删除']
+PASS  短期行动：面板出现
+PASS  树上是三层  [18, 19, 20]
+PASS  三层同时可见
+========== 2. 进展记录 + 历史 ==========
+PASS  打开阶段菜单
+PASS  进展面板出现
+PASS  进展计数出现
+PASS  打开阶段菜单
+PASS  历史含说明
+PASS  历史含数值
+========== 3. 状态 + 编辑 ==========
+PASS  打开行动菜单
+PASS  状态对话框出现
+PASS  点选「已完成」
+PASS  对话框已关闭
+PASS  打开行动菜单
+PASS  编辑行动：面板出现
+PASS  编辑生效（标题已变化）  ActionAB
+========== 4. 数据库校验 ==========
+PASS  schema 版本为 2  user_version=2
+PASS  目标共 3 条  [(18, 'LongHealth', 'LONG_TERM', None, 'NOT_STARTED'), (19, 'StageA', 'STAGE', 18, 'IN_PROGRESS'), (20, 'ActionAB', 'ACTION', 19, 'DONE')]
+PASS  阶段父级=长期  (19, 'StageA', 'STAGE', 18, 'IN_PROGRESS')
+PASS  行动父级=阶段  (20, 'ActionAB', 'ACTION', 19, 'DONE')
+PASS  行动状态持久化为 DONE  DONE
+PASS  行动标题已编辑并持久化  ActionAB
+PASS  进展 1 条、来源 manual、绑定阶段  [(5, 19, 'did three sessions', 3.0, 'times', 'manual')]
+PASS  进展数值与单位正确  (5, 19, 'did three sessions', 3.0, 'times', 'manual')
+PASS  v1 迁移来的日记 2 条且内容未变  [(6, 'MigrationA', 'alpha v1 content', 1793636289310, 1793636289310), (7, 'MigrationB', 'beta v1 content', 1793636317600, 1793636317600)]
+========== 5. 重启后保留 ==========
+PASS  长期目标仍在
+PASS  阶段仍在
+PASS  行动标题仍是编辑后的
+PASS  进展计数仍在
+========== 6. 总览联动 ==========
+PASS  总览显示真实长期目标
+PASS  总览显示真实计数
+PASS  总览仍标注演示区块
+========== 7. 删除影响范围 ==========
+PASS  打开长期菜单
+PASS  删除确认框
+PASS  明确列出影响范围  删除后，还会一并删除：1 个阶段目标、1 个短期行动、1 条进展记录。
+PASS  取消后目标仍在
+PASS  再次删除
+PASS  确认后已删除
+PASS  回到空状态
+PASS  重启后仍为空
+PASS  数据库里目标已清空  []
+PASS  数据库里无孤儿进展  []
+PASS  日记仍未受影响  2
+========== 8. 总览空状态 ==========
+PASS  总览目标区显示空状态
+PASS  总览提供真实创建入口
+========== 9. 日记回归 ==========
+PASS  日记新建成功
+PASS  日记重启后仍在
+PASS  日记删除确认
+PASS  日记删除成功
+========== 10. 主题回归 ==========
+PASS  设为深色
+PASS  重启后仍是深色
+PASS  深色外观仍在  L=26.435743342920873
+========== 11. 导航回归 ==========
+PASS  切换到 tab_overview
+PASS  tab_overview 内容正常  你正在走的方向
+PASS  切换到 tab_goals
+PASS  tab_goals 内容正常  把方向拆成能推进的层级
+PASS  切换到 tab_trends
+PASS  tab_trends 内容正常  看见变化，而不是凭感觉
+PASS  切换到 tab_diary
+PASS  tab_diary 内容正常  把今天留下来
+PASS  顾问页可进入
+PASS  可进入设置
+PASS  设置页已就位
+PASS  设置页隐藏底栏
+PASS  返回后底栏恢复
+========== 12. 稳定性 ==========
+PASS  本应用无崩溃记录  --------- beginning of crash
+11-03 00:24:48.813 25839 25839 F libc    : FORTIFY: pthread_mutex_lock called on a destroye
+PASS  应用进程存活
+
+==== SUMMARY: 80/80 passed ====
