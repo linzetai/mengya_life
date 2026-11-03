@@ -52,6 +52,9 @@ class GoalsViewModel(
     private val snapshotFlow: StateFlow<GoalSnapshot> = repository.observeSnapshot()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GoalSnapshot())
 
+    private val trendsFlow = repository.observeTrends()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.mengyalife.app.data.repository.TrendSnapshot())
+
     private val historyFlow = localState
         .distinctUntilChanged { old, new -> old.historyFor?.id == new.historyFor?.id }
         .flatMapLatest { state ->
@@ -63,10 +66,12 @@ class GoalsViewModel(
         snapshotFlow,
         localState,
         historyFlow,
-    ) { snapshot, local, history ->
+        trendsFlow,
+    ) { snapshot, local, history, trends ->
         GoalsUiState(
             loading = false,
             snapshot = snapshot,
+            trends = trends,
             expandedIds = local.expandedIds,
             editor = local.editor,
             checkin = local.checkin,
@@ -262,7 +267,8 @@ class GoalsViewModel(
             val result = repository.addCheckin(
                 goalId = goalId,
                 note = state.note,
-                metricValue = state.metric.trim().takeIf { it.isNotEmpty() }?.toDoubleOrNull(),
+                // 文本 → Double 只在这一处发生；非有限数由仓库层再次拒绝。
+                metricValue = GoalRules.parseMetric(state.metric),
                 metricUnit = state.unit,
             )
             when (result) {

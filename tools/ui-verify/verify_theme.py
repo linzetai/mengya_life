@@ -2,6 +2,9 @@ import os, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from harness import *
 
+# 主题测试会写 DataStore；只允许跑 QA 包，避免改动正式版偏好。
+require_qa("verify_theme.py")
+
 def open_theme_section():
     if not has_tag("btn_settings"):
         tap_tag("tab_overview")
@@ -64,7 +67,7 @@ print(">>> 还原系统 auto + 重启后仍跟随系统")
 set_system_night("auto")
 restart_app()
 open_theme_section()
-check("重启后仍未跟随系统选项", checked().get("theme_system") == "true", str(checked()))
+check("重启后仍选中跟随系统", checked().get("theme_system") == "true", str(checked()))
 back()
 
 sys.exit(0 if summary() else 1)

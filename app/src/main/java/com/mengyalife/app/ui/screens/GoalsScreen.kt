@@ -134,15 +134,25 @@ private fun GoalSummaryCard(state: GoalsUiState) {
     val snapshot = state.snapshot
     SectionCard(
         title = "目标概览",
-        subtitle = if (snapshot.totalGoals == 0) "还没有任何目标" else "共 ${snapshot.totalGoals} 个目标",
+        subtitle = if (snapshot.totalGoals == 0) "还没有任何目标" else "共 ${snapshot.totalGoals} 个目标（含全部层级）",
         modifier = Modifier.testTag("goal_summary"),
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             SummaryMetric("长期目标", "${snapshot.longTermCount}")
-            SummaryMetric("进行中", "${snapshot.inProgressCount}")
-            SummaryMetric("已完成", "${snapshot.doneCount}")
+            SummaryMetric("阶段目标", "${snapshot.stageCount}")
+            SummaryMetric("短期行动", "${snapshot.actionCount}")
         }
         Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            SummaryMetric("进行中（全部层级）", "${snapshot.inProgressCount}")
+            SummaryMetric("已完成（全部层级）", "${snapshot.doneCount}")
+        }
+        Spacer(Modifier.height(10.dp))
+        InlineNote(
+            "「进行中」只统计状态为「进行中」的目标，不包含未开始 / 已暂停 / 已取消。" +
+                "长期目标里进行中 ${snapshot.longTermInProgressCount} 个。",
+        )
+        Spacer(Modifier.height(8.dp))
         InlineNote(
             snapshot.lastCheckinAt?.let { "最近一次进展记录：" + Timestamps.formatDateTime(it) }
                 ?: "还没有进展记录",
@@ -266,7 +276,7 @@ private fun GoalNodeCard(
                 goal.dueDate?.let { due ->
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        text = "截止 " + Timestamps.formatDate(due),
+                        text = "截止 " + Timestamps.formatDateUtc(due),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

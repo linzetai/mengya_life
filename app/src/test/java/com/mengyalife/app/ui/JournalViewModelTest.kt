@@ -38,6 +38,8 @@ private class ControllableJournalDao : JournalEntryDao {
 
     override suspend fun count(): Int = state.value.size
 
+    override suspend fun loadAll(): List<JournalEntryEntity> = state.value.sortedBy { it.id }
+
     override suspend fun insert(entry: JournalEntryEntity): Long {
         val id = nextId++
         state.update { it + entry.copy(id = id) }

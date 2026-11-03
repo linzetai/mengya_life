@@ -20,3 +20,10 @@ captures/
 *.apk
 *.aab
 !docs/reports/logs/*.apk.sha256
+
+# Python 测试脚本缓存
+__pycache__/
+*.pyc
+
+# 证据包未压缩目录（只提交 zip）
+docs/reports/evidence/G2C-evidence/

@@ -44,9 +44,14 @@ private class FakeGoalDao : GoalDao {
     override fun observeRecentCheckins(limit: Int): Flow<List<GoalCheckinEntity>> =
         checkins.map { list -> list.sortedByDescending { it.recordedAt }.take(limit) }
 
+    override fun observeAllCheckins(): Flow<List<GoalCheckinEntity>> =
+        checkins.map { list -> list.sortedWith(compareBy<GoalCheckinEntity> { it.recordedAt }.thenBy { it.id }) }
+
     override suspend fun findGoal(id: Long): GoalEntity? = goals.value.firstOrNull { it.id == id }
 
     override suspend fun loadAllGoals(): List<GoalEntity> = goals.value
+
+    override suspend fun loadAllCheckins(): List<GoalCheckinEntity> = checkins.value.sortedBy { it.id }
 
     override suspend fun insertGoal(goal: GoalEntity): Long {
         val id = nextGoalId++
@@ -259,5 +264,129 @@ class GoalRepositoryTest {
         val dao = FakeGoalDao()
         val result = repo(dao).addCheckin(12345L, "进展", null, null)
         assertNotNull(result as GoalResult.Error)
+    }
+
+    // ------------------------------------------------ Gate 2C：仓库层指标校验
+
+    @Test
+    fun `仓库层拒绝 NaN 指标且不写库`() = runTest {
+        val dao = FakeGoalDao()
+        val repo = repo(dao)
+        val id = (repo.createGoal(GoalLevel.LONG_TERM, null, draft()) as GoalResult.Ok).value
+
+        val result = repo.addCheckin(id, "填了非法值", Double.NaN, "次")
+        assertEquals(GoalRules.ERROR_METRIC_INVALID, (result as GoalResult.Error).message)
+        assertEquals(0, dao.countCheckinsForGoals(listOf(id)))
+        assertEquals(0, repo.observeCheckins(id).first().size)
+    }
+
+    @Test
+    fun `仓库层拒绝 Infinity 与负无穷`() = runTest {
+        val dao = FakeGoalDao()
+        val repo = repo(dao)
+        val id = (repo.createGoal(GoalLevel.LONG_TERM, null, draft()) as GoalResult.Ok).value
+
+        listOf(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY).forEach { value ->
+            val result = repo.addCheckin(id, "非法", value, "次")
+            assertEquals(GoalRules.ERROR_METRIC_INVALID, (result as GoalResult.Error).message)
+        }
+        assertEquals(0, dao.countCheckinsForGoals(listOf(id)))
+    }
+
+    @Test
+    fun `仓库层拒绝超出范围的指标`() = runTest {
+        val dao = FakeGoalDao()
+        val repo = repo(dao)
+        val id = (repo.createGoal(GoalLevel.LONG_TERM, null, draft()) as GoalResult.Ok).value
+
+        val result = repo.addCheckin(id, "太大", 1e12, "次")
+        assertEquals(GoalRules.ERROR_METRIC_TOO_LARGE, (result as GoalResult.Error).message)
+        assertEquals(0, dao.countCheckinsForGoals(listOf(id)))
+    }
+
+    @Test
+    fun `合法数值会被写入并归一化单位`() = runTest {
+        val dao = FakeGoalDao()
+        val repo = repo(dao)
+        val id = (repo.createGoal(GoalLevel.LONG_TERM, null, draft()) as GoalResult.Ok).value
+
+        val result = repo.addCheckin(id, "正常", 3.5, "  次/周  ")
+        assertTrue(result is GoalResult.Ok)
+        val saved = repo.observeCheckins(id).first().single()
+        assertEquals(3.5, saved.metricValue!!, 0.0)
+        assertEquals("次/周", saved.metricUnit)
+    }
+
+    @Test
+    fun `单位过长会被拒绝`() = runTest {
+        val dao = FakeGoalDao()
+        val repo = repo(dao)
+        val id = (repo.createGoal(GoalLevel.LONG_TERM, null, draft()) as GoalResult.Ok).value
+
+        val result = repo.addCheckin(id, "单位太长", 1.0, "字".repeat(GoalRules.MAX_UNIT + 1))
+        assertEquals(GoalRules.ERROR_UNIT_TOO_LONG, (result as GoalResult.Error).message)
+    }
+
+    // ------------------------------------------------ Gate 2C：统计口径 / 趋势
+
+    @Test
+    fun `快照区分长期目标与全部层级的进行中数量`() = runTest {
+        val dao = FakeGoalDao()
+        val repo = repo(dao)
+        val longId = (repo.createGoal(
+            GoalLevel.LONG_TERM, null, draft("长期", GoalStatus.IN_PROGRESS),
+        ) as GoalResult.Ok).value
+        val stageId = (repo.createGoal(
+            GoalLevel.STAGE, longId, draft("阶段", GoalStatus.IN_PROGRESS),
+        ) as GoalResult.Ok).value
+        repo.createGoal(GoalLevel.ACTION, stageId, draft("行动", GoalStatus.DONE))
+        repo.createGoal(GoalLevel.LONG_TERM, null, draft("另一个长期", GoalStatus.NOT_STARTED))
+
+        val snapshot = repo.observeSnapshot().first()
+        assertEquals(2, snapshot.longTermCount)
+        assertEquals(1, snapshot.stageCount)
+        assertEquals(1, snapshot.actionCount)
+        assertEquals(1, snapshot.longTermInProgressCount) // 两个长期目标里只有 1 个进行中
+        assertEquals(2, snapshot.inProgressCount) // 全部层级：长期 1 + 阶段 1
+        assertEquals(1, snapshot.doneCount)
+    }
+
+    @Test
+    fun `趋势只包含真实数值并区分单位`() = runTest {
+        val dao = FakeGoalDao()
+        val repo = repo(dao)
+        val id = (repo.createGoal(GoalLevel.LONG_TERM, null, draft("健康")) as GoalResult.Ok).value
+        repo.addCheckin(id, "第一次", 3.0, "次/周")
+        repo.addCheckin(id, "第二次", 4.0, "次/周")
+        repo.addCheckin(id, "体重", 70.0, "公斤")
+        repo.addCheckin(id, "只有文字", null, null)
+
+        val trends = repo.observeTrends().first()
+        assertEquals(1, trends.goalsWithNumeric)
+        assertEquals(2, trends.trends.size)
+        val byUnit = trends.trends.associateBy { it.unitLabel }
+        assertEquals(listOf(3.0, 4.0), byUnit.getValue("次/周").points.map { it.value })
+        assertEquals(listOf(70.0), byUnit.getValue("公斤").points.map { it.value })
+        assertEquals(3, trends.numericCheckinCount)
+    }
+
+    @Test
+    fun `趋势会过滤历史脏数据里的非有限值`() = runTest {
+        val dao = FakeGoalDao()
+        val repo = repo(dao)
+        val id = (repo.createGoal(GoalLevel.LONG_TERM, null, draft("健康")) as GoalResult.Ok).value
+        // 模拟旧版本/外部写入的脏数据：绕过仓库直接插入
+        dao.insertCheckin(
+            GoalCheckinEntity(
+                goalId = id, recordedAt = clock, note = "NaN 脏数据",
+                metricValue = Double.NaN, metricUnit = "次", source = "manual",
+            ),
+        )
+        repo.addCheckin(id, "合法", 2.0, "次")
+
+        val trends = repo.observeTrends().first()
+        assertEquals(1, trends.trends.size)
+        assertEquals(1, trends.numericCheckinCount)
+        assertEquals(2.0, trends.trends[0].points.single().value, 0.0)
     }
 }

@@ -1,0 +1,432 @@
+== 设备 ==
+198.19.0.1:38327	device
+
+== 已安装 ==
+package:com.mengyalife.app.qa
+package:com.mengyalife.app
+
+======== [com.mengyalife.app.qa] verify_settings ========
+PASS  不含过期文案：重启后恢复「跟随系统」
+PASS  不含过期文案：本轮不引入 DataStore
+PASS  不含过期文案：设置仅在本次运行有效
+PASS  不含过期文案：当前不能导出或导入数据
+PASS  不含过期文案：目前还不能导出或导入数据
+PASS  不含过期文案：本轮仅完成页面结构与说明
+========== 2. 期望文案必须存在 ==========
+FAIL  包含文案：已实现的设置会立即生效并保存在本机  已实现的设置会立即生效并保存在本机
+FAIL  包含文案：导出我的数据  导出我的数据
+FAIL  包含文案：导入数据  导入数据
+FAIL  包含文案：导入恢复尚未实现  导入恢复尚未实现
+FAIL  包含文案：本机数据库（Room）  本机数据库（Room）
+FAIL  包含文案：敏感个人信息  敏感个人信息
+FAIL  包含文案：妥善保管  妥善保管
+FAIL  包含文案：保存在本机（DataStore）  保存在本机（DataStore）
+FAIL  包含文案：重启后保持上次选择  重启后保持上次选择
+FAIL  包含文案：随系统深浅色变化  随系统深浅色变化
+FAIL  包含文案：无网络权限  无网络权限
+FAIL  QA 构建横幅
+FAIL  版本号来自安装包  应为 0.5.0-g2c-qa
+PASS  无「自带密钥」误导性胶囊
+========== 3. 截图：数据区 ==========
+FAIL  数据区可见
+FAIL  导出入口可点击
+FAIL  导入入口标注后续
+========== 4. 截图：主题说明 ==========
+FAIL  主题区可见
+FAIL  主题选项齐全
+FAIL  主题说明包含持久化
+FAIL  主题说明包含重启保持
+FAIL  主题说明包含跟随系统
+========== 5. 截图：关于 ==========
+FAIL  关于区显示版本
+FAIL  数据存储说明
+
+==== SUMMARY: 8/32 passed ====
+FAILED: 设置页已打开 
+FAILED: 包含文案：已实现的设置会立即生效并保存在本机 已实现的设置会立即生效并保存在本机
+FAILED: 包含文案：导出我的数据 导出我的数据
+FAILED: 包含文案：导入数据 导入数据
+FAILED: 包含文案：导入恢复尚未实现 导入恢复尚未实现
+FAILED: 包含文案：本机数据库（Room） 本机数据库（Room）
+FAILED: 包含文案：敏感个人信息 敏感个人信息
+FAILED: 包含文案：妥善保管 妥善保管
+FAILED: 包含文案：保存在本机（DataStore） 保存在本机（DataStore）
+FAILED: 包含文案：重启后保持上次选择 重启后保持上次选择
+FAILED: 包含文案：随系统深浅色变化 随系统深浅色变化
+FAILED: 包含文案：无网络权限 无网络权限
+FAILED: QA 构建横幅 
+FAILED: 版本号来自安装包 应为 0.5.0-g2c-qa
+FAILED: 数据区可见 
+FAILED: 导出入口可点击 
+FAILED: 导入入口标注后续 
+FAILED: 主题区可见 
+FAILED: 主题选项齐全 
+FAILED: 主题说明包含持久化 
+FAILED: 主题说明包含重启保持 
+FAILED: 主题说明包含跟随系统 
+FAILED: 关于区显示版本 
+FAILED: 数据存储说明 
+[verify_settings] 有断言失败（见 docs/reports/logs/g2c-verify_settings.log）
+
+======== [com.mengyalife.app.qa] verify_diary ========
+========== 0. 清空 QA 数据 ==========
+PASS  空状态显示「还没有记录」
+PASS  没有演示日记
+PASS  无演示数据标签
+========== 1. 空正文不可保存 ==========
+PASS  新建面板出现
+PASS  空正文给出明确错误
+PASS  错误节点存在
+PASS  面板未关闭
+========== 2. 新建 ==========
+PASS  保存后面板关闭
+PASS  列表出现新日记
+PASS  数据库里有 1 条日记  [(1, 'G2Cdiary', 'g2cdiary v1', 1793691733877, 1793691733877)]
+PASS  正文与标题已入库  [(1, 'G2Cdiary', 'g2cdiary v1', 1793691733877, 1793691733877)]
+========== 3. 查看详情 ==========
+PASS  详情里有正文
+PASS  详情有编辑入口
+========== 4. 编辑 + 重启保持 ==========
+PASS  编辑后仍显示标题
+PASS  重启后日记仍在
+PASS  重启后能看到编辑后的正文
+PASS  数据库仍只有 1 条（编辑不新增）  [(1, 'G2Cdiary', 'g2cdiary v1 edited', 1793691733877, 1793691770547)]
+PASS  正文已更新  [(1, 'G2Cdiary', 'g2cdiary v1 edited', 1793691733877, 1793691770547)]
+PASS  createdAt 未变
+PASS  updatedAt 已刷新  [(1, 'G2Cdiary', 'g2cdiary v1 edited', 1793691733877, 1793691770547)]
+========== 5. 删除确认 ==========
+PASS  删除确认框出现
+PASS  取消后记录仍在
+PASS  删除后列表为空
+PASS  回到空状态
+PASS  数据库里也删除了
+
+==== SUMMARY: 25/25 passed ====
+[verify_diary] OK
+
+======== [com.mengyalife.app.qa] verify_theme ========
+>>> 显式浅色基线
+PASS  浅色被选中  {'theme_system': 'false', 'theme_light': 'true', 'theme_dark': 'false'}
+PASS  浅色外观很亮  L=240.2
+>>> 显式深色
+PASS  深色被选中
+PASS  深色显著变暗  light=240.2 dark=27.0
+>>> 重启后仍是深色
+PASS  重启后仍选中深色  {'theme_system': 'false', 'theme_light': 'false', 'theme_dark': 'true'}
+PASS  重启后仍是深色外观  L=26.9
+PASS  一级页面也是深色
+>>> 跟随系统：随系统切换而变
+PASS  跟随系统被选中
+PASS  系统转浅色后 App 跟随变亮  L=232.0
+PASS  系统转深色后 App 跟随变暗  light=232.0 dark=35.7
+>>> 还原系统 auto + 重启后仍跟随系统
+PASS  重启后仍选中跟随系统  {'theme_system': 'true', 'theme_light': 'false', 'theme_dark': 'false'}
+
+==== SUMMARY: 11/11 passed ====
+[verify_theme] OK
+
+======== [com.mengyalife.app.qa] verify_navigation ========
+PASS  切换到 tab_overview
+PASS  tab_overview 内容正常  你正在走的方向
+PASS  切换到 tab_goals
+PASS  tab_goals 内容正常  把方向拆成能推进的层级
+PASS  切换到 tab_trends
+PASS  tab_trends 内容正常  看见变化，而不是凭感觉
+PASS  切换到 tab_diary
+PASS  tab_diary 内容正常  把今天留下来
+PASS  顾问页可进入
+PASS  顾问页可发送
+PASS  tab_overview 可进入设置
+PASS  tab_overview 设置页已就位
+PASS  tab_overview 设置页隐藏底栏
+PASS  tab_overview 返回后底栏恢复
+PASS  tab_goals 可进入设置
+PASS  tab_goals 设置页已就位
+PASS  tab_goals 设置页隐藏底栏
+PASS  tab_goals 返回后底栏恢复
+PASS  tab_trends 可进入设置
+PASS  tab_trends 设置页已就位
+PASS  tab_trends 设置页隐藏底栏
+PASS  tab_trends 返回后底栏恢复
+PASS  tab_diary 可进入设置
+PASS  tab_diary 设置页已就位
+PASS  tab_diary 设置页隐藏底栏
+PASS  tab_diary 返回后底栏恢复
+PASS  日记页仍可打开
+PASS  无崩溃日志
+
+==== SUMMARY: 28/28 passed ====
+[verify_navigation] OK
+
+======== [com.mengyalife.app.qa] verify_goals ========
+PASS  短期行动：面板出现
+PASS  目标页已就绪（冷启动后）
+PASS  树上是三层  [1, 2, 3]
+PASS  三层同时可见
+========== 2. 进展记录 + 历史（真实数值趋势） ==========
+PASS  打开阶段菜单
+PASS  进展面板出现
+PASS  进展计数出现
+PASS  打开阶段菜单
+PASS  历史含说明
+PASS  历史含数值
+PASS  历史出现真实趋势图
+PASS  单点有明确说明
+PASS  标注数据来源
+========== 3. 状态 + 编辑 ==========
+PASS  打开行动菜单
+PASS  状态对话框出现
+PASS  点选「已完成」
+PASS  对话框已关闭
+PASS  打开行动菜单
+PASS  编辑行动：面板出现
+PASS  编辑生效（标题已变化）  ActionAB
+========== 4. 数据库校验 ==========
+PASS  schema 版本为 2  user_version=2
+PASS  目标共 3 条  [(1, 'LongHealth', 'LONG_TERM', None, 'NOT_STARTED'), (2, 'StageA', 'STAGE', 1, 'IN_PROGRESS'), (3, 'ActionAB', 'ACTION', 2, 'DONE')]
+PASS  阶段父级=长期  (2, 'StageA', 'STAGE', 1, 'IN_PROGRESS')
+PASS  行动父级=阶段  (3, 'ActionAB', 'ACTION', 2, 'DONE')
+PASS  行动状态持久化为 DONE  DONE
+PASS  行动标题已编辑并持久化  ActionAB
+PASS  进展 1 条、来源 manual、绑定阶段  [(1, 2, 'did three sessions', 3.0, 'times', 'manual')]
+PASS  进展数值与单位正确  (1, 2, 'did three sessions', 3.0, 'times', 'manual')
+PASS  QA 库的日记表为空（测试隔离）  []
+========== 5. 重启后保留 ==========
+PASS  长期目标仍在
+PASS  阶段仍在
+PASS  行动标题仍是编辑后的
+PASS  进展计数仍在
+========== 6. 总览联动 + 统计口径 ==========
+PASS  总览显示真实长期目标
+PASS  总览显示长期目标数量
+PASS  总览明确「长期目标进行中」（长期仍为未开始）
+PASS  总览写明全部层级统计口径
+PASS  总览写明进行中口径
+PASS  总览仍标注演示区块
+========== 7. 删除影响范围 ==========
+PASS  打开长期菜单
+PASS  删除确认框
+PASS  明确列出影响范围  删除后，还会一并删除：1 个阶段目标、1 个短期行动、1 条进展记录。
+PASS  取消后目标仍在
+PASS  再次删除
+PASS  确认后已删除
+PASS  回到空状态
+PASS  重启后仍为空
+PASS  数据库里目标已清空  []
+PASS  数据库里无孤儿进展  []
+========== 8. 稳定性 ==========
+PASS  本应用无崩溃记录
+PASS  应用进程存活
+
+==== SUMMARY: 64/64 passed ====
+[verify_goals] OK
+
+======== [com.mengyalife.app.qa] verify_trends ========
+PASS  进展面板
+PASS  A 第 3 条 (30 min，另一个单位)
+PASS  打开菜单
+PASS  进展面板
+PASS  B 第 1 条 (8 score，单点)
+PASS  打开菜单
+PASS  进展面板
+PASS  C 只写文字、无数值
+========== 2. 历史里的真实趋势图 ==========
+PASS  打开菜单
+PASS  数据来源说明
+PASS  同单位多点图
+PASS  多点说明
+PASS  图上有真实数值 70
+PASS  图上有真实数值 71.5
+PASS  同目标第二个单位单独成图
+PASS  单点说明
+PASS  单位不混画说明
+PASS  打开菜单
+PASS  B 单点图存在
+PASS  B 单点不伪造曲线
+PASS  打开菜单
+PASS  C 无数值空状态
+PASS  C 空状态文案说明数值是选填
+PASS  C 仍展示原始记录
+========== 3. 趋势页真实区 ==========
+PASS  真实趋势区存在
+PASS  第一组真实趋势
+PASS  真实来源标注
+PASS  按单位展示 kg  趋势 横轴为真实记录时间，纵轴为指标值。 69.775 12 周 score 只有 1 条数值记录，无法判断趋势；这里只显示该数据点。 7 70 kg 70.75 健康 2026年11月3日 15:57 27 近 12 周，0–100 的演示评分 看见变化，而不是凭感觉 维度走势 71.5 kg 8 30 min 只来自你在目标里手动记录的进展 8 score 最近一次：30 min · 1 条记
+PASS  按单位展示 min  趋势 横轴为真实记录时间，纵轴为指标值。 69.775 12 周 score 只有 1 条数值记录，无法判断趋势；这里只显示该数据点。 7 70 kg 70.75 健康 2026年11月3日 15:57 27 近 12 周，0–100 的演示评分 看见变化，而不是凭感觉 维度走势 71.5 kg 8 30 min 只来自你在目标里手动记录的进展 8 score 最近一次：30 min · 1 条记
+PASS  不合成整体评分
+========== 4. 非法数值在真机被拒绝 ==========
+PASS  打开菜单（NaN）
+PASS  面板出现（NaN）
+PASS  拒绝 NaN
+PASS  面板未关闭 NaN
+PASS  打开菜单（Infinity）
+PASS  面板出现（Infinity）
+PASS  拒绝 Infinity
+PASS  面板未关闭 Infinity
+PASS  打开菜单（1e999）
+PASS  面板出现（1e999）
+PASS  拒绝 1e999
+PASS  面板未关闭 1e999
+PASS  非法数值没有写库  5 -> 5
+========== 5. 数据库逐项对应 ==========
+PASS  进展共 5 条  [(1, 1, 1793692665044, 'week1', 70.0, 'kg', 'manual'), (2, 1, 1793692695576, 'week2', 71.5, 'kg', 'manual'), (3, 1, 1793692727837, 'run30', 30.0, 'min', 'manual'), (4, 2, 1793692758317, 'onlyone', 8.0, 'score', 'manual'), (5, 3, 1793692783277, 'noteonly', None, None, 'manual')]
+PASS  A 有 3 条数值记录  [(1, 1, 1793692665044, 'week1', 70.0, 'kg', 'manual'), (2, 1, 1793692695576, 'week2', 71.5, 'kg', 'manual'), (3, 1, 1793692727837, 'run30', 30.0, 'min', 'manual')]
+PASS  A 的 kg 值 = 70 / 71.5  [(1, 1, 1793692665044, 'week1', 70.0, 'kg', 'manual'), (2, 1, 1793692695576, 'week2', 71.5, 'kg', 'manual'), (3, 1, 1793692727837, 'run30', 30.0, 'min', 'manual')]
+PASS  A 的 min 值 = 30  [(1, 1, 1793692665044, 'week1', 70.0, 'kg', 'manual'), (2, 1, 1793692695576, 'week2', 71.5, 'kg', 'manual'), (3, 1, 1793692727837, 'run30', 30.0, 'min', 'manual')]
+PASS  B 单值 = 8 score  [(1, 1, 1793692665044, 'week1', 70.0, 'kg', 'manual'), (2, 1, 1793692695576, 'week2', 71.5, 'kg', 'manual'), (3, 1, 1793692727837, 'run30', 30.0, 'min', 'manual'), (4, 2, 1793692758317, 'onlyone', 8.0, 'score', 'manual'), (5, 3, 1793692783277, 'noteonly', None, None, 'manual')]
+PASS  C 没有数值  [(1, 1, 1793692665044, 'week1', 70.0, 'kg', 'manual'), (2, 1, 1793692695576, 'week2', 71.5, 'kg', 'manual'), (3, 1, 1793692727837, 'run30', 30.0, 'min', 'manual'), (4, 2, 1793692758317, 'onlyone', 8.0, 'score', 'manual'), (5, 3, 1793692783277, 'noteonly', None, None, 'manual')]
+PASS  全部来源是 manual  [(1, 1, 1793692665044, 'week1', 70.0, 'kg', 'manual'), (2, 1, 1793692695576, 'week2', 71.5, 'kg', 'manual'), (3, 1, 1793692727837, 'run30', 30.0, 'min', 'manual'), (4, 2, 1793692758317, 'onlyone', 8.0, 'score', 'manual'), (5, 3, 1793692783277, 'noteonly', None, None, 'manual')]
+========== 6. 演示区仍明确标注 ==========
+PASS  滚动到演示区
+PASS  演示区标题
+PASS  演示区旁有「演示」标签
+
+==== SUMMARY: 73/73 passed ====
+[verify_trends] OK
+
+======== [com.mengyalife.app.qa] verify_dates ========
+========== 0. 清空 QA 数据并建目标 ==========
+PASS  编辑面板
+PASS  目标已创建
+========== 1. 打开日期选择器 ==========
+PASS  打开菜单
+PASS  编辑面板出现
+PASS  默认未设置日期
+PASS  日期选择器出现
+PASS  点选 28 日  2026年11月28日
+PASS  确认日期
+PASS  编辑面板显示所选日期
+========== 2. 保存并展示 ==========
+PASS  面板关闭
+PASS  目标卡片显示截止日期
+========== 3. 冷启动后仍展示 ==========
+PASS  重启后目标仍在
+PASS  重启后截止日期仍在
+========== 4. 数据库时间戳语义 ==========
+PASS  库里有 1 个目标  [(1, 1795824000000)]
+PASS  due_date 不为空  [(1, 1795824000000)]
+PASS  due_date = 所选日期 UTC 零点  db=1795824000000 expected=1795824000000
+PASS  按 UTC 渲染仍是所选日期  2026-11-28
+
+==== SUMMARY: 17/17 passed ====
+[verify_dates] OK
+
+======== [com.mengyalife.app.qa] verify_export ========
+========== 0. 准备 QA 数据（日记 + 目标 + 进展） ==========
+PASS  日记面板
+PASS  日记面板关闭
+PASS  日记已保存
+PASS  目标面板
+PASS  目标已保存
+PASS  目标出现
+PASS  拿到目标 id  1
+PASS  进展面板
+PASS  进展已保存
+PASS  进展面板
+PASS  进展已保存
+PASS  进展计数
+PASS  准备数据：1 条日记  [(1, 'ExportDiary', 'g2c export v1', 1793693125607, 1793693125607)]
+PASS  准备数据：1 个目标  [(1, 'ExportGoal', None, 'LONG_TERM', None, 'LIFE', 'IN_PROGRESS', None, None, 1793693151956, 1793693189097)]
+PASS  准备数据：2 条进展  [(1, 1, 1793693189095, 'week1', 3.5, 'kg', 'manual'), (2, 1, 1793693221369, 'week2', 4.0, 'kg', 'manual')]
+========== 1. 打开导出入口 + 敏感信息提醒 ==========
+PASS  设置页导出入口
+PASS  导出确认框
+PASS  敏感信息提醒
+PASS  提醒包含「敏感个人信息」
+PASS  提醒包含「不会上传或自动分享」
+PASS  明确导出范围
+PASS  明确导入尚未实现
+========== 2. SAF 保存 ==========
+PASS  系统文件选择器出现「保存」
+PASS  导出成功提示
+========== 3. 拉取并解析导出文件 ==========
+PASS  设备上出现导出文件  /sdcard/Download/mengya-life-export-20261103-160723.json
+PASS  文件已拉取到本机  docs/reports/logs/g2c-export/mengya-life-export-20261103-160723.json 1420 bytes
+PASS  JSON 可解析
+PASS  format 正确  mengyalife-backup
+PASS  schemaVersion = 1  1
+PASS  database.schemaVersion = 2
+PASS  包含版本信息  {'name': 'Mengya Life', 'package': 'com.mengyalife.app.qa', 'versionName': '0.5.0-g2c-qa', 'versionCode': 5}
+PASS  包含导出时间
+PASS  包含 ISO 时间
+PASS  counts 与实际条数一致  {'journalEntries': 1, 'goals': 1, 'goalCheckins': 2}
+PASS  导出包含日记
+PASS  导出包含目标
+PASS  导出包含进展
+PASS  日记标题/正文完整  [{'id': 1, 'title': 'ExportDiary', 'body': 'g2c export v1', 'createdAt': 1793693125607, 'updatedAt': 1793693125607}]
+PASS  日记时间戳完整
+PASS  目标字段完整  {'id': 1, 'title': 'ExportGoal', 'description': None, 'level': 'LONG_TERM', 'parentId': None, 'domain': 'LIFE', 'status': 'IN_PROGRESS', 'startDate': None, 'dueDate': None, 'createdAt': 1793693151956, 'updatedAt': 1793693189097}
+PASS  目标父子关系与库一致（根为 null）
+PASS  进展记录与库逐字段一致  [{'id': 1, 'goalId': 1, 'recordedAt': 1793693189095, 'note': 'week1', 'metricValue': 3.5, 'metricUnit': 'kg', 'source': 'manual'}, {'id': 2, 'goalId': 1, 'recordedAt': 1793693221369, 'note': 'week2', 'metricValue': 4.0, 'metricUnit': 'kg', 'source': 'manual'}]
+PASS  导出不含 API Key 字段
+PASS  导出不含 token
+========== 4. 导出后数据库未变 ==========
+PASS  日记未变
+PASS  目标未变
+PASS  进展未变
+========== 5. 清理设备上的测试导出文件 ==========
+PASS  测试导出文件已清理
+导出样本保留在: docs/reports/logs/g2c-export/mengya-life-export-20261103-160723.json
+
+==== SUMMARY: 48/48 passed ====
+[verify_export] OK
+
+======== [com.mengyalife.app] verify_prod_smoke ========
+========== 0. 冷启动与版本 ==========
+PASS  冷启动成功  Starting: Intent { cmp=com.mengyalife.app/.MainActivity } Status: ok LaunchState: COLD Activity: com.mengyalife.app/.Mai
+PASS  进程存活
+PASS  版本名 = 0.5.0-g2c
+PASS  包名正确
+========== 1. 旧日记仍在（逐字段） ==========
+PASS  MigrationA 在界面显示
+PASS  MigrationB 在界面显示
+PASS  列表计数 2 条
+PASS  无演示数据标签
+PASS  数据库日记 2 条  [(6, 'MigrationA', 'alpha v1 content', 1793636289310, 1793636289310), (7, 'MigrationB', 'beta v1 content', 1793636317600, 1793636317600)]
+PASS  日记标题未变  [(6, 'MigrationA', 'alpha v1 content', 1793636289310, 1793636289310), (7, 'MigrationB', 'beta v1 content', 1793636317600, 1793636317600)]
+PASS  日记正文未变  [(6, 'MigrationA', 'alpha v1 content', 1793636289310, 1793636289310), (7, 'MigrationB', 'beta v1 content', 1793636317600, 1793636317600)]
+PASS  日记时间戳未变  [(6, 'MigrationA', 'alpha v1 content', 1793636289310, 1793636289310), (7, 'MigrationB', 'beta v1 content', 1793636317600, 1793636317600)]
+PASS  目标仍为空（未被测试写入）  []
+PASS  进展仍为空  []
+========== 2. 总览 / 目标 / 趋势 / 顾问 ==========
+PASS  总览空状态
+PASS  总览演示区仍标注
+PASS  目标空状态
+PASS  没有预置示例目标
+PASS  真实趋势空状态
+PASS  演示区仍在
+PASS  演示区标注
+PASS  顾问页可进入
+========== 3. 设置页文案与版本 ==========
+PASS  设置页
+PASS  不含过期文案：重启后恢复「跟随系统」
+PASS  不含过期文案：本轮不引入 DataStore
+PASS  不含过期文案：设置仅在本次运行有效
+PASS  当前版本显示  0.5.0-g2c
+PASS  数据与隐私分组
+PASS  导出入口可见
+========== 4. 正式包导出（只读数据库） ==========
+PASS  导出提醒
+PASS  提醒含敏感信息
+PASS  条数正确（日记 2 / 目标 0 / 进展 0）
+PASS  SAF 保存按钮
+PASS  导出成功提示
+PASS  生成导出文件  /sdcard/Download/mengya-life-export-20261103-161002.json
+PASS  正式包导出可解析
+PASS  正式包导出 schemaVersion
+PASS  正式包导出日记 2 条  {'journalEntries': 2, 'goals': 0, 'goalCheckins': 0}
+PASS  正式包导出目标 0
+PASS  正式包导出进展 0
+PASS  正式包导出正文完整
+PASS  导出后日记逐字段未变
+PASS  导出后目标仍为空
+PASS  导出后进展仍为空
+========== 5. 稳定性 ==========
+PASS  本应用无崩溃记录
+PASS  进程仍存活
+
+==== SUMMARY: 46/46 passed ====
+[verify_prod_smoke] OK
+
+截图目录：docs/reports/logs/g2c-shots
+导出样本：docs/reports/logs/g2c-export

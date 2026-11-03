@@ -1,0 +1,83 @@
+========== 0. 清空 QA 数据并检查空状态 ==========
+PASS  趋势页空状态
+PASS  空状态说明不推断趋势
+PASS  演示区仍保留（向下滚动）
+PASS  演示区有明确标注
+========== 1. 建目标 + 真实数值记录 ==========
+PASS  TrendA 编辑面板
+PASS  TrendA 保存
+PASS  TrendA 出现
+PASS  TrendB 编辑面板
+PASS  TrendB 保存
+PASS  TrendB 出现
+PASS  TrendC 编辑面板
+PASS  TrendC 保存
+PASS  TrendC 出现
+ids 1 2 3
+PASS  打开菜单
+PASS  进展面板
+PASS  A 第 1 条 (70 kg)
+PASS  打开菜单
+PASS  进展面板
+PASS  A 第 2 条 (71.5 kg)
+PASS  打开菜单
+PASS  进展面板
+PASS  A 第 3 条 (30 min，另一个单位)
+PASS  打开菜单
+PASS  进展面板
+PASS  B 第 1 条 (8 score，单点)
+PASS  打开菜单
+PASS  进展面板
+PASS  C 只写文字、无数值
+========== 2. 历史里的真实趋势图 ==========
+PASS  打开菜单
+PASS  数据来源说明
+PASS  同单位多点图
+PASS  多点说明
+PASS  图上有真实数值 70
+PASS  图上有真实数值 71.5
+PASS  同目标第二个单位单独成图
+PASS  单点说明
+PASS  单位不混画说明
+PASS  打开菜单
+PASS  B 单点图存在
+PASS  B 单点不伪造曲线
+PASS  打开菜单
+PASS  C 无数值空状态
+PASS  C 空状态文案说明数值是选填
+PASS  C 仍展示原始记录
+========== 3. 趋势页真实区 ==========
+PASS  真实趋势区存在
+PASS  第一组真实趋势
+PASS  真实来源标注
+PASS  按单位展示 kg  趋势 横轴为真实记录时间，纵轴为指标值。 69.775 12 周 score 只有 1 条数值记录，无法判断趋势；这里只显示该数据点。 7 70 kg 70.75 健康 2026年11月3日 15:57 27 近 12 周，0–100 的演示评分 看见变化，而不是凭感觉 维度走势 71.5 kg 8 30 min 只来自你在目标里手动记录的进展 8 score 最近一次：30 min · 1 条记
+PASS  按单位展示 min  趋势 横轴为真实记录时间，纵轴为指标值。 69.775 12 周 score 只有 1 条数值记录，无法判断趋势；这里只显示该数据点。 7 70 kg 70.75 健康 2026年11月3日 15:57 27 近 12 周，0–100 的演示评分 看见变化，而不是凭感觉 维度走势 71.5 kg 8 30 min 只来自你在目标里手动记录的进展 8 score 最近一次：30 min · 1 条记
+PASS  不合成整体评分
+========== 4. 非法数值在真机被拒绝 ==========
+PASS  打开菜单（NaN）
+PASS  面板出现（NaN）
+PASS  拒绝 NaN
+PASS  面板未关闭 NaN
+PASS  打开菜单（Infinity）
+PASS  面板出现（Infinity）
+PASS  拒绝 Infinity
+PASS  面板未关闭 Infinity
+PASS  打开菜单（1e999）
+PASS  面板出现（1e999）
+PASS  拒绝 1e999
+PASS  面板未关闭 1e999
+PASS  非法数值没有写库  5 -> 5
+========== 5. 数据库逐项对应 ==========
+PASS  进展共 5 条  [(1, 1, 1793692665044, 'week1', 70.0, 'kg', 'manual'), (2, 1, 1793692695576, 'week2', 71.5, 'kg', 'manual'), (3, 1, 1793692727837, 'run30', 30.0, 'min', 'manual'), (4, 2, 1793692758317, 'onlyone', 8.0, 'score', 'manual'), (5, 3, 1793692783277, 'noteonly', None, None, 'manual')]
+PASS  A 有 3 条数值记录  [(1, 1, 1793692665044, 'week1', 70.0, 'kg', 'manual'), (2, 1, 1793692695576, 'week2', 71.5, 'kg', 'manual'), (3, 1, 1793692727837, 'run30', 30.0, 'min', 'manual')]
+PASS  A 的 kg 值 = 70 / 71.5  [(1, 1, 1793692665044, 'week1', 70.0, 'kg', 'manual'), (2, 1, 1793692695576, 'week2', 71.5, 'kg', 'manual'), (3, 1, 1793692727837, 'run30', 30.0, 'min', 'manual')]
+PASS  A 的 min 值 = 30  [(1, 1, 1793692665044, 'week1', 70.0, 'kg', 'manual'), (2, 1, 1793692695576, 'week2', 71.5, 'kg', 'manual'), (3, 1, 1793692727837, 'run30', 30.0, 'min', 'manual')]
+PASS  B 单值 = 8 score  [(1, 1, 1793692665044, 'week1', 70.0, 'kg', 'manual'), (2, 1, 1793692695576, 'week2', 71.5, 'kg', 'manual'), (3, 1, 1793692727837, 'run30', 30.0, 'min', 'manual'), (4, 2, 1793692758317, 'onlyone', 8.0, 'score', 'manual'), (5, 3, 1793692783277, 'noteonly', None, None, 'manual')]
+PASS  C 没有数值  [(1, 1, 1793692665044, 'week1', 70.0, 'kg', 'manual'), (2, 1, 1793692695576, 'week2', 71.5, 'kg', 'manual'), (3, 1, 1793692727837, 'run30', 30.0, 'min', 'manual'), (4, 2, 1793692758317, 'onlyone', 8.0, 'score', 'manual'), (5, 3, 1793692783277, 'noteonly', None, None, 'manual')]
+PASS  全部来源是 manual  [(1, 1, 1793692665044, 'week1', 70.0, 'kg', 'manual'), (2, 1, 1793692695576, 'week2', 71.5, 'kg', 'manual'), (3, 1, 1793692727837, 'run30', 30.0, 'min', 'manual'), (4, 2, 1793692758317, 'onlyone', 8.0, 'score', 'manual'), (5, 3, 1793692783277, 'noteonly', None, None, 'manual')]
+========== 6. 演示区仍明确标注 ==========
+PASS  滚动到演示区
+PASS  演示区标题
+PASS  演示区旁有「演示」标签
+
+==== SUMMARY: 73/73 passed ====

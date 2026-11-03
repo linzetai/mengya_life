@@ -1,7 +1,7 @@
 # 萌芽人生 · Mengya Life
 
 > Android 应用。**工程名 MengyaLife**，包名 `com.mengyalife.app`。
-> 当前版本 **0.4.0-g2b**（Gate 2B：三层目标系统 + 数据库 v2 迁移）。
+> 当前版本 **0.5.0-g2c**（Gate 2C：遗留问题修复 + 本地数据导出 + 真实进展趋势）。
 >
 > 技术栈：Kotlin + Jetpack Compose + Material 3 + **Room** + **DataStore**，local-first。
 > 本轮仍**不接 AI、不接后端、不申请网络权限**。
@@ -13,257 +13,249 @@
 | 项 | 状态 |
 |---|---|
 | 五个一级页面（总览 / 目标 / 趋势 / 日记 / 顾问） | ✅ 沿用 Gate 1 |
-| 独立设置页 + 三态主题 | ✅ 主题已改为 **DataStore 持久化** |
-| 日记：Room 真实存储 / 新建 / 查看 / 编辑 / 删除确认 / 空状态 | ✅ Gate 2A |
-| 目标：长期→阶段→短期行动 三层、进展记录、状态、删除影响提示 | ✅ **Gate 2B 本轮完成** |
-| 总览：读取真实长期目标与最近进展 | ✅ Gate 2B |
-| 数据库 v2（goals / goal_checkins）+ 真机 v1→v2 迁移验证 | ✅ Gate 2B |
-| 空正文拦截（不静默失败） | ✅ 已实现并验证 |
-| 主题重启后保持 | ✅ 已实现并验证（含「跟随系统」响应系统切换） |
-| 演示数据与真实数据分离 | ✅ 日记页已**移除全部演示日记** |
-| 单元测试（JVM，无需真机） | ✅ 50 个用例全通过 |
-| 真机自动化验收 | ✅ 80 项断言，单次连续通过（见 §12） |
-| Gate 0 / Gate 1 报告 | `docs/reports/REPORT-G0-Android-Build.md`、`REPORT-G1-UI-SHELL.md` |
-| Gate 2A / 2B 报告 | `docs/reports/REPORT-G2A-LOCAL-DATA.md`、`REPORT-G2B-GOALS.md` |
+| 独立设置页 + 三态主题（DataStore 持久化） | ✅ 重启保持；「跟随系统」随系统变化 |
+| 日记：Room 存储 / 新建 / 查看 / 编辑 / 删除确认 / 空状态 | ✅ Gate 2A |
+| 目标：长期 → 阶段 → 短期行动 三层、进展、状态、删除影响提示 | ✅ Gate 2B |
+| 总览：真实长期目标 + 明确「进行中」统计口径 | ✅ **Gate 2C 修正** |
+| 设置页「导出我的数据」：JSON + SAF + 敏感信息提醒 + 回读校验 | ✅ **Gate 2C 新增** |
+| 真实数值趋势：`goal_checkins` → Canvas 折线/单点/空状态 | ✅ **Gate 2C 新增** |
+| 非法指标值（NaN / Infinity / 超范围）仓库层拒绝 | ✅ **Gate 2C 新增** |
+| 日期选择器保存 / 重启展示（UTC 零点语义） | ✅ **Gate 2C 验证** |
+| QA 测试构建（独立 applicationId + 独立数据库） | ✅ **Gate 2C 新增** |
+| 导入恢复 | ⏳ 未实现；界面明确标注，留待后续独立验收 |
+| 单元测试（JVM，无需真机） | ✅ 88 个用例全通过 |
+| 真机自动化验收 | ✅ 分脚本 345 条通过；settings 定向复跑（见报告 §7.10） |
+| Gate 报告 | `docs/reports/REPORT-G2C-DATA-TRENDS.md` |
+| 导出格式 / 趋势说明 | `docs/DATA-EXPORT-FORMAT.md`、`docs/TRENDS.md` |
 
-**Gate 2B 结论：PASS**。
+**Gate 2C 状态：功能与单元测试完成；真机脚本分脚本累计 345 条断言通过。
+最后一次连续运行中 8 个脚本全绿，settings 首轮为冷启动自动化时序问题、
+修复后定向复跑 33/33；唯一缺口见 `docs/reports/logs/MISSING-EVIDENCE.md`。**
 
 ---
 
 ## 2. 架构分层
 
 ```text
-Compose (ui/screens, ui/journal)
-        │  只读状态 + 发 DiaryAction
+Compose (ui/screens, ui/journal, ui/goals)
+        │  只读状态 + 发 Action
         ▼
-ViewModel (JournalViewModel / ThemeViewModel)
-        │  业务规则、时间戳、错误文案
+ViewModel (Journal / Goals / Theme / Export)
+        │  业务规则、时间戳、错误文案、SAF 写入与校验
         ▼
-Repository (JournalRepository)          Preferences (ThemePreferences)
-        │                                  │
-        ▼                                  ▼
-DAO (JournalEntryDao)                  DataStore (mengya_settings)
+Repository (Journal / Goal / DataExport)      Preferences (ThemePreferences)
+        │                                        │
+        ▼                                        ▼
+DAO (JournalEntryDao / GoalDao)              DataStore (BuildConfig.PREFS_NAME)
         │
         ▼
-Room Database (MengyaDatabase, v1)
+Room Database (MengyaDatabase, v2, WAL)
 ```
 
-- **唯一写日记表的地方**是 `JournalRepository`：时间戳、trim、空标题归一都在这里，
-  UI 与 ViewModel 不自己造时间。
-- **依赖装配**在 `MengyaApplication` → `AppContainer`（手工容器，不引 Hilt）。
-- `MengyaLifeApp.kt` 只做装配与导航，本轮新增业务逻辑**没有**堆进它。
+- 写日记只经 `JournalRepository`；写目标/进展只经 `GoalRepository`；
+- 导出只经 `DataExportRepository`：在同一事务里读三张表；
+- 依赖装配在 `MengyaApplication` → `AppContainer`（手工容器，不引 Hilt）；
+- `MengyaLifeApp.kt` 只做装配与导航。
 
-### 数据流（新建一条日记）
+### 数据流（导出）
 
 ```text
-点「保存」
-  → DiaryAction.Save
-  → JournalViewModel.save()   （校验正文；空则回填错误文案并中止）
-  → JournalRepository.createEntry(body, title)
-      · body.trim()
-      · createdAt = updatedAt = now()
-  → JournalEntryDao.insert()
-  → Room 发出新列表 Flow
-  → JournalViewModel.uiState（combine 数据库流 + 界面本地态）
-  → Compose 重组，列表出现新记录
+设置 → 导出我的数据
+  → ExportViewModel.requestExport()
+  → DataExportRepository.buildBundle()
+      · RoomDatabase.withTransaction { 日记 + 目标 + 进展 }
+  → 敏感信息提醒（条数 + 不上传说明）
+  → CreateDocument(SAF) 选择保存位置
+  → 写 JSON（UTF-8）
+  → 从同一 URI 回读 → ExportJson.verify(文本, 快照)
+  → Snackbar「导出完成并已校验：日记 N / 目标 N / 进展 N」
 ```
 
 ---
 
-## 3. 页面与设置
+## 3. 本地数据导出（Gate 2C）
 
-五个一级页面与 Gate 1 一致（总览 / 目标 / 趋势 / 日记 / 顾问），设置页仍是二级页面、
-不占底部导航位、系统返回键先关设置。
+- 入口：设置 → 数据与隐私 → **导出我的数据**。
+- 使用 `ActivityResultContracts.CreateDocument("application/json")`，
+  **不申请存储权限**，不写死 Downloads 路径。
+- 导出前明确提醒：文件可能包含**日记正文等敏感个人信息**，请妥善保管；
+  应用不会上传、不会自动分享。
+- 导出范围：日记、三层目标（含 `parentId`）、进展记录、所有关联 id、时间戳、
+  导出格式版本、数据库结构版本、应用版本。
+- 一致性：**不复制 `.db`**（WAL 模式下不安全），而是在 Room 事务里查询三张表。
+- 写后回读校验：结构、计数、父子关系、进展→目标关联，全部通过才报成功。
+- 不含 API Key / 账号 / 设备标识 / 设置项。
+- **导入恢复尚未实现**，界面写的是「本轮只支持导出；导入恢复尚未实现」，
+  不暗示可以还原。
 
-**本轮变化只集中在两处**：
-
-1. **日记页**：从演示数据改为 Room 真实数据。列表 → 详情（半屏）→ 编辑 / 删除（二次确认）；
-   空库时显示「还没有记录」，**不会预置任何看起来像用户输入的示例**。
-2. **设置页外观分组**：主题选择写入 DataStore，重启后保持；
-   「跟随系统」会随系统深浅色变化实时响应。
-
----
-
-## 4. 目录结构（Gate 2A 新增部分）
-
-```text
-app/src/main/java/com/mengyalife/app/
-├── MengyaApplication.kt          # 持有 AppContainer
-├── di/AppContainer.kt            # 手工依赖容器（DB / Repository / DataStore）
-├── data/
-│   ├── local/
-│   │   ├── JournalEntryEntity.kt # 表结构（epoch 毫秒时间戳）
-│   │   ├── JournalEntryDao.kt    # 增删改查 + Flow 观察
-│   │   └── MengyaDatabase.kt     # v1，exportSchema，禁用破坏性迁移
-│   ├── repository/JournalRepository.kt
-│   └── preferences/ThemePreferences.kt
-├── domain/JournalRules.kt        # 纯函数校验（可单测）
-├── util/Timestamps.kt            # epoch → 设备时区展示
-├── ui/journal/
-│   ├── JournalContract.kt        # DiaryUiState / DiaryAction / JournalSheet
-│   └── JournalViewModel.kt       # 日记页全部状态与动作
-├── ui/settings/ThemeViewModel.kt
-└── ui/screens/DiaryScreen.kt     # 纯渲染：列表 + 编辑面板 + 详情 + 删除确认
-app/schemas/com.mengyalife.app.data.local.MengyaDatabase/1.json   # Room 导出 schema
-app/src/test/java/com/mengyalife/app/...                          # 16 个 JVM 单元测试
-```
+格式细节见 `docs/DATA-EXPORT-FORMAT.md`。
 
 ---
 
-## 5. 版本矩阵与新增依赖
+## 4. 真实进展趋势（Gate 2C）
 
-构建工具链**与 Gate 1 完全一致，未升级**：JDK 21 / Gradle 8.9 / AGP 8.7.3 / Kotlin 2.2.0 /
-Compose 编译器 2.2.0 / compileSdk·targetSdk 35 / minSdk 26 / build-tools 35.0.1 / aapt2（Termux AArch64）。
+- 数据源：`goal_checkins` 表，只取**用户手动录入**的 `metric_value`（`source=manual`）。
+- 横轴：真实记录时间；纵轴：真实指标值。
+- 按「目标 + 单位」分组；**不同单位不混画、不换算**。
+- 0 条数值 → 空状态；1 条 → 单点 + 「无法判断趋势」说明；≥2 条 → 折线 + 数据点。
+- 显示单位、数据点、对应时间；下方列出「时间 + 值 + 单位」明细。
+- 不根据少量记录给「人生整体评分」。
+- 目标进展历史与趋势页都展示；趋势页保留演示区，并整体标注「演示区（非真实数据）」。
+- 图表复用项目内 Canvas（`ui/components/Charts.kt`），不引入图表库。
 
-本轮新增依赖（均已逐个核对 `minCompileSdk` ≤ 35 与 Kotlin 2.2.0 兼容性）：
-
-| 依赖 | 版本 | 用途 |
-|---|---|---|
-| `androidx.room:room-runtime` / `room-ktx` | 2.7.2 | 本地数据库（`minCompileSdk=34`） |
-| `androidx.room:room-compiler`（KSP） | 2.7.2 | 编译期生成 DAO 实现 |
-| `com.google.devtools.ksp` | **2.2.0-2.0.2** | 与 Kotlin 2.2.0 严格同源 |
-| `androidx.datastore:datastore-preferences` | 1.1.7 | 主题偏好（`minCompileSdk=34`） |
-| `androidx.lifecycle:lifecycle-viewmodel-compose` | 2.9.1 | `viewModel()`（`minCompileSdk=35`） |
-| `androidx.lifecycle:lifecycle-runtime-compose` | 2.9.1 | `collectAsStateWithLifecycle`（`minCompileSdk=35`） |
-| `junit:junit` | 4.13.2 | JVM 单元测试 |
-| `org.jetbrains.kotlinx:kotlinx-coroutines-test` | 1.10.2 | 协程测试 |
-
-> **仓库顺序变更**：Gate 2A 实测 aliyun 镜像对 `com.google.devtools.ksp` 构件路径返回 **502**，
-> 而 Gradle 遇到 5xx 会**直接终止解析**（不会降级到下一个仓库），
-> 因此 `settings.gradle` 改为**官方源优先、镜像兜底**。
+细节见 `docs/TRENDS.md`。
 
 ---
 
-## 6. 数据库
+## 5. 数据库
 
-**v2**（Gate 2B）在 v1 基础上新增两张表，`journal_entries` 未改动：
+**v2**（Gate 2B 引入，Gate 2C 未改表）：
 
 ```sql
--- 目标（自引用，parent_id → goals.id，级联删除）
+CREATE TABLE `journal_entries` (
+  id, title, body, created_at, updated_at
+);
 CREATE TABLE `goals` (
   id, title, description, level, parent_id, domain, status,
   start_date, due_date, created_at, updated_at
 );
--- 进展记录（goal_id → goals.id，级联删除）
 CREATE TABLE `goal_checkins` (
   id, goal_id, recorded_at, note, metric_value, metric_unit, source
 );
 ```
 
-v1 的表结构（保持不变）：
-
-```sql
-CREATE TABLE `journal_entries` (
-  `id`         INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-  `title`      TEXT,                    -- 可选；空串一律归一为 NULL
-  `body`       TEXT NOT NULL,           -- 必填；写入前 trim
-  `created_at` INTEGER NOT NULL,        -- Unix Epoch 毫秒（UTC 语义）
-  `updated_at` INTEGER NOT NULL
-);
-CREATE INDEX `index_journal_entries_updated_at` ON `journal_entries` (`updated_at`);
-```
-
-- 版本 **v2**，`PRAGMA user_version = 2`，schema 导出在 `app/schemas/`（1.json / 2.json 均保留）。
-- 迁移 `MIGRATION_1_2` 只建新表，**真机覆盖安装实测日记逐字段未变**。
-- 列表固定 `ORDER BY updated_at DESC, id DESC`。
-- **不使用** `fallbackToDestructiveMigration()`：缺迁移时 Room 抛异常而不是清库。
-- 迁移策略：改表必须 version+1 并提供 `Migration`，对照 `app/schemas/` 两份 JSON 写，
-  且在真机验证过再合入。
+- `PRAGMA user_version = 2`；schema 导出在 `app/schemas/`（1.json / 2.json 均保留）。
+- 迁移 `MIGRATION_1_2` 只新增表，不触碰 `journal_entries`。
+- **不使用** `fallbackToDestructiveMigration()`：缺迁移时抛异常而不是清库。
+- 列表/趋势查询固定排序，保证同一份数据的展示顺序稳定。
+- 导出读取用事务快照，不直接复制 WAL 模式下的 `.db` 文件。
 
 ---
 
-## 7. 环境事实（本机实测）
+## 6. 测试构建与数据隔离（Gate 2C）
+
+真机破坏性测试**不再碰日常使用的正式包**。`app/build.gradle` 新增 `qa` build type：
+
+| 项 | 正式包 | QA 包 |
+|---|---|---|
+| applicationId | `com.mengyalife.app` | `com.mengyalife.app.qa` |
+| 应用名 | 萌芽人生 | 萌芽人生 QA |
+| versionName | `0.5.0-g2c` | `0.5.0-g2c-qa` |
+| Room 数据库 | `mengya-life.db` | `mengya-life-qa.db` |
+| DataStore | `mengya_settings` | `mengya_settings_qa` |
+| 设置页标识 | 无 | 顶部显示 QA 隔离说明 |
+
+```sh
+./gradlew :app:assembleDebug   # 正式 APK
+./gradlew :app:assembleQa      # 测试 APK（可单独安装）
+```
+
+测试脚本 `tools/ui-verify/*.py` 默认只跑 QA 包：
+`MENGYA_PKG` 不是 QA 包时，`require_qa()` 会直接退出；
+正式包只在 `verify_prod_smoke.py` 里以**只读**方式验证（不清数据、不新建记录、不切主题）。
+
+---
+
+## 7. 环境事实（本轮实测）
 
 | 项 | 值 |
 |---|---|
-| 设备 | `2509FPN0BC`，Android 17（API 37），HyperOS `V816`，`arm64-v8a` |
-| 运行时 | ZeroTermux + proot Ubuntu 24.04.5 LTS |
-| JDK | OpenJDK 21.0.13（Termux aarch64） |
-| SDK | `$PREFIX/opt/android-sdk`，platform android-35，build-tools 35.0.1 |
-| aapt2 | `$PREFIX/bin/aapt2`（AArch64；SDK 内置为 x86-64，必须覆盖） |
+| 设备 | `2509FPN0BC`，Android 17（API 37），HyperOS，`arm64-v8a` |
+| 运行时 | DSH App 内置 proot Ubuntu 24.04 |
+| JDK | OpenJDK 21 |
+| SDK | `/opt/android-sdk`，platform android-35，build-tools 35.0.1 |
+| aapt2 | `/opt/android-aapt2/aapt2`（AArch64，通过 `env.sh` 注入） |
+| adb | Ubuntu `adb 1.0.41 / 34.0.4`，无线调试连接 |
+
+`env.sh` 现在支持两种环境：
+
+```sh
+. ./env.sh    # PREFIX 存在（Termux）或自动复用 /opt/android-sdk/env.sh
+```
 
 ---
 
-## 8. 环境配置
+## 8. 构建与安装
 
 ```sh
-export PREFIX=/data/data/com.termux/files/usr   # proot 容器里通常为空
 . ./env.sh
+./gradlew :app:testDebugUnitTest --no-daemon
+./gradlew :app:assembleDebug :app:assembleQa --no-daemon
 ```
 
-`env.sh` 由 `$PREFIX` 推导 `JAVA_HOME` / `ANDROID_HOME` / `GRADLE_USER_HOME`，
-并通过 `GRADLE_OPTS` 注入 aapt2 覆盖项；**仓库里没有任何设备绝对路径**。
+产物：
 
----
+```text
+app/build/outputs/apk/debug/app-debug.apk   # 交付 / 真机验收
+app/build/outputs/apk/qa/app-qa.apk         # 测试专用（隔离数据）
+```
 
-## 9. 构建
+安装：
 
 ```sh
-./gradlew :app:assembleDebug --no-daemon           # 构建
-./gradlew :app:testDebugUnitTest --no-daemon       # 单元测试（不需要真机）
+export DEV=<手机IP>:<无线调试端口>
+adb connect "$DEV"
+adb -s "$DEV" install -r -t app-debug.apk
+adb -s "$DEV" install -r -t app-qa.apk
 ```
 
-本机实测：首次冷构建约 7 分钟（含 KSP 与新依赖下载），
-`clean` + `--offline` + `--no-build-cache` 全量重建约 **67 秒**（37 tasks）。
+> **签名注意**：调试签名（`~/.android/debug.keystore`）在不同构建环境之间可能不同。
+> 若系统报 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`，说明签名变了，
+> **不要**直接卸载后不管数据；先做完整备份（数据库 + DataStore），
+> 安装新包后再恢复并逐字段校验。本轮真机验收即按此流程完成，旧日记未丢失。
 
 ---
 
-## 10. 安装与运行
-
-```sh
-export PATH=/data/data/com.termux/files/usr/bin:$PATH
-export HOME=/data/data/com.termux/files/home
-adb connect <手机IP>:<无线调试端口>
-
-adb shell input keyevent KEYCODE_WAKEUP      # HyperOS 锁屏时会拒绝安装
-adb install -r -t app/build/outputs/apk/debug/app-debug.apk
-adb shell am start -W -n com.mengyalife.app/.MainActivity
-```
-
----
-
-## 11. 安全与范围
+## 9. 安全与范围
 
 - **无网络能力**：`AndroidManifest.xml` 不申请 `INTERNET`；实际权限只有 AndroidX
   自动生成的 `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`。
-- 不接 AI、不接后端、不收 API Key；设置页的 AI 分组仍是「后续接入」占位。
+- 不接 AI、不接后端、不收 API Key；设置页 AI 分组仍是「后续接入」占位。
 - 不引入云同步 / 账号 / 支付。
+- 导出只写用户通过 SAF 选择的位置；没有自动上传 / 自动分享。
 - 仓库不含密钥；不含设备绝对路径。
 
 ---
 
-## 12. 已验证结果（Gate 2A）
+## 10. 已验证结果
 
 | 验证 | 方式 | 结果 |
 |---|---|---|
-| 规则 / 时间戳 / 仓库 / ViewModel | JVM 单元测试 | **50/50** |
-| 目标三层 + 层级合法性 + 进展 + 状态 + 编辑 + 删除影响 | 真机自动化 | 见下 |
-| 日记 CRUD / 主题三态 / 导航回归 | 真机自动化 | 见下 |
-| **单次连续完整回归** | 真机自动化 | **80/80** |
-| 数据库内容 | 导出 `.db` + `sqlite3` 查询 | 见报告 §6 |
+| 规则 / 时间戳 / 仓库 / ViewModel / 导出 / 趋势分组 | JVM 单元测试 | **88/88** |
+| 目标三层 + 统计口径 + 删除影响 | 真机（QA） | G2C 回归 |
+| 日记 CRUD / 主题三态 / 导航回归 | 真机（QA） | G2C 回归 |
+| 导出完整性与逐项校验 | 真机（QA + 正式包） | G2C 回归 |
+| 真实趋势（空 / 单点 / 多点 / 多单位） | 真机（QA） | G2C 回归 |
+| 非法指标值 | 单元测试 + 真机（QA） | 拒绝且不写库 |
+| 日期选择器保存 / 重启展示 | 真机（QA） | G2C 回归 |
+| 旧日记 / 目标不丢失 | 正式包升级 + 数据库逐字段比对 | G2C 回归 |
+| 冷启动无崩溃 | 正式包 + QA 包 | G2C 回归 |
+| 总断言数 | 9 个真机脚本 | **345 条**（分脚本；settings 定向复跑） |
 
-APK：`11,088,320` 字节，
-SHA-256 `a367460605649d6ca052fc6e6476d590ce87f3f8622611b18c7809d7d91f4907`
-（= 真机验收所用二进制；clean 重建产物字节不同，见 Gate 2B 报告 §7.1）。
+> 逐项断言数、APK 字节数与 SHA-256 见 `docs/reports/REPORT-G2C-DATA-TRENDS.md`；
+> settings 首轮时序失败的原始日志与最终结论见
+> `docs/reports/logs/MISSING-EVIDENCE.md`。
 
 ---
 
-## 13. 已知限制
+## 11. 已知限制
 
-1. **日记与目标只在本机**：没有导出/备份，卸载应用即丢失。
-2. **顾问仍是演示**：发送不调用任何模型；日记的「AI 提取」区是占位，不会分析内容。
-3. **趋势页仍是静态演示数据**；总览的曲线与洞察也是，已逐张标注「演示」。
-4. **目标不能跨层级移动**；建错只能删除重建（环检测已就绪，留待后续）。
+1. **导入恢复未实现**：导出文件目前只能被校验/查看，不能导回应用。
+2. **顾问仍是演示**：发送不调用任何模型；日记的「AI 提取」区是占位。
+3. **总览的「人生方向 / 成长趋势预览 / 近期洞察」仍是演示内容**，逐张标注；
+   趋势页的演示区同理；真实数据只在目标、日记、进展与趋势真实区。
+4. **目标不能跨层级移动**；建错只能删除重建（环检测已就绪）。
 5. **没有回收站**：目标删除为硬删除，但有影响范围提示 + 二次确认。
-4. **长正文上限 20,000 字**（软护栏），超出会给出明确错误。
-5. **未做迁移测试**：v1 是首个版本，尚无历史迁移可测；规则已写入代码注释与报告。
-6. **主题切换后界面会瞬时重建**，极短时间内可能看到一次重绘。
+6. **进展不能编辑/补录数值**，单位是自由文本（`kg` 与 `KG` 视为不同单位）。
+7. **长正文上限 20,000 字**（软护栏）。
+8. **调试签名轮换**会让覆盖安装失败，需要备份/恢复流程（见 §8）。
 
 ---
 
-## 14. 下一步（Gate 2B 候选）
+## 12. 下一步（Gate 3 候选）
 
-- Room 迁移测试基建（`MigrationTestHelper`），把 v1→v2 变成可自动重跑的用例。
-- 目标进展可视化（数值目标的历史折线）与「目标移动」。
-- 日记 / 目标导出（注意 WAL：必须同时处理 `-wal`/`-shm` 或先 checkpoint）。
-- `tools/ui-verify/run_all.sh` 已入库，扩成「构建 → 单测 → 装机 → 回归」一条链。
+- **导入恢复**（与导出共用 schema，做 ID 冲突策略与二次确认）作为独立验收。
+- **AI 顾问接入**：BYOK、本地存储密钥、请求前显式确认、可关闭、不自动上传日记；
+  建议先做「用户选中一段日记/目标 → 生成拆解建议」的最小闭环，不接云同步。
+- 迁移测试基建（`MigrationTestHelper`）与更多导出格式版本测试。
+- 目标跨层级移动、进展编辑与单位归一。

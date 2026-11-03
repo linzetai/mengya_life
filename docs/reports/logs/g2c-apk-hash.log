@@ -1,0 +1,14 @@
+# Gate 2C 设备安装 APK 哈希（拉回 base.apk 计算）
+时间: 2026-11-03T12:31:28+08:00
+设备: 2509FPN0BC / 17
+
+== com.mengyalife.app
+path: /data/app/~~n0SOuH-F0yaq9SCDRJmIvw==/com.mengyalife.app-W8dAY8fkjGfchboY-xK6zQ==/base.apk
+bytes: 11318375
+sha256: 53de2e8fd0977475110c9eee9e056940c55d643c3cc08d88dcb027885b6297fa
+
+== com.mengyalife.app.qa
+path: /data/app/~~tzDbE8RYQeudk52JZODxAg==/com.mengyalife.app.qa-LHMBR5FTzHmwCBHSpo1aEQ==/base.apk
+bytes: 11319353
+sha256: dd2560c3c4c64b705e604e177b79c63f22b033f2f2c341937cada47fec822482
+

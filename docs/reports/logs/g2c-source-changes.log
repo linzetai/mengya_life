@@ -1,0 +1,175 @@
+# Gate 2C 源码变更清单
+生成时间: 2026-11-03T16:47:13+08:00
+
+## git status
+ M README.md
+ M docs/reports/REPORT-G2C-DATA-TRENDS.md
+ M docs/reports/logs/MISSING-EVIDENCE.md
+ M docs/reports/logs/g2c-acceptance-summary.md
+ D docs/reports/logs/g2c-export/mengya-life-export-20261103-135012.json
+ M docs/reports/logs/g2c-final-regression.log
+ M docs/reports/logs/g2c-shots/01-diary-empty.png
+ M docs/reports/logs/g2c-shots/01-goals-empty.png
+ M docs/reports/logs/g2c-shots/01-settings-data-export.png
+ M docs/reports/logs/g2c-shots/01-trends-empty-and-demo.png
+ M docs/reports/logs/g2c-shots/02-diary-blank-error.png
+ M docs/reports/logs/g2c-shots/02-settings-theme-note.png
+ M docs/reports/logs/g2c-shots/02-two-levels.png
+ M docs/reports/logs/g2c-shots/03-diary-created.png
+ M docs/reports/logs/g2c-shots/03-settings-about.png
+ M docs/reports/logs/g2c-shots/04-diary-detail.png
+ M docs/reports/logs/g2c-shots/05-diary-after-restart.png
+ M docs/reports/logs/g2c-shots/06-diary-delete-confirm.png
+ M docs/reports/logs/g2c-shots/07-diary-deleted.png
+ M docs/reports/logs/g2c-shots/12-theme-light.png
+ M docs/reports/logs/g2c-shots/13-theme-dark.png
+ M docs/reports/logs/g2c-shots/14-theme-dark-after-restart.png
+ M docs/reports/logs/g2c-shots/15-main-dark.png
+ M docs/reports/logs/g2c-shots/16-system-light.png
+ M docs/reports/logs/g2c-shots/17-system-dark.png
+ D docs/reports/logs/g2c-shots/targeted-01-export-source-data.png
+ D docs/reports/logs/g2c-shots/targeted-01-trends-empty-and-demo.png
+ D docs/reports/logs/g2c-shots/targeted-02-export-warning.png
+ D docs/reports/logs/g2c-shots/targeted-02-goals-with-metrics.png
+ D docs/reports/logs/g2c-shots/targeted-03-export-saf-picker.png
+ D docs/reports/logs/g2c-shots/targeted-03-history-multi-unit.png
+ D docs/reports/logs/g2c-shots/targeted-04-export-success.png
+ D docs/reports/logs/g2c-shots/targeted-04-history-single.png
+ D docs/reports/logs/g2c-shots/targeted-05-history-empty-numeric.png
+ D docs/reports/logs/g2c-shots/targeted-06-trends-real.png
+ D docs/reports/logs/g2c-shots/targeted-07-invalid-metric.png
+ D docs/reports/logs/g2c-shots/targeted-08-trends-demo-separated.png
+ M docs/reports/logs/g2c-source-changes.log
+ M docs/reports/logs/g2c-verify_diary.log
+ D docs/reports/logs/g2c-verify_export-targeted.log
+ D docs/reports/logs/g2c-verify_goals-first-attempt.log
+ M docs/reports/logs/g2c-verify_settings.log
+ M docs/reports/logs/g2c-verify_theme.log
+ D docs/reports/logs/g2c-verify_trends-targeted.log
+ M tools/ui-verify/harness.py
+ M tools/ui-verify/verify_settings.py
+?? docs/reports/logs/g2c-export/mengya-life-export-20261103-160723.json
+?? docs/reports/logs/g2c-export/mengya-life-export-20261103-161002.json
+?? docs/reports/logs/g2c-shots/01-date-picker.png
+?? docs/reports/logs/g2c-shots/01-export-source-data.png
+?? docs/reports/logs/g2c-shots/01-prod-cold-start.png
+?? docs/reports/logs/g2c-shots/02-date-selected.png
+?? docs/reports/logs/g2c-shots/02-export-warning.png
+?? docs/reports/logs/g2c-shots/02-goals-with-metrics.png
+?? docs/reports/logs/g2c-shots/02-prod-diary-restored.png
+?? docs/reports/logs/g2c-shots/03-date-saved.png
+?? docs/reports/logs/g2c-shots/03-export-saf-picker.png
+?? docs/reports/logs/g2c-shots/03-history-multi-unit.png
+?? docs/reports/logs/g2c-shots/03-prod-overview.png
+?? docs/reports/logs/g2c-shots/03-three-levels.png
+?? docs/reports/logs/g2c-shots/04-checkin.png
+?? docs/reports/logs/g2c-shots/04-date-after-restart.png
+?? docs/reports/logs/g2c-shots/04-export-success.png
+?? docs/reports/logs/g2c-shots/04-history-single.png
+?? docs/reports/logs/g2c-shots/04-prod-settings.png
+?? docs/reports/logs/g2c-shots/05-history-empty-numeric.png
+?? docs/reports/logs/g2c-shots/05-history-single-point.png
+?? docs/reports/logs/g2c-shots/05-prod-export-warning.png
+?? docs/reports/logs/g2c-shots/06-status-done.png
+?? docs/reports/logs/g2c-shots/06-trends-real.png
+?? docs/reports/logs/g2c-shots/07-edited.png
+?? docs/reports/logs/g2c-shots/07-invalid-metric.png
+?? docs/reports/logs/g2c-shots/08-after-restart.png
+?? docs/reports/logs/g2c-shots/08-trends-demo-separated.png
+?? docs/reports/logs/g2c-shots/09-overview.png
+?? docs/reports/logs/g2c-shots/10-delete-impact.png
+?? docs/reports/logs/g2c-shots/11-after-delete.png
+?? docs/reports/logs/g2c-verify_dates.log
+?? docs/reports/logs/g2c-verify_export.log
+?? docs/reports/logs/g2c-verify_goals.log
+?? docs/reports/logs/g2c-verify_prod_smoke.log
+?? docs/reports/logs/g2c-verify_settings-first-attempt.log
+?? docs/reports/logs/g2c-verify_trends.log
+
+## diffstat
+ README.md                                          |  13 +-
+ docs/reports/REPORT-G2C-DATA-TRENDS.md             |  76 ++--
+ docs/reports/logs/MISSING-EVIDENCE.md              | 110 +++---
+ docs/reports/logs/g2c-acceptance-summary.md        |  61 ++--
+ .../mengya-life-export-20261103-135012.json        |  67 ----
+ docs/reports/logs/g2c-final-regression.log         | 389 +++++++++++++++++----
+ docs/reports/logs/g2c-shots/01-diary-empty.png     | Bin 232662 -> 231779 bytes
+ docs/reports/logs/g2c-shots/01-goals-empty.png     | Bin 238571 -> 239135 bytes
+ .../logs/g2c-shots/01-settings-data-export.png     | Bin 348873 -> 349580 bytes
+ .../logs/g2c-shots/01-trends-empty-and-demo.png    | Bin 328812 -> 327029 bytes
+ .../logs/g2c-shots/02-diary-blank-error.png        | Bin 207102 -> 205704 bytes
+ .../logs/g2c-shots/02-settings-theme-note.png      | Bin 307682 -> 321982 bytes
+ docs/reports/logs/g2c-shots/02-two-levels.png      | Bin 222792 -> 224182 bytes
+ docs/reports/logs/g2c-shots/03-diary-created.png   | Bin 216725 -> 216058 bytes
+ docs/reports/logs/g2c-shots/03-settings-about.png  | Bin 324259 -> 324026 bytes
+ docs/reports/logs/g2c-shots/04-diary-detail.png    | Bin 226446 -> 227595 bytes
+ .../logs/g2c-shots/05-diary-after-restart.png      | Bin 222392 -> 221075 bytes
+ .../logs/g2c-shots/06-diary-delete-confirm.png     | Bin 211941 -> 210368 bytes
+ docs/reports/logs/g2c-shots/07-diary-deleted.png   | Bin 233443 -> 232483 bytes
+ docs/reports/logs/g2c-shots/12-theme-light.png     | Bin 307694 -> 306120 bytes
+ docs/reports/logs/g2c-shots/13-theme-dark.png      | Bin 307846 -> 306038 bytes
+ .../logs/g2c-shots/14-theme-dark-after-restart.png | Bin 308770 -> 306187 bytes
+ docs/reports/logs/g2c-shots/15-main-dark.png       | Bin 338322 -> 334558 bytes
+ docs/reports/logs/g2c-shots/16-system-light.png    | Bin 335500 -> 335117 bytes
+ docs/reports/logs/g2c-shots/17-system-dark.png     | Bin 337328 -> 337094 bytes
+ .../g2c-shots/targeted-01-export-source-data.png   | Bin 218980 -> 0 bytes
+ .../targeted-01-trends-empty-and-demo.png          | Bin 328892 -> 0 bytes
+ .../logs/g2c-shots/targeted-02-export-warning.png  | Bin 338379 -> 0 bytes
+ .../g2c-shots/targeted-02-goals-with-metrics.png   | Bin 247223 -> 0 bytes
+ .../g2c-shots/targeted-03-export-saf-picker.png    | Bin 189975 -> 0 bytes
+ .../g2c-shots/targeted-03-history-multi-unit.png   | Bin 237958 -> 0 bytes
+ .../logs/g2c-shots/targeted-04-export-success.png  | Bin 343069 -> 0 bytes
+ .../logs/g2c-shots/targeted-04-history-single.png  | Bin 156670 -> 0 bytes
+ .../targeted-05-history-empty-numeric.png          | Bin 136975 -> 0 bytes
+ .../logs/g2c-shots/targeted-06-trends-real.png     | Bin 290019 -> 0 bytes
+ .../logs/g2c-shots/targeted-07-invalid-metric.png  | Bin 246280 -> 0 bytes
+ .../targeted-08-trends-demo-separated.png          | Bin 289605 -> 0 bytes
+ docs/reports/logs/g2c-source-changes.log           | 259 +++++---------
+ docs/reports/logs/g2c-verify_diary.log             |  10 +-
+ docs/reports/logs/g2c-verify_export-targeted.log   |  57 ---
+ .../logs/g2c-verify_goals-first-attempt.log        |  22 --
+ docs/reports/logs/g2c-verify_settings.log          |   3 +-
+ docs/reports/logs/g2c-verify_theme.log             |  10 +-
+ docs/reports/logs/g2c-verify_trends-targeted.log   |  83 -----
+ tools/ui-verify/harness.py                         |  15 +-
+ tools/ui-verify/verify_settings.py                 |   1 +
+ 46 files changed, 567 insertions(+), 609 deletions(-)
+
+## 新文件
+docs/reports/logs/g2c-export/mengya-life-export-20261103-160723.json
+docs/reports/logs/g2c-export/mengya-life-export-20261103-161002.json
+docs/reports/logs/g2c-shots/01-date-picker.png
+docs/reports/logs/g2c-shots/01-export-source-data.png
+docs/reports/logs/g2c-shots/01-prod-cold-start.png
+docs/reports/logs/g2c-shots/02-date-selected.png
+docs/reports/logs/g2c-shots/02-export-warning.png
+docs/reports/logs/g2c-shots/02-goals-with-metrics.png
+docs/reports/logs/g2c-shots/02-prod-diary-restored.png
+docs/reports/logs/g2c-shots/03-date-saved.png
+docs/reports/logs/g2c-shots/03-export-saf-picker.png
+docs/reports/logs/g2c-shots/03-history-multi-unit.png
+docs/reports/logs/g2c-shots/03-prod-overview.png
+docs/reports/logs/g2c-shots/03-three-levels.png
+docs/reports/logs/g2c-shots/04-checkin.png
+docs/reports/logs/g2c-shots/04-date-after-restart.png
+docs/reports/logs/g2c-shots/04-export-success.png
+docs/reports/logs/g2c-shots/04-history-single.png
+docs/reports/logs/g2c-shots/04-prod-settings.png
+docs/reports/logs/g2c-shots/05-history-empty-numeric.png
+docs/reports/logs/g2c-shots/05-history-single-point.png
+docs/reports/logs/g2c-shots/05-prod-export-warning.png
+docs/reports/logs/g2c-shots/06-status-done.png
+docs/reports/logs/g2c-shots/06-trends-real.png
+docs/reports/logs/g2c-shots/07-edited.png
+docs/reports/logs/g2c-shots/07-invalid-metric.png
+docs/reports/logs/g2c-shots/08-after-restart.png
+docs/reports/logs/g2c-shots/08-trends-demo-separated.png
+docs/reports/logs/g2c-shots/09-overview.png
+docs/reports/logs/g2c-shots/10-delete-impact.png
+docs/reports/logs/g2c-shots/11-after-delete.png
+docs/reports/logs/g2c-verify_dates.log
+docs/reports/logs/g2c-verify_export.log
+docs/reports/logs/g2c-verify_goals.log
+docs/reports/logs/g2c-verify_prod_smoke.log
+docs/reports/logs/g2c-verify_settings-first-attempt.log
+docs/reports/logs/g2c-verify_trends.log

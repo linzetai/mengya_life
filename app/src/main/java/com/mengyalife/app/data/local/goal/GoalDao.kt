@@ -37,11 +37,19 @@ interface GoalDao {
     @Query("SELECT * FROM goal_checkins ORDER BY recorded_at DESC, id DESC LIMIT :limit")
     fun observeRecentCheckins(limit: Int): Flow<List<GoalCheckinEntity>>
 
+    /** 趋势页：观察全部进展记录（时间升序，同一时刻按 id 升序）。 */
+    @Query("SELECT * FROM goal_checkins ORDER BY recorded_at ASC, id ASC")
+    fun observeAllCheckins(): Flow<List<GoalCheckinEntity>>
+
     @Query("SELECT * FROM goals WHERE id = :id LIMIT 1")
     suspend fun findGoal(id: Long): GoalEntity?
 
     @Query("SELECT * FROM goals")
     suspend fun loadAllGoals(): List<GoalEntity>
+
+    /** 导出用：全部进展记录，按 id 升序。 */
+    @Query("SELECT * FROM goal_checkins ORDER BY id ASC")
+    suspend fun loadAllCheckins(): List<GoalCheckinEntity>
 
     @Insert
     suspend fun insertGoal(goal: GoalEntity): Long

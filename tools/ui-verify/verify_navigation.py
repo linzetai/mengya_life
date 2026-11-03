@@ -2,6 +2,9 @@ import os, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from harness import *
 
+# 导航脚本只读，但默认仍跑 QA 包，避免误动正式版。
+require_qa("verify_navigation.py")
+
 restart_app()
 time.sleep(2.0)
 EXPECT = [("tab_overview", "你正在走的方向"), ("tab_goals", "把方向拆成能推进的层级"),
@@ -29,6 +32,7 @@ for tag, _ in EXPECT:
     adb("shell input keyevent KEYCODE_BACK"); time.sleep(1.2)
     check(f"{tag} 返回后底栏恢复", any(n["rid"].startswith("tab_") for n in nodes(dump())))
 
-check("日记数据仍在（回归不破坏数据）", tap_tag("tab_diary") and wait_text("汕头", 8))
+# 导航脚本不依赖任何业务数据；只验证日记页仍然可用（回归不破坏功能入口）
+check("日记页仍可打开", tap_tag("tab_diary") and has_tag("diary_new"))
 check("无崩溃日志", "com.mengyalife.app" not in adb("shell logcat -b crash -d"))
 sys.exit(0 if summary() else 1)

@@ -1,0 +1,96 @@
+"""设置页文案验收（Gate 2C，只跑 QA 包）。
+
+重点：主题已持久化，页面不得再出现「重启后恢复跟随系统」或「本轮不引入 DataStore」；
+导出入口必须存在，导入必须明确标注尚未实现；导出敏感信息提醒必须可见。
+"""
+import os, sys, time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from harness import *
+
+require_qa("verify_settings.py")
+
+# 从干净、确定的状态开始：清 QA 数据并确保应用在前台。
+clear_qa_data()
+
+STALE = [
+    "重启后恢复「跟随系统」",
+    "本轮不引入 DataStore",
+    "设置仅在本次运行有效",
+    "当前不能导出或导入数据",
+    "目前还不能导出或导入数据",
+    "本轮仅完成页面结构与说明",
+]
+
+
+def collect_all_texts(max_swipes=12):
+    """从头滚到底，收集整页可见文字（避免「文字在屏幕外」造成假阴性）。"""
+    seen = set()
+    for _ in range(max_swipes):
+        seen |= {t for t in texts(dump()) if t.strip()}
+        adb("shell input swipe 600 1900 600 700 260")
+        time.sleep(0.9)
+    seen |= {t for t in texts(dump()) if t.strip()}
+    return seen
+
+
+restart_app()
+check("被测应用已在前台", ensure_foreground())
+check("首页已渲染", wait_tag("btn_settings", 12))
+tap_tag("btn_settings")
+check("设置页已打开", wait_tag("settings_back", 8))
+time.sleep(1.0)
+
+print("========== 1. 整页文案扫描：过期文案必须消失 ==========")
+seen = collect_all_texts()
+for text in STALE:
+    check("不含过期文案：" + text, not any(text in t for t in seen))
+
+print("========== 2. 期望文案必须存在 ==========")
+expected = [
+    "已实现的设置会立即生效并保存在本机",
+    "导出我的数据",
+    "导入数据",
+    "导入恢复尚未实现",
+    "本机数据库（Room）",
+    "敏感个人信息",
+    "妥善保管",
+    "保存在本机（DataStore）",
+    "重启后保持上次选择",
+    "随系统深浅色变化",
+    "无网络权限",
+]
+for text in expected:
+    check("包含文案：" + text, any(text in t for t in seen), text)
+
+check("QA 构建横幅", "QA 测试构建" in " ".join(seen) and "mengya-life-qa.db" in " ".join(seen))
+check("版本号来自安装包", "0.5.0-g2c-qa" in " ".join(seen), "应为 0.5.0-g2c-qa")
+check("无「自带密钥」误导性胶囊", "自带密钥" not in " ".join(seen))
+
+print("========== 3. 截图：数据区 ==========")
+adb("shell input keyevent KEYCODE_BACK")
+time.sleep(1.0)
+tap_tag("btn_settings")
+time.sleep(1.0)
+check("数据区可见", scroll_to_tag("settings_export_data", 10))
+check("导出入口可点击", has_tag("settings_export_data"))
+check("导入入口标注后续", has_tag("settings_import_data") and has_text("后续接入"))
+shot("01-settings-data-export")
+
+print("========== 4. 截图：主题说明 ==========")
+check("主题区可见", scroll_to_tag("theme_system", 10))
+check("主题选项齐全", all(has_tag(t) for t in ("theme_system", "theme_light", "theme_dark")))
+check("主题说明包含持久化", has_text("保存在本机（DataStore）"))
+check("主题说明包含重启保持", has_text("重启后保持上次选择"))
+check("主题说明包含跟随系统", has_text("随系统深浅色变化"))
+shot("02-settings-theme-note")
+
+print("========== 5. 截图：关于 ==========")
+adb("shell input swipe 600 1900 600 700 260")
+time.sleep(1.0)
+check("关于区显示版本", has_text("0.5.0-g2c-qa"))
+check("数据存储说明", has_text("本机（无云端同步）"))
+shot("03-settings-about")
+
+ok = summary()
+restore_chrome()
+sys.exit(0 if ok else 1)

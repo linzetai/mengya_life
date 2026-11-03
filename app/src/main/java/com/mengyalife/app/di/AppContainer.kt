@@ -1,6 +1,10 @@
 package com.mengyalife.app.di
 
 import android.content.Context
+import androidx.room.withTransaction
+import com.mengyalife.app.BuildConfig
+import com.mengyalife.app.data.export.DataExportRepository
+import com.mengyalife.app.data.local.DB_SCHEMA_VERSION
 import com.mengyalife.app.data.local.MengyaDatabase
 import com.mengyalife.app.data.preferences.ThemePreferences
 import com.mengyalife.app.data.repository.GoalRepository
@@ -27,5 +31,23 @@ class AppContainer(context: Context) {
 
     val themePreferences: ThemePreferences by lazy {
         ThemePreferences(appContext)
+    }
+
+    /**
+     * 导出仓库。事务执行器用 Room 的 `withTransaction`：
+     * 三张表在同一事务内读取，得到一致快照。
+     */
+    val dataExportRepository: DataExportRepository by lazy {
+        DataExportRepository(
+            journalDao = database.journalEntryDao(),
+            goalDao = database.goalDao(),
+            appPackage = BuildConfig.APPLICATION_ID,
+            appVersionName = BuildConfig.VERSION_NAME,
+            appVersionCode = BuildConfig.VERSION_CODE.toLong(),
+            databaseVersion = DB_SCHEMA_VERSION,
+            transaction = { block ->
+                database.withTransaction { block() }
+            },
+        )
     }
 }

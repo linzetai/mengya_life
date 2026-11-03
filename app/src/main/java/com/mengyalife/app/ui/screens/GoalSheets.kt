@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
@@ -46,10 +47,14 @@ import com.mengyalife.app.data.repository.DeleteImpact
 import com.mengyalife.app.domain.goals.GoalDomain
 import com.mengyalife.app.domain.goals.GoalLevel
 import com.mengyalife.app.domain.goals.GoalStatus
+import com.mengyalife.app.domain.goals.GoalTrends
+import com.mengyalife.app.ui.components.MetricTrendChart
+import com.mengyalife.app.ui.components.TrendPointList
 import com.mengyalife.app.ui.goals.CheckinDraftState
 import com.mengyalife.app.ui.goals.GoalAction
 import com.mengyalife.app.ui.goals.GoalEditorState
 import com.mengyalife.app.ui.goals.GoalsUiState
+import com.mengyalife.app.util.MetricFormat
 import com.mengyalife.app.util.Timestamps
 
 private fun Modifier.dialogSemantics(): Modifier = this.semantics { testTagsAsResourceId = true }
@@ -176,7 +181,7 @@ fun GoalEditorSheet(
                     onClick = { datePickerOpen = true },
                     modifier = Modifier.testTag("goal_editor_due_date"),
                 ) {
-                    Text(editor.dueDate?.let { Timestamps.formatDate(it) } ?: "未设置")
+                    Text(editor.dueDate?.let { Timestamps.formatDateUtc(it) } ?: "未设置")
                 }
                 if (editor.dueDate != null) {
                     TextButton(onClick = { onDueDateChange(null) }) { Text("清除") }
@@ -386,6 +391,20 @@ fun CheckinHistorySheet(
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // 只使用用户手填的数值；不同单位分组，非法/非有限值由 GoalTrends 过滤。
+    val series = remember(items) {
+        GoalTrends.seriesFrom(
+            items.map {
+                GoalTrends.MetricRecord(
+                    checkinId = it.id,
+                    recordedAt = it.recordedAt,
+                    value = it.metricValue,
+                    unit = it.metricUnit,
+                )
+            },
+        )
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -394,6 +413,9 @@ fun CheckinHistorySheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                // 历史里有真实趋势图 + 记录列表，必须给一个明确高度再内部滚动；
+                // 否则 ModalBottomSheet 会按「可滚动内容」量成一个很矮的半屏。
+                .fillMaxHeight(0.92f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 8.dp)
                 .dialogSemantics(),
@@ -415,6 +437,86 @@ fun CheckinHistorySheet(
                     modifier = Modifier.testTag("goal_history_empty"),
                 )
             } else {
+                // ---------------- 真实数值趋势 ----------------
+                Text(
+                    text = "数值趋势",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "数据来源：你在「记录进展」里手动填写的数值（source = manual）。",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.testTag("goal_trend_source"),
+                )
+
+                if (series.isEmpty()) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        text = "还没有数值记录，无法绘制趋势。记录进展时「数值」是选填项，" +
+                            "下次可以填一个数字（例如 30、3.5）。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.testTag("goal_history_trend_empty"),
+                    )
+                } else {
+                    Spacer(Modifier.height(12.dp))
+                    series.forEachIndexed { index, item ->
+                        if (index > 0) Spacer(Modifier.height(14.dp))
+                        Text(
+                            text = "单位：${item.unitLabel} · ${item.points.size} 个数据点",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        MetricTrendChart(
+                            series = item,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("goal_trend_chart_$index"),
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        if (item.points.size == 1) {
+                            Text(
+                                text = "只有 1 条数值记录，无法判断趋势；这里只显示该数据点，不连成曲线。",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.testTag("goal_trend_single_note"),
+                            )
+                        } else {
+                            Text(
+                                text = "横轴是真实记录时间，纵轴是指标值；共 ${item.points.size} 条记录。",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.testTag("goal_trend_multi_note"),
+                            )
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        TrendPointList(series = item)
+                    }
+                    if (series.size > 1) {
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            text = "这个目标存在不同单位的记录，已按单位分开绘制；不做单位换算，" +
+                                "也不合并成一个人为评分。",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.testTag("goal_trend_unit_split"),
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = "进展记录（按时间倒序）",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+
                 items.forEachIndexed { index, item ->
                     if (index > 0) {
                         Spacer(Modifier.height(10.dp))
@@ -435,7 +537,10 @@ fun CheckinHistorySheet(
                     if (item.metricValue != null) {
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            text = "数值：" + formatMetric(item),
+                            text = "数值：" + MetricFormat.withUnit(
+                                item.metricValue,
+                                item.metricUnit,
+                            ),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary,
                         )
@@ -445,12 +550,6 @@ fun CheckinHistorySheet(
             Spacer(Modifier.height(20.dp))
         }
     }
-}
-
-private fun formatMetric(item: GoalCheckinEntity): String {
-    val value = item.metricValue ?: return "-"
-    val pretty = if (value == value.toLong().toDouble()) value.toLong().toString() else value.toString()
-    return item.metricUnit?.let { "$pretty $it" } ?: pretty
 }
 
 @Composable

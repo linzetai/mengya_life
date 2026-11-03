@@ -14,8 +14,15 @@ android {
         applicationId 'com.mengyalife.app'
         minSdk 26
         targetSdk 35
-        versionCode 4
-        versionName '0.4.0-g2b'
+        versionCode 5
+        versionName '0.5.0-g2c'
+
+        // Gate 2C：QA 构建通过独立 applicationId + 独立库名做真机破坏性测试，
+        // 保证测试永远不会碰正式版里用户自己的日记与目标。
+        buildConfigField 'String', 'DATABASE_NAME', '"mengya-life.db"'
+        buildConfigField 'String', 'PREFS_NAME', '"mengya_settings"'
+        buildConfigField 'boolean', 'QA_BUILD', 'false'
+        manifestPlaceholders = [appLabel: '萌芽人生']
     }
 
     buildTypes {
@@ -24,6 +31,20 @@ android {
         }
         release {
             minifyEnabled false
+        }
+
+        // 真机测试专用构建：包名 com.mengyalife.app.qa、库名 mengya-life-qa.db。
+        // 与正式版可同时安装、互不共享数据；破坏性用例只允许跑在这个包上。
+        create('qa') {
+            initWith(getByName('debug'))
+            applicationIdSuffix '.qa'
+            versionNameSuffix '-qa'
+            signingConfig signingConfigs.debug
+            matchingFallbacks = ['debug']
+            manifestPlaceholders = [appLabel: '萌芽人生 QA']
+            buildConfigField 'String', 'DATABASE_NAME', '"mengya-life-qa.db"'
+            buildConfigField 'String', 'PREFS_NAME', '"mengya_settings_qa"'
+            buildConfigField 'boolean', 'QA_BUILD', 'true'
         }
     }
 
@@ -34,6 +55,8 @@ android {
 
     buildFeatures {
         compose true
+        // 版本号 / 库名 / QA 标记由构建类型注入，避免把测试库写死进正式版。
+        buildConfig true
     }
 
     lint {
@@ -73,6 +96,9 @@ dependencies {
 
     // 偏好设置（主题）
     implementation 'androidx.datastore:datastore-preferences:1.1.7'
+
+    // 结构化导出（只用到 JSON 构建与解析 API，不引入序列化编译器插件）
+    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3'
 
     // JVM 单元测试（不依赖真机）
     testImplementation 'junit:junit:4.13.2'

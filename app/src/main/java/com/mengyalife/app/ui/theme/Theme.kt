@@ -10,8 +10,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 
 /**
- * 主题模式。仅保存在内存中（本轮不引入 DataStore），
- * 进程结束后会回到「跟随系统」——这一点在设置页与 README 中都明确说明。
+ * 主题模式。用户选择由 [com.mengyalife.app.data.preferences.ThemePreferences]
+ * 写入 DataStore，**重启后保持**；选「跟随系统」时由系统深浅色实时决定实际配色。
  */
 enum class ThemeMode(val label: String, val testTag: String) {
     SYSTEM("跟随系统", "theme_system"),

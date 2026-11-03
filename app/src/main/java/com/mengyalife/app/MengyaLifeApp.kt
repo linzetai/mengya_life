@@ -51,6 +51,7 @@ import com.mengyalife.app.ui.screens.GoalsScreen
 import com.mengyalife.app.ui.screens.OverviewScreen
 import com.mengyalife.app.ui.screens.SettingsScreen
 import com.mengyalife.app.ui.screens.TrendsScreen
+import com.mengyalife.app.ui.settings.ExportViewModel
 import com.mengyalife.app.ui.settings.ThemeViewModel
 import com.mengyalife.app.ui.theme.MengyaLifeTheme
 import com.mengyalife.app.ui.theme.ThemeMode
@@ -76,6 +77,10 @@ fun MengyaLifeApp() {
     // ---- 目标 ----
     val goalsViewModel: GoalsViewModel = viewModel(factory = GoalsViewModel.Factory)
     val goalsState by goalsViewModel.uiState.collectAsStateWithLifecycle()
+
+    // ---- 数据导出（设置页）----
+    val exportViewModel: ExportViewModel = viewModel(factory = ExportViewModel.Factory)
+    val exportState by exportViewModel.state.collectAsStateWithLifecycle()
 
     // ---- 导航状态 ----
     var currentTab by rememberSaveable { mutableStateOf(AppTab.OVERVIEW) }
@@ -119,6 +124,13 @@ fun MengyaLifeApp() {
                     onThemeModeChange = { themeViewModel.setThemeMode(it) },
                     onBack = { showSettings = false },
                     versionName = versionName,
+                    exportState = exportState,
+                    onExportRequested = exportViewModel::requestExport,
+                    onExportConfirmed = exportViewModel::confirmExport,
+                    onExportDestination = exportViewModel::onDestinationChosen,
+                    onExportCancelled = exportViewModel::cancelExport,
+                    onExportDestinationCancelled = exportViewModel::onDestinationCancelled,
+                    onExportMessageConsumed = exportViewModel::consumeMessage,
                 )
             } else {
                 MainShell(
@@ -250,7 +262,10 @@ private fun MainShell(
                     onAction = onGoalAction,
                 )
 
-                AppTab.TRENDS -> TrendsScreen(listState = trendsListState)
+                AppTab.TRENDS -> TrendsScreen(
+                    listState = trendsListState,
+                    trends = goalsState.trends,
+                )
 
                 AppTab.DIARY -> DiaryScreen(
                     listState = diaryListState,

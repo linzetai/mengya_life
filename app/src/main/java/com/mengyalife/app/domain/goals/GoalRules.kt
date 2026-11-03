@@ -21,11 +21,17 @@ object GoalRules {
     const val ERROR_PARENT_MISSING = "上级目标不存在"
     const val ERROR_DUE_BEFORE_START = "截止时间不能早于开始时间"
     const val ERROR_NOTE_REQUIRED = "进展说明不能为空"
-    const val ERROR_METRIC_INVALID = "指标数值不合法"
+    const val ERROR_METRIC_INVALID = "指标数值不合法：请填写有限数字（不能是 NaN 或 Infinity）"
+    const val ERROR_METRIC_TOO_LARGE = "指标数值超出可记录范围（绝对值不能超过 1,000,000,000）"
+    const val ERROR_UNIT_TOO_LONG = "单位过长，请控制在 16 个字以内"
 
     const val MAX_TITLE = 60
     const val MAX_DESCRIPTION = 1000
     const val MAX_NOTE = 500
+    const val MAX_UNIT = 16
+
+    /** 允许记录的最大绝对值：既挡住溢出，也保证图表坐标不会失真。 */
+    const val MAX_ABS_METRIC = 1_000_000_000.0
 
     /** 某个层级允许的父层级（null 表示不允许有父）。 */
     fun requiredParentLevel(level: GoalLevel): GoalLevel? = when (level) {
@@ -97,10 +103,44 @@ object GoalRules {
         }
     }
 
+    /**
+     * 校验用户输入的指标文本。
+     *
+     * 注意 `String.toDoubleOrNull()` 会接受 `NaN` / `Infinity` / `-Infinity`
+     * （它们都是合法的 Java Double 字面量），所以**不能**只判断「能不能转成 Double」。
+     * 这里额外要求结果是有限数，并由 [validateMetricValue] 统一兜底。
+     */
     fun validateMetric(raw: String?): String? {
         if (raw.isNullOrBlank()) return null
-        return if (raw.trim().toDoubleOrNull() == null) ERROR_METRIC_INVALID else null
+        val parsed = raw.trim().toDoubleOrNull() ?: return ERROR_METRIC_INVALID
+        return validateMetricValue(parsed)
     }
+
+    /**
+     * 校验**已经解析成 Double** 的指标值。
+     *
+     * 这是数据层的最后一道闸门：[com.mengyalife.app.data.repository.GoalRepository]
+     * 在写库前必须调用它，因此即使绕过界面（例如以后接导入）也无法写入非法值。
+     */
+    fun validateMetricValue(value: Double?): String? {
+        if (value == null) return null
+        if (!value.isFinite()) return ERROR_METRIC_INVALID
+        if (kotlin.math.abs(value) > MAX_ABS_METRIC) return ERROR_METRIC_TOO_LARGE
+        return null
+    }
+
+    /** 日期/指标等文本输入 → 可用于入库的有限 Double（非法或空返回 null）。 */
+    fun parseMetric(raw: String?): Double? =
+        raw?.trim()?.takeIf { it.isNotEmpty() }?.toDoubleOrNull()?.takeIf { it.isFinite() }
+
+    fun validateUnit(raw: String?): String? {
+        val unit = raw?.trim().orEmpty()
+        return if (unit.length > MAX_UNIT) ERROR_UNIT_TOO_LONG else null
+    }
+
+    /** 单位归一：空串一律存 NULL，避免「有单位但空白」的脏数据。 */
+    fun normalizeUnit(raw: String?): String? =
+        raw?.trim()?.takeIf { it.isNotEmpty() }
 }
 
 /** 只带校验所需字段的轻量投影，避免领域层依赖 Room 实体。 */

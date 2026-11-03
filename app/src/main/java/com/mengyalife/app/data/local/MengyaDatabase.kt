@@ -7,6 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.mengyalife.app.BuildConfig
 import com.mengyalife.app.data.local.goal.GoalCheckinEntity
 import com.mengyalife.app.data.local.goal.GoalDao
 import com.mengyalife.app.data.local.goal.GoalEntity
@@ -24,13 +25,16 @@ import com.mengyalife.app.data.local.goal.GoalEntity
  * 3. schema 导出到 `app/schemas/`，历史版本 JSON 一并保留，用于 diff；
  * 4. 迁移必须在真机升级安装上验证（本轮已做 v1→v2 实测，见报告）。
  */
+/** 数据库结构版本。导出文件里的 `databaseVersion` 与它保持一致。 */
+const val DB_SCHEMA_VERSION = 2
+
 @Database(
     entities = [
         JournalEntryEntity::class,
         GoalEntity::class,
         GoalCheckinEntity::class,
     ],
-    version = 2,
+    version = DB_SCHEMA_VERSION,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -41,7 +45,8 @@ abstract class MengyaDatabase : RoomDatabase() {
     abstract fun goalDao(): GoalDao
 
     companion object {
-        private const val DATABASE_NAME = "mengya-life.db"
+        // 正式版与 QA 测试构建使用不同的物理库文件（见 app/build.gradle 的 buildConfigField）。
+        private const val DATABASE_NAME = BuildConfig.DATABASE_NAME
 
         /**
          * v1 → v2：只**新增**两张表与索引，不触碰 `journal_entries`。
@@ -95,6 +100,9 @@ abstract class MengyaDatabase : RoomDatabase() {
 
         @Volatile
         private var instance: MengyaDatabase? = null
+
+        /** QA 构建专用判断：破坏性测试只允许发生在它上面。 */
+        val isTestBuild: Boolean get() = BuildConfig.QA_BUILD
 
         fun get(context: Context): MengyaDatabase =
             instance ?: synchronized(this) {

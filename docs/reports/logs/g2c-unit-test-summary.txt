@@ -1,0 +1,11 @@
+JVM 单元测试汇总：88 个用例，失败/错误 0
+
+com.mengyalife.app.data.ExportTest: tests=12 failures=0 errors=0
+com.mengyalife.app.data.GoalRepositoryTest: tests=21 failures=0 errors=0
+com.mengyalife.app.data.JournalRepositoryTest: tests=8 failures=0 errors=0
+com.mengyalife.app.domain.GoalRulesTest: tests=23 failures=0 errors=0
+com.mengyalife.app.domain.GoalTrendsTest: tests=7 failures=0 errors=0
+com.mengyalife.app.domain.JournalRulesTest: tests=6 failures=0 errors=0
+com.mengyalife.app.ui.JournalViewModelTest: tests=3 failures=0 errors=0
+com.mengyalife.app.util.MetricFormatTest: tests=5 failures=0 errors=0
+com.mengyalife.app.util.TimestampsTest: tests=3 failures=0 errors=0

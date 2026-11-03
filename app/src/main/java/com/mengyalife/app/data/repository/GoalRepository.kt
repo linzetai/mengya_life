@@ -10,6 +10,7 @@ import com.mengyalife.app.domain.goals.GoalLevel
 import com.mengyalife.app.domain.goals.GoalRef
 import com.mengyalife.app.domain.goals.GoalRules
 import com.mengyalife.app.domain.goals.GoalStatus
+import com.mengyalife.app.domain.goals.GoalTrends
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -24,15 +25,48 @@ data class GoalNode(
     val hasCheckins: Boolean get() = checkinCount > 0
 }
 
-/** 目标页 / 总览需要的只读快照。 */
+/**
+ * 目标页 / 总览需要的只读快照。
+ *
+ * 统计口径（Gate 2C 起明确写死，避免「进行中」到底算哪一层说不清）：
+ * - [longTermCount]：长期目标数量（层级 LONG_TERM）；
+ * - [stageCount] / [actionCount]：阶段目标 / 短期行动数量；
+ * - [inProgressCount]：**全部层级**中状态为「进行中」的目标数量；
+ * - [longTermInProgressCount]：其中长期目标里状态为「进行中」的数量；
+ * - [doneCount]：**全部层级**中状态为「已完成」的目标数量。
+ * 「未开始」「已暂停」「已取消」都不计入进行中。
+ */
 data class GoalSnapshot(
     val roots: List<GoalNode> = emptyList(),
     val totalGoals: Int = 0,
     val longTermCount: Int = 0,
+    val stageCount: Int = 0,
+    val actionCount: Int = 0,
+    val longTermInProgressCount: Int = 0,
     val inProgressCount: Int = 0,
     val doneCount: Int = 0,
     val lastCheckinAt: Long? = null,
 )
+
+/** 单个目标的数值趋势（同一目标、同一单位一条）。 */
+data class GoalTrend(
+    val goalId: Long,
+    val goalTitle: String,
+    val series: GoalTrends.TrendSeries,
+) {
+    val unitLabel: String get() = series.unitLabel
+    val points: List<GoalTrends.TrendPoint> get() = series.points
+    val latest: GoalTrends.TrendPoint get() = series.latest
+}
+
+/** 趋势页读取的真实数据快照。 */
+data class TrendSnapshot(
+    val trends: List<GoalTrend> = emptyList(),
+    val numericCheckinCount: Int = 0,
+    val goalsWithNumeric: Int = 0,
+) {
+    val isEmpty: Boolean get() = trends.isEmpty()
+}
 
 /** 删除前的影响评估：删这个目标会连带删掉多少东西。 */
 data class DeleteImpact(
@@ -77,6 +111,16 @@ class GoalRepository(
         }
 
     fun observeCheckins(goalId: Long): Flow<List<GoalCheckinEntity>> = dao.observeCheckins(goalId)
+
+    /**
+     * 真实数值趋势：数据只来自 `goal_checkins` 里用户手填的数值。
+     *
+     * 按「目标 + 单位」分组（不同单位不混画）；非有限数被 [GoalTrends] 过滤。
+     */
+    fun observeTrends(): Flow<TrendSnapshot> =
+        combine(dao.observeGoals(), dao.observeAllCheckins()) { goals, checkins ->
+            buildTrends(goals, checkins)
+        }
 
     fun observeRecentCheckins(limit: Int = 3): Flow<List<GoalCheckinEntity>> =
         dao.observeRecentCheckins(limit)
@@ -183,6 +227,10 @@ class GoalRepository(
     ): GoalResult<Long> {
         dao.findGoal(goalId) ?: return GoalResult.Error("目标不存在")
         GoalRules.validateCheckinNote(note)?.let { return GoalResult.Error(it) }
+        // 数据层兜底：NaN / Infinity / 超出范围一律拒绝，不依赖界面先校验。
+        // 即使以后接导入、脚本或其它入口，也无法把非法数值写进 goal_checkins。
+        GoalRules.validateMetricValue(metricValue)?.let { return GoalResult.Error(it) }
+        GoalRules.validateUnit(metricUnit)?.let { return GoalResult.Error(it) }
 
         val id = dao.insertCheckin(
             GoalCheckinEntity(
@@ -190,7 +238,7 @@ class GoalRepository(
                 recordedAt = now(),
                 note = note.trim(),
                 metricValue = metricValue,
-                metricUnit = metricUnit?.trim()?.takeIf { it.isNotEmpty() },
+                metricUnit = GoalRules.normalizeUnit(metricUnit),
                 source = CheckinSource.MANUAL,
             ),
         )
@@ -254,9 +302,55 @@ class GoalRepository(
             roots = roots,
             totalGoals = goals.size,
             longTermCount = goals.count { it.level == GoalLevel.LONG_TERM },
+            stageCount = goals.count { it.level == GoalLevel.STAGE },
+            actionCount = goals.count { it.level == GoalLevel.ACTION },
+            longTermInProgressCount = goals.count {
+                it.level == GoalLevel.LONG_TERM && it.status == GoalStatus.IN_PROGRESS
+            },
             inProgressCount = goals.count { it.status == GoalStatus.IN_PROGRESS },
             doneCount = goals.count { it.status == GoalStatus.DONE },
             lastCheckinAt = stats.mapNotNull { it.lastAt }.maxOrNull(),
+        )
+    }
+
+    /** 把数据库行整理成「目标 + 单位」的趋势序列，过滤掉非法数值。 */
+    private fun buildTrends(
+        goals: List<GoalEntity>,
+        checkins: List<GoalCheckinEntity>,
+    ): TrendSnapshot {
+        if (checkins.isEmpty()) return TrendSnapshot()
+
+        val titleById = goals.associate { it.id to it.title }
+        val trends = checkins
+            .filter { it.goalId in titleById }
+            .groupBy { it.goalId }
+            .flatMap { (goalId, rows) ->
+                val metrics = rows.map {
+                    GoalTrends.MetricRecord(
+                        checkinId = it.id,
+                        recordedAt = it.recordedAt,
+                        value = it.metricValue,
+                        unit = it.metricUnit,
+                    )
+                }
+                GoalTrends.seriesFrom(metrics).map { series ->
+                    GoalTrend(
+                        goalId = goalId,
+                        goalTitle = titleById[goalId].orEmpty(),
+                        series = series,
+                    )
+                }
+            }
+            .sortedWith(
+                compareByDescending<GoalTrend> { it.latest.recordedAt }
+                    .thenBy { it.goalTitle }
+                    .thenBy { it.unitLabel },
+            )
+
+        return TrendSnapshot(
+            trends = trends,
+            numericCheckinCount = trends.sumOf { it.points.size },
+            goalsWithNumeric = trends.map { it.goalId }.distinct().size,
         )
     }
 }

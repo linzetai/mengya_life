@@ -9,6 +9,13 @@
 # ---------------------------------------------------------------------------
 
 if [ -z "${PREFIX:-}" ]; then
+    # DSH / 通用 proot 环境：SDK 通常预置在 /opt/android-sdk，并带有 env.sh。
+    # 有则直接复用，避免把设备绝对路径写进仓库。
+    if [ -f /opt/android-sdk/env.sh ]; then
+        . /opt/android-sdk/env.sh
+        echo "[env] PREFIX 未设置，已复用 /opt/android-sdk/env.sh"
+        return 0 2>/dev/null || exit 0
+    fi
     echo "[env] 错误：PREFIX 未设置。" >&2
     echo "[env] Termux 侧通常已预置；若在 proot 容器内为空，" >&2
     echo "[env] 请按 README.md「环境配置」一节先 export PREFIX 再 source 本脚本。" >&2

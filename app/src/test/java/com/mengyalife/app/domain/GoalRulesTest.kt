@@ -131,4 +131,67 @@ class GoalRulesTest {
         assertNull(GoalRules.validateMetric("3.5"))
         assertNull(GoalRules.validateMetric(""))
     }
+
+    // ---------------------------------------------------------------- 指标：非法数
+
+    @Test
+    fun `NaN 与 Infinity 文本一律被拒绝`() {
+        // toDoubleOrNull 会接受这些字面量，必须由 isFinite() 兜住
+        listOf("NaN", "nan", "Infinity", "-Infinity", "1e999", "-1e999").forEach { raw ->
+            assertEquals(
+                "输入 $raw 时应拒绝",
+                GoalRules.ERROR_METRIC_INVALID,
+                GoalRules.validateMetric(raw),
+            )
+        }
+    }
+
+    @Test
+    fun `NaN 与 Infinity 的 Double 值被拒绝`() {
+        listOf(
+            Double.NaN,
+            Double.POSITIVE_INFINITY,
+            Double.NEGATIVE_INFINITY,
+        ).forEach { value ->
+            assertEquals(
+                GoalRules.ERROR_METRIC_INVALID,
+                GoalRules.validateMetricValue(value),
+            )
+        }
+        assertNull(GoalRules.validateMetricValue(null))
+        assertNull(GoalRules.validateMetricValue(0.0))
+        assertNull(GoalRules.validateMetricValue(-12.5))
+    }
+
+    @Test
+    fun `超出范围的数值被拒绝`() {
+        assertEquals(
+            GoalRules.ERROR_METRIC_TOO_LARGE,
+            GoalRules.validateMetricValue(GoalRules.MAX_ABS_METRIC + 1),
+        )
+        assertEquals(
+            GoalRules.ERROR_METRIC_TOO_LARGE,
+            GoalRules.validateMetric("-99999999999"),
+        )
+    }
+
+    @Test
+    fun `parseMetric 不会把 NaN 变成有效值`() {
+        assertNull(GoalRules.parseMetric("NaN"))
+        assertNull(GoalRules.parseMetric("Infinity"))
+        assertNull(GoalRules.parseMetric("abc"))
+        assertNull(GoalRules.parseMetric("   "))
+        assertEquals(3.5, GoalRules.parseMetric(" 3.5 ")!!, 0.0)
+    }
+
+    @Test
+    fun `单位过长被拒绝且空白归一为空`() {
+        assertEquals(
+            GoalRules.ERROR_UNIT_TOO_LONG,
+            GoalRules.validateUnit("字".repeat(GoalRules.MAX_UNIT + 1)),
+        )
+        assertNull(GoalRules.validateUnit(" 次/周 "))
+        assertNull(GoalRules.normalizeUnit("   "))
+        assertEquals("次/周", GoalRules.normalizeUnit(" 次/周 "))
+    }
 }

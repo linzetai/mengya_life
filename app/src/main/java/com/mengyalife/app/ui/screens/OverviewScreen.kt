@@ -66,11 +66,12 @@ fun OverviewScreen(
         item {
             SectionCard(
                 title = "长期目标",
-                subtitle = if (goals.longTermCount == 0) "还没有长期目标" else "共 ${goals.longTermCount} 个长期目标",
+                subtitle = if (goals.longTermCount == 0) "还没有长期目标" else "长期目标共 ${goals.longTermCount} 个",
                 modifier = Modifier.testTag("overview_goals"),
                 trailing = {
                     if (goals.totalGoals > 0) {
-                        StatusPill(text = "${goals.inProgressCount} 个进行中")
+                        // 明确写「长期目标」：这个胶囊只统计长期层级，不是全部层级。
+                        StatusPill(text = "长期目标进行中 ${goals.longTermInProgressCount}")
                     }
                 },
             ) {
@@ -92,8 +93,20 @@ fun OverviewScreen(
                     }
                     Spacer(Modifier.height(12.dp))
                     InlineNote(
+                        "统计口径：「进行中」= 状态为「进行中」的目标。" +
+                            "全部层级共 ${goals.totalGoals} 个（长期 ${goals.longTermCount} · " +
+                            "阶段 ${goals.stageCount} · 行动 ${goals.actionCount}），" +
+                            "其中进行中 ${goals.inProgressCount} 个。",
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    InlineNote(
                         goals.lastCheckinAt?.let { "最近一次进展记录：" + Timestamps.formatDateTime(it) }
                             ?: "还没有进展记录",
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    InlineNote(
+                        "目标下方的细进度条 = 已完成阶段数 ÷ 阶段总数，只描述这一个目标的拆解，" +
+                            "不是人生评分。",
                     )
                     Spacer(Modifier.height(10.dp))
                     OutlinedButton(

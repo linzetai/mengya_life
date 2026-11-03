@@ -7,15 +7,21 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.mengyalife.app.BuildConfig
 import com.mengyalife.app.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import java.io.IOException
 
-/** DataStore 落盘位置：`files/datastore/mengya_settings.preferences_pb`。 */
+/**
+ * DataStore 落盘位置：`files/datastore/<PREFS_NAME>.preferences_pb`。
+ *
+ * 正式版是 `mengya_settings`，QA 测试构建是 `mengya_settings_qa`：
+ * 与包名、数据库名一起做到测试数据完全隔离。
+ */
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(
-    name = "mengya_settings",
+    name = BuildConfig.PREFS_NAME,
 )
 
 /**
@@ -24,6 +30,8 @@ private val Context.settingsDataStore: DataStore<Preferences> by preferencesData
  * 存的是 [ThemeMode] 的 **枚举名**（如 `DARK`），而不是序号：
  * 以后往枚举里插值也不会把用户的设置读错。
  *
+ * 主题**会持久化**：写入 DataStore，重启后仍保持上次选择；
+ * 选择「跟随系统」时，界面随系统深浅色实时变化。
  * 读取失败（例如文件损坏）时回落到「跟随系统」，并把 IOException 吃掉，
  * 不让一个坏掉的偏好文件把整个 App 打崩。
  */

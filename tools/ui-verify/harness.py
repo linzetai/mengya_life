@@ -15,6 +15,42 @@ DEV = os.environ.get("DEV", "")
 if not DEV:
     raise SystemExit("请先设置设备地址：export DEV=<手机IP>:<无线调试端口>")
 
+# 被测包名。**所有会写数据的脚本默认只跑 QA 包**（com.mengyalife.app.qa），
+# 它有自己的 applicationId 与独立数据库；正式包只在只读冒烟脚本里出现。
+PKG = os.environ.get("MENGYA_PKG", "com.mengyalife.app.qa")
+QA_PKG = "com.mengyalife.app.qa"
+PROD_PKG = "com.mengyalife.app"
+
+
+def is_qa():
+    return PKG == QA_PKG
+
+
+def require_qa(script: str):
+    """破坏性脚本的硬闸门：不是 QA 包就拒绝运行，除非显式覆盖。"""
+    if not is_qa() and os.environ.get("MENGYA_ALLOW_PROD_DESTRUCTIVE") != "1":
+        raise SystemExit(
+            f"{script} 会清空被测应用的数据，只允许跑 QA 包（{QA_PKG}）。\n"
+            f"当前 MENGYA_PKG={PKG}。如需在正式包上冒险执行，必须显式设置 "
+            "MENGYA_ALLOW_PROD_DESTRUCTIVE=1"
+        )
+
+
+def require_prod(script: str):
+    """只读冒烟脚本：只允许在正式包上跑。"""
+    if is_qa():
+        raise SystemExit(
+            f"{script} 是正式包只读冒烟用例，但当前 MENGYA_PKG={PKG}（QA）。\n"
+            f"请设置 MENGYA_PKG={PROD_PKG}"
+        )
+
+
+def clear_qa_data():
+    """清空 QA 包数据（只删测试数据）；正式包永远不走这里。"""
+    require_qa("clear_qa_data")
+    adb(f"shell pm clear {PKG}", t=30)
+    time.sleep(1.0)
+
 OUT = os.environ.get("SHOT_DIR", "docs/reports/logs/verify-shots")
 os.makedirs(OUT, exist_ok=True)
 
@@ -28,9 +64,9 @@ def focus_app():
         out = adb("shell dumpsys window 2>/dev/null | grep -m1 mCurrentFocus", t=25)
     except subprocess.TimeoutExpired:
         out = ""
-    if "mengyalife" not in out:
+    if PKG not in out:
         try:
-            adb("shell am start -n com.mengyalife.app/.MainActivity", t=30)
+            adb(f"shell am start -n {PKG}/com.mengyalife.app.MainActivity", t=30)
         except subprocess.TimeoutExpired:
             pass
         time.sleep(2.0)
@@ -185,11 +221,50 @@ def png_luminance(path):
                 n += 1
     return total / n if n else None
 
+def resumed_package():
+    """当前处于 resumed 状态的包名（比 mCurrentFocus 更稳）。"""
+    out = adb(
+        "shell dumpsys activity activities | grep -m1 -E 'mResumedActivity|topResumedActivity'",
+        t=25,
+    )
+    m = re.search(r"([A-Za-z0-9_.]+)/[A-Za-z0-9_.]+", out)
+    return m.group(1) if m else ""
+
+
+def ensure_foreground(retries=6):
+    """把被测应用拉到前台；避免脚本在 DSH/系统设置界面上空跑。"""
+    if resumed_package() == PKG:
+        return True
+    for _ in range(retries):
+        adb(f"shell am start -W -n {PKG}/com.mengyalife.app.MainActivity", t=30)
+        time.sleep(1.6)
+        if resumed_package() == PKG:
+            return True
+    return False
+
+
+def wait_app_ui(timeout=15):
+    """等应用真正渲染出内容（冷启动时 resumed 不等于 UI 可用）。"""
+    end = time.time() + timeout
+    while time.time() < end:
+        xml = dump()
+        if f'package="{PKG}"' in xml:
+            usable = [n for n in nodes(xml) if n["text"] or n["rid"]]
+            if len(usable) >= 3:
+                return True
+        time.sleep(0.6)
+    return False
+
+
 def restart_app():
-    adb("shell am force-stop com.mengyalife.app")
+    # 先唤醒：长时间跑 UI 测试时屏幕可能已经熄灭
+    adb("shell input keyevent KEYCODE_WAKEUP", t=20)
+    adb("shell wm dismiss-keyguard", t=20)
+    adb(f"shell am force-stop {PKG}")
     time.sleep(1.0)
-    adb("shell am start -W -n com.mengyalife.app/.MainActivity")
+    adb(f"shell am start -W -n {PKG}/com.mengyalife.app.MainActivity")
     time.sleep(2.5)
+    return ensure_foreground() and wait_app_ui()
 
 RESULTS = []
 def check(name, cond, detail=""):

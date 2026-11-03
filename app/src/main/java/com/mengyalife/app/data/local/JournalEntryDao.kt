@@ -24,6 +24,13 @@ interface JournalEntryDao {
     @Query("SELECT COUNT(*) FROM journal_entries")
     suspend fun count(): Int
 
+    /**
+     * 导出用：一次性读出全部日记（按 id 升序，保证同一份数据的输出顺序稳定）。
+     * 导出在数据库事务里调用，因此与其他表的读取处于同一个一致性快照。
+     */
+    @Query("SELECT * FROM journal_entries ORDER BY id ASC")
+    suspend fun loadAll(): List<JournalEntryEntity>
+
     @Insert
     suspend fun insert(entry: JournalEntryEntity): Long
 

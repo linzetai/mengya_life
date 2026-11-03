@@ -2,6 +2,7 @@ package com.mengyalife.app.util
 
 import java.time.Instant
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -22,6 +23,16 @@ object Timestamps {
 
     fun formatDate(epochMillis: Long, zone: ZoneId = ZoneId.systemDefault()): String =
         dateFormatter.withZone(zone).format(Instant.ofEpochMilli(epochMillis))
+
+    /**
+     * **只有日期、没有时刻**的字段（例如目标截止日期）统一按 UTC 渲染。
+     *
+     * Material3 的 DatePicker 返回的是「所选日期在 UTC 零点」的毫秒数；
+     * 若再用本地时区格式化，在 UTC-x 时区会显示成前一天。
+     * 因此日期类字段固定用 UTC，和 DatePicker 的语义保持一致。
+     */
+    fun formatDateUtc(epochMillis: Long): String =
+        dateFormatter.withZone(ZoneOffset.UTC).format(Instant.ofEpochMilli(epochMillis))
 
     fun formatTime(epochMillis: Long, zone: ZoneId = ZoneId.systemDefault()): String =
         timeFormatter.withZone(zone).format(Instant.ofEpochMilli(epochMillis))

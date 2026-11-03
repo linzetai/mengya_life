@@ -4,6 +4,7 @@ import com.mengyalife.app.data.local.goal.GoalCheckinEntity
 import com.mengyalife.app.data.local.goal.GoalEntity
 import com.mengyalife.app.data.repository.DeleteImpact
 import com.mengyalife.app.data.repository.GoalSnapshot
+import com.mengyalife.app.data.repository.TrendSnapshot
 import com.mengyalife.app.domain.goals.GoalDomain
 import com.mengyalife.app.domain.goals.GoalLevel
 import com.mengyalife.app.domain.goals.GoalStatus
@@ -54,6 +55,7 @@ data class StatusPickerState(val target: GoalEntity? = null)
 data class GoalsUiState(
     val loading: Boolean = true,
     val snapshot: GoalSnapshot = GoalSnapshot(),
+    val trends: TrendSnapshot = TrendSnapshot(),
     val expandedIds: Set<Long> = emptySet(),
     val editor: GoalEditorState = GoalEditorState(),
     val checkin: CheckinDraftState = CheckinDraftState(),
