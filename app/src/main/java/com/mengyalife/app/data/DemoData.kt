@@ -105,33 +105,6 @@ object DemoData {
     // 顾问
     // -----------------------------------------------------------------------
 
-    data class ChatMessage(
-        val id: Long,
-        val fromUser: Boolean,
-        val text: String,
-        val system: Boolean = false,
-    )
-
-    val advisorMessages = listOf(
-        ChatMessage(
-            id = 1L,
-            fromUser = false,
-            text = "这条消息用于展示对话样式，不代表真实 AI 输出。后续版本接入模型后，这里会是你和顾问的对话记录。",
-            system = true,
-        ),
-        ChatMessage(
-            id = 2L,
-            fromUser = true,
-            text = "最近职业维度的阶段目标有点推不动，我该怎么拆？",
-        ),
-        ChatMessage(
-            id = 3L,
-            fromUser = false,
-            text = "（演示回复）真实回答需要接入模型。当前页面只验证输入、发送与消息列表的交互是否可用。",
-            system = true,
-        ),
-    )
-
     val advisorSuggestions = listOf(
         "帮我把「形成可迁移的方法」拆成两周内可做的动作",
         "健康维度的上升，主要来自哪些习惯？",

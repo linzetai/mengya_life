@@ -1,0 +1,10 @@
+Gate 3A Room v2 -> v3 迁移验证
+before user_version: 2
+after  user_version: 3
+after tables: ['android_metadata', 'journal_entries', 'sqlite_sequence', 'room_master_table', 'goals', 'goal_checkins', 'advisor_messages']
+before journals: [(6, 'MigrationA', 'alpha v1 content', 1793636289310, 1793636289310), (7, 'MigrationB', 'beta v1 content', 1793636317600, 1793636317600)]
+after  journals: [(6, 'MigrationA', 'alpha v1 content', 1793636289310, 1793636289310), (7, 'MigrationB', 'beta v1 content', 1793636317600, 1793636317600)]
+journals identical: True
+after goals: 0
+after checkins: 0
+after advisor_messages: 0

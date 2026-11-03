@@ -69,6 +69,10 @@ interface GoalDao {
     @Query("SELECT COUNT(*) FROM goal_checkins WHERE goal_id IN (:goalIds)")
     suspend fun countCheckinsForGoals(goalIds: List<Long>): Int
 
+    /** 顾问上下文：读取某棵目标树的进展（只读，不修改）。 */
+    @Query("SELECT * FROM goal_checkins WHERE goal_id IN (:goalIds) ORDER BY recorded_at DESC, id DESC")
+    suspend fun loadCheckinsForGoals(goalIds: List<Long>): List<GoalCheckinEntity>
+
     /**
      * 删除整棵目标树：先删进展记录，再删目标。
      * 放在事务里，避免中途失败留下"孤儿进展"。

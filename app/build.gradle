@@ -14,20 +14,35 @@ android {
         applicationId 'com.mengyalife.app'
         minSdk 26
         targetSdk 35
-        versionCode 5
-        versionName '0.5.0-g2c'
+        versionCode 6
+        versionName '0.6.0-g3a'
 
         // Gate 2C：QA 构建通过独立 applicationId + 独立库名做真机破坏性测试，
         // 保证测试永远不会碰正式版里用户自己的日记与目标。
         buildConfigField 'String', 'DATABASE_NAME', '"mengya-life.db"'
         buildConfigField 'String', 'PREFS_NAME', '"mengya_settings"'
+        // Gate 3A：AI 配置与密钥别名也必须按构建类型隔离
+        buildConfigField 'String', 'AI_PREFS_NAME', '"mengya_ai"'
+        buildConfigField 'String', 'AI_KEY_ALIAS', '"mengya_ai_key"'
         buildConfigField 'boolean', 'QA_BUILD', 'false'
         manifestPlaceholders = [appLabel: '萌芽人生']
+    }
+
+    // 固定调试签名来源：使用仓库内的 debug keystore，保证后续能覆盖安装。
+    // 这是**调试**密钥（口令公开），绝不能用于发布；发布签名另行管理。
+    signingConfigs {
+        debug {
+            storeFile rootProject.file('keystore/mengya-debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
     }
 
     buildTypes {
         debug {
             minifyEnabled false
+            signingConfig signingConfigs.debug
         }
         release {
             minifyEnabled false
@@ -44,6 +59,8 @@ android {
             manifestPlaceholders = [appLabel: '萌芽人生 QA']
             buildConfigField 'String', 'DATABASE_NAME', '"mengya-life-qa.db"'
             buildConfigField 'String', 'PREFS_NAME', '"mengya_settings_qa"'
+            buildConfigField 'String', 'AI_PREFS_NAME', '"mengya_ai_qa"'
+            buildConfigField 'String', 'AI_KEY_ALIAS', '"mengya_ai_key_qa"'
             buildConfigField 'boolean', 'QA_BUILD', 'true'
         }
     }
@@ -77,7 +94,7 @@ ksp {
     arg('room.generateKotlin', 'true')
 }
 
-// Gate 2A：本地数据层（Room + DataStore）。仍不引入网络 / AI / 云服务。
+// Gate 3A：新增用户自带 Key 的 AI 请求；仍无自有后端、无云同步。
 dependencies {
     implementation platform('androidx.compose:compose-bom:2025.06.01')
     implementation 'androidx.core:core-ktx:1.16.0'

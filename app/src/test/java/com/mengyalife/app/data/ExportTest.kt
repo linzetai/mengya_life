@@ -43,6 +43,8 @@ private class ExportGoalDao(
     override suspend fun insertCheckin(checkin: GoalCheckinEntity): Long = 0
     override suspend fun deleteCheckinsForGoals(goalIds: List<Long>): Int = 0
     override suspend fun countCheckinsForGoals(goalIds: List<Long>): Int = 0
+    override suspend fun loadCheckinsForGoals(goalIds: List<Long>): List<GoalCheckinEntity> =
+        checkins.filter { it.goalId in goalIds }
 }
 
 private class ExportJournalDao(private val entries: List<JournalEntryEntity>) : JournalEntryDao {
@@ -103,7 +105,7 @@ class ExportTest {
         appPackage = "com.mengyalife.app",
         appVersionName = "0.5.0-g2c",
         appVersionCode = 5,
-        databaseVersion = 2,
+        databaseVersion = 3,
         journalEntries = journals,
         goals = goals,
         goalCheckins = checkins,
@@ -119,7 +121,7 @@ class ExportTest {
         appPackage = "com.mengyalife.app",
         appVersionName = "0.5.0-g2c",
         appVersionCode = 5,
-        databaseVersion = 2,
+        databaseVersion = 3,
         now = { t0 + 500 },
     )
 
@@ -138,7 +140,7 @@ class ExportTest {
         assertTrue(text.contains("\"schemaVersion\": 1"))
         assertTrue(text.contains("\"versionName\": \"0.5.0-g2c\""))
         assertTrue(text.contains("\"versionCode\": 5"))
-        assertTrue(text.contains("\"schemaVersion\": 2")) // database.schemaVersion
+        assertTrue(text.contains("\"schemaVersion\": 3")) // database.schemaVersion
         assertTrue(text.contains("\"format\": \"mengyalife-backup\""))
     }
 
@@ -217,7 +219,7 @@ class ExportTest {
             appPackage = "com.mengyalife.app",
             appVersionName = "0.5.0-g2c",
             appVersionCode = 5,
-            databaseVersion = 2,
+            databaseVersion = 3,
             now = { t0 + 500 },
             transaction = { block ->
                 transactions++

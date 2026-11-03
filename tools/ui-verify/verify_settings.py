@@ -19,6 +19,8 @@ STALE = [
     "当前不能导出或导入数据",
     "目前还不能导出或导入数据",
     "本轮仅完成页面结构与说明",
+    "本应用未申请网络权限",
+    "不会读取、存储或上传任何密钥",
 ]
 
 
@@ -51,20 +53,23 @@ expected = [
     "导出我的数据",
     "导入数据",
     "导入恢复尚未实现",
-    "本机数据库（Room）",
+    "本机数据库",
     "敏感个人信息",
     "妥善保管",
     "保存在本机（DataStore）",
     "重启后保持上次选择",
     "随系统深浅色变化",
-    "无网络权限",
+    "INTERNET 权限",
+    "API 服务地址（HTTPS）",
+    "模型名称",
+    "API Key",
 ]
 for text in expected:
     check("包含文案：" + text, any(text in t for t in seen), text)
 
 check("QA 构建横幅", "QA 测试构建" in " ".join(seen) and "mengya-life-qa.db" in " ".join(seen))
-check("版本号来自安装包", "0.5.0-g2c-qa" in " ".join(seen), "应为 0.5.0-g2c-qa")
-check("无「自带密钥」误导性胶囊", "自带密钥" not in " ".join(seen))
+check("版本号来自安装包", "0.6.0-g3a-qa" in " ".join(seen), "应为 0.6.0-g3a-qa")
+check("BYOK 状态胶囊准确", "自带密钥" in " ".join(seen))
 
 print("========== 3. 截图：数据区 ==========")
 adb("shell input keyevent KEYCODE_BACK")
@@ -87,7 +92,7 @@ shot("02-settings-theme-note")
 print("========== 5. 截图：关于 ==========")
 adb("shell input swipe 600 1900 600 700 260")
 time.sleep(1.0)
-check("关于区显示版本", has_text("0.5.0-g2c-qa"))
+check("关于区显示版本", has_text("0.6.0-g3a-qa"))
 check("数据存储说明", has_text("本机（无云端同步）"))
 shot("03-settings-about")
 

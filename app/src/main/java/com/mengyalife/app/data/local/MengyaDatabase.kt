@@ -8,6 +8,8 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.mengyalife.app.BuildConfig
+import com.mengyalife.app.data.local.advisor.AdvisorMessageDao
+import com.mengyalife.app.data.local.advisor.AdvisorMessageEntity
 import com.mengyalife.app.data.local.goal.GoalCheckinEntity
 import com.mengyalife.app.data.local.goal.GoalDao
 import com.mengyalife.app.data.local.goal.GoalEntity
@@ -18,6 +20,7 @@ import com.mengyalife.app.data.local.goal.GoalEntity
  * 版本历史：
  * - **v1**：`journal_entries`（日记）
  * - **v2**（Gate 2B）：新增 `goals`、`goal_checkins`；**不改动** `journal_entries`
+ * - **v3**（Gate 3A）：新增 `advisor_messages`；**不改动** v1/v2 的三张表
  *
  * 迁移策略：
  * 1. 每次改表都必须 version + 1 并提供 `Migration`；
@@ -26,13 +29,14 @@ import com.mengyalife.app.data.local.goal.GoalEntity
  * 4. 迁移必须在真机升级安装上验证（本轮已做 v1→v2 实测，见报告）。
  */
 /** 数据库结构版本。导出文件里的 `databaseVersion` 与它保持一致。 */
-const val DB_SCHEMA_VERSION = 2
+const val DB_SCHEMA_VERSION = 3
 
 @Database(
     entities = [
         JournalEntryEntity::class,
         GoalEntity::class,
         GoalCheckinEntity::class,
+        AdvisorMessageEntity::class,
     ],
     version = DB_SCHEMA_VERSION,
     exportSchema = true,
@@ -43,6 +47,8 @@ abstract class MengyaDatabase : RoomDatabase() {
     abstract fun journalEntryDao(): JournalEntryDao
 
     abstract fun goalDao(): GoalDao
+
+    abstract fun advisorMessageDao(): AdvisorMessageDao
 
     companion object {
         // 正式版与 QA 测试构建使用不同的物理库文件（见 app/build.gradle 的 buildConfigField）。
@@ -98,6 +104,32 @@ abstract class MengyaDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v2 → v3：只新增 `advisor_messages` 表与索引，不触碰日记/目标/进展。
+         */
+        val MIGRATION_2_3: Migration = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `advisor_messages` (
+                        `id` TEXT PRIMARY KEY NOT NULL,
+                        `role` TEXT NOT NULL,
+                        `content` TEXT NOT NULL,
+                        `created_at` INTEGER NOT NULL,
+                        `status` TEXT NOT NULL,
+                        `error_code` TEXT,
+                        `error_message` TEXT,
+                        `context_goal_id` INTEGER
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_advisor_messages_created_at` " +
+                        "ON `advisor_messages` (`created_at`)",
+                )
+            }
+        }
+
         @Volatile
         private var instance: MengyaDatabase? = null
 
@@ -111,7 +143,7 @@ abstract class MengyaDatabase : RoomDatabase() {
                     MengyaDatabase::class.java,
                     DATABASE_NAME,
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { instance = it }
             }

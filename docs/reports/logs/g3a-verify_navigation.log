@@ -1,0 +1,30 @@
+PASS  切换到 tab_overview
+PASS  tab_overview 内容正常  你正在走的方向
+PASS  切换到 tab_goals
+PASS  tab_goals 内容正常  把方向拆成能推进的层级
+PASS  切换到 tab_trends
+PASS  tab_trends 内容正常  看见变化，而不是凭感觉
+PASS  切换到 tab_diary
+PASS  tab_diary 内容正常  把今天留下来
+PASS  顾问页可进入
+PASS  顾问页可发送
+PASS  tab_overview 可进入设置
+PASS  tab_overview 设置页已就位
+PASS  tab_overview 设置页隐藏底栏
+PASS  tab_overview 返回后底栏恢复
+PASS  tab_goals 可进入设置
+PASS  tab_goals 设置页已就位
+PASS  tab_goals 设置页隐藏底栏
+PASS  tab_goals 返回后底栏恢复
+PASS  tab_trends 可进入设置
+PASS  tab_trends 设置页已就位
+PASS  tab_trends 设置页隐藏底栏
+PASS  tab_trends 返回后底栏恢复
+PASS  tab_diary 可进入设置
+PASS  tab_diary 设置页已就位
+PASS  tab_diary 设置页隐藏底栏
+PASS  tab_diary 返回后底栏恢复
+PASS  日记页仍可打开
+PASS  无崩溃日志
+
+==== SUMMARY: 28/28 passed ====

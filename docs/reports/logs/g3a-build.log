@@ -1,0 +1,97 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.9/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Configure project :app
+WARNING: The option setting 'android.aapt2FromMavenOverride=/opt/android-aapt2/aapt2' is experimental.
+
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :app:kspDebugKotlin UP-TO-DATE
+> Task :app:compileDebugKotlin UP-TO-DATE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:compileDebugJavaWithJavac UP-TO-DATE
+> Task :app:mergeDebugShaders UP-TO-DATE
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets UP-TO-DATE
+> Task :app:compressDebugAssets UP-TO-DATE
+> Task :app:desugarDebugFileDependencies UP-TO-DATE
+> Task :app:dexBuilderDebug
+> Task :app:mergeDebugGlobalSynthetics UP-TO-DATE
+> Task :app:processDebugJavaRes UP-TO-DATE
+> Task :app:mergeDebugJavaResource UP-TO-DATE
+> Task :app:checkDebugDuplicateClasses UP-TO-DATE
+> Task :app:mergeExtDexDebug UP-TO-DATE
+> Task :app:mergeLibDexDebug UP-TO-DATE
+> Task :app:mergeProjectDexDebug
+> Task :app:mergeDebugJniLibFolders UP-TO-DATE
+> Task :app:mergeDebugNativeLibs UP-TO-DATE
+> Task :app:stripDebugDebugSymbols UP-TO-DATE
+> Task :app:validateSigningDebug UP-TO-DATE
+> Task :app:writeDebugAppMetadata UP-TO-DATE
+> Task :app:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect UP-TO-DATE
+> Task :app:assembleDebug
+> Task :app:preQaBuild UP-TO-DATE
+> Task :app:mergeQaNativeDebugMetadata NO-SOURCE
+> Task :app:generateQaBuildConfig UP-TO-DATE
+> Task :app:checkQaAarMetadata UP-TO-DATE
+> Task :app:generateQaResValues UP-TO-DATE
+> Task :app:mapQaSourceSetPaths UP-TO-DATE
+> Task :app:generateQaResources UP-TO-DATE
+> Task :app:mergeQaResources UP-TO-DATE
+> Task :app:packageQaResources UP-TO-DATE
+> Task :app:parseQaLocalResources UP-TO-DATE
+> Task :app:createQaCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksQa UP-TO-DATE
+> Task :app:processQaMainManifest UP-TO-DATE
+> Task :app:processQaManifest UP-TO-DATE
+> Task :app:processQaManifestForPackage UP-TO-DATE
+> Task :app:processQaResources UP-TO-DATE
+> Task :app:kspQaKotlin
+> Task :app:compileQaKotlin
+> Task :app:javaPreCompileQa UP-TO-DATE
+> Task :app:compileQaJavaWithJavac UP-TO-DATE
+> Task :app:mergeQaShaders UP-TO-DATE
+> Task :app:compileQaShaders NO-SOURCE
+> Task :app:generateQaAssets UP-TO-DATE
+> Task :app:mergeQaAssets UP-TO-DATE
+> Task :app:compressQaAssets UP-TO-DATE
+> Task :app:checkQaDuplicateClasses UP-TO-DATE
+> Task :app:desugarQaFileDependencies UP-TO-DATE
+> Task :app:mergeExtDexQa UP-TO-DATE
+> Task :app:mergeLibDexQa UP-TO-DATE
+> Task :app:dexBuilderQa
+> Task :app:mergeProjectDexQa
+> Task :app:mergeQaGlobalSynthetics UP-TO-DATE
+> Task :app:processQaJavaRes UP-TO-DATE
+> Task :app:mergeQaJavaResource UP-TO-DATE
+> Task :app:mergeQaJniLibFolders UP-TO-DATE
+> Task :app:mergeQaNativeLibs UP-TO-DATE
+> Task :app:stripQaDebugSymbols UP-TO-DATE
+> Task :app:validateSigningQa UP-TO-DATE
+> Task :app:writeQaAppMetadata UP-TO-DATE
+> Task :app:writeQaSigningConfigVersions UP-TO-DATE
+> Task :app:packageQa
+> Task :app:createQaApkListingFileRedirect UP-TO-DATE
+> Task :app:assembleQa
+
+BUILD SUCCESSFUL in 54s
+76 actionable tasks: 8 executed, 68 up-to-date

@@ -1,0 +1,40 @@
+{
+  "format": "mengyalife-backup",
+  "schemaVersion": 1,
+  "exportedAt": 1793730812653,
+  "exportedAtIso": "2026-11-03T18:33:32.653Z",
+  "app": {
+    "name": "Mengya Life",
+    "package": "com.mengyalife.app.qa",
+    "versionName": "0.6.0-g3a-qa",
+    "versionCode": 6
+  },
+  "database": {
+    "engine": "room",
+    "schemaVersion": 3
+  },
+  "counts": {
+    "journalEntries": 0,
+    "goals": 1,
+    "goalCheckins": 0
+  },
+  "data": {
+    "journalEntries": [],
+    "goals": [
+      {
+        "id": 1,
+        "title": "CtxGoal",
+        "description": null,
+        "level": "LONG_TERM",
+        "parentId": null,
+        "domain": "LIFE",
+        "status": "NOT_STARTED",
+        "startDate": null,
+        "dueDate": null,
+        "createdAt": 1793730728539,
+        "updatedAt": 1793730728539
+      }
+    ],
+    "goalCheckins": []
+  }
+}

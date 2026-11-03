@@ -34,8 +34,10 @@ import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.mengyalife.app.data.DemoData
 import com.mengyalife.app.domain.goals.GoalLevel
+import com.mengyalife.app.ui.advisor.AdvisorAction
+import com.mengyalife.app.ui.advisor.AdvisorUiState
+import com.mengyalife.app.ui.advisor.AdvisorViewModel
 import com.mengyalife.app.navigation.AppTab
 import com.mengyalife.app.ui.components.AppTopBar
 import com.mengyalife.app.ui.goals.GoalAction
@@ -51,6 +53,7 @@ import com.mengyalife.app.ui.screens.GoalsScreen
 import com.mengyalife.app.ui.screens.OverviewScreen
 import com.mengyalife.app.ui.screens.SettingsScreen
 import com.mengyalife.app.ui.screens.TrendsScreen
+import com.mengyalife.app.ui.settings.AiSettingsViewModel
 import com.mengyalife.app.ui.settings.ExportViewModel
 import com.mengyalife.app.ui.settings.ThemeViewModel
 import com.mengyalife.app.ui.theme.MengyaLifeTheme
@@ -93,12 +96,13 @@ fun MengyaLifeApp() {
     val diaryListState = rememberLazyListState()
     val advisorListState = rememberLazyListState()
 
-    // ---- 仍是纯演示、尚未入库的页面状态（顾问对话）----
-    var advisorInput by rememberSaveable { mutableStateOf("") }
-    var nextMessageId by remember { mutableLongStateOf(1000L) }
-    val advisorMessages = remember {
-        mutableStateListOf<DemoData.ChatMessage>().apply { addAll(DemoData.advisorMessages) }
-    }
+    // ---- AI 顾问（真实请求 + 本地持久化）----
+    val advisorViewModel: AdvisorViewModel = viewModel(factory = AdvisorViewModel.Factory)
+    val advisorState by advisorViewModel.uiState.collectAsStateWithLifecycle()
+
+    // ---- AI 设置（BYOK 配置 / 测试连接 / 删除密钥）----
+    val aiSettingsViewModel: AiSettingsViewModel = viewModel(factory = AiSettingsViewModel.Factory)
+    val aiSettingsState by aiSettingsViewModel.state.collectAsStateWithLifecycle()
 
     val darkTheme = when (themeMode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
@@ -131,6 +135,8 @@ fun MengyaLifeApp() {
                     onExportCancelled = exportViewModel::cancelExport,
                     onExportDestinationCancelled = exportViewModel::onDestinationCancelled,
                     onExportMessageConsumed = exportViewModel::consumeMessage,
+                    aiState = aiSettingsState,
+                    onAiAction = aiSettingsViewModel::onAction,
                 )
             } else {
                 MainShell(
@@ -150,28 +156,8 @@ fun MengyaLifeApp() {
                         currentTab = AppTab.GOALS
                         goalsViewModel.onAction(GoalAction.NewGoal(GoalLevel.LONG_TERM, null))
                     },
-                    advisorInput = advisorInput,
-                    onAdvisorInputChange = { advisorInput = it },
-                    advisorMessages = advisorMessages,
-                    onSendAdvisorMessage = {
-                        val text = advisorInput.trim()
-                        if (text.isNotEmpty()) {
-                            advisorMessages.add(
-                                DemoData.ChatMessage(id = nextMessageId++, fromUser = true, text = text),
-                            )
-                            advisorMessages.add(
-                                DemoData.ChatMessage(
-                                    id = nextMessageId++,
-                                    fromUser = false,
-                                    text = "（演示）已收到。当前版本没有接入任何模型服务，" +
-                                        "这条提示只用于说明发送链路可用，不代表真实 AI 回答。",
-                                    system = true,
-                                ),
-                            )
-                            advisorInput = ""
-                        }
-                    },
-                    onUseAdvisorSuggestion = { suggestion -> advisorInput = suggestion },
+                    advisorState = advisorState,
+                    onAdvisorAction = advisorViewModel::onAction,
                 )
             }
 
@@ -196,11 +182,8 @@ private fun MainShell(
     goalsState: GoalsUiState,
     onGoalAction: (GoalAction) -> Unit,
     onCreateGoalFromOverview: () -> Unit,
-    advisorInput: String,
-    onAdvisorInputChange: (String) -> Unit,
-    advisorMessages: List<DemoData.ChatMessage>,
-    onSendAdvisorMessage: () -> Unit,
-    onUseAdvisorSuggestion: (String) -> Unit,
+    advisorState: AdvisorUiState,
+    onAdvisorAction: (AdvisorAction) -> Unit,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -275,11 +258,9 @@ private fun MainShell(
 
                 AppTab.ADVISOR -> AdvisorScreen(
                     listState = advisorListState,
-                    input = advisorInput,
-                    onInputChange = onAdvisorInputChange,
-                    messages = advisorMessages,
-                    onSend = onSendAdvisorMessage,
-                    onUseSuggestion = onUseAdvisorSuggestion,
+                    state = advisorState,
+                    onAction = onAdvisorAction,
+                    onOpenSettings = onOpenSettings,
                 )
             }
         }

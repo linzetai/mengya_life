@@ -1,0 +1,17 @@
+Gate 3A 真实模型成功回复证据（用户本人在正式包输入 Key）
+时间：2026-11-04 08:11（Asia/Shanghai）
+包名：com.mengyalife.app（正式包，0.6.0-g3a）
+
+配置（仅展示非敏感字段）：
+  endpoint = https://api.deepseek.com
+  model    = deepseek-flash
+  hasEncryptedKey = True
+  useFakeEngine = False（正式包不存在假引擎）
+
+Room advisor_messages：
+  id=ec2e14a9-4df3-4a1d-9f59-7445785a5d13 role=USER status=SENT error=None createdAt=1793751106813
+  content: hi
+  id=71dc9f3d-8f86-46a0-9699-2aaf10e471d6 role=ASSISTANT status=SENT error=None createdAt=1793751108613
+  content: 你好。我是你的长期成长顾问，可以帮你把模糊的想法理清成目标，或者一起看看当前方向该怎么拆成阶段和下一步行动。  你可以直接告诉我：  - 最近在纠结或想推进的一件事 - 已经有的目标（以及卡在哪里） - 或者只是先聊聊你现在的状态  在信息不够的时候我会先问你几个问题，不会替你做假设。
+
+说明：API Key 由用户通过设置页输入；本日志与证据包不包含密钥、密文或请求头。

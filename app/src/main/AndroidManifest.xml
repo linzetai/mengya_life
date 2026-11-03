@@ -1,11 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Gate 0 不实现 AI / 后端 / 网络能力，因此不申请任何权限（含 INTERNET）。 -->
+    <!--
+      Gate 3A：仅新增 INTERNET 权限，用于把用户的问题直接发送到用户自己配置的
+      OpenAI-compatible 服务地址；没有自有后端、没有广告/统计 SDK。
+      不申请存储、通知、位置、通讯录等权限。
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:name=".MengyaApplication"
         android:allowBackup="false"
+        android:usesCleartextTraffic="false"
         android:icon="@mipmap/ic_launcher"
         android:label="${appLabel}"
         android:roundIcon="@mipmap/ic_launcher_round"

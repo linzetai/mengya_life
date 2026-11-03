@@ -1,0 +1,203 @@
+# Gate 3A 源码变更
+生成: 2026-11-04T02:12:50+08:00
+
+## git status
+ M README.md
+ M app/build.gradle
+ M app/src/main/AndroidManifest.xml
+ M app/src/main/java/com/mengyalife/app/MengyaLifeApp.kt
+ M app/src/main/java/com/mengyalife/app/data/local/MengyaDatabase.kt
+ M app/src/main/java/com/mengyalife/app/data/local/goal/GoalDao.kt
+ M app/src/main/java/com/mengyalife/app/data/repository/GoalRepository.kt
+ M app/src/main/java/com/mengyalife/app/di/AppContainer.kt
+ M app/src/main/java/com/mengyalife/app/ui/screens/AdvisorScreen.kt
+ M app/src/main/java/com/mengyalife/app/ui/screens/SettingsScreen.kt
+ M app/src/test/java/com/mengyalife/app/data/ExportTest.kt
+ M app/src/test/java/com/mengyalife/app/data/GoalRepositoryTest.kt
+ M artifacts/SHA256SUMS.txt
+ M docs/DATA-EXPORT-FORMAT.md
+ M tools/ui-verify/verify_export.py
+ M tools/ui-verify/verify_goals.py
+ M tools/ui-verify/verify_prod_smoke.py
+ M tools/ui-verify/verify_settings.py
+?? app/schemas/com.mengyalife.app.data.local.MengyaDatabase/3.json
+?? app/src/main/java/com/mengyalife/app/data/advisor/
+?? app/src/main/java/com/mengyalife/app/data/local/advisor/
+?? app/src/main/java/com/mengyalife/app/domain/advisor/
+?? app/src/main/java/com/mengyalife/app/ui/advisor/
+?? app/src/main/java/com/mengyalife/app/ui/settings/AiSettingsSection.kt
+?? app/src/main/java/com/mengyalife/app/ui/settings/AiSettingsViewModel.kt
+?? app/src/test/java/com/mengyalife/app/advisor/
+?? artifacts/mengya-life-0.6.0-g3a-debug.apk.sha256
+?? artifacts/mengya-life-0.6.0-g3a-qa-test.apk.sha256
+?? docs/AI-REQUEST-FORMAT.md
+?? docs/SECURITY-PRIVACY-G3A.md
+?? docs/reports/REPORT-G3A-ADVISOR.md
+?? docs/reports/logs/g3a-acceptance-summary.md
+?? docs/reports/logs/g3a-apk-hash.log
+?? docs/reports/logs/g3a-build.log
+?? docs/reports/logs/g3a-device-info.log
+?? docs/reports/logs/g3a-export/
+?? docs/reports/logs/g3a-install.log
+?? docs/reports/logs/g3a-launch.log
+?? docs/reports/logs/g3a-migration.log
+?? docs/reports/logs/g3a-missing-evidence.md
+?? docs/reports/logs/g3a-shots/
+?? docs/reports/logs/g3a-source-changes.log
+?? docs/reports/logs/g3a-unit-test-summary.txt
+?? docs/reports/logs/g3a-verify-advisor.log
+?? docs/reports/logs/g3a-verify-network.log
+?? docs/reports/logs/g3a-verify_diary.log
+?? docs/reports/logs/g3a-verify_export.log
+?? docs/reports/logs/g3a-verify_goals.log
+?? docs/reports/logs/g3a-verify_navigation.log
+?? docs/reports/logs/g3a-verify_prod_smoke.log
+?? docs/reports/logs/g3a-verify_settings.log
+?? docs/reports/logs/g3a-verify_trends.log
+?? docs/reports/logs/verify-shots/
+?? keystore/
+?? tools/ui-verify/verify_advisor.py
+?? tools/ui-verify/verify_advisor_network.py
+
+## diffstat
+ README.md                                          | 322 ++++++------
+ app/build.gradle                                   |  23 +-
+ app/src/main/AndroidManifest.xml                   |   8 +-
+ .../main/java/com/mengyalife/app/MengyaLifeApp.kt  |  59 +--
+ .../mengyalife/app/data/local/MengyaDatabase.kt    |  36 +-
+ .../com/mengyalife/app/data/local/goal/GoalDao.kt  |   4 +
+ .../app/data/repository/GoalRepository.kt          |  62 ++-
+ .../java/com/mengyalife/app/di/AppContainer.kt     |  31 ++
+ .../com/mengyalife/app/ui/screens/AdvisorScreen.kt | 540 +++++++++++++++++----
+ .../mengyalife/app/ui/screens/SettingsScreen.kt    |  61 +--
+ .../java/com/mengyalife/app/data/ExportTest.kt     |  10 +-
+ .../com/mengyalife/app/data/GoalRepositoryTest.kt  |   3 +
+ artifacts/SHA256SUMS.txt                           |   4 +-
+ docs/DATA-EXPORT-FORMAT.md                         |  14 +-
+ tools/ui-verify/verify_export.py                   |  19 +-
+ tools/ui-verify/verify_goals.py                    |   2 +-
+ tools/ui-verify/verify_prod_smoke.py               |   3 +-
+ tools/ui-verify/verify_settings.py                 |  15 +-
+ 18 files changed, 823 insertions(+), 393 deletions(-)
+
+## 新文件
+app/schemas/com.mengyalife.app.data.local.MengyaDatabase/3.json
+app/src/main/java/com/mengyalife/app/data/advisor/AdvisorConfigRepository.kt
+app/src/main/java/com/mengyalife/app/data/advisor/AdvisorEngine.kt
+app/src/main/java/com/mengyalife/app/data/advisor/AiConfigStorage.kt
+app/src/main/java/com/mengyalife/app/data/advisor/ConversationRepository.kt
+app/src/main/java/com/mengyalife/app/data/advisor/HttpTransport.kt
+app/src/main/java/com/mengyalife/app/data/advisor/SecretCipher.kt
+app/src/main/java/com/mengyalife/app/data/local/advisor/AdvisorMessageDao.kt
+app/src/main/java/com/mengyalife/app/data/local/advisor/AdvisorMessageEntity.kt
+app/src/main/java/com/mengyalife/app/domain/advisor/AdvisorContextSource.kt
+app/src/main/java/com/mengyalife/app/domain/advisor/AdvisorModels.kt
+app/src/main/java/com/mengyalife/app/domain/advisor/AdvisorRules.kt
+app/src/main/java/com/mengyalife/app/ui/advisor/AdvisorContract.kt
+app/src/main/java/com/mengyalife/app/ui/advisor/AdvisorViewModel.kt
+app/src/main/java/com/mengyalife/app/ui/settings/AiSettingsSection.kt
+app/src/main/java/com/mengyalife/app/ui/settings/AiSettingsViewModel.kt
+app/src/test/java/com/mengyalife/app/advisor/AdvisorConfigTest.kt
+app/src/test/java/com/mengyalife/app/advisor/AdvisorFakes.kt
+app/src/test/java/com/mengyalife/app/advisor/AdvisorRulesTest.kt
+app/src/test/java/com/mengyalife/app/advisor/AdvisorViewModelTest.kt
+app/src/test/java/com/mengyalife/app/advisor/NetworkAdvisorEngineTest.kt
+artifacts/mengya-life-0.6.0-g3a-debug.apk.sha256
+artifacts/mengya-life-0.6.0-g3a-qa-test.apk.sha256
+docs/AI-REQUEST-FORMAT.md
+docs/SECURITY-PRIVACY-G3A.md
+docs/reports/REPORT-G3A-ADVISOR.md
+docs/reports/logs/g3a-acceptance-summary.md
+docs/reports/logs/g3a-apk-hash.log
+docs/reports/logs/g3a-build.log
+docs/reports/logs/g3a-device-info.log
+docs/reports/logs/g3a-export/mengya-life-export-20261104-010800.json
+docs/reports/logs/g3a-export/mengya-life-export-20261104-011628.json
+docs/reports/logs/g3a-export/mengya-life-export-20261104-012306.json
+docs/reports/logs/g3a-export/mengya-life-export-20261104-015129.json
+docs/reports/logs/g3a-export/mengya-life-export-20261104-020724.json
+docs/reports/logs/g3a-install.log
+docs/reports/logs/g3a-launch.log
+docs/reports/logs/g3a-migration.log
+docs/reports/logs/g3a-missing-evidence.md
+docs/reports/logs/g3a-shots/01-diary-empty.png
+docs/reports/logs/g3a-shots/01-export-source-data.png
+docs/reports/logs/g3a-shots/01-goals-empty.png
+docs/reports/logs/g3a-shots/01-prod-cold-start.png
+docs/reports/logs/g3a-shots/01-settings-data-export.png
+docs/reports/logs/g3a-shots/01-trends-empty-and-demo.png
+docs/reports/logs/g3a-shots/02-diary-blank-error.png
+docs/reports/logs/g3a-shots/02-export-warning.png
+docs/reports/logs/g3a-shots/02-goals-with-metrics.png
+docs/reports/logs/g3a-shots/02-prod-diary-restored.png
+docs/reports/logs/g3a-shots/02-settings-theme-note.png
+docs/reports/logs/g3a-shots/02-two-levels.png
+docs/reports/logs/g3a-shots/03-diary-created.png
+docs/reports/logs/g3a-shots/03-export-saf-picker.png
+docs/reports/logs/g3a-shots/03-history-multi-unit.png
+docs/reports/logs/g3a-shots/03-prod-overview.png
+docs/reports/logs/g3a-shots/03-settings-about.png
+docs/reports/logs/g3a-shots/03-three-levels.png
+docs/reports/logs/g3a-shots/04-checkin.png
+docs/reports/logs/g3a-shots/04-diary-detail.png
+docs/reports/logs/g3a-shots/04-export-success.png
+docs/reports/logs/g3a-shots/04-history-single.png
+docs/reports/logs/g3a-shots/04-prod-settings.png
+docs/reports/logs/g3a-shots/05-diary-after-restart.png
+docs/reports/logs/g3a-shots/05-history-empty-numeric.png
+docs/reports/logs/g3a-shots/05-history-single-point.png
+docs/reports/logs/g3a-shots/05-prod-export-warning.png
+docs/reports/logs/g3a-shots/06-diary-delete-confirm.png
+docs/reports/logs/g3a-shots/06-status-done.png
+docs/reports/logs/g3a-shots/06-trends-real.png
+docs/reports/logs/g3a-shots/07-diary-deleted.png
+docs/reports/logs/g3a-shots/07-edited.png
+docs/reports/logs/g3a-shots/07-invalid-metric.png
+docs/reports/logs/g3a-shots/08-after-restart.png
+docs/reports/logs/g3a-shots/08-trends-demo-separated.png
+docs/reports/logs/g3a-shots/09-overview.png
+docs/reports/logs/g3a-shots/10-delete-impact.png
+docs/reports/logs/g3a-shots/11-after-delete.png
+docs/reports/logs/g3a-shots/advisor-01-unconfigured.png
+docs/reports/logs/g3a-shots/advisor-02-config-saved.png
+docs/reports/logs/g3a-shots/advisor-03-test-connection.png
+docs/reports/logs/g3a-shots/advisor-04-success.png
+docs/reports/logs/g3a-shots/advisor-05-restart-persist.png
+docs/reports/logs/g3a-shots/advisor-06-401.png
+docs/reports/logs/g3a-shots/advisor-07-errors.png
+docs/reports/logs/g3a-shots/advisor-08-cancelled.png
+docs/reports/logs/g3a-shots/advisor-09-consent.png
+docs/reports/logs/g3a-shots/advisor-10-context-sent.png
+docs/reports/logs/g3a-shots/advisor-11-key-deleted.png
+docs/reports/logs/g3a-shots/advisor-12-real-401.png
+docs/reports/logs/g3a-shots/export-prod/mengya-life-export-20261104-021122.json
+docs/reports/logs/g3a-shots/prod-advisor-unconfigured.png
+docs/reports/logs/g3a-shots/prod-diary-after-v3.png
+docs/reports/logs/g3a-shots/prod-settings-ai.png
+docs/reports/logs/g3a-shots/qa-advisor-chat.png
+docs/reports/logs/g3a-shots/qa-settings-ai.png
+docs/reports/logs/g3a-source-changes.log
+docs/reports/logs/g3a-unit-test-summary.txt
+docs/reports/logs/g3a-verify-advisor.log
+docs/reports/logs/g3a-verify-network.log
+docs/reports/logs/g3a-verify_diary.log
+docs/reports/logs/g3a-verify_export.log
+docs/reports/logs/g3a-verify_goals.log
+docs/reports/logs/g3a-verify_navigation.log
+docs/reports/logs/g3a-verify_prod_smoke.log
+docs/reports/logs/g3a-verify_settings.log
+docs/reports/logs/g3a-verify_trends.log
+docs/reports/logs/verify-shots/g3a-chat-401.png
+docs/reports/logs/verify-shots/g3a-chat-cancelled.png
+docs/reports/logs/verify-shots/g3a-chat-errors.png
+docs/reports/logs/verify-shots/g3a-chat-first.png
+docs/reports/logs/verify-shots/g3a-chat-retry.png
+docs/reports/logs/verify-shots/g3a-context-consent.png
+docs/reports/logs/verify-shots/g3a-context-sent.png
+docs/reports/logs/verify-shots/g3a-export-with-key.png
+docs/reports/logs/verify-shots/g3a-key-deleted.png
+docs/reports/logs/verify-shots/g3a-real-network-401.png
+docs/reports/logs/verify-shots/g3a-settings-saved.png
+keystore/mengya-debug.keystore
+tools/ui-verify/verify_advisor.py
+tools/ui-verify/verify_advisor_network.py

@@ -11,7 +11,7 @@ from harness import *
 
 require_prod("verify_prod_smoke.py")
 
-VERSION = "0.5.0-g2c"
+VERSION = "0.6.0-g3a"
 EXPORT_DIR = os.environ.get("EXPORT_OUT", os.path.join(OUT, "export-prod"))
 os.makedirs(EXPORT_DIR, exist_ok=True)
 
@@ -109,7 +109,16 @@ joined = " ".join(seen)
 for stale in ["重启后恢复「跟随系统」", "本轮不引入 DataStore", "设置仅在本次运行有效"]:
     check("不含过期文案：" + stale, stale not in joined)
 check("当前版本显示", VERSION in joined, VERSION)
-check("数据与隐私分组", "导出我的数据" in joined and "导入恢复尚未实现" in joined)
+check("AI 服务真实配置入口", "AI 服务" in joined and "API 服务地址（HTTPS）" in joined)
+# 设置页在 Gate 3A 变长：重新进入（滚动位置复位）再定位数据区
+adb("shell input keyevent KEYCODE_BACK")
+time.sleep(1.0)
+tap_tag("btn_settings")
+time.sleep(1.2)
+check("设置页数据区", scroll_to_tag("settings_export_data", 14))
+check("导出我的数据入口", has_text("导出我的数据"))
+check("导入数据入口", scroll_to_tag("settings_import_data", 4))
+check("导入恢复尚未实现", has_text("导入恢复尚未实现"))
 shot("04-prod-settings")
 
 # 重新进入设置（滚动位置复位），再进入导出流程

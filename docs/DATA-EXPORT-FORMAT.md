@@ -1,6 +1,6 @@
 # 数据导出格式说明（Mengya Life · Gate 2C）
 
-> 版本：导出格式 `schemaVersion = 1`，数据库 `schemaVersion = 2`，应用 `0.5.0-g2c`
+> 版本：导出格式 `schemaVersion = 1`，数据库 `schemaVersion = 3`，应用 `0.6.0-g3a`
 > 实现：`app/src/main/java/com/mengyalife/app/data/export/ExportJson.kt`、
 > `DataExportRepository.kt`、`ui/settings/ExportViewModel.kt`
 
@@ -46,6 +46,14 @@ RoomDatabase.withTransaction {
 
 ---
 
+## 2.1 不包含的内容（Gate 3A 起）
+
+导出仍然只包含日记、目标、进展：
+
+- **不包含** AI 配置、API Key、`advisor_messages` 聊天记录；
+- 因此卸载应用会丢失聊天记录（后续可单独设计加密导出）；
+- 导出文件本身仍可能含敏感日记内容，需妥善保管。
+
 ## 3. 顶层结构
 
 ```json
@@ -60,7 +68,7 @@ RoomDatabase.withTransaction {
     "versionName": "0.5.0-g2c",
     "versionCode": 5
   },
-  "database": { "engine": "room", "schemaVersion": 2 },
+  "database": { "engine": "room", "schemaVersion": 3 },
   "counts": { "journalEntries": 2, "goals": 3, "goalCheckins": 3 },
   "data": {
     "journalEntries": [],
@@ -77,7 +85,7 @@ RoomDatabase.withTransaction {
 | `exportedAt` | 导出时刻，Unix Epoch 毫秒（UTC 语义） |
 | `exportedAtIso` | 同一时刻的 ISO-8601 字符串，便于人工阅读 |
 | `app` | 生成文件的真实应用包名与版本（QA 包会是 `...qa`） |
-| `database.schemaVersion` | 生成文件时的 Room 结构版本（当前 2） |
+| `database.schemaVersion` | 生成文件时的 Room 结构版本（当前 3） |
 | `counts` | 三个数组的条数；校验器会与实际数组长度比对 |
 
 时间约定与数据库一致：**所有时间戳都是 Unix Epoch 毫秒**，不带时区；

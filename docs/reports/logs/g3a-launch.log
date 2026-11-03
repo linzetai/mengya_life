@@ -1,0 +1,7 @@
+Starting: Intent { cmp=com.mengyalife.app/.MainActivity }
+Status: ok
+LaunchState: COLD
+Activity: com.mengyalife.app/.MainActivity
+TotalTime: 419
+WaitTime: 421
+Complete

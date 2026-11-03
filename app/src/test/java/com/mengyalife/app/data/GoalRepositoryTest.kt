@@ -85,6 +85,9 @@ private class FakeGoalDao : GoalDao {
 
     override suspend fun countCheckinsForGoals(goalIds: List<Long>): Int =
         checkins.value.count { it.goalId in goalIds }
+
+    override suspend fun loadCheckinsForGoals(goalIds: List<Long>): List<GoalCheckinEntity> =
+        checkins.value.filter { it.goalId in goalIds }.sortedByDescending { it.recordedAt }
 }
 
 class GoalRepositoryTest {

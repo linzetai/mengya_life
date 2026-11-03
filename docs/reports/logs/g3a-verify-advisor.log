@@ -1,0 +1,68 @@
+========== 0. 清空 QA 数据 ==========
+PASS  未配置时显示引导
+PASS  引导说明不发送日记/目标
+========== 1. BYOK 配置 + 测试连接 + 加密 ==========
+PASS  进入设置
+PASS  设置页
+PASS  AI 待配置
+PASS  启用 QA 离线引擎
+PASS  保存成功
+PASS  key 不回显
+PASS  key 已保存标记
+PASS  测试连接成功
+PASS  DataStore 含 encrypted_api_key
+PASS  DataStore 不含明文 key
+PASS  Room 中没有 key
+PASS  应用进程日志不含 key
+========== 2. 成功对话 + 重启恢复 ==========
+PASS  已配置状态
+PASS  收到真实链路回复
+PASS  用户气泡
+PASS  助手气泡
+PASS  保存用户+助手  [('USER', 'SENT', 'hello_advisor_one', None, None), ('ASSISTANT', 'SENT', '（QA 离线测试引擎）已收到你的问题：hello_advisor_one\n\n这是本地生成的测试回复，用于验证对话保存、失败重试与重启恢复，不代表真实模型输出。', None, None)]
+PASS  重启后用户消息仍在
+PASS  重启后助手消息仍在
+========== 3. 失败 / 重试 / 取消 ==========
+PASS  401 错误文案
+PASS  失败卡片
+PASS  重试后仍失败但显示错误
+PASS  重试不产生重复用户消息  2->2
+PASS  429 文案
+PASS  超时文案
+PASS  离线文案
+PASS  等待状态
+PASS  取消后显示取消卡片
+PASS  取消写入 CANCELLED 且无假回复  [('ASSISTANT', 'FAILED', '', 'offline', None), ('USER', 'SENT', '[slow]', None, None), ('ASSISTANT', 'CANCELLED', '', 'cancelled', None)]
+========== 4. 目标上下文授权 ==========
+PASS  目标已创建
+PASS  上下文栏可见
+PASS  目标选择器
+PASS  目标已附加
+PASS  发送前出现授权摘要
+PASS  摘要包含不发送日记
+PASS  摘要列出目标
+PASS  取消授权不发送  12->12
+PASS  再次出现授权摘要
+PASS  确认后收到回复
+PASS  用户消息记录附带目标  [('USER', 'SENT', 'context_question', None, 1)]
+PASS  AI 没有自动新增目标/进展  [(1, 'CtxGoal')]
+========== 5. 导出不含密钥 ==========
+PASS  导出入口
+PASS  导出提醒
+PASS  SAF 保存
+PASS  导出成功
+PASS  导出文件存在  /sdcard/Download/mengya-life-export-20261104-023332.json
+PASS  导出不含 key
+PASS  导出不含聊天正文
+PASS  导出 db schema=3  {'engine': 'room', 'schemaVersion': 3}
+========== 6. 删除密钥 ==========
+PASS  回到 AI 配置
+PASS  删除密钥入口
+PASS  删除确认
+PASS  删除提示
+PASS  已无 key 标记
+PASS  DataStore 已无密文
+PASS  删除后不能测试
+PASS  顾问回到未配置
+
+==== SUMMARY: 59/59 passed ====

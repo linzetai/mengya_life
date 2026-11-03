@@ -124,9 +124,13 @@ check("准备数据：2 条进展", len(checkins_before) == 2, str(checkins_befo
 shot("01-export-source-data")
 
 print("========== 1. 打开导出入口 + 敏感信息提醒 ==========")
+existing_exports = set(
+    adb("shell 'ls /sdcard/Download/mengya-life-export-*.json 2>/dev/null'").split()
+)
 tap_tag("btn_settings")
 time.sleep(1.2)
-check("设置页导出入口", wait_tag("settings_export_data", 8))
+check("设置页已打开", wait_tag("settings_back", 8))
+check("设置页导出入口", scroll_to_tag("settings_export_data", 12))
 tap_tag("settings_export_data")
 check("导出确认框", wait_tag("export_warning", 8))
 check("敏感信息提醒", has_tag("export_sensitive_warning"))
@@ -154,13 +158,14 @@ check("导出成功提示", success)
 shot("04-export-success")
 
 print("========== 3. 拉取并解析导出文件 ==========")
-listing = adb("shell 'ls -t /sdcard/Download/mengya-life-export-*.json 2>/dev/null | head -n 1'").strip()
-check("设备上出现导出文件", bool(listing), listing)
-if not listing:
+all_exports = adb("shell 'ls -t /sdcard/Download/mengya-life-export-*.json 2>/dev/null'").split()
+# 只认本次新生成的文件，避免误读上一轮遗留的导出
+new_exports = [p for p in all_exports if p not in existing_exports]
+remote = (new_exports[0] if new_exports else (all_exports[0] if all_exports else "")).strip()
+check("设备上出现本次导出文件", bool(remote), remote)
+if not remote:
     summary()
     sys.exit(1)
-
-remote = listing.splitlines()[-1].strip()
 local = os.path.join(EXPORT_DIR, os.path.basename(remote))
 adb(f"pull {remote} {local}")
 check("文件已拉取到本机", os.path.exists(local) and os.path.getsize(local) > 0,
@@ -171,7 +176,7 @@ doc = json.loads(text)
 check("JSON 可解析", isinstance(doc, dict))
 check("format 正确", doc.get("format") == "mengyalife-backup", str(doc.get("format")))
 check("schemaVersion = 1", doc.get("schemaVersion") == 1, str(doc.get("schemaVersion")))
-check("database.schemaVersion = 2", doc.get("database", {}).get("schemaVersion") == 2)
+check("database.schemaVersion = 3", doc.get("database", {}).get("schemaVersion") == 3)
 check("包含版本信息", bool(doc.get("app", {}).get("versionName")), str(doc.get("app")))
 check("包含导出时间", isinstance(doc.get("exportedAt"), int) and doc["exportedAt"] > 0)
 check("包含 ISO 时间", "T" in str(doc.get("exportedAtIso", "")))

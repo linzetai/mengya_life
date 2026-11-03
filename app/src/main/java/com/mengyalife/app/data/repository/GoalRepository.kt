@@ -9,8 +9,13 @@ import com.mengyalife.app.domain.goals.GoalDomain
 import com.mengyalife.app.domain.goals.GoalLevel
 import com.mengyalife.app.domain.goals.GoalRef
 import com.mengyalife.app.domain.goals.GoalRules
+import com.mengyalife.app.domain.advisor.AdvisorContextSource
+import com.mengyalife.app.domain.advisor.AdvisorGoalChoice
+import com.mengyalife.app.domain.advisor.AdvisorGoalContext
 import com.mengyalife.app.domain.goals.GoalStatus
 import com.mengyalife.app.domain.goals.GoalTrends
+import com.mengyalife.app.util.MetricFormat
+import com.mengyalife.app.util.Timestamps
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -103,7 +108,7 @@ sealed interface GoalResult<out T> {
 class GoalRepository(
     private val dao: GoalDao,
     private val now: () -> Long = System::currentTimeMillis,
-) {
+) : AdvisorContextSource {
 
     fun observeSnapshot(): Flow<GoalSnapshot> =
         combine(dao.observeGoals(), dao.observeCheckinStats()) { goals, stats ->
@@ -248,6 +253,61 @@ class GoalRepository(
             dao.updateGoal(goal.copy(status = GoalStatus.IN_PROGRESS, updatedAt = now()))
         }
         return GoalResult.Ok(id)
+    }
+
+    // ---------------------------------------------------------------- 顾问上下文
+
+    /**
+     * 为「用户明确选择的目标」构造可发送摘要。
+     *
+     * 只读，且只包含这一个目标子树；**不读取日记**，不包含其它目标。
+     * 由 AdvisorViewModel 在用户确认后调用。
+     */
+    override fun observeGoalChoices(): Flow<List<AdvisorGoalChoice>> =
+        observeSnapshot().map { snapshot ->
+            snapshot.roots.map { AdvisorGoalChoice(id = it.goal.id, title = it.goal.title) }
+        }
+
+    override suspend fun buildContext(goalId: Long): AdvisorGoalContext? {
+        val goal = dao.findGoal(goalId) ?: return null
+        val all = dao.loadAllGoals()
+        val subtree = collectSubtreeIds(goalId, all)
+        if (subtree.isEmpty()) return null
+        val byId = all.associateBy { it.id }
+        val stages = subtree
+            .mapNotNull { byId[it] }
+            .filter { it.level == GoalLevel.STAGE }
+            .sortedBy { it.createdAt }
+            .take(8)
+        val stageIds = stages.map { it.id }.toSet()
+        val actions = subtree
+            .mapNotNull { byId[it] }
+            .filter { it.level == GoalLevel.ACTION && it.parentId in stageIds }
+            .sortedBy { it.createdAt }
+            .take(12)
+        val checkins = dao.loadCheckinsForGoals(subtree)
+            .sortedWith(compareByDescending<GoalCheckinEntity> { it.recordedAt }.thenByDescending { it.id })
+        val recent = checkins.take(3).map { checkin ->
+            buildString {
+                append(Timestamps.formatDate(checkin.recordedAt))
+                append(" · ")
+                append(checkin.note.replace('\n', ' ').take(80))
+                checkin.metricValue?.let { value ->
+                    append("（")
+                    append(MetricFormat.withUnit(value, checkin.metricUnit))
+                    append("）")
+                }
+            }
+        }
+        return AdvisorGoalContext(
+            goalId = goal.id,
+            title = goal.title,
+            description = goal.description,
+            stageTitles = stages.map { it.title },
+            actionTitles = actions.map { it.title },
+            recentCheckinLines = recent,
+            totalCheckins = checkins.size,
+        )
     }
 
     // ---------------------------------------------------------------- 内部

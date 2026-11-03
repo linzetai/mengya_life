@@ -3,6 +3,15 @@ package com.mengyalife.app.di
 import android.content.Context
 import androidx.room.withTransaction
 import com.mengyalife.app.BuildConfig
+import com.mengyalife.app.data.advisor.AdvisorConfigRepository
+import com.mengyalife.app.data.advisor.AndroidKeystoreCipher
+import com.mengyalife.app.data.advisor.ConversationRepository
+import com.mengyalife.app.data.advisor.DataStoreAdvisorConfigRepository
+import com.mengyalife.app.data.advisor.DataStoreAiConfigStorage
+import com.mengyalife.app.data.advisor.FakeAdvisorEngine
+import com.mengyalife.app.data.advisor.NetworkAdvisorEngine
+import com.mengyalife.app.data.advisor.RoomConversationRepository
+import com.mengyalife.app.data.advisor.SecretCipher
 import com.mengyalife.app.data.export.DataExportRepository
 import com.mengyalife.app.data.local.DB_SCHEMA_VERSION
 import com.mengyalife.app.data.local.MengyaDatabase
@@ -31,6 +40,28 @@ class AppContainer(context: Context) {
 
     val themePreferences: ThemePreferences by lazy {
         ThemePreferences(appContext)
+    }
+
+    private val secretCipher: SecretCipher by lazy {
+        AndroidKeystoreCipher(BuildConfig.AI_KEY_ALIAS)
+    }
+
+    val advisorConfigRepository: AdvisorConfigRepository by lazy {
+        DataStoreAdvisorConfigRepository(
+            storage = DataStoreAiConfigStorage(appContext),
+            cipher = secretCipher,
+        )
+    }
+
+    val conversationRepository: ConversationRepository by lazy {
+        RoomConversationRepository(database.advisorMessageDao())
+    }
+
+    val networkAdvisorEngine: NetworkAdvisorEngine by lazy { NetworkAdvisorEngine() }
+
+    /** 仅 QA 构建提供；正式包永远为 null，避免假回复出现在真实产品里。 */
+    val fakeAdvisorEngine: FakeAdvisorEngine? by lazy {
+        if (BuildConfig.QA_BUILD) FakeAdvisorEngine() else null
     }
 
     /**

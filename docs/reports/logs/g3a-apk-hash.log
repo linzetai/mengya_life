@@ -1,0 +1,12 @@
+# Gate 3A 设备安装 APK 哈希
+时间: 2026-11-04T02:27:21+08:00
+设备: 2509FPN0BC / Android 17
+
+== com.mengyalife.app
+sha256: cc4ac2af2f0efe4aa37a14557e1f6fa566d5fb138f42721dd27b49fdf63470a4
+bytes: 11256370
+
+== com.mengyalife.app.qa
+sha256: 4c8bed2a9f2fffd9c70813ee84f67aa5a8ce908f0d8cdc078342aa3f08c4fc73
+bytes: 11256402
+

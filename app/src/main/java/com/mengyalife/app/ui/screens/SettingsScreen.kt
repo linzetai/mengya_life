@@ -50,6 +50,9 @@ import com.mengyalife.app.ui.components.ScreenPadding
 import com.mengyalife.app.ui.components.SettingsGroup
 import com.mengyalife.app.ui.components.SettingsRow
 import com.mengyalife.app.ui.components.StatusPill
+import com.mengyalife.app.ui.advisor.AiSettingsAction
+import com.mengyalife.app.ui.advisor.AiSettingsUiState
+import com.mengyalife.app.ui.settings.AiSettingsSection
 import com.mengyalife.app.ui.settings.ExportUiState
 import com.mengyalife.app.ui.theme.ThemeMode
 import kotlinx.coroutines.launch
@@ -79,6 +82,8 @@ fun SettingsScreen(
     onExportCancelled: () -> Unit,
     onExportDestinationCancelled: () -> Unit,
     onExportMessageConsumed: () -> Unit,
+    aiState: AiSettingsUiState,
+    onAiAction: (AiSettingsAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -168,53 +173,7 @@ fun SettingsScreen(
 
             // ---------------- A. AI 服务 ----------------
             item {
-                SettingsGroup(title = "AI 服务") {
-                    SettingsRow(
-                        title = "模型配置",
-                        subtitle = "服务提供方、模型与生成参数",
-                        badge = "后续接入",
-                        dimmed = true,
-                        testTag = "settings_model_config",
-                        onClick = { notify("后续接入：本版本不接入任何模型服务") },
-                    )
-                    GroupDivider()
-                    Column(modifier = Modifier.padding(horizontal = 18.dp)) {
-                        KeyValueRow(label = "当前配置状态", value = "未配置（未接入任何模型）")
-                    }
-                    GroupDivider()
-                    SettingsRow(
-                        title = "API 服务地址",
-                        subtitle = "自建网关或服务商 endpoint",
-                        badge = "后续接入",
-                        dimmed = true,
-                        testTag = "settings_api_endpoint",
-                        onClick = { notify("后续接入：当前不会发起任何网络请求") },
-                    )
-                    GroupDivider()
-                    SettingsRow(
-                        title = "模型",
-                        subtitle = "默认模型与备用模型",
-                        badge = "后续接入",
-                        dimmed = true,
-                        testTag = "settings_model_name",
-                        onClick = { notify("后续接入：当前未选择任何模型") },
-                    )
-                    GroupDivider()
-                    SettingsRow(
-                        title = "密钥",
-                        subtitle = "本版本不接收、不保存任何 API Key",
-                        badge = "后续接入",
-                        dimmed = true,
-                        testTag = "settings_api_key",
-                        onClick = { notify("后续接入：本版本不接收、不保存、不发送任何 API Key") },
-                    )
-                }
-            }
-
-            item {
-                Column(modifier = Modifier.padding(horizontal = 4.dp)) {
-                    InlineNote("本版本不申请网络权限，也不会读取、存储或上传任何密钥。")
-                }
+                AiSettingsSection(state = aiState, onAction = onAiAction)
             }
 
             // ---------------- B. 数据与隐私 ----------------
@@ -222,7 +181,7 @@ fun SettingsScreen(
                 SettingsGroup(title = "数据与隐私") {
                     SettingsRow(
                         title = "本地数据管理",
-                        subtitle = "日记与目标保存在本机数据库（Room），不会上传",
+                        subtitle = "日记与目标保存在本机数据库；AI 请求只发送你确认的内容",
                         badge = "本机",
                         dimmed = false,
                         testTag = "settings_local_data",
@@ -255,10 +214,10 @@ fun SettingsScreen(
                     GroupDivider()
                     SettingsRow(
                         title = "数据采集与授权",
-                        subtitle = "不采集任何数据，应用未申请网络权限",
+                        subtitle = "不采集任何数据；INTERNET 仅用于你主动发起的 AI 请求",
                         dimmed = true,
                         testTag = "settings_data_policy",
-                        onClick = { notify("本版本不采集任何数据，也未申请网络权限") },
+                        onClick = { notify("不采集任何数据；联网只发生在你主动发送 AI 请求时") },
                     )
                     GroupDivider()
                     SettingsRow(
@@ -341,7 +300,7 @@ fun SettingsScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             StatusPill(text = "本地优先")
                             Spacer(Modifier.size(8.dp))
-                            StatusPill(text = "无网络权限")
+                            StatusPill(text = "自带密钥")
                             Spacer(Modifier.size(8.dp))
                             StatusPill(text = "无后端")
                         }
