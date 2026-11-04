@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.advisor.DiaryExtractionProtocolTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-11-04T15:04:25" hostname="localhost" time="0.011">
+  <properties/>
+  <testcase name="evidence 不在原文中则拒绝" classname="com.mengyalife.app.advisor.DiaryExtractionProtocolTest" time="0.008"/>
+  <testcase name="医学诊断内容被拒绝" classname="com.mengyalife.app.advisor.DiaryExtractionProtocolTest" time="0.0"/>
+  <testcase name="合法事实与推测均可解析" classname="com.mengyalife.app.advisor.DiaryExtractionProtocolTest" time="0.002"/>
+  <testcase name="非法 schema 类别或 confidence 被拒绝" classname="com.mengyalife.app.advisor.DiaryExtractionProtocolTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

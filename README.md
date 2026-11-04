@@ -1,7 +1,7 @@
 # 萌芽人生 · Mengya Life
 
 > Android 应用。**工程名 MengyaLife**，包名 `com.mengyalife.app`。
-> 当前版本 **0.13.0-g3e1**（Gate 3E-1：每周成长回顾 V1）。
+> 当前版本 **0.14.0-g3e2**（Gate 3E-2：可信周回顾 + 可选 AI）。
 >
 > 技术栈：Kotlin + Jetpack Compose + Material 3 + **Room** + **DataStore** + **Android Keystore**。
 > 无自有后端；用户自带 API Key（BYOK），请求直达用户配置的模型服务。
@@ -34,7 +34,7 @@
 | endpoint 竞态、请求预算、草案重试安全修复 | ✅ |
 | QA 隔离包 + 离线测试引擎 | ✅ 仅 QA；正式包不创建假引擎 |
 | 导入恢复 | ⏳ 未实现，界面如实提示 |
-| JVM 单元测试 | ✅ **230/230** |
+| JVM 单元测试 | ✅ **233/233** |
 | 真机验收 | ✅ Gate 3E-1 每周回顾/通知/回归；未验证项见报告 |
 | Gate 3A 报告 | `docs/reports/REPORT-G3A-ADVISOR.md` |
 | Gate 3B-1 报告 | `docs/reports/REPORT-G3B1.md` |
@@ -44,6 +44,7 @@
 | Gate 3D-1 报告 | `docs/reports/REPORT-G3D1.md` |
 | Gate 3D-2 报告 | `docs/reports/REPORT-G3D2.md` |
 | Gate 3E-1 报告 | `docs/reports/REPORT-G3E1.md` |
+| Gate 3E-2 报告 | `docs/reports/REPORT-G3E2.md` |
 | 请求格式 / 安全隐私 | `docs/AI-REQUEST-FORMAT.md`、`docs/SECURITY-PRIVACY-G3A.md` |
 
 **Gate 3E-1 结论：PASS（核心）**。本地每周回顾、WorkManager 唯一周期任务、通知

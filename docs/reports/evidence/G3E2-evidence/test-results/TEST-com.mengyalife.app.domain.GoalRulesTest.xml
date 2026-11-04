@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.domain.GoalRulesTest" tests="23" skipped="0" failures="0" errors="0" timestamp="2026-11-04T15:04:26" hostname="localhost" time="0.002">
+  <properties/>
+  <testcase name="行动挂在阶段目标下合法" classname="com.mengyalife.app.domain.GoalRulesTest" time="0.0"/>
+  <testcase name="行动挂在长期目标下非法（跳级）" classname="com.mengyalife.app.domain.GoalRulesTest" time="0.0"/>
+  <testcase name="正常标题通过" classname="com.mengyalife.app.domain.GoalRulesTest" time="0.0"/>
+  <testcase name="parseMetric 不会把 NaN 变成有效值" classname="com.mengyalife.app.domain.GoalRulesTest" time="0.0"/>
+  <testcase name="单位过长被拒绝且空白归一为空" classname="com.mengyalife.app.domain.GoalRulesTest" time="0.0"/>
+  <testcase name="截止早于开始被拒绝" classname="com.mengyalife.app.domain.GoalRulesTest" time="0.0"/>
+  <testcase name="非法指标数值被拒绝" classname="com.mengyalife.app.domain.GoalRulesTest" time="0.0"/>
+  <testcase name="不能挂到自己的后代下面" classname="com.mengyalife.app.domain.GoalRulesTest" time="0.0"/>
+  <testcase name="不能挂到自己下面" classname="com.mengyalife.app.domain.GoalRulesTest" time="0.0"/>
+  <testcase name="超出范围的数值被拒绝" classname="com.mengyalife.app.domain.GoalRulesTest" time="0.0"/>
+  <testcase name="空标题被拒绝" classname="com.mengyalife.app.domain.GoalRulesTest" time="0.001"/>
+  <testcase name="挂到无关分支不算环" classname="com.mengyalife.app.domain.GoalRulesTest" time="0.0"/>
+  <testcase name="父为空时不构成环" classname="com.mengyalife.app.domain.GoalRulesTest" time="0.0"/>
+  <testcase name="NaN 与 Infinity 的 Double 值被拒绝" classname="com.mengyalife.app.domain.GoalRulesTest" time="0.0"/>
+  <testcase name="阶段目标挂在阶段目标下非法" classname="com.mengyalife.app.domain.GoalRulesTest" time="0.0"/>
+  <testcase name="空进展说明被拒绝" classname="com.mengyalife.app.domain.GoalRulesTest" time="0.0"/>
+  <testcase name="长期目标无父时合法" classname="com.mengyalife.app.domain.GoalRulesTest" time="0.0"/>
+  <testcase name="长期目标不能有父目标" classname="com.mengyalife.app.domain.GoalRulesTest" time="0.0"/>
+  <testcase name="行动必须有父" classname="com.mengyalife.app.domain.GoalRulesTest" time="0.0"/>
+  <testcase name="阶段目标必须有父" classname="com.mengyalife.app.domain.GoalRulesTest" time="0.0"/>
+  <testcase name="超长标题被拒绝" classname="com.mengyalife.app.domain.GoalRulesTest" time="0.0"/>
+  <testcase name="阶段目标挂在长期目标下合法" classname="com.mengyalife.app.domain.GoalRulesTest" time="0.0"/>
+  <testcase name="NaN 与 Infinity 文本一律被拒绝" classname="com.mengyalife.app.domain.GoalRulesTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

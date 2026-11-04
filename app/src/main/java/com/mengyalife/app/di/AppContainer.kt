@@ -35,6 +35,7 @@ import com.mengyalife.app.data.weekly.WeeklyReviewNotifier
 import com.mengyalife.app.data.weekly.WeeklyReviewPreferences
 import com.mengyalife.app.data.weekly.WeeklyReviewScheduler
 import com.mengyalife.app.data.weekly.WeeklyReviewService
+import com.mengyalife.app.data.weekly.WeeklyAiService
 
 /**
  * 手工依赖容器（本轮刻意不引入 Hilt：少一个编译器插件、少一层构建风险）。
@@ -120,15 +121,30 @@ class AppContainer(context: Context) {
         WeeklyReviewNotifier(appContext)
     }
 
+    val weeklyReviewDataRepository: WeeklyReviewDataRepository by lazy {
+        WeeklyReviewDataRepository(
+            goalDao = database.goalDao(),
+            journalDao = database.journalEntryDao(),
+            memoryDao = database.growthMemoryDao(),
+            signalDao = database.growthSignalDao(),
+        )
+    }
+
     val weeklyReviewService: WeeklyReviewService by lazy {
         WeeklyReviewService(
-            dataRepository = WeeklyReviewDataRepository(
-                goalDao = database.goalDao(),
-                journalDao = database.journalEntryDao(),
-                memoryDao = database.growthMemoryDao(),
-            ),
+            dataRepository = weeklyReviewDataRepository,
             dao = database.weeklyReviewDao(),
             consentRepository = aiConsentRepository,
+        )
+    }
+
+    val weeklyAiService: WeeklyAiService by lazy {
+        WeeklyAiService(
+            source = weeklyReviewDataRepository,
+            consentRepository = aiConsentRepository,
+            configRepository = advisorConfigRepository,
+            networkEngine = networkAdvisorEngine,
+            dao = database.weeklyAiDao(),
         )
     }
 

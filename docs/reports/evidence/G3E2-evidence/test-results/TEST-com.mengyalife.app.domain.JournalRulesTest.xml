@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.domain.JournalRulesTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-11-04T15:04:26" hostname="localhost" time="0.002">
+  <properties/>
+  <testcase name="纯空白正文被拒绝" classname="com.mengyalife.app.domain.JournalRulesTest" time="0.001"/>
+  <testcase name="摘要按长度截断并追加省略号" classname="com.mengyalife.app.domain.JournalRulesTest" time="0.0"/>
+  <testcase name="空正文被拒绝" classname="com.mengyalife.app.domain.JournalRulesTest" time="0.0"/>
+  <testcase name="摘要压缩换行与多余空格" classname="com.mengyalife.app.domain.JournalRulesTest" time="0.0"/>
+  <testcase name="超长正文被拒绝" classname="com.mengyalife.app.domain.JournalRulesTest" time="0.001"/>
+  <testcase name="正常正文通过校验" classname="com.mengyalife.app.domain.JournalRulesTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

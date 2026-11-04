@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.advisor.GoalProposalParserTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-11-04T15:04:26" hostname="localhost" time="0.003">
+  <properties/>
+  <testcase name="层级不合法被拒绝" classname="com.mengyalife.app.advisor.GoalProposalParserTest" time="0.0"/>
+  <testcase name="已有父目标必须存在且层级正确" classname="com.mengyalife.app.advisor.GoalProposalParserTest" time="0.0"/>
+  <testcase name="循环依赖被拒绝" classname="com.mengyalife.app.advisor.GoalProposalParserTest" time="0.001"/>
+  <testcase name="非法日期被拒绝" classname="com.mengyalife.app.advisor.GoalProposalParserTest" time="0.0"/>
+  <testcase name="合法三级草案解析成功并可往返编码" classname="com.mengyalife.app.advisor.GoalProposalParserTest" time="0.001"/>
+  <testcase name="重复 tempId 被拒绝" classname="com.mengyalife.app.advisor.GoalProposalParserTest" time="0.0"/>
+  <testcase name="非法 JSON 与错误 schema 不会崩溃" classname="com.mengyalife.app.advisor.GoalProposalParserTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

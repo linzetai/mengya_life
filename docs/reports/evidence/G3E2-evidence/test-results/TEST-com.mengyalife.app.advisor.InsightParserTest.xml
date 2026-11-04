@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.advisor.InsightParserTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-11-04T15:04:26" hostname="localhost" time="0.008">
+  <properties/>
+  <testcase name="只引用信息不足事实时允许无来源" classname="com.mengyalife.app.advisor.InsightParserTest" time="0.005"/>
+  <testcase name="factId 不在本轮事实中被拒绝" classname="com.mengyalife.app.advisor.InsightParserTest" time="0.001"/>
+  <testcase name="合法来源通过" classname="com.mengyalife.app.advisor.InsightParserTest" time="0.001"/>
+  <testcase name="合法但与 factIds 无关的来源被拒绝" classname="com.mengyalife.app.advisor.InsightParserTest" time="0.0"/>
+  <testcase name="来源不在授权上下文被拒绝" classname="com.mengyalife.app.advisor.InsightParserTest" time="0.0"/>
+  <testcase name="非法 JSON 或空来源被拒绝" classname="com.mengyalife.app.advisor.InsightParserTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

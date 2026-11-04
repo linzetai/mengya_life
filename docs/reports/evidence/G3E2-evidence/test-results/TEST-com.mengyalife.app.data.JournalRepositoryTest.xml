@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.data.JournalRepositoryTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-11-04T15:04:26" hostname="localhost" time="0.02">
+  <properties/>
+  <testcase name="空正文不能写入数据库" classname="com.mengyalife.app.data.JournalRepositoryTest" time="0.004"/>
+  <testcase name="编辑保留创建时间并刷新更新时间" classname="com.mengyalife.app.data.JournalRepositoryTest" time="0.002"/>
+  <testcase name="完整增改删流程后数据一致" classname="com.mengyalife.app.data.JournalRepositoryTest" time="0.005"/>
+  <testcase name="新建时创建时间与更新时间相同" classname="com.mengyalife.app.data.JournalRepositoryTest" time="0.002"/>
+  <testcase name="新建日记会 trim 正文并把空标题归一为 null" classname="com.mengyalife.app.data.JournalRepositoryTest" time="0.001"/>
+  <testcase name="编辑不存在的记录返回 false 且不新增" classname="com.mengyalife.app.data.JournalRepositoryTest" time="0.002"/>
+  <testcase name="删除命中返回 true 再次删除返回 false" classname="com.mengyalife.app.data.JournalRepositoryTest" time="0.002"/>
+  <testcase name="列表按更新时间倒序" classname="com.mengyalife.app.data.JournalRepositoryTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

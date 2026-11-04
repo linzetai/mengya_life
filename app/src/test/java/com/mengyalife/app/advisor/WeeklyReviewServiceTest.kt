@@ -32,6 +32,18 @@ private class FakeWeeklyDao : WeeklyReviewDao {
     override suspend fun upsert(review: WeeklyReviewEntity) {
         rows.value = rows.value.filterNot { it.periodKey == review.periodKey } + review
     }
+    override suspend fun tryClaimNotification(key: String, at: Long): Int {
+        val old = rows.value.firstOrNull { it.periodKey == key } ?: return 0
+        if (old.notifiedAt != null) return 0
+        rows.value = rows.value.map { if (it.periodKey == key) it.copy(notifiedAt = at) else it }
+        return 1
+    }
+    override suspend fun releaseNotification(key: String, at: Long): Int {
+        val old = rows.value.firstOrNull { it.periodKey == key } ?: return 0
+        if (old.notifiedAt != at) return 0
+        rows.value = rows.value.map { if (it.periodKey == key) it.copy(notifiedAt = null) else it }
+        return 1
+    }
     override suspend fun markNotified(key: String, at: Long) {
         rows.value = rows.value.map { if (it.periodKey == key) it.copy(notifiedAt = at) else it }
     }
@@ -76,6 +88,7 @@ class WeeklyReviewServiceTest {
         val entity = WeeklyReviewEntity(
             id = "x", periodKey = review.periodKey, periodStart = review.periodStart,
             periodEnd = review.periodEnd, generatedAt = review.generatedAt, version = review.version,
+            dataVersion = review.dataVersion, aiConsentVersion = review.aiConsentVersion,
             factsJson = WeeklyReviewCodec.factsJson(review.facts),
             sectionsJson = WeeklyReviewCodec.sectionsJson(review.sections), notifiedAt = null,
         )

@@ -20,6 +20,12 @@ interface WeeklyReviewDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(review: WeeklyReviewEntity)
 
+    @Query("UPDATE weekly_reviews SET notified_at = :at WHERE period_key = :key AND notified_at IS NULL")
+    suspend fun tryClaimNotification(key: String, at: Long): Int
+
+    @Query("UPDATE weekly_reviews SET notified_at = NULL WHERE period_key = :key AND notified_at = :at")
+    suspend fun releaseNotification(key: String, at: Long): Int
+
     @Query("UPDATE weekly_reviews SET notified_at = :at WHERE period_key = :key")
     suspend fun markNotified(key: String, at: Long)
 }

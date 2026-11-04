@@ -18,6 +18,8 @@ import com.mengyalife.app.data.local.insight.InsightReportDao
 import com.mengyalife.app.data.local.insight.InsightReportEntity
 import com.mengyalife.app.data.local.weekly.WeeklyReviewDao
 import com.mengyalife.app.data.local.weekly.WeeklyReviewEntity
+import com.mengyalife.app.data.local.weekly.WeeklyAiDao
+import com.mengyalife.app.data.local.weekly.WeeklyAiEntity
 import com.mengyalife.app.data.local.growth.GrowthMemoryEntity
 import com.mengyalife.app.data.local.growth.GrowthSignalDao
 import com.mengyalife.app.data.local.growth.GrowthSignalEntity
@@ -40,6 +42,7 @@ import com.mengyalife.app.data.local.proposal.GoalProposalEntity
  * - **v7**（Gate 3C-2）：新增 `growth_memories`（跨日记成长记忆）
  * - **v8**（Gate 3D-1）：新增 `insight_reports`（规则事实 + AI 洞察缓存）
  * - **v9**（Gate 3E-1）：新增 `weekly_reviews`（本地每周回顾历史）
+ * - **v10**（Gate 3E-2）：周回顾加入 dataVersion / AI 授权版本
  *
  * 迁移策略：
  * 1. 每次改表都必须 version + 1 并提供 `Migration`；
@@ -48,7 +51,7 @@ import com.mengyalife.app.data.local.proposal.GoalProposalEntity
  * 4. 迁移必须在真机升级安装上验证（本轮已做 v1→v2 实测，见报告）。
  */
 /** 数据库结构版本。导出文件里的 `databaseVersion` 与它保持一致。 */
-const val DB_SCHEMA_VERSION = 9
+const val DB_SCHEMA_VERSION = 10
 
 @Database(
     entities = [
@@ -61,6 +64,7 @@ const val DB_SCHEMA_VERSION = 9
         GrowthMemoryEntity::class,
         InsightReportEntity::class,
         WeeklyReviewEntity::class,
+        WeeklyAiEntity::class,
     ],
     version = DB_SCHEMA_VERSION,
     exportSchema = true,
@@ -83,6 +87,8 @@ abstract class MengyaDatabase : RoomDatabase() {
     abstract fun insightReportDao(): InsightReportDao
 
     abstract fun weeklyReviewDao(): WeeklyReviewDao
+
+    abstract fun weeklyAiDao(): WeeklyAiDao
 
     companion object {
         // 正式版与 QA 测试构建使用不同的物理库文件（见 app/build.gradle 的 buildConfigField）。
@@ -342,6 +348,16 @@ abstract class MengyaDatabase : RoomDatabase() {
             }
         }
 
+
+        /** v9 → v10：周回顾缓存版本字段。 */
+        val MIGRATION_9_10: Migration = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `weekly_reviews` ADD COLUMN `data_version` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `weekly_reviews` ADD COLUMN `ai_consent_version` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `weekly_ai_reviews` (`period_key` TEXT PRIMARY KEY NOT NULL, `local_data_version` TEXT NOT NULL, `ai_consent_version` TEXT NOT NULL, `status` TEXT NOT NULL, `generated_at` INTEGER NOT NULL, `summary` TEXT NOT NULL, `highlights_json` TEXT NOT NULL, `suggestion` TEXT NOT NULL, `fact_ids_json` TEXT NOT NULL, `categories` TEXT NOT NULL, `error` TEXT, `model` TEXT)")
+            }
+        }
+
         @Volatile
         private var instance: MengyaDatabase? = null
 
@@ -355,7 +371,7 @@ abstract class MengyaDatabase : RoomDatabase() {
                     MengyaDatabase::class.java,
                     DATABASE_NAME,
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                     .build()
                     .also { instance = it }
             }

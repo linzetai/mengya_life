@@ -21,6 +21,7 @@ private val Context.weeklyDataStore: DataStore<Preferences> by preferencesDataSt
 class WeeklyReviewPreferences(private val context: Context) {
     private val enabledKey = booleanPreferencesKey("weekly_review_enabled")
     private val notificationAskedKey = booleanPreferencesKey("notification_permission_asked")
+    private val aiEnabledKey = booleanPreferencesKey("weekly_ai_enabled")
 
     val enabled: Flow<Boolean> = context.weeklyDataStore.data
         .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
@@ -31,6 +32,14 @@ class WeeklyReviewPreferences(private val context: Context) {
     val notificationAsked: Flow<Boolean> = context.weeklyDataStore.data
         .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
         .map { it[notificationAskedKey] ?: false }
+
+    val aiEnabled: Flow<Boolean> = context.weeklyDataStore.data
+        .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
+        .map { it[aiEnabledKey] ?: false }
+
+    suspend fun setAiEnabled(value: Boolean) {
+        context.weeklyDataStore.edit { it[aiEnabledKey] = value }
+    }
 
     suspend fun markNotificationAsked() {
         context.weeklyDataStore.edit { it[notificationAskedKey] = true }

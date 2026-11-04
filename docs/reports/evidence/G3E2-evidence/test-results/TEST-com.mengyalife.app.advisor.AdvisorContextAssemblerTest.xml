@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.advisor.AdvisorContextAssemblerTest" tests="13" skipped="0" failures="0" errors="0" timestamp="2026-11-04T15:04:25" hostname="localhost" time="0.043">
+  <properties/>
+  <testcase name="目标与进展按授权加入并记录来源" classname="com.mengyalife.app.advisor.AdvisorContextAssemblerTest" time="0.022"/>
+  <testcase name="用户纠正后不再使用同一日记的旧 AI 推测" classname="com.mengyalife.app.advisor.AdvisorContextAssemblerTest" time="0.005"/>
+  <testcase name="字符预算截断且标记 dropped" classname="com.mengyalife.app.advisor.AdvisorContextAssemblerTest" time="0.005"/>
+  <testcase name="未授权时返回空上下文" classname="com.mengyalife.app.advisor.AdvisorContextAssemblerTest" time="0.0"/>
+  <testcase name="关闭日记类别后完全不读取日记" classname="com.mengyalife.app.advisor.AdvisorContextAssemblerTest" time="0.001"/>
+  <testcase name="关闭日记时不使用成长线索" classname="com.mengyalife.app.advisor.AdvisorContextAssemblerTest" time="0.0"/>
+  <testcase name="关闭日记时不使用成长记忆" classname="com.mengyalife.app.advisor.AdvisorContextAssemblerTest" time="0.0"/>
+  <testcase name="历史只使用当前 epoch 且受 CONVERSATION 开关控制" classname="com.mengyalife.app.advisor.AdvisorContextAssemblerTest" time="0.001"/>
+  <testcase name="成长记忆有来源，且原日记已选中时不重复发送" classname="com.mengyalife.app.advisor.AdvisorContextAssemblerTest" time="0.003"/>
+  <testcase name="普通问题不附加无关日记" classname="com.mengyalife.app.advisor.AdvisorContextAssemblerTest" time="0.001"/>
+  <testcase name="关闭目标后不附带目标与进展" classname="com.mengyalife.app.advisor.AdvisorContextAssemblerTest" time="0.0"/>
+  <testcase name="成长线索只在已选日记之外补充，避免原文与线索重复" classname="com.mengyalife.app.advisor.AdvisorContextAssemblerTest" time="0.001"/>
+  <testcase name="相关日记会被选中，无关日记不会" classname="com.mengyalife.app.advisor.AdvisorContextAssemblerTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

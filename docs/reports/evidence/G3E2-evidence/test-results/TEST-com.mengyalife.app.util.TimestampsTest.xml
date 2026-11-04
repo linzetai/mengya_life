@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.util.TimestampsTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-11-04T15:04:26" hostname="localhost" time="0.006">
+  <properties/>
+  <testcase name="日期字段固定按 UTC 渲染，避免跨时区偏移一天" classname="com.mengyalife.app.util.TimestampsTest" time="0.005"/>
+  <testcase name="按东八区展示日期与时间" classname="com.mengyalife.app.util.TimestampsTest" time="0.0"/>
+  <testcase name="同一时间戳在不同时区展示不同本地时间" classname="com.mengyalife.app.util.TimestampsTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

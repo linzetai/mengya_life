@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.data.ExportTest" tests="12" skipped="0" failures="0" errors="0" timestamp="2026-11-04T15:04:26" hostname="localhost" time="0.079">
+  <properties/>
+  <testcase name="仓库在事务里读取三张表并生成快照" classname="com.mengyalife.app.data.ExportTest" time="0.065"/>
+  <testcase name="非 JSON 文本会被拒绝而不是崩溃" classname="com.mengyalife.app.data.ExportTest" time="0.0"/>
+  <testcase name="修改计数会被校验器发现" classname="com.mengyalife.app.data.ExportTest" time="0.002"/>
+  <testcase name="没有数据时也能导出一份合法的空备份" classname="com.mengyalife.app.data.ExportTest" time="0.003"/>
+  <testcase name="父子关系与进展关联逐项保留" classname="com.mengyalife.app.data.ExportTest" time="0.002"/>
+  <testcase name="导出内容完整且可被同一校验器解析" classname="com.mengyalife.app.data.ExportTest" time="0.001"/>
+  <testcase name="导出不包含任何密钥字段" classname="com.mengyalife.app.data.ExportTest" time="0.001"/>
+  <testcase name="孤立的进展记录会被校验器发现" classname="com.mengyalife.app.data.ExportTest" time="0.001"/>
+  <testcase name="建议文件名包含导出时间且以 json 结尾" classname="com.mengyalife.app.data.ExportTest" time="0.001"/>
+  <testcase name="导出文件包含 schemaVersion 与版本信息" classname="com.mengyalife.app.data.ExportTest" time="0.001"/>
+  <testcase name="层级与父子关系不一致会被校验器发现" classname="com.mengyalife.app.data.ExportTest" time="0.001"/>
+  <testcase name="历史脏数据里的 NaN 不会写出非法 JSON" classname="com.mengyalife.app.data.ExportTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

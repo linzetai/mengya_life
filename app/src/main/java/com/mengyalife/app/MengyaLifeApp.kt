@@ -101,6 +101,7 @@ fun MengyaLifeApp() {
     val weeklyViewModel: WeeklyReviewViewModel = viewModel(factory = WeeklyReviewViewModel.Factory)
     val weeklyState by weeklyViewModel.state.collectAsStateWithLifecycle()
     val weeklyEnabled by weeklyViewModel.enabled.collectAsStateWithLifecycle()
+    val weeklyAiEnabled by weeklyViewModel.aiEnabled.collectAsStateWithLifecycle()
     val weeklyNotificationAsked by weeklyViewModel.notificationAsked.collectAsStateWithLifecycle()
 
     // ---- 数据导出（设置页）----
@@ -172,6 +173,7 @@ fun MengyaLifeApp() {
                     state = weeklyState,
                     onBack = { showWeeklyReview = false },
                     onGenerate = weeklyViewModel::generateNow,
+                    onGenerateAi = weeklyViewModel::generateAiNow,
                     onOpenGoal = { id ->
                         goalsViewModel.onAction(GoalAction.FocusGoal(id))
                         showWeeklyReview = false
@@ -220,6 +222,8 @@ fun MengyaLifeApp() {
                         weeklyViewModel.setEnabled(enabled)
                     },
                     onOpenWeeklyReview = { showWeeklyReview = true },
+                    weeklyAiEnabled = weeklyAiEnabled,
+                    onWeeklyAiToggle = weeklyViewModel::setAiEnabled,
                 )
             } else {
                 MainShell(

@@ -7,6 +7,7 @@ import com.mengyalife.app.domain.weekly.WeeklyReview
 import com.mengyalife.app.domain.weekly.WeeklyReviewCodec
 import com.mengyalife.app.domain.weekly.WeeklyReviewRules
 import com.mengyalife.app.domain.weekly.WeekWindow
+import kotlinx.coroutines.flow.map
 import java.util.UUID
 
 class WeeklyReviewService(
@@ -21,7 +22,11 @@ class WeeklyReviewService(
         val consent = consentRepository.current()
         val review = WeeklyReviewRules.build(snapshot, consent, now())
         val existing = dao.findByPeriod(review.periodKey)
-        if (!force && existing != null) return existing.toDomain()
+        if (!force && existing != null &&
+            existing.version == review.version &&
+            existing.dataVersion == review.dataVersion &&
+            existing.aiConsentVersion == review.aiConsentVersion
+        ) return existing.toDomain()
         val saved = review.copy(id = newId())
         dao.upsert(saved.toEntity(notifiedAt = existing?.notifiedAt))
         return saved
@@ -29,19 +34,23 @@ class WeeklyReviewService(
 
     suspend fun latest(): WeeklyReview? = dao.latest()?.toDomain()
 
+    fun observeLatest() = dao.observeLatest().map { it?.toDomain() }
+
     suspend fun markNotified(periodKey: String, at: Long) = dao.markNotified(periodKey, at)
 
-    private fun WeeklyReview.toEntity(notifiedAt: Long?) = WeeklyReviewEntity(
+    fun WeeklyReview.toEntity(notifiedAt: Long?) = WeeklyReviewEntity(
         id = id, periodKey = periodKey, periodStart = periodStart, periodEnd = periodEnd,
         generatedAt = generatedAt, version = version,
+        dataVersion = dataVersion, aiConsentVersion = aiConsentVersion,
         factsJson = WeeklyReviewCodec.factsJson(facts),
         sectionsJson = WeeklyReviewCodec.sectionsJson(sections),
         notifiedAt = notifiedAt,
     )
 
-    private fun WeeklyReviewEntity.toDomain() = WeeklyReview(
+    fun WeeklyReviewEntity.toDomain() = WeeklyReview(
         id = id, periodKey = periodKey, periodStart = periodStart, periodEnd = periodEnd,
         generatedAt = generatedAt, version = version,
+        dataVersion = dataVersion, aiConsentVersion = aiConsentVersion,
         facts = WeeklyReviewCodec.factsFrom(factsJson),
         sections = WeeklyReviewCodec.sectionsFrom(sectionsJson),
     )

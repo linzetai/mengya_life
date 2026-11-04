@@ -3,6 +3,8 @@ package com.mengyalife.app.data.weekly
 import com.mengyalife.app.data.local.JournalEntryDao
 import com.mengyalife.app.data.local.goal.GoalDao
 import com.mengyalife.app.data.local.growth.GrowthMemoryDao
+import com.mengyalife.app.data.local.growth.GrowthSignalDao
+import com.mengyalife.app.data.growth.GrowthMemoryValidity
 import com.mengyalife.app.domain.goals.GoalLevel
 import com.mengyalife.app.domain.goals.GoalStatus
 import com.mengyalife.app.domain.growth.GrowthMemoryIds
@@ -22,6 +24,7 @@ class WeeklyReviewDataRepository(
     private val goalDao: GoalDao,
     private val journalDao: JournalEntryDao,
     private val memoryDao: GrowthMemoryDao,
+    private val signalDao: GrowthSignalDao,
 ) : WeeklyReviewSource {
     override suspend fun load(): WeeklySnapshot {
         val goals = goalDao.loadAllGoals().map { goal ->
@@ -48,7 +51,11 @@ class WeeklyReviewDataRepository(
         val checkins = goalDao.loadAllCheckins().map { c ->
             WeeklyCheckin(c.id, c.goalId, c.recordedAt, c.note, c.metricValue, c.metricUnit)
         }
-        val memories = memoryDao.loadAll().map { m ->
+        val journals = journalDao.loadAll().associateBy { it.id }
+        val activeSignals = signalDao.loadActive(300).associateBy { it.id }
+        val memories = memoryDao.loadAll().filter { m ->
+            GrowthMemoryValidity.usable(m, activeSignals, journals)
+        }.map { m ->
             WeeklyMemory(
                 id = m.id,
                 theme = m.theme,

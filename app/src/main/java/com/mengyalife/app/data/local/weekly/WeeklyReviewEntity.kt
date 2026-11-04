@@ -16,6 +16,8 @@ data class WeeklyReviewEntity(
     @ColumnInfo("period_end") val periodEnd: Long,
     @ColumnInfo("generated_at") val generatedAt: Long,
     @ColumnInfo("version") val version: Int,
+    @ColumnInfo("data_version") val dataVersion: String,
+    @ColumnInfo("ai_consent_version") val aiConsentVersion: String,
     @ColumnInfo("facts_json") val factsJson: String,
     @ColumnInfo("sections_json") val sectionsJson: String,
     @ColumnInfo("notified_at") val notifiedAt: Long?,

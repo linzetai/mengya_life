@@ -93,11 +93,11 @@ class WeeklyReviewRulesTest {
     }
 
     @Test
-    fun `关闭类别后不展示该类别数据`() {
+    fun `关闭AI类别仍保留本地回顾数据`() {
         val noProgress = consent.copy(categories = consent.categories - ConsentCategory.PROGRESS)
         val review = WeeklyReviewRules.build(WeeklySnapshot(goals = listOf(goal), checkins = checkins), noProgress, now, zone)
-        assertTrue(review.facts.none { it.sources.any { s -> s.type == "CHECKIN" } })
-        assertTrue(review.sections.changes.none { it.text.contains("条进展") })
+        assertTrue(review.facts.any { it.sources.any { s -> s.type == "CHECKIN" } })
+        assertTrue(review.sections.changes.any { it.text.contains("条进展") })
     }
 
     @Test

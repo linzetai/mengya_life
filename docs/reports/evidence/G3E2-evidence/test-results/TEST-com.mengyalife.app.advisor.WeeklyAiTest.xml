@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.advisor.WeeklyAiTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-11-04T15:04:25" hostname="localhost" time="0.399">
+  <properties/>
+  <testcase name="AI输入只包含授权类别" classname="com.mengyalife.app.advisor.WeeklyAiTest" time="0.368"/>
+  <testcase name="AI来源必须关联factIds" classname="com.mengyalife.app.advisor.WeeklyAiTest" time="0.001"/>
+  <testcase name="每周AI最多一次且缓存复用" classname="com.mengyalife.app.advisor.WeeklyAiTest" time="0.03"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

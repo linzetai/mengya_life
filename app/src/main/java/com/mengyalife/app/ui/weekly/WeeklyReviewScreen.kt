@@ -32,6 +32,7 @@ fun WeeklyReviewScreen(
     state: WeeklyReviewUiState,
     onBack: () -> Unit,
     onGenerate: () -> Unit,
+    onGenerateAi: () -> Unit = {},
     onOpenGoal: (Long) -> Unit,
     onDiscuss: (String) -> Unit,
 ) {
@@ -80,6 +81,33 @@ fun WeeklyReviewScreen(
                     state.error?.let {
                         Spacer(Modifier.height(6.dp))
                         Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+            val ai = state.aiReview
+            if (ai != null) {
+                item {
+                    SectionCard(title = "AI 增强（可选）", subtitle = "只解释本轮规则事实；状态：${ai.status}") {
+                        if (ai.status == "READY") {
+                            Text(ai.summary, style = MaterialTheme.typography.titleSmall)
+                            ai.highlights.take(3).forEach {
+                                Text("• ${it.title}：${it.body}", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 2.dp))
+                            }
+                            Text("建议：${ai.suggestion}", style = MaterialTheme.typography.bodySmall)
+                            Text(
+                                "类别：${ai.categories} · 生成于 ${Timestamps.formatDateTime(ai.generatedAt)}",
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        } else {
+                            Text(ai.error ?: "AI 增强未完成；本地回顾仍然有效。", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+            item {
+                if (state.aiReview == null || state.aiReview.status != "READY") {
+                    OutlinedButton(onClick = onGenerateAi, enabled = !state.generating, modifier = Modifier.fillMaxWidth().testTag("weekly_generate_ai")) {
+                        Text("尝试 AI 增强（每周最多一次）")
                     }
                 }
             }

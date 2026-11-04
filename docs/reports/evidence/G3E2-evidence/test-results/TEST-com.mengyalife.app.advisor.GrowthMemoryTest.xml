@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.advisor.GrowthMemoryTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-11-04T15:04:26" hostname="localhost" time="0.025">
+  <properties/>
+  <testcase name="来源线索全部失效后记忆转 STALE" classname="com.mengyalife.app.advisor.GrowthMemoryTest" time="0.009"/>
+  <testcase name="新增线索更新版本并保留旧证据" classname="com.mengyalife.app.advisor.GrowthMemoryTest" time="0.003"/>
+  <testcase name="删除后的记忆同证据不会自动复活" classname="com.mengyalife.app.advisor.GrowthMemoryTest" time="0.003"/>
+  <testcase name="用户纠正内容不被新线索覆盖" classname="com.mengyalife.app.advisor.GrowthMemoryTest" time="0.003"/>
+  <testcase name="多篇职业日记合并为一条记忆并保留来源" classname="com.mengyalife.app.advisor.GrowthMemoryTest" time="0.003"/>
+  <testcase name="不相关主题不会强行合并" classname="com.mengyalife.app.advisor.GrowthMemoryTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

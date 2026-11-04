@@ -91,6 +91,8 @@ fun SettingsScreen(
     weeklyEnabled: Boolean = false,
     onWeeklyToggle: (Boolean) -> Unit = {},
     onOpenWeeklyReview: () -> Unit = {},
+    weeklyAiEnabled: Boolean = false,
+    onWeeklyAiToggle: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -199,6 +201,19 @@ fun SettingsScreen(
                                 checked = weeklyEnabled,
                                 onCheckedChange = onWeeklyToggle,
                                 modifier = Modifier.testTag("settings_weekly_toggle"),
+                            )
+                        },
+                    )
+                    GroupDivider()
+                    SettingsRow(
+                        title = "AI 增强每周回顾",
+                        subtitle = "默认关闭；开启前需已有有效 AI 授权与模型配置；每个自然周最多一次请求",
+                        testTag = "settings_weekly_ai",
+                        trailing = {
+                            Switch(
+                                checked = weeklyAiEnabled,
+                                onCheckedChange = onWeeklyAiToggle,
+                                modifier = Modifier.testTag("settings_weekly_ai_toggle"),
                             )
                         },
                     )

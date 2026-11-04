@@ -4,6 +4,7 @@ import com.mengyalife.app.domain.advisor.AiConsentState
 import com.mengyalife.app.domain.advisor.ConsentCategory
 import com.mengyalife.app.util.MetricFormat
 import com.mengyalife.app.util.Timestamps
+import java.security.MessageDigest
 import java.time.ZoneId
 import java.util.UUID
 
@@ -28,20 +29,16 @@ object WeeklyReviewRules {
         zone: ZoneId = ZoneId.systemDefault(),
     ): WeeklyReview {
         val window = WeekWindow.current(now, zone)
-        val useAllLocal = !consent.granted
-        val goalsAllowed = useAllLocal || consent.enabled(ConsentCategory.GOALS)
-        val progressAllowed = useAllLocal || consent.enabled(ConsentCategory.PROGRESS)
-        val journalAllowed = useAllLocal || consent.enabled(ConsentCategory.JOURNAL)
-
-        val goals = if (goalsAllowed) snapshot.goals else emptyList()
-        val checkins = if (progressAllowed) snapshot.checkins else emptyList()
-        val memories = if (journalAllowed) snapshot.memories else emptyList()
+        // Gate 3E-2：本地回顾始终允许使用本地数据；AI 类别过滤在 AI 输入构建层完成。
+        val goals = snapshot.goals
+        val checkins = snapshot.checkins
+        val memories = snapshot.memories
         val goalsById = goals.associateBy { it.id }
         val current = checkins.filter { it.recordedAt in window.start until window.end }
         val previous = checkins.filter { it.recordedAt in window.previousStart until window.previousEnd }
-        val currentMemories = if (journalAllowed) memories.filter {
+        val currentMemories = memories.filter {
             it.status in setOf("ACTIVE", "CORRECTED") && it.updatedAt >= window.previousStart
-        } else emptyList()
+        }
         val dueSoon = goals.filter {
             it.dueDate != null && it.dueDate in now..(now + 7 * DAY) &&
                 it.status != WeeklyGoalStatus.DONE && it.status != WeeklyGoalStatus.CANCELLED
@@ -52,7 +49,7 @@ object WeeklyReviewRules {
         val attention = mutableListOf<WeeklyFact>()
         val next = mutableListOf<WeeklyFact>()
 
-        if (progressAllowed) {
+        if (true) {
             changes += WeeklyFact(
                 "week-counts",
                 "本周 ${current.size} 条进展，上周 ${previous.size} 条。" +
@@ -78,7 +75,7 @@ object WeeklyReviewRules {
                             (if (Timestamps.formatDate(first.recordedAt) == Timestamps.formatDate(last.recordedAt)) {
                                 "；同日记录只说明当周变化，不代表长期趋势）。"
                             } else "）。" ),
-                        numeric.takeLast(6).map {
+                        (listOf(numeric.first()) + numeric.takeLast(6)).distinctBy { it.id }.map {
                             WeeklySourceRef("CHECKIN", it.id.toString(), goalsById[it.goalId]?.title ?: "目标#${it.goalId}")
                         },
                     )
@@ -105,7 +102,7 @@ object WeeklyReviewRules {
             }
         }
 
-        if (goalsAllowed && goals.isNotEmpty()) {
+        if (goals.isNotEmpty()) {
             val active = goals.filter { it.status == WeeklyGoalStatus.IN_PROGRESS }
             wins += WeeklyFact(
                 "goals-active",
@@ -123,7 +120,7 @@ object WeeklyReviewRules {
             }
         }
 
-        if (journalAllowed) {
+        if (true) {
             val corrected = currentMemories.filter { it.corrected }
             val visibleMemories = currentMemories
                 .filter { it.corrected || it.theme !in corrected.map { c -> c.theme }.toSet() }
@@ -150,7 +147,7 @@ object WeeklyReviewRules {
                 listOf(WeeklySourceRef("GOAL", goal.id.toString(), goal.title)),
             )
         }
-        if (progressAllowed && current.isEmpty()) {
+        if (current.isEmpty()) {
             attention += WeeklyFact(
                 "no-progress",
                 if (previous.isEmpty()) "数据不足：本周和上周都没有进展记录，无法判断变化。"
@@ -160,7 +157,7 @@ object WeeklyReviewRules {
                 },
             )
         }
-        if (goalsAllowed && goals.isEmpty() && current.isEmpty() && currentMemories.isEmpty()) {
+        if (goals.isEmpty() && current.isEmpty() && currentMemories.isEmpty()) {
             attention += WeeklyFact(
                 "insufficient-all",
                 "数据不足：没有目标、进展或成长记忆，本周回顾不形成结论。",
@@ -200,8 +197,31 @@ object WeeklyReviewRules {
             periodEnd = window.end,
             generatedAt = now,
             version = VERSION,
+            dataVersion = dataVersion(snapshot),
+            aiConsentVersion = aiConsentVersion(consent),
             facts = allFacts,
             sections = WeeklySections(changes, wins, attention, next),
         )
+    }
+
+    fun dataVersion(snapshot: WeeklySnapshot): String {
+        val raw = buildString {
+            append(VERSION).append('|')
+            snapshot.goals.sortedBy { it.id }.forEach {
+                append("G${it.id}:${it.title}|${it.level}|${it.status}|${it.startDate}|${it.dueDate}|${it.updatedAt};")
+            }
+            snapshot.checkins.sortedBy { it.id }.forEach {
+                append("C${it.id}:${it.goalId}|${it.recordedAt}|${it.metricValue}|${it.unit};")
+            }
+            snapshot.memories.sortedBy { it.id }.forEach {
+                append("M${it.id}:${it.theme}|${it.content}|${it.corrected}|${it.status}|${it.updatedAt};")
+            }
+        }
+        return MessageDigest.getInstance("SHA-256").digest(raw.toByteArray()).joinToString("") { "%02x".format(it) }
+    }
+
+    fun aiConsentVersion(consent: AiConsentState): String {
+        val raw = "${consent.granted}|${consent.epoch}|${consent.categories.sortedBy { it.ordinal }}|${consent.recipient}"
+        return MessageDigest.getInstance("SHA-256").digest(raw.toByteArray()).joinToString("") { "%02x".format(it) }
     }
 }

@@ -24,6 +24,8 @@ data class WeeklyReview(
     val periodEnd: Long,
     val generatedAt: Long,
     val version: Int,
+    val dataVersion: String,
+    val aiConsentVersion: String,
     val facts: List<WeeklyFact>,
     val sections: WeeklySections,
 )
