@@ -20,6 +20,8 @@ import com.mengyalife.app.data.advisor.SecretCipher
 import com.mengyalife.app.data.consent.AiConsentRepository
 import com.mengyalife.app.data.consent.DataStoreAiConsentRepository
 import com.mengyalife.app.data.export.DataExportRepository
+import com.mengyalife.app.data.growth.DiaryExtractionService
+import com.mengyalife.app.data.growth.GrowthSignalRepository
 import com.mengyalife.app.data.local.DB_SCHEMA_VERSION
 import com.mengyalife.app.data.local.MengyaDatabase
 import com.mengyalife.app.data.preferences.ThemePreferences
@@ -38,7 +40,25 @@ class AppContainer(context: Context) {
     private val database: MengyaDatabase by lazy { MengyaDatabase.get(appContext) }
 
     val journalRepository: JournalRepository by lazy {
-        JournalRepository(database.journalEntryDao())
+        JournalRepository(
+            dao = database.journalEntryDao(),
+            growthSignalDao = database.growthSignalDao(),
+        )
+    }
+
+    val growthSignalRepository: GrowthSignalRepository by lazy {
+        GrowthSignalRepository(database.growthSignalDao())
+    }
+
+    val diaryExtractionService: DiaryExtractionService by lazy {
+        DiaryExtractionService(
+            journalRepository = journalRepository,
+            growthSignalDao = database.growthSignalDao(),
+            configRepository = advisorConfigRepository,
+            consentRepository = aiConsentRepository,
+            networkEngine = networkAdvisorEngine,
+            fakeEngine = fakeAdvisorEngine,
+        )
     }
 
     val goalRepository: GoalRepository by lazy {
@@ -72,6 +92,7 @@ class AppContainer(context: Context) {
         RoomAdvisorDataRepository(
             goalDao = database.goalDao(),
             journalDao = database.journalEntryDao(),
+            growthSignalDao = database.growthSignalDao(),
         )
     }
 

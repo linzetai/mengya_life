@@ -1,6 +1,7 @@
 package com.mengyalife.app.ui.journal
 
 import com.mengyalife.app.data.local.JournalEntryEntity
+import com.mengyalife.app.domain.growth.GrowthSignal
 
 /**
  * 日记页的「弹出层」状态。
@@ -30,6 +31,7 @@ data class DiaryUiState(
     val pendingDelete: JournalEntryEntity? = null,
     val deleteError: String? = null,
     val readError: String? = null,
+    val signals: List<GrowthSignal> = emptyList(),
 )
 
 /** Compose 只发这些「用户意图」，不直接碰数据层。 */
@@ -44,4 +46,7 @@ sealed interface DiaryAction {
     data class RequestDelete(val entry: JournalEntryEntity) : DiaryAction
     data object ConfirmDelete : DiaryAction
     data object DismissDelete : DiaryAction
+    data class RetryAnalysis(val entryId: Long) : DiaryAction
+    data class DeleteSignal(val signalId: String) : DiaryAction
+    data class CorrectSignal(val signalId: String, val content: String) : DiaryAction
 }

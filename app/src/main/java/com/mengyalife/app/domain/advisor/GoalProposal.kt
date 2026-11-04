@@ -90,6 +90,9 @@ object GoalProposalParser {
                 ?: return GoalProposalParseResult.Failure("goals[$index] 不是对象")
             val tempId = obj["tempId"]?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
             if (tempId.isEmpty()) return GoalProposalParseResult.Failure("goals[$index] 缺少 tempId")
+            if (!GoalProposalIds.isValidTempId(tempId)) {
+                return GoalProposalParseResult.Failure("tempId 格式非法：$tempId")
+            }
             if (!tempIds.add(tempId)) return GoalProposalParseResult.Failure("tempId 重复：$tempId")
             val level = when (obj["level"]?.jsonPrimitive?.contentOrNull?.uppercase()) {
                 "LONG", "LONG_TERM" -> GoalLevel.LONG_TERM
@@ -108,7 +111,13 @@ object GoalProposalParser {
                 it.name == obj["domain"]?.jsonPrimitive?.contentOrNull?.uppercase()
             } ?: GoalDomain.LIFE
             val parentTempId = obj["parentTempId"]?.jsonPrimitive?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+            if (parentTempId != null && !GoalProposalIds.isValidTempId(parentTempId)) {
+                return GoalProposalParseResult.Failure("parentTempId 格式非法：$parentTempId")
+            }
             val parentGoalId = obj["parentGoalId"]?.jsonPrimitive?.longOrNull
+            if (parentGoalId != null && parentGoalId <= 0) {
+                return GoalProposalParseResult.Failure("parentGoalId 必须为正数")
+            }
             val startDate = obj["startDate"]?.jsonPrimitive?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
             val dueDate = obj["dueDate"]?.jsonPrimitive?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
             validateDate(startDate)?.let { return GoalProposalParseResult.Failure("$tempId：$it") }
@@ -211,8 +220,10 @@ object GoalProposalParser {
     ): GoalProposalDraft? = runCatching {
         val nodes = Json.parseToJsonElement(nodesJson).jsonArray.map { element ->
             val obj = element.jsonObject
+            val tempId = obj["tempId"]!!.jsonPrimitive.content
+            if (!GoalProposalIds.isValidTempId(tempId)) return@runCatching null
             GoalProposalNode(
-                tempId = obj["tempId"]!!.jsonPrimitive.content,
+                tempId = tempId,
                 level = when (obj["level"]?.jsonPrimitive?.contentOrNull) {
                     "LONG", "LONG_TERM" -> GoalLevel.LONG_TERM
                     "STAGE" -> GoalLevel.STAGE

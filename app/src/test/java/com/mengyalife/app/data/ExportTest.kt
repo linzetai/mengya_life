@@ -51,10 +51,14 @@ private class ExportJournalDao(private val entries: List<JournalEntryEntity>) : 
     override fun observeAll(): Flow<List<JournalEntryEntity>> = flowOf(entries)
     override suspend fun findById(id: Long): JournalEntryEntity? = entries.firstOrNull { it.id == id }
     override suspend fun count(): Int = entries.size
+    override suspend fun markInterruptedAnalyses(): Int = 0
     override suspend fun loadAll(): List<JournalEntryEntity> = entries
     override suspend fun insert(entry: JournalEntryEntity): Long = 0
     override suspend fun update(entry: JournalEntryEntity): Int = 0
     override suspend fun deleteById(id: Long): Int = 0
+    override suspend fun markAnalyzing(id: Long, expectedUpdatedAt: Long, hash: String, now: Long): Int = 0
+    override suspend fun markCompleted(id: Long, hash: String, now: Long): Int = 0
+    override suspend fun markFailed(id: Long, hash: String?, error: String, now: Long): Int = 0
 }
 
 class ExportTest {
@@ -103,9 +107,9 @@ class ExportTest {
     private fun bundle() = ExportJson.Bundle(
         exportedAt = t0 + 500,
         appPackage = "com.mengyalife.app",
-        appVersionName = "0.8.0-g3b2",
-        appVersionCode = 8,
-        databaseVersion = 5,
+        appVersionName = "0.9.0-g3c1",
+        appVersionCode = 9,
+        databaseVersion = 6,
         journalEntries = journals,
         goals = goals,
         goalCheckins = checkins,
@@ -119,9 +123,9 @@ class ExportTest {
         journalDao = ExportJournalDao(journals),
         goalDao = ExportGoalDao(goals, checkins),
         appPackage = "com.mengyalife.app",
-        appVersionName = "0.8.0-g3b2",
-        appVersionCode = 8,
-        databaseVersion = 5,
+        appVersionName = "0.9.0-g3c1",
+        appVersionCode = 9,
+        databaseVersion = 6,
         now = { t0 + 500 },
     )
 
@@ -138,9 +142,9 @@ class ExportTest {
     fun `导出文件包含 schemaVersion 与版本信息`() {
         val text = ExportJson.encode(bundle())
         assertTrue(text.contains("\"schemaVersion\": 1"))
-        assertTrue(text.contains("\"versionName\": \"0.8.0-g3b2\""))
-        assertTrue(text.contains("\"versionCode\": 8"))
-        assertTrue(text.contains("\"schemaVersion\": 5")) // database.schemaVersion
+        assertTrue(text.contains("\"versionName\": \"0.9.0-g3c1\""))
+        assertTrue(text.contains("\"versionCode\": 9"))
+        assertTrue(text.contains("\"schemaVersion\": 6")) // database.schemaVersion
         assertTrue(text.contains("\"format\": \"mengyalife-backup\""))
     }
 
@@ -217,9 +221,9 @@ class ExportTest {
             journalDao = ExportJournalDao(journals),
             goalDao = ExportGoalDao(goals, checkins),
             appPackage = "com.mengyalife.app",
-            appVersionName = "0.8.0-g3b2",
-            appVersionCode = 8,
-            databaseVersion = 5,
+            appVersionName = "0.9.0-g3c1",
+            appVersionCode = 9,
+            databaseVersion = 6,
             now = { t0 + 500 },
             transaction = { block ->
                 transactions++

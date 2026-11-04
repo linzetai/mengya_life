@@ -10,6 +10,7 @@ enum class AdvisorSourceType(val label: String) {
     GOAL("目标"),
     PROGRESS("进展"),
     JOURNAL("日记"),
+    GROWTH("成长线索"),
 }
 
 data class AdvisorSource(
@@ -45,10 +46,22 @@ data class ContextJournalRecord(
     val updatedAt: Long,
 )
 
+data class ContextGrowthSignal(
+    val id: String,
+    val diaryId: Long,
+    val diaryTitle: String?,
+    val category: String,
+    val content: String,
+    val evidence: String,
+    val isInference: Boolean,
+    val corrected: Boolean,
+)
+
 data class AdvisorContextSnapshot(
     val goals: List<ContextGoalRecord> = emptyList(),
     val checkins: List<ContextCheckinRecord> = emptyList(),
     val journals: List<ContextJournalRecord> = emptyList(),
+    val growthSignals: List<ContextGrowthSignal> = emptyList(),
     val history: List<AdvisorMessage> = emptyList(),
 )
 
@@ -56,6 +69,7 @@ data class AdvisorContextStats(
     val goals: Int = 0,
     val progress: Int = 0,
     val journals: Int = 0,
+    val growthSignals: Int = 0,
     val historyMessages: Int = 0,
     val chars: Int = 0,
     val droppedByBudget: Int = 0,
@@ -217,6 +231,48 @@ class AdvisorContextAssembler(
             }
         }
 
+        var signalsUsed = 0
+        if (consent.enabled(ConsentCategory.JOURNAL) && snapshot.growthSignals.isNotEmpty()) {
+            val selectedJournalIds = sources
+                .filter { it.type == AdvisorSourceType.JOURNAL }
+                .mapNotNull { it.recordId.toLongOrNull() }
+                .toSet()
+            val correctedDiaries = snapshot.growthSignals
+                .filter { it.corrected }
+                .map { it.diaryId }
+                .toSet()
+            val candidates = snapshot.growthSignals
+                .filter { it.diaryId !in selectedJournalIds }
+                // 用户纠正过的日记：只使用纠正结果，不再重复发送旧 AI 推测
+                .filter { it.diaryId !in correctedDiaries || it.corrected }
+                .map { signal -> signal to scoreSignal(signal, tokens) }
+                .filter { (_, score) -> score >= 1 || journalIntent || planningIntent }
+                .sortedWith(
+                    compareByDescending<Pair<ContextGrowthSignal, Int>> { it.first.corrected }
+                        .thenByDescending { it.second },
+                )
+                .take(4)
+            if (candidates.isNotEmpty()) {
+                entries.add(AdvisorContextEntry("成长线索（来自日记，事实/推测已标记）："))
+                candidates.forEach { (signal, _) ->
+                    val kind = if (signal.corrected) "用户纠正" else if (signal.isInference) "推测" else "事实"
+                    val source = AdvisorSource(
+                        AdvisorSourceType.GROWTH,
+                        signal.id,
+                        "${signal.category}（日记#${signal.diaryId}）",
+                    )
+                    entries.add(
+                        AdvisorContextEntry(
+                            "- [线索#${signal.id}] ${signal.category} · $kind：${signal.content}（依据：${signal.evidence.take(120)}）",
+                            source,
+                        ),
+                    )
+                    sources.add(source)
+                    signalsUsed++
+                }
+            }
+        }
+
         val finalEntries = if (entries.isEmpty()) emptyList() else {
             listOf(AdvisorContextEntry("【系统按授权自动检索的个人数据（非完整数据库）】")) + entries
         }
@@ -227,6 +283,7 @@ class AdvisorContextAssembler(
                 goals = goalsUsed,
                 progress = progressUsed,
                 journals = journalsUsed,
+                growthSignals = signalsUsed,
                 historyMessages = history.size,
                 chars = finalEntries.sumOf { it.text.length },
                 droppedByBudget = 0,
@@ -260,6 +317,11 @@ class AdvisorContextAssembler(
     private fun scoreGoal(goal: ContextGoalRecord, tokens: Set<String>): Int {
         val text = (goal.title + " " + goal.description.orEmpty()).lowercase()
         return tokens.count { it.isNotBlank() && text.contains(it) }
+    }
+
+    private fun scoreSignal(signal: ContextGrowthSignal, tokens: Set<String>): Int {
+        val text = (signal.content + " " + signal.evidence).lowercase()
+        return tokens.count { it.length >= 2 && text.contains(it) }
     }
 
     private fun scoreCheckin(checkin: ContextCheckinRecord, tokens: Set<String>): Int {

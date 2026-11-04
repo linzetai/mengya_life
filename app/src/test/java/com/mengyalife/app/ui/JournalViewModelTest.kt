@@ -2,6 +2,10 @@ package com.mengyalife.app.ui
 
 import com.mengyalife.app.data.local.JournalEntryDao
 import com.mengyalife.app.data.local.JournalEntryEntity
+import com.mengyalife.app.data.FakeGrowthSignalDao
+import com.mengyalife.app.data.growth.DiaryExtractionOutcome
+import com.mengyalife.app.data.growth.DiaryExtractor
+import com.mengyalife.app.data.growth.GrowthSignalRepository
 import com.mengyalife.app.data.repository.JournalRepository
 import com.mengyalife.app.ui.journal.DiaryAction
 import com.mengyalife.app.ui.journal.JournalSheet
@@ -37,6 +41,7 @@ private class ControllableJournalDao : JournalEntryDao {
     override suspend fun findById(id: Long): JournalEntryEntity? = state.value.firstOrNull { it.id == id }
 
     override suspend fun count(): Int = state.value.size
+    override suspend fun markInterruptedAnalyses(): Int = 0
 
     override suspend fun loadAll(): List<JournalEntryEntity> = state.value.sortedBy { it.id }
 
@@ -58,6 +63,10 @@ private class ControllableJournalDao : JournalEntryDao {
         state.update { list -> list.filterNot { it.id == id } }
         return 1
     }
+
+    override suspend fun markAnalyzing(id: Long, expectedUpdatedAt: Long, hash: String, now: Long): Int = 1
+    override suspend fun markCompleted(id: Long, hash: String, now: Long): Int = 1
+    override suspend fun markFailed(id: Long, hash: String?, error: String, now: Long): Int = 1
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -76,8 +85,15 @@ class JournalViewModelTest {
     }
 
     private fun viewModel(dao: ControllableJournalDao): JournalViewModel {
-        val repo = JournalRepository(dao) { 1_700_000_000_000L }
-        return JournalViewModel(repo)
+        val repo = JournalRepository(dao, now = { 1_700_000_000_000L })
+        return JournalViewModel(
+            repository = repo,
+            growthSignals = GrowthSignalRepository(FakeGrowthSignalDao()),
+            extractionService = object : DiaryExtractor {
+                override suspend fun extract(diaryId: Long, force: Boolean): DiaryExtractionOutcome =
+                    DiaryExtractionOutcome.Skipped("test")
+            },
+        )
     }
 
     @Test

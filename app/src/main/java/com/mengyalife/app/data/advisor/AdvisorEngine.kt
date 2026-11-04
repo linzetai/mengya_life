@@ -197,6 +197,38 @@ class FakeAdvisorEngine(
         delay(delayMs)
         val last = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
         if (last.contains("[slow]")) delay(10_000)
+        val diaryPrompt = messages.lastOrNull { it.content.contains("日记正文：") }?.content
+        if (diaryPrompt != null) {
+            val body = diaryPrompt.substringAfter("日记正文：").trim()
+            val evidence = body.take(24).ifBlank { "日记" }
+            val json = kotlinx.serialization.json.buildJsonObject {
+                put("schemaVersion", 1)
+                put(
+                    "signals",
+                    kotlinx.serialization.json.buildJsonArray {
+                        add(
+                            kotlinx.serialization.json.buildJsonObject {
+                                put("category", "EVENT")
+                                put("content", "记录了一次具体经历")
+                                put("evidence", evidence)
+                                put("isInference", false)
+                                put("confidence", 0.9)
+                            },
+                        )
+                        add(
+                            kotlinx.serialization.json.buildJsonObject {
+                                put("category", "EMOTION")
+                                put("content", "可能伴随情绪波动")
+                                put("evidence", evidence)
+                                put("isInference", true)
+                                put("confidence", 0.4)
+                            },
+                        )
+                    },
+                )
+            }
+            return AdvisorChatResult.Success(json.toString())
+        }
         if (messages.any { it.content.contains("整理为目标草案") }) {
             val all = messages.joinToString("\n") { it.content }
             val stageId = Regex("\\[阶段#(\\d+)]").find(all)?.groupValues?.get(1)?.toLongOrNull()

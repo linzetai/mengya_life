@@ -1,0 +1,55 @@
+{
+  "format": "mengyalife-backup",
+  "schemaVersion": 1,
+  "exportedAt": 1793772418548,
+  "exportedAtIso": "2026-11-04T06:06:58.548Z",
+  "app": {
+    "name": "Mengya Life",
+    "package": "com.mengyalife.app",
+    "versionName": "0.9.0-g3c1",
+    "versionCode": 9
+  },
+  "database": {
+    "engine": "room",
+    "schemaVersion": 6
+  },
+  "counts": {
+    "journalEntries": 4,
+    "goals": 0,
+    "goalCheckins": 0
+  },
+  "data": {
+    "journalEntries": [
+      {
+        "id": 6,
+        "title": "MigrationA",
+        "body": "alpha v1 content",
+        "createdAt": 1793636289310,
+        "updatedAt": 1793636289310
+      },
+      {
+        "id": 7,
+        "title": "MigrationB",
+        "body": "beta v1 content",
+        "createdAt": 1793636317600,
+        "updatedAt": 1793636317600
+      },
+      {
+        "id": 11,
+        "title": "CareerMilestone",
+        "body": "Today I presented the quarterly roadmap to the leadership team. It went well, and they approved the first phase. I felt nervous before the meeting but proud afterwards.%I%felt%nervous%before%the%meeting%but%proud%afterwards.",
+        "createdAt": 1793766727877,
+        "updatedAt": 1793766791738
+      },
+      {
+        "id": 13,
+        "title": "ConsentOffDiary",
+        "body": "I went for a short run in the park.",
+        "createdAt": 1793768111693,
+        "updatedAt": 1793768433859
+      }
+    ],
+    "goals": [],
+    "goalCheckins": []
+  }
+}

@@ -1,0 +1,71 @@
+# Gate 3C-1 真实模型提取验证
+
+模型：deepseek-flash / https://api.deepseek.com（用户自己的 Key）
+时间：2026-11-04 12:32–12:57
+授权：持续授权；日记类别开启；未向脚本提供 Key。
+说明：以下为正式包真机 DB 与截图；不包含 Key/密文/请求头。
+
+## 1. 职业成长事件（CareerMilestone）
+
+原文（真机输入；因 adb 空格转义，末尾残留一段重复片段，以下为有效第一段）：
+Today I presented the quarterly roadmap to the leadership team. It went well, and they approved the first phase. I felt nervous before the meeting but proud afterwards.
+
+状态：COMPLETED
+线索（模型输出，中文）：
+- EVENT：Presented the quarterly roadmap to the leadership team.（事实，0.95）
+- PROGRESS：The leadership team approved the first phase.（事实，0.95）
+- EMOTION：Felt nervous before the meeting and proud afterwards.（事实，0.95）
+
+截图：g3c1-career-detail-initial.png（首次）、g3c1-career-edited.png / g3c1-career-clean.png（编辑重提取后；截图可见 adb 残留片段）。
+
+## 2. 普通生活记录（OrdinaryDay）
+
+原文：
+I took a slow walk by the river after lunch, bought groceries, cooked pasta, and watched an old movie. A quiet, ordinary day.
+
+状态：COMPLETED
+线索：
+- EVENT：午饭后沿河慢走（0.95）
+- EVENT：买了食品杂货（0.95）
+- EVENT：煮了意大利面（0.95）
+- EVENT：看了一部电影（0.90）
+- EMOTION：把这一天概括为安静、普通的一天（0.80）
+
+截图：g3c1-ordinary-detail.png。
+
+## 3. 编辑失效与纠正/删除
+
+- 首次 CareerMilestone 正文含 adb 转义字符；编辑后重新提取：
+  - 旧 3 条线索 status=STALE；
+  - 新 3 条 status=ACTIVE；
+  - 未重复请求同内容版本（单测覆盖）。
+- OrdinaryDay 的「买了食品杂货」被用户纠正为英文内容：
+  - DB status=CORRECTED, origin=USER, isInference=0；
+  - 截图 g3c1-corrected-3.png。
+- 「看了一部电影」被用户删除：status=DELETED。
+- 删除 OrdinaryDay 后，growth_signals.source_id=12 计数为 0；未进入顾问。
+- 证据采集完成后，两篇测试日记已删除，正式包恢复只剩 MigrationA/B；截图与 DB 日志保留。
+
+## 4. 顾问使用线索
+
+问题：vegetables
+结果：助手来源 `GROWTH id=8d50… label=事件（日记#12）`；回复引用纠正后的内容。
+截图：g3c1-advisor-signal.png。
+
+关闭 JOURNAL 后再问 vegetables：
+- 无 GROWTH 来源；最后助手 sources_json=null；
+- 旧对话因 epoch 变化不进入新请求。
+截图：g3c1-advisor-journal-off.png。
+
+## 5. 授权关闭时的保存
+
+JOURNAL 关闭时创建 ConsentOffDiary：
+- analysis_status=PENDING，signals=0，未发请求（服务前置检查）。
+- 重新开启 JOURNAL，编辑保存同内容后：COMPLETED，生成 1 条线索。
+截图：g3c1-journal-off-saved.png、g3c1-consent-on-completed.png。
+
+## 6. 未验证
+
+- 分析中撤回授权的真机路径（单测覆盖，未在真机抢时序）；
+- API 超时真机注入（单测）；
+- 真实模型的「推测」样本（本次模型均标事实；QA fake 覆盖推测）。

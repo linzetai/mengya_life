@@ -7,6 +7,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mengyalife.app.MengyaApplication
 import com.mengyalife.app.data.local.JournalEntryEntity
+import com.mengyalife.app.data.growth.DiaryExtractor
+import com.mengyalife.app.data.growth.GrowthSignalRepository
 import com.mengyalife.app.data.repository.JournalRepository
 import com.mengyalife.app.domain.JournalRules
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,6 +16,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -33,6 +38,8 @@ import kotlinx.coroutines.launch
  */
 class JournalViewModel(
     private val repository: JournalRepository,
+    private val growthSignals: GrowthSignalRepository,
+    private val extractionService: DiaryExtractor,
 ) : ViewModel() {
 
     private data class LocalState(
@@ -48,16 +55,35 @@ class JournalViewModel(
         .map<List<JournalEntryEntity>, Result<List<JournalEntryEntity>>> { Result.success(it) }
         .catch { throwable -> emit(Result.failure(throwable)) }
 
+    init {
+        viewModelScope.launch { runCatching { repository.resetInterruptedAnalyses() } }
+    }
+
+    private val signalsFlow = localState
+        .map { (it.sheet as? JournalSheet.Viewing)?.entry?.id }
+        .distinctUntilChanged()
+        .flatMapLatest { id ->
+            if (id == null) flowOf(emptyList()) else growthSignals.observeForDiary(id)
+        }
+
     val uiState: StateFlow<DiaryUiState> =
-        combine(entriesFlow, localState) { result, local ->
+        combine(entriesFlow, signalsFlow, localState) { result, signals, local ->
+            val entries = result.getOrDefault(emptyList())
+            val resolvedSheet = when (val sheet = local.sheet) {
+                is JournalSheet.Viewing -> JournalSheet.Viewing(
+                    entries.firstOrNull { it.id == sheet.entry.id } ?: sheet.entry,
+                )
+                else -> sheet
+            }
             DiaryUiState(
                 loading = false,
-                entries = result.getOrDefault(emptyList()),
-                sheet = local.sheet,
+                entries = entries,
+                sheet = resolvedSheet,
                 editor = local.editor,
                 pendingDelete = local.pendingDelete,
                 deleteError = local.deleteError,
                 readError = if (result.isFailure) "读取本地日记失败，请重启应用重试" else null,
+                signals = signals,
             )
         }.stateIn(
             scope = viewModelScope,
@@ -108,6 +134,20 @@ class JournalViewModel(
             DiaryAction.DismissDelete -> localState.update {
                 it.copy(pendingDelete = null, deleteError = null)
             }
+
+            is DiaryAction.RetryAnalysis -> {
+                viewModelScope.launch {
+                    runCatching { extractionService.extract(action.entryId, force = true) }
+                }
+            }
+
+            is DiaryAction.DeleteSignal -> {
+                viewModelScope.launch { growthSignals.delete(action.signalId) }
+            }
+
+            is DiaryAction.CorrectSignal -> {
+                viewModelScope.launch { growthSignals.correct(action.signalId, action.content) }
+            }
         }
     }
 
@@ -127,10 +167,14 @@ class JournalViewModel(
         localState.update { it.copy(editor = it.editor.copy(saving = true, bodyError = null)) }
 
         viewModelScope.launch {
+            var savedId: Long? = null
             val result = runCatching {
                 when (sheet) {
-                    JournalSheet.Creating -> repository.createEntry(editor.body, editor.title)
-                    is JournalSheet.Editing -> repository.updateEntry(sheet.entry.id, editor.body, editor.title)
+                    JournalSheet.Creating -> repository.createEntry(editor.body, editor.title).also { savedId = it }
+                    is JournalSheet.Editing -> {
+                        savedId = sheet.entry.id
+                        repository.updateEntry(sheet.entry.id, editor.body, editor.title)
+                    }
                     else -> Unit
                 }
             }
@@ -138,6 +182,12 @@ class JournalViewModel(
                 .onSuccess {
                     localState.update {
                         it.copy(sheet = JournalSheet.Closed, editor = JournalEditor())
+                    }
+                    // 保存成功后再尝试分析；失败不影响日记保存。
+                    savedId?.let { id ->
+                        viewModelScope.launch {
+                            runCatching { extractionService.extract(id) }
+                        }
                     }
                 }
                 .onFailure {
@@ -179,7 +229,11 @@ class JournalViewModel(
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as MengyaApplication
-                JournalViewModel(app.container.journalRepository)
+                JournalViewModel(
+                    repository = app.container.journalRepository,
+                    growthSignals = app.container.growthSignalRepository,
+                    extractionService = app.container.diaryExtractionService,
+                )
             }
         }
     }

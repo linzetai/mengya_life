@@ -35,4 +35,24 @@ data class JournalEntryEntity(
 
     @ColumnInfo(name = "updated_at")
     val updatedAt: Long,
+
+    /** PENDING / ANALYZING / COMPLETED / FAILED */
+    @ColumnInfo(name = "analysis_status")
+    val analysisStatus: String = "PENDING",
+
+    /** 最近一次成功分析的来源内容哈希。 */
+    @ColumnInfo(name = "analysis_hash")
+    val analysisHash: String? = null,
+
+    @ColumnInfo(name = "analysis_error")
+    val analysisError: String? = null,
+
+    @ColumnInfo(name = "analysis_attempts")
+    val analysisAttempts: Int = 0,
+
+    @ColumnInfo(name = "analyzed_at")
+    val analyzedAt: Long? = null,
+
+    @ColumnInfo(name = "analysis_last_attempt_at")
+    val analysisLastAttemptAt: Long? = null,
 )

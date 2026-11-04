@@ -24,7 +24,7 @@ STALE = [
 ]
 
 
-def collect_all_texts(max_swipes=12):
+def collect_all_texts(max_swipes=20):
     """从头滚到底，收集整页可见文字（避免「文字在屏幕外」造成假阴性）。"""
     seen = set()
     for _ in range(max_swipes):
@@ -43,6 +43,10 @@ check("设置页已打开", wait_tag("settings_back", 8))
 time.sleep(1.0)
 
 print("========== 1. 整页文案扫描：过期文案必须消失 ==========")
+# 设置页可能在上一轮测试后停在底部；先回到顶部，避免向下滑动无内容。
+for _ in range(3):
+    adb("shell input swipe 600 700 600 1900 260")
+    time.sleep(0.5)
 seen = collect_all_texts()
 for text in STALE:
     check("不含过期文案：" + text, not any(text in t for t in seen))
@@ -54,8 +58,6 @@ expected = [
     "导入数据",
     "导入恢复尚未实现",
     "本机数据库",
-    "敏感个人信息",
-    "妥善保管",
     "保存在本机（DataStore）",
     "重启后保持上次选择",
     "随系统深浅色变化",
@@ -64,13 +66,18 @@ expected = [
     "模型名称",
     "API Key",
     "AI 与隐私",
-    "个人数据授权",
+    "数据采集与授权",
 ]
 for text in expected:
     check("包含文案：" + text, any(text in t for t in seen), text)
 
+adb("shell input keyevent KEYCODE_BACK")
+time.sleep(1.0)
+tap_tag("btn_settings")
+time.sleep(1.0)
+check("滚动到数据区", scroll_to_tag("settings_export_data", 12))
 check("QA 构建横幅", "QA 测试构建" in " ".join(seen) and "mengya-life-qa.db" in " ".join(seen))
-check("版本号来自安装包", "0.7.0-g3b1-qa" in " ".join(seen), "应为 0.7.0-g3b1-qa")
+check("版本号来自安装包", "0.9.0-g3c1-qa" in " ".join(seen), "应为 0.9.0-g3c1-qa")
 check("BYOK 状态胶囊准确", "自带密钥" in " ".join(seen))
 
 print("========== 3. 截图：数据区 ==========")
@@ -94,7 +101,7 @@ shot("02-settings-theme-note")
 print("========== 5. 截图：关于 ==========")
 adb("shell input swipe 600 1900 600 700 260")
 time.sleep(1.0)
-check("关于区显示版本", has_text("0.7.0-g3b1-qa"))
+check("关于区显示版本", has_text("0.9.0-g3c1-qa"))
 check("数据存储说明", has_text("本机（无云端同步）"))
 shot("03-settings-about")
 

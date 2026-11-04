@@ -11,6 +11,7 @@ import com.mengyalife.app.domain.advisor.AiConsentState
 import com.mengyalife.app.domain.advisor.ConsentCategory
 import com.mengyalife.app.domain.advisor.ContextCheckinRecord
 import com.mengyalife.app.domain.advisor.ContextGoalRecord
+import com.mengyalife.app.domain.advisor.ContextGrowthSignal
 import com.mengyalife.app.domain.advisor.ContextJournalRecord
 import com.mengyalife.app.domain.goals.GoalDomain
 import com.mengyalife.app.domain.goals.GoalLevel
@@ -130,6 +131,55 @@ class AdvisorContextAssemblerTest {
         val result = assembler.assemble("睡眠", consent(), huge)
         assertTrue((result.systemContext?.length ?: 0) <= 3_600)
         assertTrue(result.stats.droppedByBudget >= 0)
+    }
+
+    @Test
+    fun `成长线索只在已选日记之外补充，避免原文与线索重复`() {
+        val withSignal = snapshot.copy(
+            growthSignals = listOf(
+                ContextGrowthSignal(
+                    id = "sig1", diaryId = 20, diaryTitle = "睡眠",
+                    category = "情绪", content = "睡眠焦虑有所缓解",
+                    evidence = "最近睡眠不好，开始早睡", isInference = false, corrected = false,
+                ),
+            ),
+        )
+        val journalSelected = assembler.assemble("睡眠", consent(), withSignal)
+        assertTrue(journalSelected.sources.any { it.type == AdvisorSourceType.JOURNAL })
+        assertTrue(journalSelected.sources.none { it.type == AdvisorSourceType.GROWTH })
+
+        val signalOnly = assembler.assemble("焦虑缓解", consent(), withSignal)
+        assertTrue(signalOnly.sources.any { it.type == AdvisorSourceType.GROWTH })
+        assertTrue(signalOnly.systemContext.orEmpty().contains("睡眠焦虑有所缓解"))
+    }
+
+    @Test
+    fun `用户纠正后不再使用同一日记的旧 AI 推测`() {
+        val withSignals = snapshot.copy(
+            growthSignals = listOf(
+                ContextGrowthSignal("ai1", 20, "睡眠", "情绪", "AI 推测：焦虑严重", "睡眠不好", true, false),
+                ContextGrowthSignal("user1", 20, "睡眠", "情绪", "用户纠正：只是偶尔焦虑", "睡眠不好", false, true),
+            ),
+        )
+        val result = assembler.assemble("焦虑", consent(), withSignals)
+        val growth = result.sources.filter { it.type == AdvisorSourceType.GROWTH }
+        assertEquals(listOf("user1"), growth.map { it.recordId })
+        assertFalse(result.systemContext.orEmpty().contains("AI 推测：焦虑严重"))
+    }
+
+    @Test
+    fun `关闭日记时不使用成长线索`() {
+        val withSignal = snapshot.copy(
+            growthSignals = listOf(
+                ContextGrowthSignal("sig1", 20, "睡眠", "情绪", "睡眠焦虑", "睡眠不好", false, false),
+            ),
+        )
+        val result = assembler.assemble(
+            "焦虑",
+            consent(categories = setOf(ConsentCategory.GOALS, ConsentCategory.CONVERSATION)),
+            withSignal,
+        )
+        assertTrue(result.sources.none { it.type == AdvisorSourceType.GROWTH })
     }
 
     @Test

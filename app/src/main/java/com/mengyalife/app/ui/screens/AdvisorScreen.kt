@@ -531,10 +531,12 @@ private fun MessageRow(
             val goals = message.sources.count { it.type == AdvisorSourceType.GOAL }
             val journals = message.sources.count { it.type == AdvisorSourceType.JOURNAL }
             val progress = message.sources.count { it.type == AdvisorSourceType.PROGRESS }
+            val signals = message.sources.count { it.type == AdvisorSourceType.GROWTH }
             val summary = buildList {
                 if (goals > 0) add("$goals 个目标")
                 if (journals > 0) add("$journals 篇日记")
                 if (progress > 0) add("$progress 条进展")
+                if (signals > 0) add("$signals 条成长线索")
             }.joinToString("、")
             TextButton(
                 onClick = onOpenSources,

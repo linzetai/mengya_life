@@ -7,6 +7,7 @@ import com.mengyalife.app.data.repository.GoalDraft
 import com.mengyalife.app.data.repository.GoalRepository
 import com.mengyalife.app.data.repository.GoalResult
 import com.mengyalife.app.domain.advisor.GoalProposalDraft
+import com.mengyalife.app.domain.advisor.GoalProposalIds
 import com.mengyalife.app.domain.advisor.GoalProposalNode
 import com.mengyalife.app.domain.advisor.GoalProposalParser
 import com.mengyalife.app.domain.goals.GoalLevel
@@ -103,6 +104,7 @@ class GoalProposalApplyService(
                         .sortedWith(compareBy { it.level.ordinal })
 
                     for (node in ordered) {
+                        QaFaultInjector.maybeFailCreate(created.size + 1)
                         val parentId = when {
                             node.level == GoalLevel.LONG_TERM -> null
                             node.parentTempId != null -> tempToReal[node.parentTempId]
@@ -126,13 +128,11 @@ class GoalProposalApplyService(
                         }
                     }
 
-                    // 用对象存 tempId→goalId，便于撤销/审计；不是数组。
-                    val mappingJson = created.joinToString(prefix = "{", postfix = "}") {
-                        "\"${it.tempId.replace("\"", "\\\"")}\":${it.goalId}"
-                    }
-                    val selectedJson = selected.sorted().joinToString(prefix = "[", postfix = "]") {
-                        "\"${it.replace("\"", "\\\"")}\""
-                    }
+                    // 统一 codec，禁止手工拼 JSON。
+                    val mappingJson = GoalProposalIds.encodeMapping(
+                        created.associate { it.tempId to it.goalId },
+                    )
+                    val selectedJson = GoalProposalIds.encodeSelected(selected)
                     val changed = proposalDao.markAppliedIfDraft(
                         id = proposalId,
                         appliedAt = now(),
@@ -169,6 +169,13 @@ class GoalProposalApplyService(
                 val ids = mapping.values.toSet()
                 val all = database.goalDao().loadAllGoals()
                 val byId = all.associateBy { it.id }
+                // 进展优先报告：添加进展也会刷新 updatedAt，先给出更具体的原因。
+                val checkins = database.goalDao().countCheckinsForGoals(ids.toList())
+                if (checkins > 0) {
+                    return@withTransaction ProposalUndoResult.Failure(
+                        "本次创建的目标已有 $checkins 条进展记录；撤销已阻止",
+                    )
+                }
                 for (id in ids) {
                     val goal = byId[id]
                         ?: return@withTransaction ProposalUndoResult.Failure("目标 #$id 已不存在，撤销已阻止")
@@ -177,12 +184,6 @@ class GoalProposalApplyService(
                             "目标「${goal.title}」已被修改；为避免误删，撤销已阻止",
                         )
                     }
-                }
-                val checkins = database.goalDao().countCheckinsForGoals(ids.toList())
-                if (checkins > 0) {
-                    return@withTransaction ProposalUndoResult.Failure(
-                        "本次创建的目标已有 $checkins 条进展记录；撤销已阻止",
-                    )
                 }
                 val externalChildren = all.filter {
                     it.parentId in ids && it.id !in ids
@@ -194,6 +195,7 @@ class GoalProposalApplyService(
                 }
                 // 只删本次创建的目标；先删深层，避免外键级联删到外部数据。
                 val ordered = ids.sortedByDescending { byId[it]?.level?.ordinal ?: -1 }
+                QaFaultInjector.maybeFailUndo(1)
                 // 已在事务内验证：无进展、无外部子目标、未被修改。
                 // 使用 deleteGoalTree 的删除顺序（进展→目标），再回查确认没有残留。
                 database.goalDao().deleteGoalTree(ordered)
@@ -224,14 +226,8 @@ class GoalProposalApplyService(
         return GoalProposalApplyRules.validate(draft, selected, nodesById, refs)
     }
 
-    private fun decodeMapping(raw: String?): Map<String, Long> = runCatching {
-        if (raw.isNullOrBlank()) emptyMap()
-        else {
-            val obj = kotlinx.serialization.json.Json.parseToJsonElement(raw)
-                .jsonObject
-            obj.mapValues { it.value.jsonPrimitive.content.toLong() }
-        }
-    }.getOrDefault(emptyMap())
+    private fun decodeMapping(raw: String?): Map<String, Long> =
+        GoalProposalIds.decodeMapping(raw)
 
     private class ApplyAbort(message: String) : Exception(message)
 }

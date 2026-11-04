@@ -1,0 +1,25 @@
+# Gate 3C-1 真机迁移 v5 → v6
+
+设备: Xiaomi 2509FPN0BC / Android 17
+正式包: com.mengyalife.app 0.9.0-g3c1（versionCode 9）
+时间: 2026-11-04 12:31（Asia/Shanghai）
+
+## 升级前（v5 备份）
+
+user_version=5
+tables: journal_entries, goals, goal_checkins, advisor_messages, goal_proposals
+旧日记: (6, MigrationA, alpha v1 content), (7, MigrationB, beta v1 content)
+旧消息: 19 条
+旧草案: 1 DRAFT + 1 UNDONE
+
+## 升级后（v6）
+
+user_version=6
+tables: 同上 + growth_signals
+旧日记: 保留，analysis_status=PENDING
+旧消息: 19 条保留
+旧草案: 1 DRAFT + 1 UNDONE
+新日记（后续真实模型测试）: CareerMilestone COMPLETED、ConsentOffDiary COMPLETED
+新线索: growth_signals 表存在
+
+结论：非破坏性迁移；正文、目标、打卡、顾问消息、草案均保留。

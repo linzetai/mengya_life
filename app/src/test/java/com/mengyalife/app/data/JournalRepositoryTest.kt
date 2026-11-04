@@ -33,6 +33,7 @@ private class FakeJournalEntryDao(
     override suspend fun findById(id: Long): JournalEntryEntity? = state.value.firstOrNull { it.id == id }
 
     override suspend fun count(): Int = state.value.size
+    override suspend fun markInterruptedAnalyses(): Int = 0
 
     override suspend fun loadAll(): List<JournalEntryEntity> = state.value.sortedBy { it.id }
 
@@ -53,12 +54,30 @@ private class FakeJournalEntryDao(
         state.update { list -> list.filterNot { it.id == id } }
         return 1
     }
+
+    override suspend fun markAnalyzing(id: Long, expectedUpdatedAt: Long, hash: String, now: Long): Int {
+        val found = state.value.firstOrNull { it.id == id && it.updatedAt == expectedUpdatedAt && it.analysisStatus != "ANALYZING" } ?: return 0
+        state.update { list -> list.map { if (it.id == id) found.copy(analysisStatus = "ANALYZING", analysisHash = hash, analysisLastAttemptAt = now) else it } }
+        return 1
+    }
+
+    override suspend fun markCompleted(id: Long, hash: String, now: Long): Int {
+        val found = state.value.firstOrNull { it.id == id } ?: return 0
+        state.update { list -> list.map { if (it.id == id) found.copy(analysisStatus = "COMPLETED", analysisHash = hash, analyzedAt = now) else it } }
+        return 1
+    }
+
+    override suspend fun markFailed(id: Long, hash: String?, error: String, now: Long): Int {
+        val found = state.value.firstOrNull { it.id == id } ?: return 0
+        state.update { list -> list.map { if (it.id == id) found.copy(analysisStatus = "FAILED", analysisHash = hash, analysisError = error) else it } }
+        return 1
+    }
 }
 
 class JournalRepositoryTest {
 
     private var clock: Long = 1_700_000_000_000L
-    private fun repository(dao: JournalEntryDao) = JournalRepository(dao) { clock }
+    private fun repository(dao: JournalEntryDao) = JournalRepository(dao, now = { clock })
 
     @Test
     fun `新建日记会 trim 正文并把空标题归一为 null`() = runTest {

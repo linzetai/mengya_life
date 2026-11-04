@@ -1,5 +1,6 @@
 package com.mengyalife.app.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -27,6 +29,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -36,6 +42,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mengyalife.app.data.local.JournalEntryEntity
 import com.mengyalife.app.domain.JournalRules
+import com.mengyalife.app.domain.growth.DiaryAnalysisStatus
+import com.mengyalife.app.domain.growth.GrowthSignal
 import com.mengyalife.app.ui.components.InlineNote
 import com.mengyalife.app.ui.components.PageHeader
 import com.mengyalife.app.ui.components.ScreenPadding
@@ -165,8 +173,12 @@ fun DiaryScreen(
 
         is JournalSheet.Viewing -> JournalDetailSheet(
             entry = sheet.entry,
+            signals = state.signals,
             onEdit = { onAction(DiaryAction.Edit(sheet.entry)) },
             onDelete = { onAction(DiaryAction.RequestDelete(sheet.entry)) },
+            onRetryAnalysis = { onAction(DiaryAction.RetryAnalysis(sheet.entry.id)) },
+            onDeleteSignal = { onAction(DiaryAction.DeleteSignal(it)) },
+            onCorrectSignal = { id, text -> onAction(DiaryAction.CorrectSignal(id, text)) },
             onDismiss = { onAction(DiaryAction.CloseSheet) },
         )
     }
@@ -334,8 +346,12 @@ private fun JournalEditorSheet(
 @Composable
 private fun JournalDetailSheet(
     entry: JournalEntryEntity,
+    signals: List<GrowthSignal>,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onRetryAnalysis: () -> Unit,
+    onDeleteSignal: (String) -> Unit,
+    onCorrectSignal: (String, String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -378,6 +394,14 @@ private fun JournalDetailSheet(
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Spacer(Modifier.height(20.dp))
+            AiDiscoverySection(
+                entry = entry,
+                signals = signals,
+                onRetry = onRetryAnalysis,
+                onDeleteSignal = onDeleteSignal,
+                onCorrectSignal = onCorrectSignal,
+            )
+            Spacer(Modifier.height(20.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
@@ -398,5 +422,172 @@ private fun JournalDetailSheet(
             }
             Spacer(Modifier.height(20.dp))
         }
+    }
+}
+
+@Composable
+private fun AiDiscoverySection(
+    entry: JournalEntryEntity,
+    signals: List<GrowthSignal>,
+    onRetry: () -> Unit,
+    onDeleteSignal: (String) -> Unit,
+    onCorrectSignal: (String, String) -> Unit,
+) {
+    var correcting by remember { mutableStateOf<GrowthSignal?>(null) }
+    var deleting by remember { mutableStateOf<GrowthSignal?>(null) }
+    var correctionText by remember { mutableStateOf("") }
+
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    Spacer(Modifier.height(12.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("AI 发现", style = MaterialTheme.typography.titleSmall)
+        Spacer(Modifier.size(8.dp))
+        Text(
+            text = DiaryAnalysisStatus.label(entry.analysisStatus),
+            style = MaterialTheme.typography.labelSmall,
+            color = when (entry.analysisStatus) {
+                DiaryAnalysisStatus.FAILED -> MaterialTheme.colorScheme.error
+                DiaryAnalysisStatus.COMPLETED -> MaterialTheme.colorScheme.primary
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            modifier = Modifier.testTag("journal_analysis_status"),
+        )
+    }
+    Spacer(Modifier.height(4.dp))
+    Text(
+        "仅在你配置 AI 并授权「日记」类别时发送；结果只作为线索，不会修改目标或进展。",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    when (entry.analysisStatus) {
+        DiaryAnalysisStatus.PENDING -> {
+            Spacer(Modifier.height(6.dp))
+            Text("待分析：保存后会在允许时自动分析。", style = MaterialTheme.typography.bodySmall)
+        }
+        DiaryAnalysisStatus.ANALYZING -> {
+            Spacer(Modifier.height(6.dp))
+            Text("正在分析这篇日记…", style = MaterialTheme.typography.bodySmall)
+        }
+        DiaryAnalysisStatus.FAILED -> {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "分析失败：" + (entry.analysisError ?: "未知错误"),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.testTag("journal_analysis_error"),
+            )
+            TextButton(onClick = onRetry, modifier = Modifier.testTag("journal_analysis_retry")) {
+                Text("重试分析")
+            }
+        }
+    }
+    if (entry.analysisStatus == DiaryAnalysisStatus.COMPLETED && signals.isEmpty()) {
+        Spacer(Modifier.height(6.dp))
+        Text("这篇日记没有提取到可保留的成长线索。", style = MaterialTheme.typography.bodySmall)
+    }
+    signals.forEach { signal ->
+        Spacer(Modifier.height(8.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                .padding(10.dp)
+                .testTag("growth_signal_${signal.id}"),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(signal.category.label, style = MaterialTheme.typography.labelMedium)
+                Spacer(Modifier.size(8.dp))
+                Text(
+                    text = when {
+                        signal.origin == com.mengyalife.app.domain.growth.GrowthSignalOrigin.USER -> "用户纠正"
+                        signal.isInference -> "推测"
+                        else -> "事实"
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (signal.isInference) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
+                )
+                signal.confidence?.let {
+                    Spacer(Modifier.size(8.dp))
+                    Text("可信度 ${(it * 100).toInt()}%", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(signal.content, style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "原文：" + signal.evidence.take(180),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row {
+                TextButton(
+                    onClick = {
+                        correcting = signal
+                        correctionText = signal.content
+                    },
+                    modifier = Modifier.testTag("growth_signal_correct_${signal.id}"),
+                ) { Text("纠正") }
+                TextButton(
+                    onClick = { deleting = signal },
+                    modifier = Modifier.testTag("growth_signal_delete_${signal.id}"),
+                ) { Text("删除", color = MaterialTheme.colorScheme.error) }
+            }
+        }
+    }
+
+    correcting?.let { signal ->
+        AlertDialog(
+            modifier = Modifier
+                .semantics { testTagsAsResourceId = true }
+                .testTag("growth_signal_correction_dialog"),
+            onDismissRequest = { correcting = null },
+            title = { Text("纠正这条线索") },
+            text = {
+                Column {
+                    Text("纠正后会优先于旧 AI 推测，不会修改日记或目标。")
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = correctionText,
+                        onValueChange = { correctionText = it },
+                        modifier = Modifier.fillMaxWidth().testTag("growth_signal_correction_input"),
+                        minLines = 2,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onCorrectSignal(signal.id, correctionText)
+                        correcting = null
+                    },
+                    modifier = Modifier.testTag("growth_signal_correction_save"),
+                ) { Text("保存纠正") }
+            },
+            dismissButton = {
+                TextButton(onClick = { correcting = null }) { Text("取消") }
+            },
+        )
+    }
+    deleting?.let { signal ->
+        AlertDialog(
+            modifier = Modifier
+                .semantics { testTagsAsResourceId = true }
+                .testTag("growth_signal_delete_dialog"),
+            onDismissRequest = { deleting = null },
+            title = { Text("删除这条线索？") },
+            text = { Text("删除后不会进入未来的 AI 上下文；日记本身不变。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeleteSignal(signal.id)
+                        deleting = null
+                    },
+                    modifier = Modifier.testTag("growth_signal_delete_confirm"),
+                ) { Text("删除", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleting = null }) { Text("取消") }
+            },
+        )
     }
 }

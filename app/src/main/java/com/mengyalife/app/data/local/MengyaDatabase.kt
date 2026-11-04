@@ -13,6 +13,8 @@ import com.mengyalife.app.data.local.advisor.AdvisorMessageEntity
 import com.mengyalife.app.data.local.goal.GoalCheckinEntity
 import com.mengyalife.app.data.local.goal.GoalDao
 import com.mengyalife.app.data.local.goal.GoalEntity
+import com.mengyalife.app.data.local.growth.GrowthSignalDao
+import com.mengyalife.app.data.local.growth.GrowthSignalEntity
 import com.mengyalife.app.data.local.proposal.GoalProposalDao
 import com.mengyalife.app.data.local.proposal.GoalProposalEntity
 
@@ -27,6 +29,8 @@ import com.mengyalife.app.data.local.proposal.GoalProposalEntity
  *   新增 `goal_proposals`（草案）
  * - **v5**（Gate 3B-2）：advisor_messages 增加 proposal_mode；
  *   goal_proposals 增加应用/撤销/选择字段
+ * - **v6**（Gate 3C-1）：journal_entries 增加分析状态列；
+ *   新增 `growth_signals`（日记成长线索）
  *
  * 迁移策略：
  * 1. 每次改表都必须 version + 1 并提供 `Migration`；
@@ -35,7 +39,7 @@ import com.mengyalife.app.data.local.proposal.GoalProposalEntity
  * 4. 迁移必须在真机升级安装上验证（本轮已做 v1→v2 实测，见报告）。
  */
 /** 数据库结构版本。导出文件里的 `databaseVersion` 与它保持一致。 */
-const val DB_SCHEMA_VERSION = 5
+const val DB_SCHEMA_VERSION = 6
 
 @Database(
     entities = [
@@ -44,6 +48,7 @@ const val DB_SCHEMA_VERSION = 5
         GoalCheckinEntity::class,
         AdvisorMessageEntity::class,
         GoalProposalEntity::class,
+        GrowthSignalEntity::class,
     ],
     version = DB_SCHEMA_VERSION,
     exportSchema = true,
@@ -58,6 +63,8 @@ abstract class MengyaDatabase : RoomDatabase() {
     abstract fun advisorMessageDao(): AdvisorMessageDao
 
     abstract fun goalProposalDao(): GoalProposalDao
+
+    abstract fun growthSignalDao(): GrowthSignalDao
 
     companion object {
         // 正式版与 QA 测试构建使用不同的物理库文件（见 app/build.gradle 的 buildConfigField）。
@@ -188,6 +195,49 @@ abstract class MengyaDatabase : RoomDatabase() {
             }
         }
 
+
+        /**
+         * v5 → v6：日记分析状态 + 成长线索表；不动业务内容。
+         */
+        val MIGRATION_5_6: Migration = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `journal_entries` ADD COLUMN `analysis_status` TEXT NOT NULL DEFAULT 'PENDING'")
+                db.execSQL("ALTER TABLE `journal_entries` ADD COLUMN `analysis_hash` TEXT")
+                db.execSQL("ALTER TABLE `journal_entries` ADD COLUMN `analysis_error` TEXT")
+                db.execSQL("ALTER TABLE `journal_entries` ADD COLUMN `analysis_attempts` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `journal_entries` ADD COLUMN `analyzed_at` INTEGER")
+                db.execSQL("ALTER TABLE `journal_entries` ADD COLUMN `analysis_last_attempt_at` INTEGER")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `growth_signals` (
+                        `id` TEXT PRIMARY KEY NOT NULL,
+                        `source_type` TEXT NOT NULL,
+                        `source_id` INTEGER NOT NULL,
+                        `source_version` TEXT NOT NULL,
+                        `category` TEXT NOT NULL,
+                        `content` TEXT NOT NULL,
+                        `evidence` TEXT NOT NULL,
+                        `is_inference` INTEGER NOT NULL,
+                        `confidence` REAL,
+                        `extracted_at` INTEGER NOT NULL,
+                        `status` TEXT NOT NULL,
+                        `origin` TEXT NOT NULL,
+                        `source_title` TEXT,
+                        `content_hash` TEXT NOT NULL,
+                        `updated_at` INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_growth_signals_source_type_source_id` ON `growth_signals` (`source_type`, `source_id`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_growth_signals_source_id_status` ON `growth_signals` (`source_id`, `status`)")
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS " +
+                        "`index_growth_signals_source_type_source_id_source_version_content_hash` " +
+                        "ON `growth_signals` (`source_type`, `source_id`, `source_version`, `content_hash`)",
+                )
+            }
+        }
+
         @Volatile
         private var instance: MengyaDatabase? = null
 
@@ -201,7 +251,7 @@ abstract class MengyaDatabase : RoomDatabase() {
                     MengyaDatabase::class.java,
                     DATABASE_NAME,
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build()
                     .also { instance = it }
             }

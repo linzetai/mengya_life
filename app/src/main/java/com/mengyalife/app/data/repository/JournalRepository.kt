@@ -1,6 +1,7 @@
 package com.mengyalife.app.data.repository
 
 import com.mengyalife.app.data.local.JournalEntryDao
+import com.mengyalife.app.data.local.growth.GrowthSignalDao
 import com.mengyalife.app.data.local.JournalEntryEntity
 import com.mengyalife.app.domain.JournalRules
 import kotlinx.coroutines.flow.Flow
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.Flow
 class JournalRepository(
     private val dao: JournalEntryDao,
     private val now: () -> Long = System::currentTimeMillis,
+    private val growthSignalDao: GrowthSignalDao? = null,
 ) {
 
     fun observeEntries(): Flow<List<JournalEntryEntity>> = dao.observeAll()
@@ -40,6 +42,7 @@ class JournalRepository(
                 body = body,
                 createdAt = timestamp,
                 updatedAt = timestamp,
+                analysisStatus = "PENDING",
             ),
         )
     }
@@ -52,16 +55,51 @@ class JournalRepository(
         val body = rawBody.trim()
         require(JournalRules.validateBody(body) == null) { "正文不能为空" }
         val existing = dao.findById(id) ?: return false
-        val updated = existing.copy(
-            title = normalizeTitle(rawTitle),
-            body = body,
-            updatedAt = now(),
-        )
-        return dao.update(updated) > 0
+        val timestamp = now()
+        val newTitle = normalizeTitle(rawTitle)
+        val contentChanged = existing.title != newTitle || existing.body != body
+        val updated = if (contentChanged) {
+            existing.copy(
+                title = newTitle,
+                body = body,
+                updatedAt = timestamp,
+                // 内容变了：旧分析结果立即失效，等待重新提取
+                analysisStatus = "PENDING",
+                analysisHash = null,
+                analysisError = null,
+                analyzedAt = null,
+            )
+        } else {
+            // 同内容版本：保留分析状态/哈希/线索，避免重复请求与重复提取
+            existing.copy(title = newTitle, body = body, updatedAt = timestamp)
+        }
+        val changed = dao.update(updated) > 0
+        if (changed && contentChanged) {
+            growthSignalDao?.markStaleForDiary(id, timestamp)
+        }
+        return changed
     }
 
-    /** @return 是否真的删除了记录（false 表示记录已不存在）。 */
-    suspend fun deleteEntry(id: Long): Boolean = dao.deleteById(id) > 0
+    /** 删除日记时同步移除其线索，避免删除后仍参与未来上下文。 */
+    suspend fun deleteEntry(id: Long): Boolean {
+        val deleted = dao.deleteById(id) > 0
+        if (deleted) growthSignalDao?.deleteForDiary(id)
+        return deleted
+    }
+
+    fun observeSignals(diaryId: Long) =
+        growthSignalDao?.observeForDiary(diaryId) ?: kotlinx.coroutines.flow.flowOf(emptyList())
+
+    suspend fun resetInterruptedAnalyses(): Int = dao.markInterruptedAnalyses()
+
+    suspend fun markAnalyzing(id: Long, expectedUpdatedAt: Long, hash: String): Boolean =
+        dao.markAnalyzing(id, expectedUpdatedAt, hash, now()) > 0
+
+    suspend fun markAnalysisCompleted(id: Long, hash: String): Boolean =
+        dao.markCompleted(id, hash, now()) > 0
+
+    suspend fun markAnalysisFailed(id: Long, hash: String?, error: String): Boolean =
+        dao.markFailed(id, hash, error.take(300), now()) > 0
 
     private fun normalizeTitle(rawTitle: String?): String? =
         rawTitle?.trim()?.takeIf { it.isNotEmpty() }

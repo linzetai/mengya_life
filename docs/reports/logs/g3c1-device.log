@@ -1,0 +1,57 @@
+# Gate 3C-1 真机验收记录
+
+设备：Xiaomi 2509FPN0BC / Android 17
+正式包：0.9.0-g3c1（versionCode 9）
+QA 包：0.9.0-g3c1-qa
+时间：2026-11-04 12:31–14:13（Asia/Shanghai）
+
+## P0 前置收口
+
+1. v5→v6 覆盖安装：user_version=6；旧日记/目标/打卡/19 条消息/草案保留；新增 growth_signals。PASS
+2. QA 故障注入创建第 2 个目标失败：
+   - 提示「创建失败，已回滚：QA injected failure at create #2」
+   - goals=[]，草案仍 DRAFT。PASS
+3. 创建第 3 个目标失败：
+   - goals=[]，草案仍 DRAFT。PASS
+4. 正常创建 3 个目标（长期/阶段/行动）→ APPLIED。PASS
+5. 撤销第 1 个删除前注入失败：
+   - 提示「撤销失败，已回滚：QA injected failure at undo #1」
+   - goals 仍 3，草案仍 APPLIED。PASS
+6. 真机创建目标并添加进展后撤销：
+   - 提示「本次创建的目标已有 1 条进展记录；撤销已阻止」
+   - goals 仍 3，checkins=1，草案 APPLIED。PASS
+7. JSON 编码/tempId/appliedGoalIds：JVM `GoalProposalIdsTest` PASS；真实创建后 mapping 可回读（undo 使用 mapping 成功）。
+8. v6 回归：
+   - 日记 25/25、目标 64/64、趋势 73/73、导航 28/28、设置 39/39、导出 49/49、正式包 50/50。
+   - 设置页文案断言按新页面结构调整（滚动定位），功能项全通过。
+
+## 日记提取
+
+9. 职业成长事件（CareerMilestone）：真实 DeepSeek 提取 3 条线索，COMPLETED。PASS
+10. 普通生活记录（OrdinaryDay）：真实 DeepSeek 提取 5 条线索，COMPLETED。PASS
+11. 编辑 CareerMilestone：旧 3 条 STALE，新 3 条 ACTIVE；重新请求。PASS
+12. 用户纠正：OrdinaryDay「买了食品杂货」→ status=CORRECTED, origin=USER, isInference=0。PASS
+13. 用户删除：OrdinaryDay「看了一部电影」→ status=DELETED，UI 不再显示。PASS
+14. 删除 OrdinaryDay：growth_signals source_id=12 计数 0，日记删除。PASS
+15. JOURNAL 关闭时创建 ConsentOffDiary：PENDING、signals=0，未发请求；重新开启并保存后 COMPLETED、1 条线索。PASS
+16. 顾问问 vegetables：来源 GROWTH（日记#12 的纠正线索）；关闭 JOURNAL 后无 GROWTH 来源，sources_json=null。PASS
+17. 重启后线索/状态/对话保留；无崩溃。PASS
+18. 未修改正式目标/进展：提取/纠正/删除仅写 journal/growth_signals；目标表未变化。PASS
+
+## 未验证/边界
+
+- 处理中撤回授权的真机竞态（JVM 单测通过，未在真机精确卡时序）。
+- API 超时/失败的真机注入（JVM 单测通过）。
+- 真实模型的 isInference=true 样本：本次 DeepSeek 输出均为事实；QA fake/单测覆盖推测。
+- 同一内容版本重复保存幂等：JVM 单测通过；真机只验证了 PENDING→COMPLETED 的首次分析。
+- 设置/导航回归脚本在清空数据后的首启授权/配置状态上做过适配；断言数分别为 39/39、28/28。
+
+## 截图
+
+- g3c1-fault-create.png / g3c1-fault-create3.png / g3c1-fault-undo.png
+- g3c1-progress-blocked2.png
+- g3c1-career-detail-initial.png / g3c1-career-edited.png / g3c1-career-clean.png
+- g3c1-ordinary-detail.png
+- g3c1-corrected-3.png / g3c1-deleted-signal.png
+- g3c1-advisor-signal.png / g3c1-advisor-journal-off.png
+- g3c1-journal-off-saved.png / g3c1-consent-on-completed.png

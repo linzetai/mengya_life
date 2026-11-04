@@ -3,12 +3,10 @@ package com.mengyalife.app.data.advisor
 import com.mengyalife.app.data.local.proposal.GoalProposalDao
 import com.mengyalife.app.data.local.proposal.GoalProposalEntity
 import com.mengyalife.app.domain.advisor.GoalProposalDraft
+import com.mengyalife.app.domain.advisor.GoalProposalIds
 import com.mengyalife.app.domain.advisor.GoalProposalParser
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonPrimitive
 import java.util.UUID
 
 data class StoredGoalProposal(
@@ -61,7 +59,7 @@ class RoomGoalProposalRepository(
                 assumptionsJson = encoded.assumptionsJson,
                 risksJson = encoded.risksJson,
                 nodesJson = encoded.nodesJson,
-                selectedTempIdsJson = encodeIds(selected),
+                selectedTempIdsJson = GoalProposalIds.encodeSelected(selected),
             ),
         )
         return StoredGoalProposal(
@@ -86,7 +84,7 @@ class RoomGoalProposalRepository(
         selected: Set<String>,
     ): Boolean {
         val encoded = GoalProposalParser.encode(draft)
-        return dao.updateDraft(id, encoded.nodesJson, encodeIds(selected)) > 0
+        return dao.updateDraft(id, encoded.nodesJson, GoalProposalIds.encodeSelected(selected)) > 0
     }
 
     private fun toDomain(entity: GoalProposalEntity): StoredGoalProposal? {
@@ -103,23 +101,11 @@ class RoomGoalProposalRepository(
             createdAt = entity.createdAt,
             draft = draft,
             status = entity.status,
-            selectedTempIds = decodeStrings(entity.selectedTempIdsJson),
+            selectedTempIds = GoalProposalIds.decodeSelected(entity.selectedTempIdsJson),
             appliedAt = entity.appliedAt,
-            appliedGoalIds = decodeLongs(entity.appliedGoalIdsJson),
+            appliedGoalIds = GoalProposalIds.decodeMapping(entity.appliedGoalIdsJson).values.toList(),
             undoneAt = entity.undoneAt,
         )
     }
 
-    private fun encodeIds(ids: Set<String>): String =
-        ids.sorted().joinToString(prefix = "[", postfix = "]") { "\"${it.replace("\"", "\\\"")}\"" }
-
-    private fun decodeStrings(raw: String?): Set<String> = runCatching {
-        if (raw.isNullOrBlank()) emptySet()
-        else Json.parseToJsonElement(raw).jsonArray.map { it.jsonPrimitive.content }.toSet()
-    }.getOrDefault(emptySet())
-
-    private fun decodeLongs(raw: String?): List<Long> = runCatching {
-        if (raw.isNullOrBlank()) emptyList()
-        else Json.parseToJsonElement(raw).jsonArray.mapNotNull { it.jsonPrimitive.content.toLongOrNull() }
-    }.getOrDefault(emptyList())
 }

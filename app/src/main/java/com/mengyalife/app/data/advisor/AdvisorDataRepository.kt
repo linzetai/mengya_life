@@ -1,13 +1,16 @@
 package com.mengyalife.app.data.advisor
 
 import com.mengyalife.app.data.local.JournalEntryDao
+import com.mengyalife.app.data.local.growth.GrowthSignalDao
 import com.mengyalife.app.data.local.goal.GoalDao
 import com.mengyalife.app.domain.advisor.AdvisorContextSnapshot
 import com.mengyalife.app.domain.advisor.ContextCheckinRecord
 import com.mengyalife.app.domain.advisor.ContextGoalRecord
+import com.mengyalife.app.domain.advisor.ContextGrowthSignal
 import com.mengyalife.app.domain.advisor.ContextJournalRecord
 import com.mengyalife.app.domain.advisor.ConsentCategory
 import com.mengyalife.app.domain.advisor.AiConsentState
+import com.mengyalife.app.domain.growth.DiaryContentHash
 
 /**
  * 自动上下文的数据入口。只在授权有效时被调用；
@@ -20,6 +23,7 @@ interface AdvisorDataRepository {
 class RoomAdvisorDataRepository(
     private val goalDao: GoalDao,
     private val journalDao: JournalEntryDao,
+    private val growthSignalDao: GrowthSignalDao,
 ) : AdvisorDataRepository {
 
     override suspend fun snapshot(consent: AiConsentState): AdvisorContextSnapshot {
@@ -53,13 +57,36 @@ class RoomAdvisorDataRepository(
         } else {
             emptyList()
         }
-        val journals = if (consent.enabled(ConsentCategory.JOURNAL)) {
-            journalDao.loadAll().map {
-                ContextJournalRecord(
-                    id = it.id,
-                    title = it.title,
-                    body = it.body,
-                    updatedAt = it.updatedAt,
+        val journalRows = if (consent.enabled(ConsentCategory.JOURNAL)) journalDao.loadAll() else emptyList()
+        val journals = journalRows.map {
+            ContextJournalRecord(
+                id = it.id,
+                title = it.title,
+                body = it.body,
+                updatedAt = it.updatedAt,
+            )
+        }
+        // 只用当前日记版本、仍存在的来源、ACTIVE/CORRECTED 线索；
+        // 删除日记/编辑后旧线索不会进入上下文。
+        val journalById = journalRows.associateBy { it.id }
+        val signals = if (consent.enabled(ConsentCategory.JOURNAL)) {
+            growthSignalDao.loadActive(50).mapNotNull { signal ->
+                val journal = journalById[signal.sourceId] ?: return@mapNotNull null
+                if (signal.sourceType != "DIARY") return@mapNotNull null
+                if (signal.sourceVersion != DiaryContentHash.of(journal.title, journal.body)) {
+                    return@mapNotNull null
+                }
+                val category = com.mengyalife.app.domain.growth.GrowthCategory.entries
+                    .firstOrNull { it.name == signal.category }?.label ?: signal.category
+                ContextGrowthSignal(
+                    id = signal.id,
+                    diaryId = signal.sourceId,
+                    diaryTitle = journal.title,
+                    category = category,
+                    content = signal.content,
+                    evidence = signal.evidence,
+                    isInference = signal.isInference,
+                    corrected = signal.status == "CORRECTED" || signal.origin == "USER",
                 )
             }
         } else {
@@ -69,6 +96,7 @@ class RoomAdvisorDataRepository(
             goals = goals,
             checkins = checkins,
             journals = journals,
+            growthSignals = signals,
             history = emptyList(),
         )
     }
