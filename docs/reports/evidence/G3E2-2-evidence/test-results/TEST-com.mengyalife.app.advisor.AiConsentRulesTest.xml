@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.advisor.AiConsentRulesTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-11-04T17:08:14" hostname="localhost" time="0.001">
+  <properties/>
+  <testcase name="授权文案或类别版本变化后必须重新授权" classname="com.mengyalife.app.advisor.AiConsentRulesTest" time="0.0"/>
+  <testcase name="endpoint 规范化去掉末尾斜杠" classname="com.mengyalife.app.advisor.AiConsentRulesTest" time="0.0"/>
+  <testcase name="未授权默认无效" classname="com.mengyalife.app.advisor.AiConsentRulesTest" time="0.001"/>
+  <testcase name="四类类别默认全部允许且可独立关闭" classname="com.mengyalife.app.advisor.AiConsentRulesTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

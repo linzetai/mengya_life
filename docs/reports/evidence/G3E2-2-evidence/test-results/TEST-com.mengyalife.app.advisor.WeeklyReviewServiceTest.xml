@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.advisor.WeeklyReviewServiceTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-11-04T17:08:14" hostname="localhost" time="0.02">
+  <properties/>
+  <testcase name="同周数据变化使缓存失效" classname="com.mengyalife.app.advisor.WeeklyReviewServiceTest" time="0.011"/>
+  <testcase name="codec 保留 sections 与来源" classname="com.mengyalife.app.advisor.WeeklyReviewServiceTest" time="0.002"/>
+  <testcase name="同一周期重复生成复用已有记录" classname="com.mengyalife.app.advisor.WeeklyReviewServiceTest" time="0.007"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

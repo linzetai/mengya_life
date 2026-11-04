@@ -48,8 +48,13 @@ class WeeklyAiService(
     suspend fun currentFor(periodKey: String): WeeklyAiReview? {
         val entity = dao.findByPeriod(periodKey) ?: return null
         val cfg = configRepository.state.first()
-        if (entity.configHash != configHash(cfg.endpoint, cfg.model)) return entity.toDomain().copy(status = "STALE", error = "模型配置已变化，AI 结果已过期")
-        return entity.toDomain()
+        val consent = consentRepository.current()
+        val current = buildInput(consent)
+        val stale = entity.configHash != configHash(cfg.endpoint, cfg.model) ||
+            !consent.granted ||
+            entity.aiConsentVersion != current.aiConsentVersion ||
+            entity.localDataVersion != current.dataVersion
+        return if (stale) entity.toDomain().copy(status = "STALE", error = "本周数据/授权/模型已变化，AI 结果过期") else entity.toDomain()
     }
 
     fun observeLatest() = dao.observeLatest().map { it?.toDomain() }
@@ -96,6 +101,12 @@ class WeeklyAiService(
             return null
         }
         if (dao.markSent(review.periodKey) != 1) return dao.findByPeriod(review.periodKey)?.toDomain()
+        // markSent 之后、真正发送之前的最后临界区检查
+        val afterMark = validate(bound, autoRequest)
+        if (afterMark != null) {
+            complete(reserved, "FAILED", "", emptyList(), "", "发送边界状态变化，未调用引擎", initialConfig.model, bound.configHash)
+            return dao.findByPeriod(review.periodKey)?.toDomain()
+        }
         return try {
             val facts = review.facts.take(20).map { it.copy(text = it.text.take(300)) }
             val prompt = WeeklyAiParser.prompt(facts, reserved.categories)
@@ -117,7 +128,7 @@ class WeeklyAiService(
                 is AdvisorChatResult.Failure -> complete(reserved, "FAILED", "", emptyList(), "", result.error.userMessage, initialConfig.model, bound.configHash)
                 is AdvisorChatResult.Success -> when (val parsed = WeeklyAiParser.parse(result.content, facts, reserved.categories)) {
                     is WeeklyAiParseResult.Failure -> complete(reserved, "FAILED", "", emptyList(), "", parsed.message, initialConfig.model, bound.configHash)
-                    is WeeklyAiParseResult.Success -> complete(reserved, "READY", parsed.summary, parsed.highlights, parsed.suggestion, null, initialConfig.model, bound.configHash)
+                    is WeeklyAiParseResult.Success -> complete(reserved, "READY", parsed.summary, parsed.highlights, parsed.suggestion, null, initialConfig.model, bound.configHash, parsed.factIds)
                 }
             }
             dao.findByPeriod(review.periodKey)?.toDomain()
@@ -164,9 +175,10 @@ class WeeklyAiService(
         base: WeeklyAiEntity, status: String, summary: String,
         highlights: List<com.mengyalife.app.domain.weekly.WeeklyAiHighlight>,
         suggestion: String, error: String?, model: String?, configHash: String,
+        factIds: List<String> = emptyList(),
     ) {
         dao.complete(base.periodKey, status, now(), summary, WeeklyAiParser.highlightsJson(highlights),
-            suggestion, "[]", error, model, configHash)
+            suggestion, factIds.joinToString("\u001f"), error, model, configHash)
     }
 
     private fun WeeklyAiEntity.toDomain() = WeeklyAiReview(

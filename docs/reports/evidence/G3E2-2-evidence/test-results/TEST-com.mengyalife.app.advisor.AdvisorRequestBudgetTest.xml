@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.advisor.AdvisorRequestBudgetTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-11-04T17:08:13" hostname="localhost" time="0.021">
+  <properties/>
+  <testcase name="预算截断后来源只包含真正进入请求的记录" classname="com.mengyalife.app.advisor.AdvisorRequestBudgetTest" time="0.018"/>
+  <testcase name="system 当前问题 上下文和历史共同受预算约束" classname="com.mengyalife.app.advisor.AdvisorRequestBudgetTest" time="0.001"/>
+  <testcase name="没有上下文时来源为空且仍保留当前问题" classname="com.mengyalife.app.advisor.AdvisorRequestBudgetTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

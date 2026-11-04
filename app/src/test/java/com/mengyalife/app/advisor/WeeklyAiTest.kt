@@ -29,6 +29,7 @@ import java.time.LocalTime
 import java.time.ZoneId
 
 private class FakeAiDao : WeeklyAiDao {
+    var onMarkSent: suspend () -> Unit = {}
     val rows = MutableStateFlow<List<WeeklyAiEntity>>(emptyList())
     override fun observeLatest(): Flow<WeeklyAiEntity?> = rows.map { it.lastOrNull() }
     override suspend fun findByPeriod(key: String): WeeklyAiEntity? = rows.value.firstOrNull { it.periodKey == key }
@@ -39,6 +40,7 @@ private class FakeAiDao : WeeklyAiDao {
     override suspend fun markSent(key: String): Int {
         val old = rows.value.firstOrNull { it.periodKey == key } ?: return 0
         if (old.status != "PENDING") return 0
+        onMarkSent()
         rows.value = rows.value.map { if (it.periodKey == key) it.copy(status = "SENT") else it }; return 1
     }
     override suspend fun deletePending(key: String): Int {
@@ -148,6 +150,19 @@ class WeeklyAiTest {
     }
 
     @Test
+    fun `markSent临界区切换endpoint不调用引擎`() = runTest {
+        val engine = ScriptedAdvisorEngine().apply { enqueue(AdvisorChatResult.Success(valid)) }
+        val dao = FakeAiDao(); val source = AiSource(snapshot)
+        val consent = FakeConsentRepository().apply { grant("https://api.example.com/v1", AiConsentRules.allCategories) }
+        val config = FakeConfigRepository().apply { save("https://api.example.com/v1", "m", "sk") }
+        dao.onMarkSent = { config.save("https://other.example.com/v1", "m", null) }
+        val svc = WeeklyAiService(source, consent, config, engine, dao, now = { now })
+        val result = svc.generateIfAllowed()
+        assertEquals(0, engine.calls.size)
+        assertTrue(result?.status != "READY")
+    }
+
+    @Test
     fun `并发调用只发起一次`() = runTest {
         val engine = ScriptedAdvisorEngine().apply {
             enqueue(AdvisorChatResult.Success(valid)); enqueue(AdvisorChatResult.Success(valid))
@@ -178,9 +193,9 @@ class WeeklyAiTest {
     }
 
     @Test
-    fun `AI来源必须关联factIds`() {
+    fun `模型不输出事实或引用未知事实时失败`() {
         val facts = listOf(WeeklyFact("week-trend-1-CNY", "x", listOf(WeeklySourceRef("CHECKIN", "2", "储蓄"))))
-        val bad = valid.replace("\"id\":\"2\"", "\"id\":\"99\"")
+        val bad = valid.replace("\"factIds\":[\"week-trend-1-CNY\"]", "\"factIds\":[\"unknown\"]")
         assertTrue(WeeklyAiParser.parse(bad, facts, "PROGRESS") is com.mengyalife.app.domain.weekly.WeeklyAiParseResult.Failure)
     }
 }

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.domain.GoalTrendsTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-11-04T17:08:15" hostname="localhost" time="0.002">
+  <properties/>
+  <testcase name="没有数值记录时返回空列表" classname="com.mengyalife.app.domain.GoalTrendsTest" time="0.0"/>
+  <testcase name="空单位归一为无单位" classname="com.mengyalife.app.domain.GoalTrendsTest" time="0.0"/>
+  <testcase name="同一单位按真实时间升序排列" classname="com.mengyalife.app.domain.GoalTrendsTest" time="0.0"/>
+  <testcase name="单点保留为一条只有一个点的序列" classname="com.mengyalife.app.domain.GoalTrendsTest" time="0.0"/>
+  <testcase name="NaN 与 Infinity 被过滤掉" classname="com.mengyalife.app.domain.GoalTrendsTest" time="0.0"/>
+  <testcase name="不同单位拆成不同序列，绝不混画" classname="com.mengyalife.app.domain.GoalTrendsTest" time="0.0"/>
+  <testcase name="时间与数值范围来自真实数据" classname="com.mengyalife.app.domain.GoalTrendsTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

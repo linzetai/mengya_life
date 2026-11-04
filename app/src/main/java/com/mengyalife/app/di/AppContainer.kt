@@ -146,7 +146,7 @@ class AppContainer(context: Context) {
             configRepository = advisorConfigRepository,
             networkEngine = networkAdvisorEngine,
             dao = database.weeklyAiDao(),
-            autoEnabled = { weeklyReviewPreferences.aiEnabled.first() },
+            autoEnabled = { weeklyReviewPreferences.enabled.first() && weeklyReviewPreferences.aiEnabled.first() },
         )
     }
 

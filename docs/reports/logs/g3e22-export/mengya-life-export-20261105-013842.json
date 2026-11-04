@@ -1,0 +1,41 @@
+{
+  "format": "mengyalife-backup",
+  "schemaVersion": 1,
+  "exportedAt": 1793813922522,
+  "exportedAtIso": "2026-11-04T17:38:42.522Z",
+  "app": {
+    "name": "Mengya Life",
+    "package": "com.mengyalife.app",
+    "versionName": "0.14.1-g3e2-1",
+    "versionCode": 15
+  },
+  "database": {
+    "engine": "room",
+    "schemaVersion": 11
+  },
+  "counts": {
+    "journalEntries": 2,
+    "goals": 0,
+    "goalCheckins": 0
+  },
+  "data": {
+    "journalEntries": [
+      {
+        "id": 6,
+        "title": "MigrationA",
+        "body": "alpha v1 content",
+        "createdAt": 1793636289310,
+        "updatedAt": 1793636289310
+      },
+      {
+        "id": 7,
+        "title": "MigrationB",
+        "body": "beta v1 content",
+        "createdAt": 1793636317600,
+        "updatedAt": 1793636317600
+      }
+    ],
+    "goals": [],
+    "goalCheckins": []
+  }
+}

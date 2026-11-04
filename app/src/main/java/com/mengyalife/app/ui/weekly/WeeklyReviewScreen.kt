@@ -46,7 +46,7 @@ fun WeeklyReviewScreen(
                 Column {
                     Text("每周成长回顾", style = MaterialTheme.typography.headlineSmall)
                     Text(
-                        "本地整理，不调用 AI；只有你主动点「和顾问聊聊」才会按现有授权发送。",
+                        "本地回顾不发送；可选 AI 增强会按当前授权发送事实；「和顾问聊聊」进入现有顾问授权流程。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

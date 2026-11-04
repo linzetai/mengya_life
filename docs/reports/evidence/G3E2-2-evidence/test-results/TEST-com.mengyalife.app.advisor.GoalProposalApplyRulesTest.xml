@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.advisor.GoalProposalApplyRulesTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-11-04T17:08:14" hostname="localhost" time="0.007">
+  <properties/>
+  <testcase name="只选子节点而父节点未选被拒绝" classname="com.mengyalife.app.advisor.GoalProposalApplyRulesTest" time="0.002"/>
+  <testcase name="长期目标不能有父级" classname="com.mengyalife.app.advisor.GoalProposalApplyRulesTest" time="0.001"/>
+  <testcase name="完整三级新建合法" classname="com.mengyalife.app.advisor.GoalProposalApplyRulesTest" time="0.001"/>
+  <testcase name="日期非法或倒置被拒绝" classname="com.mengyalife.app.advisor.GoalProposalApplyRulesTest" time="0.002"/>
+  <testcase name="已有父目标在审核期间被删除被拒绝" classname="com.mengyalife.app.advisor.GoalProposalApplyRulesTest" time="0.001"/>
+  <testcase name="已有父目标层级不匹配被拒绝" classname="com.mengyalife.app.advisor.GoalProposalApplyRulesTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

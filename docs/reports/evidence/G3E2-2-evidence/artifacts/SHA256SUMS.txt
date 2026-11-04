@@ -1,0 +1,2 @@
+9e1bb8e9abe212805195c541f2c57022f3f4ce869fcf39028c149bd55c77bd7d  artifacts/mengya-life-0.14.1-g3e2-2-debug.apk
+293a4e28209082aefb17030105e5d829a7e0cfe85212ea6f5d420ea53704c7bc  artifacts/mengya-life-0.14.1-g3e2-2-qa-test.apk

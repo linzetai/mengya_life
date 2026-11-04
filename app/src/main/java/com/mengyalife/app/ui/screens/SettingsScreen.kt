@@ -193,7 +193,7 @@ fun SettingsScreen(
                 SettingsGroup(title = "每周成长回顾") {
                     SettingsRow(
                         title = "每周成长回顾",
-                        subtitle = "每周整理本机数据；可能发送本地通知；本阶段不在后台调用 AI",
+                        subtitle = "本地生成不调用 AI；可选 AI 增强开启后按预算调用；可随时关闭",
                         testTag = "settings_weekly_review",
                         onClick = onOpenWeeklyReview,
                         trailing = {

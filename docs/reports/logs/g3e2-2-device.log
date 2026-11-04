@@ -1,0 +1,5 @@
+# G3E2.2 真机
+- 0.14.1 安装；user_version=11，日记 2 篇保留。
+- 全量 UI 回归 PASS：日记25、目标64、趋势73、导航28、设置38、导出49、正式包50。
+- 真实 AI QA：NOT VERIFIED（无可用 QA 模型配置；未伪造）。
+- AI 超时/取消/generating、缓存 STALE 真机：NOT VERIFIED。

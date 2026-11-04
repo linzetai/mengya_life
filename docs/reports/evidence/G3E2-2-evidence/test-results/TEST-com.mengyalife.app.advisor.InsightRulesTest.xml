@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.advisor.InsightRulesTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-11-04T17:08:14" hostname="localhost" time="0.037">
+  <properties/>
+  <testcase name="数据版本随数据或权限改变" classname="com.mengyalife.app.advisor.InsightRulesTest" time="0.026"/>
+  <testcase name="同单位趋势只在本单位内比较" classname="com.mengyalife.app.advisor.InsightRulesTest" time="0.001"/>
+  <testcase name="只有一个目标没有进展时仍是不足" classname="com.mengyalife.app.advisor.InsightRulesTest" time="0.001"/>
+  <testcase name="职业目标与成长记忆进入事实且保留来源" classname="com.mengyalife.app.advisor.InsightRulesTest" time="0.003"/>
+  <testcase name="同主题用户纠正记忆优先且旧记忆内容不进入事实" classname="com.mengyalife.app.advisor.InsightRulesTest" time="0.001"/>
+  <testcase name="趋势来源必须包含最新点" classname="com.mengyalife.app.advisor.InsightRulesTest" time="0.001"/>
+  <testcase name="无数据明确写信息不足" classname="com.mengyalife.app.advisor.InsightRulesTest" time="0.0"/>
+  <testcase name="不同单位不直接相加或跨单位比较" classname="com.mengyalife.app.advisor.InsightRulesTest" time="0.002"/>
+  <testcase name="目标描述和日期分桶改变 dataVersion" classname="com.mengyalife.app.advisor.InsightRulesTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

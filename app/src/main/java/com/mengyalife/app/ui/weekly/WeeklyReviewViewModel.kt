@@ -53,19 +53,16 @@ class WeeklyReviewViewModel(
                 _state.update {
                     it.copy(
                         review = local,
-                        aiReview = local?.let { r ->
-                            aiService.currentFor(r.periodKey)?.takeIf { ai ->
-                                ai.localDataVersion == r.dataVersion && ai.aiConsentVersion == r.aiConsentVersion
-                            }
-                        } ?: it.aiReview,
+                        aiReview = local?.let { r -> aiService.currentFor(r.periodKey) } ?: it.aiReview,
                     )
                 }
             }
         }
         viewModelScope.launch {
             aiService.observeLatest().collect { ai ->
-                if (ai?.periodKey == _state.value.review?.periodKey) {
-                    _state.update { it.copy(aiReview = ai) }
+                val period = _state.value.review?.periodKey
+                if (ai != null && ai.periodKey == period) {
+                    _state.update { it.copy(aiReview = aiService.currentFor(ai.periodKey)) }
                 }
             }
         }

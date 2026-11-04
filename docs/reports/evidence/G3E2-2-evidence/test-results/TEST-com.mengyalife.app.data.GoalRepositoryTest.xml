@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.data.GoalRepositoryTest" tests="21" skipped="0" failures="0" errors="0" timestamp="2026-11-04T17:08:15" hostname="localhost" time="0.093">
+  <properties/>
+  <testcase name="长期目标可以独立创建" classname="com.mengyalife.app.data.GoalRepositoryTest" time="0.007"/>
+  <testcase name="进展说明为空被拒绝" classname="com.mengyalife.app.data.GoalRepositoryTest" time="0.003"/>
+  <testcase name="阶段目标必须挂长期目标" classname="com.mengyalife.app.data.GoalRepositoryTest" time="0.002"/>
+  <testcase name="删除影响范围会统计子目标与进展" classname="com.mengyalife.app.data.GoalRepositoryTest" time="0.003"/>
+  <testcase name="仓库层拒绝 NaN 指标且不写库" classname="com.mengyalife.app.data.GoalRepositoryTest" time="0.006"/>
+  <testcase name="趋势只包含真实数值并区分单位" classname="com.mengyalife.app.data.GoalRepositoryTest" time="0.022"/>
+  <testcase name="编辑目标不会改变层级与父级" classname="com.mengyalife.app.data.GoalRepositoryTest" time="0.003"/>
+  <testcase name="不存在的父目标被拒绝" classname="com.mengyalife.app.data.GoalRepositoryTest" time="0.003"/>
+  <testcase name="合法数值会被写入并归一化单位" classname="com.mengyalife.app.data.GoalRepositoryTest" time="0.002"/>
+  <testcase name="三层结构可以完整创建" classname="com.mengyalife.app.data.GoalRepositoryTest" time="0.003"/>
+  <testcase name="趋势会过滤历史脏数据里的非有限值" classname="com.mengyalife.app.data.GoalRepositoryTest" time="0.004"/>
+  <testcase name="给不存在的目标记进展会被拒绝" classname="com.mengyalife.app.data.GoalRepositoryTest" time="0.002"/>
+  <testcase name="空标题被拒绝且不写库" classname="com.mengyalife.app.data.GoalRepositoryTest" time="0.002"/>
+  <testcase name="记录进展会把未开始的目标置为进行中" classname="com.mengyalife.app.data.GoalRepositoryTest" time="0.002"/>
+  <testcase name="单位过长会被拒绝" classname="com.mengyalife.app.data.GoalRepositoryTest" time="0.003"/>
+  <testcase name="仓库层拒绝超出范围的指标" classname="com.mengyalife.app.data.GoalRepositoryTest" time="0.002"/>
+  <testcase name="行动不能直接挂在长期目标下" classname="com.mengyalife.app.data.GoalRepositoryTest" time="0.003"/>
+  <testcase name="删除整棵树会同时删掉子目标与进展" classname="com.mengyalife.app.data.GoalRepositoryTest" time="0.003"/>
+  <testcase name="快照区分长期目标与全部层级的进行中数量" classname="com.mengyalife.app.data.GoalRepositoryTest" time="0.01"/>
+  <testcase name="快照按树组织并统计" classname="com.mengyalife.app.data.GoalRepositoryTest" time="0.004"/>
+  <testcase name="仓库层拒绝 Infinity 与负无穷" classname="com.mengyalife.app.data.GoalRepositoryTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
