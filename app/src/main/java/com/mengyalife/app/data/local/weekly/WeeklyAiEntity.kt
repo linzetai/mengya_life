@@ -18,4 +18,5 @@ data class WeeklyAiEntity(
     @ColumnInfo("categories") val categories: String,
     @ColumnInfo("error") val error: String?,
     @ColumnInfo("model") val model: String?,
+    @ColumnInfo("config_hash") val configHash: String,
 )

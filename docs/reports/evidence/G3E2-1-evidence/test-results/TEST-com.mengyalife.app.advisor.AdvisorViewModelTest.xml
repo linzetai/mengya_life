@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.advisor.AdvisorViewModelTest" tests="13" skipped="0" failures="0" errors="0" timestamp="2026-11-04T16:11:22" hostname="localhost" time="0.308">
+  <properties/>
+  <testcase name="runtime endpoint 与授权接收方不一致时不发送" classname="com.mengyalife.app.advisor.AdvisorViewModelTest" time="0.098"/>
+  <testcase name="未授权时发送被阻止，不读取也不保存" classname="com.mengyalife.app.advisor.AdvisorViewModelTest" time="0.012"/>
+  <testcase name="关闭日记后新请求不带旧日记上下文，历史按 epoch 隔离" classname="com.mengyalife.app.advisor.AdvisorViewModelTest" time="0.026"/>
+  <testcase name="失败重试不重复用户消息" classname="com.mengyalife.app.advisor.AdvisorViewModelTest" time="0.016"/>
+  <testcase name="快速双击确认只调用一次 apply" classname="com.mengyalife.app.advisor.AdvisorViewModelTest" time="0.032"/>
+  <testcase name="更换服务地址后授权失效，必须重新授权" classname="com.mengyalife.app.advisor.AdvisorViewModelTest" time="0.016"/>
+  <testcase name="草案 JSON 非法时保留错误，不生成草案" classname="com.mengyalife.app.advisor.AdvisorViewModelTest" time="0.013"/>
+  <testcase name="关闭目标后不带目标摘要" classname="com.mengyalife.app.advisor.AdvisorViewModelTest" time="0.014"/>
+  <testcase name="取消请求保存 CANCELLED 且无假回复" classname="com.mengyalife.app.advisor.AdvisorViewModelTest" time="0.017"/>
+  <testcase name="首次授权后发送，来源与回复一起保存" classname="com.mengyalife.app.advisor.AdvisorViewModelTest" time="0.019"/>
+  <testcase name="请求中服务地址变化会取消，不保存旧回复" classname="com.mengyalife.app.advisor.AdvisorViewModelTest" time="0.015"/>
+  <testcase name="草案解析失败后重试仍使用 proposalMode 且不重复用户消息" classname="com.mengyalife.app.advisor.AdvisorViewModelTest" time="0.015"/>
+  <testcase name="整理为目标草案并持久化" classname="com.mengyalife.app.advisor.AdvisorViewModelTest" time="0.012"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

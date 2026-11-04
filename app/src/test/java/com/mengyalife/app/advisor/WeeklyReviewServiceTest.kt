@@ -83,6 +83,19 @@ class WeeklyReviewServiceTest {
     }
 
     @Test
+    fun `同周数据变化使缓存失效`() = runTest {
+        val dao = FakeWeeklyDao(); val source = FakeWeeklySource(snapshot)
+        val service = WeeklyReviewService(source, dao, FakeConsentRepository().apply {
+            grant("https://api.example.com/v1", AiConsentRules.allCategories)
+        }, now = { now }, newId = { "id-${dao.rows.value.size}" })
+        val a = service.generateIfNeeded()
+        source.snapshot = snapshot.copy(checkins = snapshot.checkins + WeeklyCheckin(3, 1, now - 100, "c", 2000.0, "CNY"))
+        val b = service.generateIfNeeded()
+        assertTrue(a.dataVersion != b.dataVersion)
+        assertEquals(1, dao.rows.value.size)
+    }
+
+    @Test
     fun `codec 保留 sections 与来源`() {
         val review = WeeklyReviewRules.build(snapshot, consent, now, zone)
         val entity = WeeklyReviewEntity(

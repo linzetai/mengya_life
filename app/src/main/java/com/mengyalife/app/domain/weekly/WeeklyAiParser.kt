@@ -20,7 +20,7 @@ object WeeklyAiParser {
     fun prompt(facts: List<WeeklyFact>, categories: String): String = buildString {
         appendLine("你是长期成长顾问。以下是本周本地规则事实；只能解释事实、给个性化建议。")
         appendLine("只输出严格 JSON，不用 Markdown。schemaVersion=1，1-3 条 highlights，每条必须带 factIds（只能从下面 facts 选）和 sources（必须是 factIds 对应事实的来源）。")
-        appendLine("{\"schemaVersion\":1,\"summary\":\"...\",\"highlights\":[{\"type\":\"POSITIVE|RISK|SUGGESTION\",\"title\":\"...\",\"body\":\"...\",\"isInference\":true,\"factIds\":[\"week-counts\"],\"sources\":[{\"type\":\"CHECKIN\",\"id\":\"1\",\"label\":\"...\"}]]},\"suggestion\":\"...\"}")
+        appendLine("{\"schemaVersion\":1,\"summary\":\"...\",\"highlights\":[{\"type\":\"POSITIVE\",\"title\":\"...\",\"body\":\"...\",\"isInference\":true,\"factIds\":[\"week-counts\"],\"sources\":[{\"type\":\"CHECKIN\",\"id\":\"1\",\"label\":\"...\"}]}],\"suggestion\":\"...\"}")
         appendLine("可用类别：$categories；不同单位不得比较/相加；信息不足必须明确说，不编造。")
         facts.forEach { appendLine("- [${it.id}] ${it.text}") }
     }
@@ -59,7 +59,9 @@ object WeeklyAiParser {
                     so["label"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                 )
             } ?: emptyList()
-            if (sources.isEmpty() || sources.any { "${it.type}:${it.recordId}" !in related }) {
+            val onlyInsufficient = ids.all { it == "insufficient" }
+            if (sources.isEmpty() && !onlyInsufficient) return WeeklyAiParseResult.Failure("sources 不能为空")
+            if (sources.any { "${it.type}:${it.recordId}" !in related }) {
                 return WeeklyAiParseResult.Failure("sources 与 factIds 无关联")
             }
             highlights += WeeklyAiHighlight(type, title, body, ids, sources, o["isInference"]?.jsonPrimitive?.contentOrNull?.toBoolean() ?: true)

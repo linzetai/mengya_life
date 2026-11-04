@@ -17,7 +17,7 @@ class WeeklyReviewWorker(
         return try {
             val review = app.container.weeklyReviewService.generateIfNeeded()
             if (app.container.weeklyReviewPreferences.aiEnabled.first()) {
-                app.container.weeklyAiService.generateIfAllowed()
+                app.container.weeklyAiService.generateIfAllowed(autoRequest = true)
             }
             val dao = app.container.databaseWeeklyReviewDao
             val stored = dao.findByPeriod(review.periodKey)

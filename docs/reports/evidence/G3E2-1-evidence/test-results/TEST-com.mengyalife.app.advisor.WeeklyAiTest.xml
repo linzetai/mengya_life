@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.advisor.WeeklyAiTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-11-04T16:11:22" hostname="localhost" time="0.42">
+  <properties/>
+  <testcase name="并发调用只发起一次" classname="com.mengyalife.app.advisor.WeeklyAiTest" time="0.371"/>
+  <testcase name="AI输入只包含授权类别" classname="com.mengyalife.app.advisor.WeeklyAiTest" time="0.01"/>
+  <testcase name="请求中数据变化不写READY" classname="com.mengyalife.app.advisor.WeeklyAiTest" time="0.008"/>
+  <testcase name="prompt 示例是合法 JSON" classname="com.mengyalife.app.advisor.WeeklyAiTest" time="0.002"/>
+  <testcase name="AI来源必须关联factIds" classname="com.mengyalife.app.advisor.WeeklyAiTest" time="0.001"/>
+  <testcase name="请求前修改数据不调用引擎" classname="com.mengyalife.app.advisor.WeeklyAiTest" time="0.007"/>
+  <testcase name="请求前切换endpoint不调用引擎" classname="com.mengyalife.app.advisor.WeeklyAiTest" time="0.005"/>
+  <testcase name="信息不足允许无来源" classname="com.mengyalife.app.advisor.WeeklyAiTest" time="0.001"/>
+  <testcase name="每周AI最多一次且缓存复用" classname="com.mengyalife.app.advisor.WeeklyAiTest" time="0.009"/>
+  <testcase name="请求前撤回授权不调用引擎且释放预算" classname="com.mengyalife.app.advisor.WeeklyAiTest" time="0.005"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

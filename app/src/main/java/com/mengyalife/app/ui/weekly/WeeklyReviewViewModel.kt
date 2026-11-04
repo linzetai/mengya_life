@@ -53,7 +53,11 @@ class WeeklyReviewViewModel(
                 _state.update {
                     it.copy(
                         review = local,
-                        aiReview = local?.let { r -> aiService.currentFor(r.periodKey) } ?: it.aiReview,
+                        aiReview = local?.let { r ->
+                            aiService.currentFor(r.periodKey)?.takeIf { ai ->
+                                ai.localDataVersion == r.dataVersion && ai.aiConsentVersion == r.aiConsentVersion
+                            }
+                        } ?: it.aiReview,
                     )
                 }
             }
@@ -99,6 +103,10 @@ class WeeklyReviewViewModel(
 
     fun setAiEnabled(value: Boolean) {
         viewModelScope.launch {
+            if (value && !enabled.value) {
+                _state.update { it.copy(error = "请先打开「每周成长回顾」；关闭时 AI 自动回顾不可执行") }
+                return@launch
+            }
             if (value && !aiService.canUse()) {
                 _state.update { it.copy(error = "请先完成 AI 授权和模型配置，再开启 AI 增强") }
                 return@launch
@@ -111,10 +119,15 @@ class WeeklyReviewViewModel(
         viewModelScope.launch {
             _state.update { it.copy(generating = true, error = null) }
             try {
-                aiService.generateIfAllowed()
+                aiService.generateIfAllowed(autoRequest = false)
                 refresh()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                _state.update { it.copy(generating = false, error = "AI 请求已取消；本周预算可能已被占用") }
+                throw e
             } catch (e: Exception) {
                 _state.update { it.copy(generating = false, error = "AI 增强失败：${e.message ?: "未知错误"}") }
+            } finally {
+                _state.update { it.copy(generating = false) }
             }
         }
     }

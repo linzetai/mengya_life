@@ -43,6 +43,7 @@ import com.mengyalife.app.data.local.proposal.GoalProposalEntity
  * - **v8**（Gate 3D-1）：新增 `insight_reports`（规则事实 + AI 洞察缓存）
  * - **v9**（Gate 3E-1）：新增 `weekly_reviews`（本地每周回顾历史）
  * - **v10**（Gate 3E-2）：周回顾加入 dataVersion / AI 授权版本
+ * - **v11**（Gate 3E-2.1）：AI 请求绑定配置哈希
  *
  * 迁移策略：
  * 1. 每次改表都必须 version + 1 并提供 `Migration`；
@@ -51,7 +52,7 @@ import com.mengyalife.app.data.local.proposal.GoalProposalEntity
  * 4. 迁移必须在真机升级安装上验证（本轮已做 v1→v2 实测，见报告）。
  */
 /** 数据库结构版本。导出文件里的 `databaseVersion` 与它保持一致。 */
-const val DB_SCHEMA_VERSION = 10
+const val DB_SCHEMA_VERSION = 11
 
 @Database(
     entities = [
@@ -358,6 +359,14 @@ abstract class MengyaDatabase : RoomDatabase() {
             }
         }
 
+
+        /** v10 → v11：AI 结果绑定模型配置。 */
+        val MIGRATION_10_11: Migration = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `weekly_ai_reviews` ADD COLUMN `config_hash` TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         @Volatile
         private var instance: MengyaDatabase? = null
 
@@ -371,7 +380,7 @@ abstract class MengyaDatabase : RoomDatabase() {
                     MengyaDatabase::class.java,
                     DATABASE_NAME,
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                     .build()
                     .also { instance = it }
             }

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.ui.JournalViewModelTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-11-04T16:11:23" hostname="localhost" time="0.067">
+  <properties/>
+  <testcase name="空正文保存会给出错误且不关闭面板" classname="com.mengyalife.app.ui.JournalViewModelTest" time="0.033"/>
+  <testcase name="删除成功才关闭确认框" classname="com.mengyalife.app.ui.JournalViewModelTest" time="0.021"/>
+  <testcase name="删除失败时保留上下文并显示错误" classname="com.mengyalife.app.ui.JournalViewModelTest" time="0.013"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

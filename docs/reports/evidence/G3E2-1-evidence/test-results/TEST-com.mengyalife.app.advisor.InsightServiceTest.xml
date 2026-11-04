@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.advisor.InsightServiceTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-11-04T16:11:23" hostname="localhost" time="0.065">
+  <properties/>
+  <testcase name="请求前切换 endpoint 不调用引擎" classname="com.mengyalife.app.advisor.InsightServiceTest" time="0.008"/>
+  <testcase name="请求前编辑进展不调用引擎" classname="com.mengyalife.app.advisor.InsightServiceTest" time="0.006"/>
+  <testcase name="请求期间数据变化调用一次但不写入 AI 结果" classname="com.mengyalife.app.advisor.InsightServiceTest" time="0.008"/>
+  <testcase name="请求前撤回授权不调用引擎" classname="com.mengyalife.app.advisor.InsightServiceTest" time="0.007"/>
+  <testcase name="解析失败保留规则事实与失败状态" classname="com.mengyalife.app.advisor.InsightServiceTest" time="0.019"/>
+  <testcase name="首次生成后同版本走缓存不重复调用模型" classname="com.mengyalife.app.advisor.InsightServiceTest" time="0.006"/>
+  <testcase name="数据变化后旧缓存不匹配" classname="com.mengyalife.app.advisor.InsightServiceTest" time="0.006"/>
+  <testcase name="请求前关闭 JOURNAL 不调用引擎" classname="com.mengyalife.app.advisor.InsightServiceTest" time="0.005"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

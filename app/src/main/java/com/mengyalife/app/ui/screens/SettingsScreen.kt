@@ -207,11 +207,13 @@ fun SettingsScreen(
                     GroupDivider()
                     SettingsRow(
                         title = "AI 增强每周回顾",
-                        subtitle = "默认关闭；开启前需已有有效 AI 授权与模型配置；每个自然周最多一次请求",
+                        subtitle = if (!weeklyEnabled) "请先打开每周成长回顾；关闭时 AI 自动回顾不可执行"
+                        else "默认关闭；开启前需已有有效 AI 授权与模型配置；每个自然周最多一次请求",
                         testTag = "settings_weekly_ai",
                         trailing = {
                             Switch(
                                 checked = weeklyAiEnabled,
+                                enabled = weeklyEnabled,
                                 onCheckedChange = onWeeklyAiToggle,
                                 modifier = Modifier.testTag("settings_weekly_ai_toggle"),
                             )

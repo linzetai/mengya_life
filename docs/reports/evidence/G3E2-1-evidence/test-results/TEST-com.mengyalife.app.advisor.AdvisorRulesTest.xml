@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.advisor.AdvisorRulesTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-11-04T16:11:22" hostname="localhost" time="0.005">
+  <properties/>
+  <testcase name="运行时配置的 toString 不泄露 key" classname="com.mengyalife.app.advisor.AdvisorRulesTest" time="0.001"/>
+  <testcase name="授权摘要列出范围并明确不发送日记" classname="com.mengyalife.app.advisor.AdvisorRulesTest" time="0.002"/>
+  <testcase name="服务地址规范成 chat completions" classname="com.mengyalife.app.advisor.AdvisorRulesTest" time="0.0"/>
+  <testcase name="输入过长被拒绝" classname="com.mengyalife.app.advisor.AdvisorRulesTest" time="0.0"/>
+  <testcase name="只接受 HTTPS 服务地址" classname="com.mengyalife.app.advisor.AdvisorRulesTest" time="0.0"/>
+  <testcase name="模型与 key 校验" classname="com.mengyalife.app.advisor.AdvisorRulesTest" time="0.001"/>
+  <testcase name="失败与取消消息不会进入上下文" classname="com.mengyalife.app.advisor.AdvisorRulesTest" time="0.0"/>
+  <testcase name="系统提示明确只给建议且不生成人生评分" classname="com.mengyalife.app.advisor.AdvisorRulesTest" time="0.0"/>
+  <testcase name="目标上下文在确认后才进入请求且不含日记标记" classname="com.mengyalife.app.advisor.AdvisorRulesTest" time="0.0"/>
+  <testcase name="上下文预算只保留最近消息且当前问题在最后" classname="com.mengyalife.app.advisor.AdvisorRulesTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

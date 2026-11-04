@@ -17,15 +17,21 @@ interface WeeklyAiDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertIfAbsent(row: WeeklyAiEntity): Long
 
+    @Query("UPDATE weekly_ai_reviews SET status='SENT' WHERE period_key=:key AND status='PENDING'")
+    suspend fun markSent(key: String): Int
+
+    @Query("DELETE FROM weekly_ai_reviews WHERE period_key=:key AND status='PENDING'")
+    suspend fun deletePending(key: String): Int
+
     @Query(
         """
         UPDATE weekly_ai_reviews SET status=:status, generated_at=:now, summary=:summary,
         highlights_json=:highlights, suggestion=:suggestion, fact_ids_json=:factIds,
-        error=:error, model=:model WHERE period_key=:key
+        error=:error, model=:model, config_hash=:configHash WHERE period_key=:key
         """
     )
     suspend fun complete(
         key: String, status: String, now: Long, summary: String, highlights: String,
-        suggestion: String, factIds: String, error: String?, model: String?,
+        suggestion: String, factIds: String, error: String?, model: String?, configHash: String,
     )
 }

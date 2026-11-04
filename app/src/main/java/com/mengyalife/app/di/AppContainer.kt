@@ -36,6 +36,7 @@ import com.mengyalife.app.data.weekly.WeeklyReviewPreferences
 import com.mengyalife.app.data.weekly.WeeklyReviewScheduler
 import com.mengyalife.app.data.weekly.WeeklyReviewService
 import com.mengyalife.app.data.weekly.WeeklyAiService
+import kotlinx.coroutines.flow.first
 
 /**
  * 手工依赖容器（本轮刻意不引入 Hilt：少一个编译器插件、少一层构建风险）。
@@ -145,6 +146,7 @@ class AppContainer(context: Context) {
             configRepository = advisorConfigRepository,
             networkEngine = networkAdvisorEngine,
             dao = database.weeklyAiDao(),
+            autoEnabled = { weeklyReviewPreferences.aiEnabled.first() },
         )
     }
 

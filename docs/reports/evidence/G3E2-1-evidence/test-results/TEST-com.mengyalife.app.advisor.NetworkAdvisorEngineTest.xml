@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.advisor.NetworkAdvisorEngineTest" tests="11" skipped="0" failures="0" errors="0" timestamp="2026-11-04T16:11:23" hostname="localhost" time="0.033">
+  <properties/>
+  <testcase name="400 带服务端消息" classname="com.mengyalife.app.advisor.NetworkAdvisorEngineTest" time="0.006"/>
+  <testcase name="5xx 映射为服务端错误" classname="com.mengyalife.app.advisor.NetworkAdvisorEngineTest" time="0.002"/>
+  <testcase name="非 HTTPS 地址在发请求前就被拒绝" classname="com.mengyalife.app.advisor.NetworkAdvisorEngineTest" time="0.002"/>
+  <testcase name="请求体包含模型与消息，Authorization 使用 Bearer" classname="com.mengyalife.app.advisor.NetworkAdvisorEngineTest" time="0.002"/>
+  <testcase name="空 content 视为格式错误" classname="com.mengyalife.app.advisor.NetworkAdvisorEngineTest" time="0.002"/>
+  <testcase name="429 映射为限流" classname="com.mengyalife.app.advisor.NetworkAdvisorEngineTest" time="0.002"/>
+  <testcase name="401 映射为无效密钥" classname="com.mengyalife.app.advisor.NetworkAdvisorEngineTest" time="0.004"/>
+  <testcase name="超时与离线分别映射" classname="com.mengyalife.app.advisor.NetworkAdvisorEngineTest" time="0.003"/>
+  <testcase name="成功响应解析为助手内容" classname="com.mengyalife.app.advisor.NetworkAdvisorEngineTest" time="0.003"/>
+  <testcase name="测试连接成功与失败" classname="com.mengyalife.app.advisor.NetworkAdvisorEngineTest" time="0.005"/>
+  <testcase name="格式错误不会伪造回复" classname="com.mengyalife.app.advisor.NetworkAdvisorEngineTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

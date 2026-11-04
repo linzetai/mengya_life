@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.advisor.GoalProposalIdsTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-11-04T16:11:23" hostname="localhost" time="0.001">
+  <properties/>
+  <testcase name="selected 往返且过滤非法项" classname="com.mengyalife.app.advisor.GoalProposalIdsTest" time="0.0"/>
+  <testcase name="tempId 格式严格限制" classname="com.mengyalife.app.advisor.GoalProposalIdsTest" time="0.0"/>
+  <testcase name="旧错误数组格式不会伪造映射" classname="com.mengyalife.app.advisor.GoalProposalIdsTest" time="0.0"/>
+  <testcase name="映射往返不丢失 appliedGoalIds" classname="com.mengyalife.app.advisor.GoalProposalIdsTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

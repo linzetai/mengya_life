@@ -19,6 +19,7 @@ import com.mengyalife.app.domain.weekly.WeeklySourceRef
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -35,11 +36,20 @@ private class FakeAiDao : WeeklyAiDao {
         if (rows.value.any { it.periodKey == row.periodKey }) return -1
         rows.value = rows.value + row; return 1
     }
-    override suspend fun complete(key: String, status: String, now: Long, summary: String, highlights: String, suggestion: String, factIds: String, error: String?, model: String?) {
-        rows.value = rows.value.map { if (it.periodKey == key) it.copy(status = status, generatedAt = now, summary = summary, highlightsJson = highlights, suggestion = suggestion, error = error, model = model) else it }
+    override suspend fun markSent(key: String): Int {
+        val old = rows.value.firstOrNull { it.periodKey == key } ?: return 0
+        if (old.status != "PENDING") return 0
+        rows.value = rows.value.map { if (it.periodKey == key) it.copy(status = "SENT") else it }; return 1
+    }
+    override suspend fun deletePending(key: String): Int {
+        val target = rows.value.firstOrNull { it.periodKey == key && it.status == "PENDING" } ?: return 0
+        rows.value = rows.value.filterNot { it.periodKey == key }; return 1
+    }
+    override suspend fun complete(key: String, status: String, now: Long, summary: String, highlights: String, suggestion: String, factIds: String, error: String?, model: String?, configHash: String) {
+        rows.value = rows.value.map { if (it.periodKey == key) it.copy(status = status, generatedAt = now, summary = summary, highlightsJson = highlights, suggestion = suggestion, error = error, model = model, configHash = configHash) else it }
     }
 }
-private class AiSource(val s: WeeklySnapshot) : WeeklyReviewSource { override suspend fun load() = s }
+private class AiSource(var s: WeeklySnapshot) : WeeklyReviewSource { override suspend fun load() = s }
 
 class WeeklyAiTest {
     private val zone = ZoneId.of("Asia/Shanghai")
@@ -73,6 +83,98 @@ class WeeklyAiTest {
         val prompt = engine.calls.joinToString(" ") { it.joinToString(" ") { m -> m.content } }
         assertTrue(prompt.contains("GOAL") || prompt.contains("储蓄"))
         assertTrue(!prompt.contains("CHECKIN:"))
+    }
+
+    private suspend fun testService(
+        engine: ScriptedAdvisorEngine, source: AiSource, dao: FakeAiDao,
+        before: suspend () -> Unit = {}, after: suspend () -> Unit = {},
+    ): WeeklyAiService {
+        val config = FakeConfigRepository().apply { save("https://api.example.com/v1", "m", "sk") }
+        return WeeklyAiService(
+            source, FakeConsentRepository().apply { grant("https://api.example.com/v1", AiConsentRules.allCategories) },
+            config, engine, dao, now = { now }, beforeRequest = before, beforeComplete = after,
+        )
+    }
+
+    @Test
+    fun `请求前撤回授权不调用引擎且释放预算`() = runTest {
+        val engine = ScriptedAdvisorEngine().apply { enqueue(AdvisorChatResult.Success(valid)) }
+        val dao = FakeAiDao(); val source = AiSource(snapshot)
+        val consent = FakeConsentRepository().apply { grant("https://api.example.com/v1", AiConsentRules.allCategories) }
+        val config = FakeConfigRepository().apply { save("https://api.example.com/v1", "m", "sk") }
+        val svc = WeeklyAiService(source, consent, config, engine, dao, now = { now }, beforeRequest = { consent.withdraw() })
+        assertEquals(null, svc.generateIfAllowed())
+        assertEquals(0, engine.calls.size)
+        assertEquals(0, dao.rows.value.size)
+    }
+
+    @Test
+    fun `请求前切换endpoint不调用引擎`() = runTest {
+        val engine = ScriptedAdvisorEngine().apply { enqueue(AdvisorChatResult.Success(valid)) }
+        val dao = FakeAiDao(); val source = AiSource(snapshot)
+        val consent = FakeConsentRepository().apply { grant("https://api.example.com/v1", AiConsentRules.allCategories) }
+        val config = FakeConfigRepository().apply { save("https://api.example.com/v1", "m", "sk") }
+        val svc = WeeklyAiService(source, consent, config, engine, dao, beforeRequest = { config.save("https://other.example.com/v1", "m", null) }) { now }
+        assertEquals(null, svc.generateIfAllowed())
+        assertEquals(0, engine.calls.size)
+    }
+
+    @Test
+    fun `请求前修改数据不调用引擎`() = runTest {
+        val engine = ScriptedAdvisorEngine().apply { enqueue(AdvisorChatResult.Success(valid)) }
+        val dao = FakeAiDao(); val source = AiSource(snapshot)
+        val svc = WeeklyAiService(
+            source, FakeConsentRepository().apply { grant("https://api.example.com/v1", AiConsentRules.allCategories) },
+            FakeConfigRepository().apply { save("https://api.example.com/v1", "m", "sk") }, engine, dao,
+            beforeRequest = { source.s = snapshot.copy(checkins = snapshot.checkins + WeeklyCheckin(9, 1, now, "new", 30.0, "CNY")) },
+        ) { now }
+        assertEquals(null, svc.generateIfAllowed())
+        assertEquals(0, engine.calls.size)
+    }
+
+    @Test
+    fun `请求中数据变化不写READY`() = runTest {
+        val engine = ScriptedAdvisorEngine().apply { enqueue(AdvisorChatResult.Success(valid)) }
+        val dao = FakeAiDao(); val source = AiSource(snapshot)
+        val svc = WeeklyAiService(
+            source, FakeConsentRepository().apply { grant("https://api.example.com/v1", AiConsentRules.allCategories) },
+            FakeConfigRepository().apply { save("https://api.example.com/v1", "m", "sk") }, engine, dao,
+            now = { now },
+            beforeComplete = { source.s = snapshot.copy(checkins = snapshot.checkins + WeeklyCheckin(9, 1, now, "new", 30.0, "CNY")) },
+        )
+        val result = svc.generateIfAllowed()
+        assertEquals(1, engine.calls.size)
+        assertTrue(result?.status != "READY")
+    }
+
+    @Test
+    fun `并发调用只发起一次`() = runTest {
+        val engine = ScriptedAdvisorEngine().apply {
+            enqueue(AdvisorChatResult.Success(valid)); enqueue(AdvisorChatResult.Success(valid))
+        }
+        val dao = FakeAiDao(); val source = AiSource(snapshot)
+        val consent = FakeConsentRepository().apply { grant("https://api.example.com/v1", AiConsentRules.allCategories) }
+        val config = FakeConfigRepository().apply { save("https://api.example.com/v1", "m", "sk") }
+        val svc = WeeklyAiService(source, consent, config, engine, dao, now = { now })
+        kotlinx.coroutines.coroutineScope {
+            launch { svc.generateIfAllowed() }
+            launch { svc.generateIfAllowed() }
+        }
+        assertEquals(1, engine.calls.size)
+    }
+
+    @Test
+    fun `prompt 示例是合法 JSON`() {
+        val prompt = WeeklyAiParser.prompt(emptyList(), "PROGRESS")
+        val example = prompt.lines().first { it.trim().startsWith("{\"schemaVersion\"") }
+        assertTrue(runCatching { kotlinx.serialization.json.Json.parseToJsonElement(example) }.isSuccess)
+    }
+
+    @Test
+    fun `信息不足允许无来源`() {
+        val insufficient = WeeklyFact("insufficient", "数据不足", emptyList())
+        val json = """{"schemaVersion":1,"summary":"信息不足","highlights":[{"type":"SUGGESTION","title":"先记录","body":"数据不足","isInference":true,"factIds":["insufficient"],"sources":[]}],"suggestion":"先记录一天"}"""
+        assertTrue(WeeklyAiParser.parse(json, listOf(insufficient), "GOALS") is com.mengyalife.app.domain.weekly.WeeklyAiParseResult.Success)
     }
 
     @Test

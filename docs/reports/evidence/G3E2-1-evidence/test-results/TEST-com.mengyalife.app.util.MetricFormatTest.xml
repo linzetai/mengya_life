@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.util.MetricFormatTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-11-04T16:11:23" hostname="localhost" time="0.001">
+  <properties/>
+  <testcase name="整数不显示小数点" classname="com.mengyalife.app.util.MetricFormatTest" time="0.0"/>
+  <testcase name="不使用科学计数法" classname="com.mengyalife.app.util.MetricFormatTest" time="0.0"/>
+  <testcase name="最多两位小数并去掉尾随 0" classname="com.mengyalife.app.util.MetricFormatTest" time="0.0"/>
+  <testcase name="非法值显示破折号而不是 NaN" classname="com.mengyalife.app.util.MetricFormatTest" time="0.001"/>
+  <testcase name="单位拼接" classname="com.mengyalife.app.util.MetricFormatTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

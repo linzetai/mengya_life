@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.advisor.AdvisorConfigTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-11-04T16:11:22" hostname="localhost" time="0.025">
+  <properties/>
+  <testcase name="http 地址与空模型被拒绝" classname="com.mengyalife.app.advisor.AdvisorConfigTest" time="0.002"/>
+  <testcase name="保存配置后状态只有 hasKey，不含明文" classname="com.mengyalife.app.advisor.AdvisorConfigTest" time="0.005"/>
+  <testcase name="第一次保存必须提供 key" classname="com.mengyalife.app.advisor.AdvisorConfigTest" time="0.003"/>
+  <testcase name="解密失败时 runtimeConfig 返回 null" classname="com.mengyalife.app.advisor.AdvisorConfigTest" time="0.003"/>
+  <testcase name="QA 假引擎开关可持久化，生产构造时被忽略" classname="com.mengyalife.app.advisor.AdvisorConfigTest" time="0.003"/>
+  <testcase name="留空 key 保存时保留旧密钥" classname="com.mengyalife.app.advisor.AdvisorConfigTest" time="0.003"/>
+  <testcase name="运行时配置能解密，删除密钥后不可用" classname="com.mengyalife.app.advisor.AdvisorConfigTest" time="0.003"/>
+  <testcase name="状态对象不含 key 字段" classname="com.mengyalife.app.advisor.AdvisorConfigTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

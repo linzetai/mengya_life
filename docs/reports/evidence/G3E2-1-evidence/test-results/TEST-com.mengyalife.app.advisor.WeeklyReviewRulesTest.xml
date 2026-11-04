@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mengyalife.app.advisor.WeeklyReviewRulesTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-11-04T16:11:23" hostname="localhost" time="0.012">
+  <properties/>
+  <testcase name="用户纠正记忆优先且旧记忆不展示" classname="com.mengyalife.app.advisor.WeeklyReviewRulesTest" time="0.008"/>
+  <testcase name="关闭AI类别仍保留本地回顾数据" classname="com.mengyalife.app.advisor.WeeklyReviewRulesTest" time="0.001"/>
+  <testcase name="同单位多点给出趋势，不同单位分开" classname="com.mengyalife.app.advisor.WeeklyReviewRulesTest" time="0.0"/>
+  <testcase name="到期目标关注，已完成和已取消不进入" classname="com.mengyalife.app.advisor.WeeklyReviewRulesTest" time="0.0"/>
+  <testcase name="本周与上周时间边界正确" classname="com.mengyalife.app.advisor.WeeklyReviewRulesTest" time="0.0"/>
+  <testcase name="跨年周与上周正确" classname="com.mengyalife.app.advisor.WeeklyReviewRulesTest" time="0.0"/>
+  <testcase name="关闭全部AI授权仍可生成本地回顾" classname="com.mengyalife.app.advisor.WeeklyReviewRulesTest" time="0.0"/>
+  <testcase name="无记录明确数据不足" classname="com.mengyalife.app.advisor.WeeklyReviewRulesTest" time="0.0"/>
+  <testcase name="单点不描述为趋势" classname="com.mengyalife.app.advisor.WeeklyReviewRulesTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -105,10 +105,15 @@ fun WeeklyReviewScreen(
                 }
             }
             item {
-                if (state.aiReview == null || state.aiReview.status != "READY") {
+                val ai = state.aiReview
+                if (ai == null) {
                     OutlinedButton(onClick = onGenerateAi, enabled = !state.generating, modifier = Modifier.fillMaxWidth().testTag("weekly_generate_ai")) {
                         Text("尝试 AI 增强（每周最多一次）")
                     }
+                } else if (ai.status == "PENDING" || ai.status == "SENT") {
+                    Text("AI 已预留本周额度，正在处理；不会重复请求。", style = MaterialTheme.typography.labelSmall)
+                } else if (ai.status == "FAILED" || ai.status == "STALE") {
+                    Text("本周 AI 已尝试，额度已用尽；本地回顾仍有效。", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
                 }
             }
             val review = state.review
