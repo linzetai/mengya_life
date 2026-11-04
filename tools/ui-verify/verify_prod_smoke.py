@@ -11,7 +11,7 @@ from harness import *
 
 require_prod("verify_prod_smoke.py")
 
-VERSION = "0.12.0-g3d2"
+VERSION = "0.13.0-g3e1"
 EXPORT_DIR = os.environ.get("EXPORT_OUT", os.path.join(OUT, "export-prod"))
 os.makedirs(EXPORT_DIR, exist_ok=True)
 

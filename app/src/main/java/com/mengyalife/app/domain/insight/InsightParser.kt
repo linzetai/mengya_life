@@ -64,9 +64,14 @@ object InsightParser {
             if (factIds.size != factIdArray.size || factIds.any { it !in allowedFactIds }) {
                 return InsightParseResult.Failure("insights[$index] 引用了本轮不存在的事实")
             }
+            val referencedFacts = facts.filter { it.id in factIds }
+            val onlyInsufficient = referencedFacts.isNotEmpty() && referencedFacts.all { it.id == "insufficient" }
+            val relatedKeys = referencedFacts.flatMap { f -> f.sourceRefs.map { it.type + ":" + it.recordId } }.toSet()
             val sourceArray = obj["sources"] as? JsonArray
                 ?: return InsightParseResult.Failure("insights[$index] 缺少 sources")
-            if (sourceArray.isEmpty()) return InsightParseResult.Failure("insights[$index] sources 不能为空")
+            if (sourceArray.isEmpty() && !onlyInsufficient) {
+                return InsightParseResult.Failure("insights[$index] sources 不能为空")
+            }
             val sources = mutableListOf<InsightSourceRef>()
             for (sourceElement in sourceArray) {
                 val sourceObj = sourceElement as? JsonObject
@@ -77,6 +82,9 @@ object InsightParser {
                 val recordId = rawId.removePrefix("$sourceType:")
                 if ("$sourceType:$recordId" !in allowedKeys) {
                     return InsightParseResult.Failure("来源不在本轮授权上下文：$sourceType:$recordId")
+                }
+                if ("$sourceType:$recordId" !in relatedKeys) {
+                    return InsightParseResult.Failure("来源与 insight 的 factIds 无关联：$sourceType:$recordId")
                 }
                 sources.add(
                     InsightSourceRef(
@@ -110,7 +118,8 @@ object InsightParser {
         appendLine("只输出严格 JSON，不要 Markdown。schemaVersion=1：")
         appendLine("{\"schemaVersion\":1,\"summary\":\"...\",\"insights\":[{\"type\":\"POSITIVE|RISK|SUGGESTION\",\"title\":\"...\",\"body\":\"...\",\"isInference\":true,\"confidence\":0.0,\"sources\":[{\"type\":\"GOAL|CHECKIN|MEMORY\",\"id\":\"...\",\"label\":\"...\"}]}]}")
         appendLine("最多 3 条；每条 body 不超过 300 字；**每条 insight 必须包含 factIds 数组**，只能从本轮事实 ID 中选择；")
-        appendLine("缺少 factIds 或引用不存在的事实会被拒绝；sources 必须来自 allowedSources；不同单位不得比较/相加；")
+        appendLine("缺少 factIds 或引用不存在的事实会被拒绝；sources 必须来自 allowedSources，且必须是 factIds 所指事实的 sourceRefs；")
+        appendLine("如果只引用 insufficient 事实，sources 可以为空；其他情况 sources 不得为空；不同单位不得比较/相加；")
         appendLine("可用 factIds：${input.facts.joinToString(",") { it.id }}")
         appendLine("数据不足时明确说「信息不足」；建议必须是 isInference=true。")
         appendLine("允许来源：")

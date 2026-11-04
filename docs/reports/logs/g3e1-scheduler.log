@@ -1,0 +1,25 @@
+# Gate 3E-1 调度/通知日志摘录
+
+## 开启后 WorkManager（QA）
+JOB androidx.work.systemjobscheduler:u0a457/0: ... #WeeklyReviewWorker#@...com.mengyalife.app.qa
+唯一任务名 weekly_review_periodic；周期 7d + flex 1d。
+
+## force-stop 后重启
+同一唯一周期 JOB 仍在；没有第二条周期任务。
+
+## 关闭后
+无活动周期 JOB；dumpsys 中仅存在历史 START/STOP 记录，不属于活动任务。
+
+## 通知（允许）
+NotificationRecord(pkg=com.mengyalife.app.qa id=3001 channel=weekly_review)
+android.title=每周成长回顾
+android.text=本周回顾已生成，点开看看；内容只在本机整理。
+
+## 同周第二次 Worker
+weekly_reviews count=1；notified_at 未新增（同周去重）。
+
+## 拒绝权限
+pm revoke POST_NOTIFICATIONS 后：
+- 应用内回顾仍打开；
+- dumpsys notification 无 id=3001；
+- 再次切换开关无系统权限弹框（asked 持久化）。

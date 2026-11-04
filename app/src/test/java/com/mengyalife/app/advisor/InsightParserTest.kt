@@ -34,6 +34,20 @@ class InsightParserTest {
     }
 
     @Test
+    fun `合法但与 factIds 无关的来源被拒绝`() {
+        val otherFact = InsightFact("f2", "只有目标事实", listOf(refs[0]))
+        val bad = """{"schemaVersion":1,"summary":"s","insights":[{"type":"POSITIVE","title":"t","body":"b","isInference":true,"factIds":["f2"],"sources":[{"type":"CHECKIN","id":"2","label":"x"}]}]}"""
+        assertTrue(InsightParser.parse(bad, facts + otherFact, refs) { "i1" } is InsightParseResult.Failure)
+    }
+
+    @Test
+    fun `只引用信息不足事实时允许无来源`() {
+        val insufficient = InsightFact("insufficient", "数据不足", emptyList())
+        val json = """{"schemaVersion":1,"summary":"s","insights":[{"type":"SUGGESTION","title":"先记录","body":"信息不足，先记录","isInference":true,"factIds":["insufficient"],"sources":[]}]}"""
+        assertTrue(InsightParser.parse(json, listOf(insufficient), emptyList()) { "i1" } is InsightParseResult.Success)
+    }
+
+    @Test
     fun `factId 不在本轮事实中被拒绝`() {
         val bad = """{"schemaVersion":1,"summary":"s","insights":[{"type":"POSITIVE","title":"t","body":"b","isInference":true,"factIds":["f9"],"sources":[{"type":"CHECKIN","id":"2","label":"x"}]}]}"""
         assertTrue(InsightParser.parse(bad, facts, refs) { "i1" } is InsightParseResult.Failure)

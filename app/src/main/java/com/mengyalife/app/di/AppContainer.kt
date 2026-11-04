@@ -30,6 +30,11 @@ import com.mengyalife.app.data.local.MengyaDatabase
 import com.mengyalife.app.data.preferences.ThemePreferences
 import com.mengyalife.app.data.repository.GoalRepository
 import com.mengyalife.app.data.repository.JournalRepository
+import com.mengyalife.app.data.weekly.WeeklyReviewDataRepository
+import com.mengyalife.app.data.weekly.WeeklyReviewNotifier
+import com.mengyalife.app.data.weekly.WeeklyReviewPreferences
+import com.mengyalife.app.data.weekly.WeeklyReviewScheduler
+import com.mengyalife.app.data.weekly.WeeklyReviewService
 
 /**
  * 手工依赖容器（本轮刻意不引入 Hilt：少一个编译器插件、少一层构建风险）。
@@ -102,6 +107,33 @@ class AppContainer(context: Context) {
     val goalRepository: GoalRepository by lazy {
         GoalRepository(database.goalDao())
     }
+
+    val weeklyReviewPreferences: WeeklyReviewPreferences by lazy {
+        WeeklyReviewPreferences(appContext)
+    }
+
+    val weeklyReviewScheduler: WeeklyReviewScheduler by lazy {
+        WeeklyReviewScheduler(appContext)
+    }
+
+    val weeklyReviewNotifier: WeeklyReviewNotifier by lazy {
+        WeeklyReviewNotifier(appContext)
+    }
+
+    val weeklyReviewService: WeeklyReviewService by lazy {
+        WeeklyReviewService(
+            dataRepository = WeeklyReviewDataRepository(
+                goalDao = database.goalDao(),
+                journalDao = database.journalEntryDao(),
+                memoryDao = database.growthMemoryDao(),
+            ),
+            dao = database.weeklyReviewDao(),
+            consentRepository = aiConsentRepository,
+        )
+    }
+
+    /** Worker 使用；只在本地读写，不构造网络引擎。 */
+    val databaseWeeklyReviewDao get() = database.weeklyReviewDao()
 
     val themePreferences: ThemePreferences by lazy {
         ThemePreferences(appContext)

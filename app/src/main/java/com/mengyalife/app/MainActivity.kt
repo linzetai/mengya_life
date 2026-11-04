@@ -1,5 +1,6 @@
 package com.mengyalife.app
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -34,10 +35,24 @@ class MainActivity : ComponentActivity() {
                 com.mengyalife.app.data.growth.QaExtractionGate.delayBeforeRequestMs =
                     intent.getIntExtra("qa_extract_delay_ms", 0).toLong().coerceAtLeast(0)
             }
+            if (intent?.hasExtra("qa_run_weekly_review") == true) {
+                (application as MengyaApplication).container.weeklyReviewScheduler.runNowForQa()
+            }
+        }
+        if (intent?.getBooleanExtra(com.mengyalife.app.data.weekly.WeeklyReviewNotifier.EXTRA_WEEKLY_REVIEW, false) == true) {
+            com.mengyalife.app.data.weekly.WeeklyReviewRouter.requestOpen()
         }
         enableEdgeToEdge()
         setContent {
             MengyaLifeApp()
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(com.mengyalife.app.data.weekly.WeeklyReviewNotifier.EXTRA_WEEKLY_REVIEW, false)) {
+            com.mengyalife.app.data.weekly.WeeklyReviewRouter.requestOpen()
         }
     }
 }

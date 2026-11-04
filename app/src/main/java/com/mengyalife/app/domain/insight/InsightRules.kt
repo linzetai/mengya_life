@@ -88,9 +88,12 @@ object InsightRules {
                     facts += InsightFact(
                         "trend-${key.first}-${key.second}",
                         "目标「${goalsById[key.first]?.title ?: "#${key.first}"}」的「${key.second}」记录从 ${Timestamps.formatDate(ordered.first().recordedAt)} 的 ${MetricFormat.withUnit(first, key.second)} 变为 ${Timestamps.formatDate(ordered.last().recordedAt)} 的 ${MetricFormat.withUnit(last, key.second)}（$direction ${MetricFormat.withUnit(kotlin.math.abs(delta), key.second)}，${ordered.size} 个点；区间 ${Timestamps.formatDate(ordered.first().recordedAt)} – ${Timestamps.formatDate(ordered.last().recordedAt)}）。",
-                        ordered.takeLast(6).map {
-                            InsightSourceRef("CHECKIN", it.id.toString(), goalsById[it.goalId]?.title ?: "目标#${it.goalId}")
-                        },
+                        // 有界来源：首点 + 最近 6 点，保证首尾都能核对
+                        (listOf(ordered.first()) + ordered.takeLast(6))
+                            .distinctBy { it.id }
+                            .map {
+                                InsightSourceRef("CHECKIN", it.id.toString(), goalsById[it.goalId]?.title ?: "目标#${it.goalId}")
+                            },
                     )
                 }
             }

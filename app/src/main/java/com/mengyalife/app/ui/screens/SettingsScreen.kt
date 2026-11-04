@@ -26,7 +26,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.Switch
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -86,6 +88,9 @@ fun SettingsScreen(
     aiState: AiSettingsUiState,
     onAiAction: (AiSettingsAction) -> Unit,
     onOpenMemories: () -> Unit = {},
+    weeklyEnabled: Boolean = false,
+    onWeeklyToggle: (Boolean) -> Unit = {},
+    onOpenWeeklyReview: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -180,6 +185,24 @@ fun SettingsScreen(
 
             item {
                 AiPrivacySection(state = aiState, onAction = onAiAction)
+            }
+
+            item {
+                SettingsGroup(title = "每周成长回顾") {
+                    SettingsRow(
+                        title = "每周成长回顾",
+                        subtitle = "每周整理本机数据；可能发送本地通知；本阶段不在后台调用 AI",
+                        testTag = "settings_weekly_review",
+                        onClick = onOpenWeeklyReview,
+                        trailing = {
+                            Switch(
+                                checked = weeklyEnabled,
+                                onCheckedChange = onWeeklyToggle,
+                                modifier = Modifier.testTag("settings_weekly_toggle"),
+                            )
+                        },
+                    )
+                }
             }
 
             item {

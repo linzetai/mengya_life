@@ -90,7 +90,9 @@ class InsightRulesTest {
         }
         val input = InsightRules.build(AdvisorContextSnapshot(goals = listOf(goal), checkins = many), consent, now)
         val trend = input.facts.first { it.id == "trend-1-CNY" }
-        assertTrue(trend.sourceRefs.any { it.recordId == "8" })
+        assertTrue(trend.sourceRefs.any { it.recordId == "1" }) // 首点
+        assertTrue(trend.sourceRefs.any { it.recordId == "8" }) // 尾点
+        assertTrue(trend.sourceRefs.size <= 7)
         assertTrue(trend.text.contains("区间"))
     }
 

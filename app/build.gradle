@@ -14,8 +14,8 @@ android {
         applicationId 'com.mengyalife.app'
         minSdk 26
         targetSdk 35
-        versionCode 12
-        versionName '0.12.0-g3d2'
+        versionCode 13
+        versionName '0.13.0-g3e1'
 
         // Gate 2C：QA 构建通过独立 applicationId + 独立库名做真机破坏性测试，
         // 保证测试永远不会碰正式版里用户自己的日记与目标。
@@ -112,6 +112,9 @@ dependencies {
     implementation 'androidx.room:room-runtime:2.7.2'
     implementation 'androidx.room:room-ktx:2.7.2'
     ksp 'androidx.room:room-compiler:2.7.2'
+
+    // 每周回顾：可靠后台调度（唯一周期任务，无外网 AI）
+    implementation 'androidx.work:work-runtime-ktx:2.10.1'
 
     // 偏好设置（主题）
     implementation 'androidx.datastore:datastore-preferences:1.1.7'

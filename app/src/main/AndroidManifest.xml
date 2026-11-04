@@ -7,6 +7,8 @@
       不申请存储、通知、位置、通讯录等权限。
     -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Gate 3E-1：每周回顾本地通知；用户拒绝后不反复请求 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".MengyaApplication"

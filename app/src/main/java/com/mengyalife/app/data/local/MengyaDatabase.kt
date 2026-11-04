@@ -16,6 +16,8 @@ import com.mengyalife.app.data.local.goal.GoalEntity
 import com.mengyalife.app.data.local.growth.GrowthMemoryDao
 import com.mengyalife.app.data.local.insight.InsightReportDao
 import com.mengyalife.app.data.local.insight.InsightReportEntity
+import com.mengyalife.app.data.local.weekly.WeeklyReviewDao
+import com.mengyalife.app.data.local.weekly.WeeklyReviewEntity
 import com.mengyalife.app.data.local.growth.GrowthMemoryEntity
 import com.mengyalife.app.data.local.growth.GrowthSignalDao
 import com.mengyalife.app.data.local.growth.GrowthSignalEntity
@@ -37,6 +39,7 @@ import com.mengyalife.app.data.local.proposal.GoalProposalEntity
  *   新增 `growth_signals`（日记成长线索）
  * - **v7**（Gate 3C-2）：新增 `growth_memories`（跨日记成长记忆）
  * - **v8**（Gate 3D-1）：新增 `insight_reports`（规则事实 + AI 洞察缓存）
+ * - **v9**（Gate 3E-1）：新增 `weekly_reviews`（本地每周回顾历史）
  *
  * 迁移策略：
  * 1. 每次改表都必须 version + 1 并提供 `Migration`；
@@ -45,7 +48,7 @@ import com.mengyalife.app.data.local.proposal.GoalProposalEntity
  * 4. 迁移必须在真机升级安装上验证（本轮已做 v1→v2 实测，见报告）。
  */
 /** 数据库结构版本。导出文件里的 `databaseVersion` 与它保持一致。 */
-const val DB_SCHEMA_VERSION = 8
+const val DB_SCHEMA_VERSION = 9
 
 @Database(
     entities = [
@@ -57,6 +60,7 @@ const val DB_SCHEMA_VERSION = 8
         GrowthSignalEntity::class,
         GrowthMemoryEntity::class,
         InsightReportEntity::class,
+        WeeklyReviewEntity::class,
     ],
     version = DB_SCHEMA_VERSION,
     exportSchema = true,
@@ -77,6 +81,8 @@ abstract class MengyaDatabase : RoomDatabase() {
     abstract fun growthMemoryDao(): GrowthMemoryDao
 
     abstract fun insightReportDao(): InsightReportDao
+
+    abstract fun weeklyReviewDao(): WeeklyReviewDao
 
     companion object {
         // 正式版与 QA 测试构建使用不同的物理库文件（见 app/build.gradle 的 buildConfigField）。
@@ -313,6 +319,29 @@ abstract class MengyaDatabase : RoomDatabase() {
             }
         }
 
+
+        /** v8 → v9：本地每周回顾历史；不动业务表。 */
+        val MIGRATION_8_9: Migration = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `weekly_reviews` (
+                        `id` TEXT PRIMARY KEY NOT NULL,
+                        `period_key` TEXT NOT NULL,
+                        `period_start` INTEGER NOT NULL,
+                        `period_end` INTEGER NOT NULL,
+                        `generated_at` INTEGER NOT NULL,
+                        `version` INTEGER NOT NULL,
+                        `facts_json` TEXT NOT NULL,
+                        `sections_json` TEXT NOT NULL,
+                        `notified_at` INTEGER
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_weekly_reviews_period_key` ON `weekly_reviews` (`period_key`)")
+            }
+        }
+
         @Volatile
         private var instance: MengyaDatabase? = null
 
@@ -326,7 +355,7 @@ abstract class MengyaDatabase : RoomDatabase() {
                     MengyaDatabase::class.java,
                     DATABASE_NAME,
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                     .build()
                     .also { instance = it }
             }

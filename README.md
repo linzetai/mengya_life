@@ -1,7 +1,7 @@
 # 萌芽人生 · Mengya Life
 
 > Android 应用。**工程名 MengyaLife**，包名 `com.mengyalife.app`。
-> 当前版本 **0.12.0-g3d2**（Gate 3D-2：可信洞察与交互闭环）。
+> 当前版本 **0.13.0-g3e1**（Gate 3E-1：每周成长回顾 V1）。
 >
 > 技术栈：Kotlin + Jetpack Compose + Material 3 + **Room** + **DataStore** + **Android Keystore**。
 > 无自有后端；用户自带 API Key（BYOK），请求直达用户配置的模型服务。
@@ -27,14 +27,15 @@
 | 跨日记成长记忆 + 生命周期 + 顾问 MEMORY | ✅ **Gate 3C-2** |
 | 成长洞察 V1：规则事实 + AI 解释 + 来源校验 + 缓存版本 | ✅ **Gate 3D-1** |
 | 洞察请求前绑定/取消/结果隔离 + factIds + 时间边界 | ✅ **Gate 3D-2** |
+| 每周本地回顾 + WorkManager 唯一周期任务 + 通知去重 | ✅ **Gate 3E-1** |
 | 总览「最近值得关注」+ 洞察详情 + JOURNAL 关闭隔离 | ✅ |
 | 线索顾问上下文、原日记去重、JOURNAL 隔离 | ✅ 真机验证 |
 | 用户确认后事务创建 + 撤销 + DRAFT/APPLIED/UNDONE | ✅ 唯一 ApplyService |
 | endpoint 竞态、请求预算、草案重试安全修复 | ✅ |
 | QA 隔离包 + 离线测试引擎 | ✅ 仅 QA；正式包不创建假引擎 |
 | 导入恢复 | ⏳ 未实现，界面如实提示 |
-| JVM 单元测试 | ✅ **217/217** |
-| 真机验收 | ✅ Gate 3D-2 洞察交互/回归/真实模型；未验证项见报告 |
+| JVM 单元测试 | ✅ **230/230** |
+| 真机验收 | ✅ Gate 3E-1 每周回顾/通知/回归；未验证项见报告 |
 | Gate 3A 报告 | `docs/reports/REPORT-G3A-ADVISOR.md` |
 | Gate 3B-1 报告 | `docs/reports/REPORT-G3B1.md` |
 | Gate 3B-2 报告 | `docs/reports/REPORT-G3B2.md` |
@@ -42,11 +43,12 @@
 | Gate 3C-2 报告 | `docs/reports/REPORT-G3C2.md` |
 | Gate 3D-1 报告 | `docs/reports/REPORT-G3D1.md` |
 | Gate 3D-2 报告 | `docs/reports/REPORT-G3D2.md` |
+| Gate 3E-1 报告 | `docs/reports/REPORT-G3E1.md` |
 | 请求格式 / 安全隐私 | `docs/AI-REQUEST-FORMAT.md`、`docs/SECURITY-PRIVACY-G3A.md` |
 
-**Gate 3D-2 结论：PASS（核心）**。洞察请求前授权/配置/dataVersion 绑定、factIds 校验、
-时间窗口/趋势区间、目标/趋势/顾问/草案交互与真实模型洞察已验证。
-C4 详情自动失效、D3 相关事实视觉验收、职业/不足真实场景未验证，详见 `REPORT-G3D2.md`。
+**Gate 3E-1 结论：PASS（核心）**。本地每周回顾、WorkManager 唯一周期任务、通知
+权限/去重/点击、目标跳转与分类隐私已真机验证；每周 AI 不后台请求。
+详情自动失效、讨论预填、跨周通知等边界未验证，详见 `REPORT-G3E1.md`。
 
 **Gate 3B-2 结论：PASS（核心）**（历史）。安全竞态、审核、事务创建与撤销通过；
 批量失败回滚、进展阻止撤销、v5 五页全量回归未验证。

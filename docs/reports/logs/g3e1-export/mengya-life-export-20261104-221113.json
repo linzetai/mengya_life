@@ -1,0 +1,67 @@
+{
+  "format": "mengyalife-backup",
+  "schemaVersion": 1,
+  "exportedAt": 1793801473152,
+  "exportedAtIso": "2026-11-04T14:11:13.152Z",
+  "app": {
+    "name": "Mengya Life",
+    "package": "com.mengyalife.app.qa",
+    "versionName": "0.13.0-g3e1-qa",
+    "versionCode": 13
+  },
+  "database": {
+    "engine": "room",
+    "schemaVersion": 9
+  },
+  "counts": {
+    "journalEntries": 1,
+    "goals": 1,
+    "goalCheckins": 2
+  },
+  "data": {
+    "journalEntries": [
+      {
+        "id": 1,
+        "title": "ExportDiary",
+        "body": "g2c export v1",
+        "createdAt": 1793801346153,
+        "updatedAt": 1793801346153
+      }
+    ],
+    "goals": [
+      {
+        "id": 1,
+        "title": "ExportGoal",
+        "description": null,
+        "level": "LONG_TERM",
+        "parentId": null,
+        "domain": "LIFE",
+        "status": "IN_PROGRESS",
+        "startDate": null,
+        "dueDate": null,
+        "createdAt": 1793801371673,
+        "updatedAt": 1793801410897
+      }
+    ],
+    "goalCheckins": [
+      {
+        "id": 1,
+        "goalId": 1,
+        "recordedAt": 1793801410895,
+        "note": "week1",
+        "metricValue": 3.5,
+        "metricUnit": "kg",
+        "source": "manual"
+      },
+      {
+        "id": 2,
+        "goalId": 1,
+        "recordedAt": 1793801443364,
+        "note": "week2",
+        "metricValue": 4.0,
+        "metricUnit": "kg",
+        "source": "manual"
+      }
+    ]
+  }
+}

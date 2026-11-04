@@ -107,9 +107,9 @@ class ExportTest {
     private fun bundle() = ExportJson.Bundle(
         exportedAt = t0 + 500,
         appPackage = "com.mengyalife.app",
-        appVersionName = "0.12.0-g3d2",
-        appVersionCode = 12,
-        databaseVersion = 8,
+        appVersionName = "0.13.0-g3e1",
+        appVersionCode = 13,
+        databaseVersion = 9,
         journalEntries = journals,
         goals = goals,
         goalCheckins = checkins,
@@ -123,9 +123,9 @@ class ExportTest {
         journalDao = ExportJournalDao(journals),
         goalDao = ExportGoalDao(goals, checkins),
         appPackage = "com.mengyalife.app",
-        appVersionName = "0.12.0-g3d2",
-        appVersionCode = 12,
-        databaseVersion = 8,
+        appVersionName = "0.13.0-g3e1",
+        appVersionCode = 13,
+        databaseVersion = 9,
         now = { t0 + 500 },
     )
 
@@ -142,9 +142,9 @@ class ExportTest {
     fun `导出文件包含 schemaVersion 与版本信息`() {
         val text = ExportJson.encode(bundle())
         assertTrue(text.contains("\"schemaVersion\": 1"))
-        assertTrue(text.contains("\"versionName\": \"0.12.0-g3d2\""))
-        assertTrue(text.contains("\"versionCode\": 12"))
-        assertTrue(text.contains("\"schemaVersion\": 8")) // database.schemaVersion
+        assertTrue(text.contains("\"versionName\": \"0.13.0-g3e1\""))
+        assertTrue(text.contains("\"versionCode\": 13"))
+        assertTrue(text.contains("\"schemaVersion\": 9")) // database.schemaVersion
         assertTrue(text.contains("\"format\": \"mengyalife-backup\""))
     }
 
@@ -221,9 +221,9 @@ class ExportTest {
             journalDao = ExportJournalDao(journals),
             goalDao = ExportGoalDao(goals, checkins),
             appPackage = "com.mengyalife.app",
-            appVersionName = "0.12.0-g3d2",
-            appVersionCode = 12,
-            databaseVersion = 8,
+            appVersionName = "0.13.0-g3e1",
+            appVersionCode = 13,
+            databaseVersion = 9,
             now = { t0 + 500 },
             transaction = { block ->
                 transactions++

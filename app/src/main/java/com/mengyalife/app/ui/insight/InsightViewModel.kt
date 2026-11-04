@@ -48,16 +48,26 @@ class InsightViewModel(
                         generationJob?.cancel()
                         _state.update { it.copy(loading = false, error = "授权或模型配置已变化，本次洞察已取消") }
                     }
+                    refresh()
                 }
         }
     }
 
     fun refresh() {
         viewModelScope.launch {
-            val input = service.currentInput()
-            val report = service.loadCurrent()
-            _state.update {
-                it.copy(currentVersion = input.dataVersion, report = report, error = null)
+            try {
+                val input = service.currentInput()
+                val report = service.loadCurrent()
+                _state.update {
+                    it.copy(currentVersion = input.dataVersion, report = report, error = null, loading = false)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // 数据库/读取异常不能把界面永久卡在 loading
+                _state.update {
+                    it.copy(loading = false, report = null, error = "读取洞察数据失败：${e.message ?: "未知错误"}")
+                }
             }
         }
     }
@@ -71,6 +81,9 @@ class InsightViewModel(
             } catch (cancelled: CancellationException) {
                 _state.update { it.copy(loading = false, error = "授权或模型配置已变化，本次洞察已取消") }
                 throw cancelled
+            } catch (e: Exception) {
+                _state.update { it.copy(loading = false, error = "洞察生成失败：${e.message ?: "未知错误"}") }
+                return@launch
             }
             when (result) {
                 is InsightGenerationResult.Ready -> _state.update {

@@ -1,0 +1,38 @@
+# Gate 3E-1 真机验证记录
+
+设备：Xiaomi 2509FPN0BC / Android 17
+正式包：0.13.0-g3e1（versionCode 13），Room v9
+QA 包：0.13.0-g3e1-qa
+时间：2026-11-04 21:31–22:25
+
+## 数据库
+- v8→v9 覆盖安装 PASS；weekly_reviews 存在；旧日记/缓存保留。
+
+## 设置与调度
+- 设置 →「每周成长回顾」默认关闭（g3e1-settings-weekly-off.png）。
+- 打开开关：系统 Android 13+ 通知权限对话框；允许后 WorkManager 唯一周期任务出现。
+  dumpsys jobscheduler 中 WeeklyReviewWorker 为 1 个周期 JOB。
+- 终止进程后重启：同一唯一任务仍在，未产生重复。
+- 关闭开关：无活动周期 JOB（只剩历史 START/STOP 记录）。
+- 重复开关：使用 ExistingPeriodicWorkPolicy.UPDATE，唯一任务名。
+
+## 本地回顾
+- QA 隔离包创建 1 个目标 + 2 条进展；打开回顾页生成：
+  - 本周 2 条、上周 0 条；
+  - 目标 WeeklyGoal 的 CNY 10→20，同单位 2 个点；同日注明不代表长期趋势；
+  - 来源目标/进展；截图 g3e1-weekly-generated.png。
+- 回顾来源 → 查看目标：PASS，目标页定位 WeeklyGoal（g3e1-weekly-to-goal.png）。
+- 顾问讨论：点击「和顾问聊聊」进入顾问页；QA 未配置模型，预填文本未能在输入框验证，
+  因此交互只标记“进入顾问页”，预填为 NOT VERIFIED。
+
+## 通知
+- 通知权限允许：渠道 weekly_review；通知标题「每周成长回顾」，正文仅概要。
+  dumpsys notification 有 id=3001；通知不带日记正文。
+- 同一周第二次触发 Worker：weekly_reviews 仍 1 行，notified_at 未产生新通知。
+- 通过通知等价的 Intent extra 启动：直接进入 weekly_review_screen（g3e1-notification-route.png）。
+- 权限拒绝：撤销 POST_NOTIFICATIONS 后开启/打开回顾，应用内回顾正常；无通知记录；
+  再次切换开关不再重复弹权限框。
+- 真实点击通知栏（非 Intent 模拟）与“下一周再通知”未真机验证。
+
+## 回归
+日记 25/25、目标 64/64、趋势 73/73、导航 28/28、设置 38/38、导出 49/49、正式包 50/50。

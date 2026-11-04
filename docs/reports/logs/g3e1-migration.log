@@ -1,0 +1,9 @@
+# Gate 3E-1 真机迁移 v8 → v9
+
+设备：Xiaomi 2509FPN0BC / Android 17
+正式包：com.mengyalife.app 0.13.0-g3e1（versionCode 13）
+时间：2026-11-04 21:31
+
+升级前：user_version=8，日记 2 篇（MigrationA/B），goals=0，历史洞察缓存保留。
+升级后：user_version=9，新增 weekly_reviews 表与 period_key 唯一索引。
+旧日记/目标/进展/顾问/草案/线索/记忆/洞察均保留；未清理正式数据。

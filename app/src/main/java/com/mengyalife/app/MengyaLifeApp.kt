@@ -1,7 +1,14 @@
 package com.mengyalife.app
 
 import android.content.Context
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -58,6 +65,9 @@ import com.mengyalife.app.ui.growth.GrowthMemoryScreen
 import com.mengyalife.app.ui.growth.GrowthMemoryViewModel
 import com.mengyalife.app.ui.insight.InsightUiState
 import com.mengyalife.app.ui.insight.InsightViewModel
+import com.mengyalife.app.ui.weekly.WeeklyReviewScreen
+import com.mengyalife.app.ui.weekly.WeeklyReviewViewModel
+import com.mengyalife.app.data.weekly.WeeklyReviewRouter
 import com.mengyalife.app.ui.settings.AiSettingsViewModel
 import com.mengyalife.app.ui.settings.ExportViewModel
 import com.mengyalife.app.ui.settings.ThemeViewModel
@@ -88,6 +98,10 @@ fun MengyaLifeApp() {
 
     val insightViewModel: InsightViewModel = viewModel(factory = InsightViewModel.Factory)
     val insightState by insightViewModel.state.collectAsStateWithLifecycle()
+    val weeklyViewModel: WeeklyReviewViewModel = viewModel(factory = WeeklyReviewViewModel.Factory)
+    val weeklyState by weeklyViewModel.state.collectAsStateWithLifecycle()
+    val weeklyEnabled by weeklyViewModel.enabled.collectAsStateWithLifecycle()
+    val weeklyNotificationAsked by weeklyViewModel.notificationAsked.collectAsStateWithLifecycle()
 
     // ---- 数据导出（设置页）----
     val exportViewModel: ExportViewModel = viewModel(factory = ExportViewModel.Factory)
@@ -97,6 +111,7 @@ fun MengyaLifeApp() {
     var currentTab by rememberSaveable { mutableStateOf(AppTab.OVERVIEW) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var showMemories by rememberSaveable { mutableStateOf(false) }
+    var showWeeklyReview by rememberSaveable { mutableStateOf(false) }
     val memoryViewModel: GrowthMemoryViewModel = viewModel(factory = GrowthMemoryViewModel.Factory)
     val memoryState by memoryViewModel.uiState.collectAsStateWithLifecycle()
 
@@ -107,7 +122,18 @@ fun MengyaLifeApp() {
     val diaryListState = rememberLazyListState()
     val advisorListState = rememberLazyListState()
 
-    LaunchedEffect(currentTab, showSettings, showMemories) {
+    val weeklyOpenRequest by WeeklyReviewRouter.requests.collectAsStateWithLifecycle()
+    LaunchedEffect(weeklyOpenRequest) {
+        if (weeklyOpenRequest) {
+            showWeeklyReview = true
+            showSettings = false
+            WeeklyReviewRouter.consume()
+        }
+    }
+    LaunchedEffect(
+        currentTab, showSettings, showMemories,
+        goalsState.snapshot, diaryState.entries, memoryState,
+    ) {
         if (currentTab == AppTab.OVERVIEW && !showSettings && !showMemories) {
             insightViewModel.refresh()
         }
@@ -128,6 +154,7 @@ fun MengyaLifeApp() {
     }
 
     val context = LocalContext.current
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     val versionName = remember(context) { readVersionName(context) }
 
     MengyaLifeTheme(darkTheme = darkTheme) {
@@ -139,7 +166,26 @@ fun MengyaLifeApp() {
                 .fillMaxSize()
                 .semantics { testTagsAsResourceId = true },
         ) {
-            if (showMemories) {
+            if (showWeeklyReview) {
+                BackHandler { showWeeklyReview = false }
+                WeeklyReviewScreen(
+                    state = weeklyState,
+                    onBack = { showWeeklyReview = false },
+                    onGenerate = weeklyViewModel::generateNow,
+                    onOpenGoal = { id ->
+                        goalsViewModel.onAction(GoalAction.FocusGoal(id))
+                        showWeeklyReview = false
+                        showSettings = false
+                        currentTab = AppTab.GOALS
+                    },
+                    onDiscuss = { text ->
+                        showWeeklyReview = false
+                        showSettings = false
+                        currentTab = AppTab.ADVISOR
+                        advisorViewModel.onAction(AdvisorAction.InputChange(text))
+                    },
+                )
+            } else if (showMemories) {
                 BackHandler { showMemories = false }
                 GrowthMemoryScreen(
                     state = memoryState,
@@ -162,6 +208,18 @@ fun MengyaLifeApp() {
                     aiState = aiSettingsState,
                     onAiAction = aiSettingsViewModel::onAction,
                     onOpenMemories = { showMemories = true },
+                    weeklyEnabled = weeklyEnabled,
+                    onWeeklyToggle = { enabled ->
+                        if (enabled && !weeklyNotificationAsked && Build.VERSION.SDK_INT >= 33 &&
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+                            PackageManager.PERMISSION_GRANTED
+                        ) {
+                            weeklyViewModel.markNotificationAsked()
+                            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                        weeklyViewModel.setEnabled(enabled)
+                    },
+                    onOpenWeeklyReview = { showWeeklyReview = true },
                 )
             } else {
                 MainShell(
