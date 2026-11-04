@@ -1,11 +1,13 @@
 package com.mengyalife.app.data.advisor
 
 import com.mengyalife.app.data.local.JournalEntryDao
+import com.mengyalife.app.data.local.growth.GrowthMemoryDao
 import com.mengyalife.app.data.local.growth.GrowthSignalDao
 import com.mengyalife.app.data.local.goal.GoalDao
 import com.mengyalife.app.domain.advisor.AdvisorContextSnapshot
 import com.mengyalife.app.domain.advisor.ContextCheckinRecord
 import com.mengyalife.app.domain.advisor.ContextGoalRecord
+import com.mengyalife.app.domain.advisor.ContextGrowthMemory
 import com.mengyalife.app.domain.advisor.ContextGrowthSignal
 import com.mengyalife.app.domain.advisor.ContextJournalRecord
 import com.mengyalife.app.domain.advisor.ConsentCategory
@@ -24,6 +26,7 @@ class RoomAdvisorDataRepository(
     private val goalDao: GoalDao,
     private val journalDao: JournalEntryDao,
     private val growthSignalDao: GrowthSignalDao,
+    private val growthMemoryDao: GrowthMemoryDao,
 ) : AdvisorDataRepository {
 
     override suspend fun snapshot(consent: AiConsentState): AdvisorContextSnapshot {
@@ -92,11 +95,37 @@ class RoomAdvisorDataRepository(
         } else {
             emptyList()
         }
+        val memories = if (consent.enabled(ConsentCategory.JOURNAL)) {
+            val allJournals = journalById
+            growthMemoryDao.loadAll()
+                .filter { it.status == "ACTIVE" || it.status == "CORRECTED" }
+                .filter { memory ->
+                    val ids = com.mengyalife.app.domain.growth.GrowthMemoryIds
+                        .decodeLongs(memory.sourceDiaryIdsJson)
+                    ids.isNotEmpty() && ids.all { it in allJournals }
+                }
+                .map { memory ->
+                    ContextGrowthMemory(
+                        id = memory.id,
+                        theme = memory.theme,
+                        content = memory.content,
+                        isInference = memory.isInference,
+                        corrected = memory.userCorrected || memory.status == "CORRECTED",
+                        insufficient = memory.insufficient,
+                        recentChange = memory.recentChange,
+                        sourceDiaryIds = com.mengyalife.app.domain.growth.GrowthMemoryIds
+                            .decodeLongs(memory.sourceDiaryIdsJson),
+                    )
+                }
+        } else {
+            emptyList()
+        }
         return AdvisorContextSnapshot(
             goals = goals,
             checkins = checkins,
             journals = journals,
             growthSignals = signals,
+            growthMemories = memories,
             history = emptyList(),
         )
     }

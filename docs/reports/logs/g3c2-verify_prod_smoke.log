@@ -1,0 +1,58 @@
+========== 0. 冷启动与版本 ==========
+PASS  冷启动成功  Starting: Intent { cmp=com.mengyalife.app/.MainActivity } Status: ok LaunchState: COLD Activity: com.mengyalife.app/.Mai
+PASS  进程存活
+PASS  版本名 = 0.10.0-g3c2
+PASS  包名正确
+========== 1. 旧日记仍在（逐字段） ==========
+PASS  MigrationA 在界面显示
+PASS  MigrationB 在界面显示
+PASS  列表计数 2 条
+PASS  无演示数据标签
+PASS  数据库日记 2 条  [(6, 'MigrationA', 'alpha v1 content', 1793636289310, 1793636289310), (7, 'MigrationB', 'beta v1 content', 1793636317600, 1793636317600)]
+PASS  日记标题未变  [(6, 'MigrationA', 'alpha v1 content', 1793636289310, 1793636289310), (7, 'MigrationB', 'beta v1 content', 1793636317600, 1793636317600)]
+PASS  日记正文未变  [(6, 'MigrationA', 'alpha v1 content', 1793636289310, 1793636289310), (7, 'MigrationB', 'beta v1 content', 1793636317600, 1793636317600)]
+PASS  日记时间戳未变  [(6, 'MigrationA', 'alpha v1 content', 1793636289310, 1793636289310), (7, 'MigrationB', 'beta v1 content', 1793636317600, 1793636317600)]
+PASS  目标仍为空（未被测试写入）  []
+PASS  进展仍为空  []
+========== 2. 总览 / 目标 / 趋势 / 顾问 ==========
+PASS  总览空状态
+PASS  总览演示区仍标注
+PASS  目标空状态
+PASS  没有预置示例目标
+PASS  真实趋势空状态
+PASS  演示区仍在
+PASS  演示区标注
+PASS  顾问页可进入
+========== 3. 设置页文案与版本 ==========
+PASS  设置页
+PASS  不含过期文案：重启后恢复「跟随系统」
+PASS  不含过期文案：本轮不引入 DataStore
+PASS  不含过期文案：设置仅在本次运行有效
+PASS  当前版本显示  0.10.0-g3c2
+PASS  AI 服务真实配置入口
+PASS  设置页数据区
+PASS  导出我的数据入口
+PASS  导入数据入口
+PASS  导入恢复尚未实现
+PASS  导出入口可见
+========== 4. 正式包导出（只读数据库） ==========
+PASS  导出提醒
+PASS  提醒含敏感信息
+PASS  条数正确（日记 2 / 目标 0 / 进展 0）
+PASS  SAF 保存按钮
+PASS  导出成功提示
+PASS  生成导出文件  /sdcard/Download/mengya-life-export-20261104-154342.json
+PASS  正式包导出可解析
+PASS  正式包导出 schemaVersion
+PASS  正式包导出日记 2 条  {'journalEntries': 2, 'goals': 0, 'goalCheckins': 0}
+PASS  正式包导出目标 0
+PASS  正式包导出进展 0
+PASS  正式包导出正文完整
+PASS  导出后日记逐字段未变
+PASS  导出后目标仍为空
+PASS  导出后进展仍为空
+========== 5. 稳定性 ==========
+PASS  本应用无崩溃记录
+PASS  进程仍存活
+
+==== SUMMARY: 50/50 passed ====

@@ -11,6 +11,7 @@ import com.mengyalife.app.domain.advisor.AiConsentState
 import com.mengyalife.app.domain.advisor.ConsentCategory
 import com.mengyalife.app.domain.advisor.ContextCheckinRecord
 import com.mengyalife.app.domain.advisor.ContextGoalRecord
+import com.mengyalife.app.domain.advisor.ContextGrowthMemory
 import com.mengyalife.app.domain.advisor.ContextGrowthSignal
 import com.mengyalife.app.domain.advisor.ContextJournalRecord
 import com.mengyalife.app.domain.goals.GoalDomain
@@ -165,6 +166,40 @@ class AdvisorContextAssemblerTest {
         val growth = result.sources.filter { it.type == AdvisorSourceType.GROWTH }
         assertEquals(listOf("user1"), growth.map { it.recordId })
         assertFalse(result.systemContext.orEmpty().contains("AI 推测：焦虑严重"))
+    }
+
+    @Test
+    fun `成长记忆有来源，且原日记已选中时不重复发送`() {
+        val withMemory = snapshot.copy(
+            growthMemories = listOf(
+                ContextGrowthMemory(
+                    id = "mem1", theme = "职业成长", content = "在汇报与项目推进上持续积累",
+                    isInference = false, corrected = false, insufficient = false,
+                    recentChange = "最近一次记录：完成汇报", sourceDiaryIds = listOf(20),
+                ),
+            ),
+        )
+        val journalSelected = assembler.assemble("睡眠", consent(), withMemory)
+        assertTrue(journalSelected.sources.none { it.type == AdvisorSourceType.MEMORY })
+
+        val memoryOnly = assembler.assemble("职业成长", consent(), withMemory)
+        assertTrue(memoryOnly.sources.any { it.type == AdvisorSourceType.MEMORY })
+        assertTrue(memoryOnly.systemContext.orEmpty().contains("在汇报与项目推进上持续积累"))
+    }
+
+    @Test
+    fun `关闭日记时不使用成长记忆`() {
+        val withMemory = snapshot.copy(
+            growthMemories = listOf(
+                ContextGrowthMemory("mem1", "职业成长", "持续积累", false, false, false, null, listOf(20)),
+            ),
+        )
+        val result = assembler.assemble(
+            "职业成长",
+            consent(categories = setOf(ConsentCategory.GOALS, ConsentCategory.CONVERSATION)),
+            withMemory,
+        )
+        assertTrue(result.sources.none { it.type == AdvisorSourceType.MEMORY })
     }
 
     @Test

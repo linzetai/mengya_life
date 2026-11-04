@@ -66,7 +66,7 @@ private class ControllableJournalDao : JournalEntryDao {
 
     override suspend fun markAnalyzing(id: Long, expectedUpdatedAt: Long, hash: String, now: Long): Int = 1
     override suspend fun markCompleted(id: Long, hash: String, now: Long): Int = 1
-    override suspend fun markFailed(id: Long, hash: String?, error: String, now: Long): Int = 1
+    override suspend fun markFailed(id: Long, hash: String, error: String, now: Long): Int = 1
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)

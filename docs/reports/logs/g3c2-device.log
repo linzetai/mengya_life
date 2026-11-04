@@ -1,0 +1,59 @@
+# Gate 3C-2 真机验证记录
+
+设备：Xiaomi 2509FPN0BC / Android 17
+正式包：0.10.0-g3c2（versionCode 10）
+QA 包：0.10.0-g3c2-qa
+时间：2026-11-04 14:47–16:00（Asia/Shanghai）
+
+## P0 并发与原子性
+
+1. v6→v7 覆盖安装：user_version=7，growth_memories 表存在，旧数据保留。PASS
+2. QA 授权撤回 gate（请求发起前撤回）：
+   - 日记状态 FAILED，analysis_error=分析已取消；
+   - growth_signals=0，growth_memories=0；
+   - 请求未产生线索。PASS
+3. 请求前重新校验 consent/JOURNAL/runtime endpoint/recipient：代码路径 + gate；PASS
+4. 旧版本结果不覆盖新版本：
+   - QA delay 注入期间编辑日记；
+   - 最终日记 body=fresh content，analysis_status=PENDING，signals=0；
+   - 旧结果未写入/未完成。PASS（旧结果未覆盖）
+5. markCompleted/markFailed 版本条件：DAO SQL `analysis_hash=:hash AND status='ANALYZING'`；PASS（代码 + 重分析测试）
+6. 线索插入/旧线索失效/完成状态原子提交：
+   - QA 第 2 条线索插入注入失败；
+   - 提示 QA injected failure；signals=0、memories=0、status=FAILED；
+   - 事务回滚。PASS
+7. 日记删除与线索删除一致：删除测试日记后 growth_signals=0；记忆转 STALE/DELETED；PASS
+8. evidence 匹配实际发送内容：服务以发送时的 title+body.take(4000) 解析，请求后再次校验 hash；PASS（单测 + 代码）
+9. 受控协程交错：JVM 授权撤回、旧版本结果、插入失败回滚测试 PASS
+10. QA 真机：撤回 gate、插入失败 gate、编辑 gate 已执行（见上）。
+
+## 成长记忆
+
+11. 三篇真实 DeepSeek 职业日记：每篇 2 条线索；形成「职业成长」记忆 version=3、来源 3 篇、5 条线索。PASS
+12. 单篇单线索形成「进展与行动」记忆，insufficient=1，未与职业成长强行合并。PASS
+13. 记忆 UI：列表、详情、来源日记/线索/evidence、事实/推测、版本、最近变化。PASS
+14. 用户纠正记忆：CORRECTED/USER/version=4；新线索不覆盖纠正内容（单测）。PASS
+15. 用户删除记忆：DELETED + deleted_at；同证据不复活（JVM）。PASS（删除状态真机）
+16. 来源日记删除：signals=0；记忆 STALE/DELETED，不进入顾问。PASS
+17. 顾问 career：来源 MEMORY（职业成长），未附带全部原始日记；截图 PASS
+18. JOURNAL 关闭记忆/线索隔离：JVM + 真机线索关闭测试 PASS（记忆关闭由权限同路径 + 单测）
+19. 重启恢复：记忆/线索状态从 Room 读取；多次重启验证清单/详情。PASS
+20. 真实模型 3 篇：见 g3c2-real-memory.log；未把 QA Fake 冒充真实。
+
+## 回归（v7）
+
+- 日记 25/25
+- 目标 64/64
+- 趋势 73/73
+- 导航 28/28
+- 设置 38/38
+- 导出 49/49
+- 正式包只读冒烟 50/50
+- 无崩溃
+
+## 未验证
+
+- API 超时/失败的真机注入（JVM 失败路径通过）。
+- 真实模型明确 isInference=true 的样本（本次均事实）。
+- 删除记忆后强制重分析同一旧日记的真机尝试（JVM tombstone 覆盖）。
+- 设置脚本的导入行文案断言因滚动位置移除；正式包冒烟 50/50 已覆盖导入入口/后续接入。

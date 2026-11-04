@@ -7,7 +7,11 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mengyalife.app.MengyaApplication
 import com.mengyalife.app.data.local.JournalEntryEntity
+import com.mengyalife.app.data.advisor.AdvisorConfigRepository
+import com.mengyalife.app.data.consent.AiConsentRepository
 import com.mengyalife.app.data.growth.DiaryExtractor
+import com.mengyalife.app.data.growth.GrowthMemoryService
+import kotlinx.coroutines.Job
 import com.mengyalife.app.data.growth.GrowthSignalRepository
 import com.mengyalife.app.data.repository.JournalRepository
 import com.mengyalife.app.domain.JournalRules
@@ -40,7 +44,12 @@ class JournalViewModel(
     private val repository: JournalRepository,
     private val growthSignals: GrowthSignalRepository,
     private val extractionService: DiaryExtractor,
+    private val consentRepository: AiConsentRepository? = null,
+    private val configRepository: AdvisorConfigRepository? = null,
+    private val memoryService: GrowthMemoryService? = null,
 ) : ViewModel() {
+
+    private var extractionJob: Job? = null
 
     private data class LocalState(
         val sheet: JournalSheet = JournalSheet.Closed,
@@ -57,6 +66,22 @@ class JournalViewModel(
 
     init {
         viewModelScope.launch { runCatching { repository.resetInterruptedAnalyses() } }
+        if (consentRepository != null && configRepository != null) {
+            viewModelScope.launch {
+                combine(consentRepository.state, configRepository.state) { _, _ -> Unit }
+                    .collect {
+                        // 授权/服务配置变化：取消进行中的提取，服务内部还会再校验一次
+                        if (extractionJob?.isActive == true) extractionJob?.cancel()
+                    }
+            }
+        }
+    }
+
+    private fun startExtraction(entryId: Long, force: Boolean) {
+        extractionJob?.cancel()
+        extractionJob = viewModelScope.launch {
+            runCatching { extractionService.extract(entryId, force) }
+        }
     }
 
     private val signalsFlow = localState
@@ -135,11 +160,7 @@ class JournalViewModel(
                 it.copy(pendingDelete = null, deleteError = null)
             }
 
-            is DiaryAction.RetryAnalysis -> {
-                viewModelScope.launch {
-                    runCatching { extractionService.extract(action.entryId, force = true) }
-                }
-            }
+            is DiaryAction.RetryAnalysis -> startExtraction(action.entryId, force = true)
 
             is DiaryAction.DeleteSignal -> {
                 viewModelScope.launch { growthSignals.delete(action.signalId) }
@@ -184,11 +205,7 @@ class JournalViewModel(
                         it.copy(sheet = JournalSheet.Closed, editor = JournalEditor())
                     }
                     // 保存成功后再尝试分析；失败不影响日记保存。
-                    savedId?.let { id ->
-                        viewModelScope.launch {
-                            runCatching { extractionService.extract(id) }
-                        }
-                    }
+                    savedId?.let { id -> startExtraction(id, force = false) }
                 }
                 .onFailure {
                     localState.update {
@@ -210,6 +227,7 @@ class JournalViewModel(
             val outcome = runCatching { repository.deleteEntry(target.id) }
             val deleted = outcome.getOrNull() == true
             if (deleted) {
+                memoryService?.let { runCatching { it.rebuildAll() } }
                 localState.update {
                     it.copy(
                         pendingDelete = null,
@@ -225,6 +243,11 @@ class JournalViewModel(
         }
     }
 
+    override fun onCleared() {
+        extractionJob?.cancel()
+        super.onCleared()
+    }
+
     companion object {
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
@@ -233,6 +256,9 @@ class JournalViewModel(
                     repository = app.container.journalRepository,
                     growthSignals = app.container.growthSignalRepository,
                     extractionService = app.container.diaryExtractionService,
+                    consentRepository = app.container.aiConsentRepository,
+                    configRepository = app.container.advisorConfigRepository,
+                    memoryService = app.container.growthMemoryService,
                 )
             }
         }

@@ -67,7 +67,7 @@ private class FakeJournalEntryDao(
         return 1
     }
 
-    override suspend fun markFailed(id: Long, hash: String?, error: String, now: Long): Int {
+    override suspend fun markFailed(id: Long, hash: String, error: String, now: Long): Int {
         val found = state.value.firstOrNull { it.id == id } ?: return 0
         state.update { list -> list.map { if (it.id == id) found.copy(analysisStatus = "FAILED", analysisHash = hash, analysisError = error) else it } }
         return 1

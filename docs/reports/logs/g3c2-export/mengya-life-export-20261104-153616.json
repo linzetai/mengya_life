@@ -1,0 +1,62 @@
+{
+  "format": "mengyalife-backup",
+  "schemaVersion": 1,
+  "exportedAt": 1793777776184,
+  "exportedAtIso": "2026-11-04T07:36:16.184Z",
+  "app": {
+    "name": "Mengya Life",
+    "package": "com.mengyalife.app",
+    "versionName": "0.10.0-g3c2",
+    "versionCode": 10
+  },
+  "database": {
+    "engine": "room",
+    "schemaVersion": 7
+  },
+  "counts": {
+    "journalEntries": 5,
+    "goals": 0,
+    "goalCheckins": 0
+  },
+  "data": {
+    "journalEntries": [
+      {
+        "id": 6,
+        "title": "MigrationA",
+        "body": "alpha v1 content",
+        "createdAt": 1793636289310,
+        "updatedAt": 1793636289310
+      },
+      {
+        "id": 7,
+        "title": "MigrationB",
+        "body": "beta v1 content",
+        "createdAt": 1793636317600,
+        "updatedAt": 1793636317600
+      },
+      {
+        "id": 14,
+        "title": "CareerA",
+        "body": "Today%I led a client project meeting and presented the plan. The client approved the first milestone.",
+        "createdAt": 1793775328129,
+        "updatedAt": 1793775328129
+      },
+      {
+        "id": 15,
+        "title": "CareerB",
+        "body": "This week I finshed the project report and the leadership team praised the result.",
+        "createdAt": 1793775354404,
+        "updatedAt": 1793775354404
+      },
+      {
+        "id": 16,
+        "title": "CareerC",
+        "body": "I got positive client feedback and started planning the next project phase.",
+        "createdAt": 1793775382794,
+        "updatedAt": 1793775382794
+      }
+    ],
+    "goals": [],
+    "goalCheckins": []
+  }
+}

@@ -11,10 +11,18 @@ package com.mengyalife.app.data.advisor
 object QaFaultInjector {
     @Volatile var failCreateAt: Int? = null
     @Volatile var failUndoAt: Int? = null
+    @Volatile var failSignalInsertAt: Int? = null
 
     fun reset() {
         failCreateAt = null
         failUndoAt = null
+        failSignalInsertAt = null
+    }
+
+    fun maybeFailSignalInsert(index: Int) {
+        if (failSignalInsertAt == index) {
+            throw IllegalStateException("QA injected failure at signal insert #$index")
+        }
     }
 
     fun maybeFailCreate(index: Int) {

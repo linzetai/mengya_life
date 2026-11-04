@@ -21,6 +21,8 @@ import com.mengyalife.app.data.consent.AiConsentRepository
 import com.mengyalife.app.data.consent.DataStoreAiConsentRepository
 import com.mengyalife.app.data.export.DataExportRepository
 import com.mengyalife.app.data.growth.DiaryExtractionService
+import com.mengyalife.app.data.growth.GrowthMemoryRepository
+import com.mengyalife.app.data.growth.GrowthMemoryService
 import com.mengyalife.app.data.growth.GrowthSignalRepository
 import com.mengyalife.app.data.local.DB_SCHEMA_VERSION
 import com.mengyalife.app.data.local.MengyaDatabase
@@ -43,11 +45,32 @@ class AppContainer(context: Context) {
         JournalRepository(
             dao = database.journalEntryDao(),
             growthSignalDao = database.growthSignalDao(),
+            transaction = { block -> database.withTransaction { block() } },
+        )
+    }
+
+    val growthMemoryService: GrowthMemoryService by lazy {
+        GrowthMemoryService(
+            journalDao = database.journalEntryDao(),
+            signalDao = database.growthSignalDao(),
+            memoryDao = database.growthMemoryDao(),
+            transaction = { block -> database.withTransaction { block() } },
         )
     }
 
     val growthSignalRepository: GrowthSignalRepository by lazy {
-        GrowthSignalRepository(database.growthSignalDao())
+        GrowthSignalRepository(
+            dao = database.growthSignalDao(),
+            onChanged = { growthMemoryService.rebuildAll() },
+        )
+    }
+
+    val growthMemoryRepository: GrowthMemoryRepository by lazy {
+        GrowthMemoryRepository(
+            memoryDao = database.growthMemoryDao(),
+            signalDao = database.growthSignalDao(),
+            journalDao = database.journalEntryDao(),
+        )
     }
 
     val diaryExtractionService: DiaryExtractionService by lazy {
@@ -58,6 +81,8 @@ class AppContainer(context: Context) {
             consentRepository = aiConsentRepository,
             networkEngine = networkAdvisorEngine,
             fakeEngine = fakeAdvisorEngine,
+            transaction = { block -> database.withTransaction { block() } },
+            onSignalsChanged = { growthMemoryService.rebuildAll() },
         )
     }
 
@@ -93,6 +118,7 @@ class AppContainer(context: Context) {
             goalDao = database.goalDao(),
             journalDao = database.journalEntryDao(),
             growthSignalDao = database.growthSignalDao(),
+            growthMemoryDao = database.growthMemoryDao(),
         )
     }
 

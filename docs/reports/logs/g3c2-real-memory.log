@@ -1,0 +1,61 @@
+# Gate 3C-2 真实模型成长记忆验证
+
+模型：deepseek-flash / https://api.deepseek.com（用户自己的 Key）
+时间：2026-11-04 14:55–15:00
+未向脚本提供 Key；证据不含 Key/密文/请求头。
+
+## 1. 三篇有时间先后的职业日记
+
+- CareerA：Today I led a client project meeting and presented the plan. The client approved the first milestone.
+- CareerB：This week I finished the project report and the leadership team praised the result.
+- CareerC：I got positive client feedback and started planning the next project phase.
+
+真实提取结果：每篇 2 条 ACTIVE 线索，共 6 条（其中 1 条进入另一个主题）。
+
+## 2. 记忆形成与更新
+
+DB 快照（三篇完成后）：
+
+- 主题「职业成长」
+  - status=ACTIVE
+  - version=**3**
+  - source_diary_ids=[14,15,16]
+  - signal_ids 5 条
+  - insufficient=0
+  - 内容包含三篇的职业事件/进展
+- 另一主题「进展与行动」version=1、insufficient=1（单篇单线索），未与职业成长强行合并
+
+说明：每新增一篇相关日记，记忆从 version 1→2→3 更新，而非新建重复记忆。
+截图：g3c2-memory-list.png、g3c2-memory-detail.png（来源 3 篇日记/5 条线索/版本 3）。
+
+## 3. 用户纠正
+
+- 在记忆详情纠正内容；
+- DB：status=CORRECTED、user_corrected=1、is_inference=0、version=4；
+- 截图：g3c2-memory-corrected.png。
+
+## 4. 用户删除
+
+- 删除「职业成长」记忆；
+- DB：status=DELETED、deleted_at 写入；列表隐藏/标记；
+- 截图：g3c2-memory-deleted.png。
+- 同证据重建不会复活旧记忆（JVM `GrowthMemoryTest`；真机未强制重分析旧日记）。
+
+## 5. 顾问使用记忆
+
+问题：career
+- 助手来源：`MEMORY id=d151… label=职业成长（记忆）`
+- 未同时附带全部原始日记（来源仅 MEMORY）
+- 截图：g3c2-advisor-memory.png。
+
+## 6. 来源删除
+
+- 三篇测试日记在证据采集后删除；
+- growth_signals=0；
+- 相关记忆转为 STALE/DELETED，不进入顾问；
+- 正式包当前只剩 MigrationA/B 两篇旧日记。
+
+## 7. 未验证
+
+- 真实模型明确输出 isInference=true 的记忆（本次提取均为事实）；
+- 删除记忆后强制重分析同一旧日记的真机复活尝试（JVM tombstone 测试覆盖）。

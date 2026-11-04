@@ -3,6 +3,8 @@ package com.mengyalife.app.advisor
 import com.mengyalife.app.data.FakeGrowthSignalDao
 import com.mengyalife.app.data.growth.DiaryExtractionOutcome
 import com.mengyalife.app.data.growth.DiaryExtractionService
+import com.mengyalife.app.data.advisor.QaFaultInjector
+import com.mengyalife.app.data.growth.QaExtractionGate
 import com.mengyalife.app.data.local.JournalEntryDao
 import com.mengyalife.app.data.local.JournalEntryEntity
 import com.mengyalife.app.data.repository.JournalRepository
@@ -52,7 +54,7 @@ private class TestJournalDao : JournalEntryDao {
         state.value = state.value.map { if (it.id == id) found.copy(analysisStatus = "COMPLETED", analysisHash = hash, analyzedAt = now, analysisError = null) else it }
         return 1
     }
-    override suspend fun markFailed(id: Long, hash: String?, error: String, now: Long): Int {
+    override suspend fun markFailed(id: Long, hash: String, error: String, now: Long): Int {
         val found = state.value.firstOrNull { it.id == id } ?: return 0
         state.value = state.value.map { if (it.id == id) found.copy(analysisStatus = "FAILED", analysisHash = hash, analysisError = error) else it }
         return 1
@@ -191,6 +193,91 @@ class DiaryExtractionTest {
         val retry = e.service.extract(id, force = true)
         assertTrue(retry is DiaryExtractionOutcome.Success)
         assertEquals(1, e.signalDao.rows.value.count { it.status == "ACTIVE" })
+    }
+
+    @Test
+    fun `授权在请求发起前撤回不会调用引擎`() = runTest {
+        QaExtractionGate.reset()
+        QaExtractionGate.withdrawBeforeRequest = true
+        try {
+            val e = env()
+            val id = e.newDiary("今天完成了一次重要汇报")
+            val result = e.service.extract(id)
+            assertTrue(result is DiaryExtractionOutcome.Failed)
+            assertEquals(0, e.engine.calls.size)
+            assertTrue(e.signalDao.rows.value.isEmpty())
+            assertEquals("FAILED", e.dao.state.value.first().analysisStatus)
+        } finally {
+            QaExtractionGate.reset()
+        }
+    }
+
+    @Test
+    fun `旧版本结果不覆盖新版本状态与线索`() = runTest {
+        val e = env()
+        val id = e.newDiary("今天完成了一次重要汇报")
+        val engine = object : com.mengyalife.app.data.advisor.AdvisorEngine {
+            override suspend fun chat(
+                config: com.mengyalife.app.domain.advisor.AdvisorRuntimeConfig,
+                messages: List<com.mengyalife.app.domain.advisor.AdvisorChatMessage>,
+                maxTokens: Int,
+            ): AdvisorChatResult {
+                e.journal.updateEntry(id, "今天已经改成新的内容", "标题")
+                return AdvisorChatResult.Success(json("今天完成了一次重要汇报"))
+            }
+            override suspend fun testConnection(config: com.mengyalife.app.domain.advisor.AdvisorRuntimeConfig) =
+                com.mengyalife.app.domain.advisor.AdvisorTestResult(true, "ok")
+        }
+        val service = DiaryExtractionService(
+            journalRepository = e.journal,
+            growthSignalDao = e.signalDao,
+            configRepository = e.config,
+            consentRepository = e.consent,
+            networkEngine = engine,
+            fakeEngine = null,
+            now = { 1_000L },
+            minIntervalMs = 0,
+        )
+        val result = service.extract(id)
+        assertTrue(result is DiaryExtractionOutcome.Failed || result is DiaryExtractionOutcome.Superseded)
+        assertTrue(e.signalDao.rows.value.isEmpty())
+        assertEquals("PENDING", e.dao.state.value.first().analysisStatus)
+        assertEquals("今天已经改成新的内容", e.dao.state.value.first().body)
+    }
+
+    @Test
+    fun `线索插入中途失败回滚且不完成`() = runTest {
+        val e = env()
+        val id = e.newDiary("今天完成了一次重要汇报，感到紧张")
+        e.engine.enqueue(AdvisorChatResult.Success(json("今天完成了一次重要汇报", "感到紧张")))
+        QaFaultInjector.failSignalInsertAt = 2
+        val transactional = DiaryExtractionService(
+            journalRepository = e.journal,
+            growthSignalDao = e.signalDao,
+            configRepository = e.config,
+            consentRepository = e.consent,
+            networkEngine = e.engine,
+            fakeEngine = null,
+            now = { 1_000L },
+            minIntervalMs = 0,
+            transaction = { block ->
+                val before = e.signalDao.rows.value
+                try {
+                    block()
+                } catch (error: Throwable) {
+                    e.signalDao.rows.value = before
+                    throw error
+                }
+            },
+        )
+        try {
+            val result = transactional.extract(id)
+            assertTrue(result is DiaryExtractionOutcome.Failed)
+            assertTrue(e.signalDao.rows.value.isEmpty())
+            assertEquals("FAILED", e.dao.state.value.first().analysisStatus)
+        } finally {
+            QaFaultInjector.reset()
+        }
     }
 
     @Test

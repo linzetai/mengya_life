@@ -1,0 +1,21 @@
+# Gate 3C-2 真机迁移 v6 → v7
+
+设备: Xiaomi 2509FPN0BC / Android 17
+正式包: com.mengyalife.app 0.10.0-g3c2（versionCode 10）
+时间: 2026-11-04 14:47–14:48（Asia/Shanghai）
+
+升级前（v6 备份）:
+- user_version=6
+- 表: journal_entries/goals/goal_checkins/advisor_messages/goal_proposals/growth_signals
+- 日记 2 篇（MigrationA/B）
+- 顾问消息 23 条
+- 成长线索 0（v0.9 测试数据已清理）
+
+升级后（v7）:
+- user_version=7
+- 新增 growth_memories 表与索引
+- 旧日记/目标/打卡/消息/草案/线索全部保留
+- 真实模型 3 篇测试日记随后创建/分析/删除；当前正式包仍为 MigrationA/B 两篇
+- 测试产生的记忆为 STALE/DELETED，不参与顾问
+
+结论：非破坏性迁移；业务表结构未改变。

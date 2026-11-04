@@ -11,7 +11,7 @@ from harness import *
 
 require_prod("verify_prod_smoke.py")
 
-VERSION = "0.9.0-g3c1"
+VERSION = "0.10.0-g3c2"
 EXPORT_DIR = os.environ.get("EXPORT_OUT", os.path.join(OUT, "export-prod"))
 os.makedirs(EXPORT_DIR, exist_ok=True)
 
@@ -118,7 +118,7 @@ time.sleep(1.2)
 check("设置页数据区", scroll_to_tag("settings_export_data", 14))
 check("导出我的数据入口", has_text("导出我的数据"))
 check("导入数据入口", scroll_to_tag("settings_import_data", 4))
-check("导入恢复尚未实现", has_text("导入恢复尚未实现"))
+check("导入恢复尚未实现", has_tag("settings_import_data") and has_text("后续接入"))
 shot("04-prod-settings")
 
 # 重新进入设置（滚动位置复位），再进入导出流程

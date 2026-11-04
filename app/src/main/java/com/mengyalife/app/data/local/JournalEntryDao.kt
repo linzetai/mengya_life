@@ -77,7 +77,7 @@ interface JournalEntryDao {
         SET analysis_status = 'COMPLETED', analysis_hash = :hash,
             analysis_error = NULL, analyzed_at = :now,
             analysis_last_attempt_at = :now
-        WHERE id = :id
+        WHERE id = :id AND analysis_hash = :hash AND analysis_status = 'ANALYZING'
         """
     )
     suspend fun markCompleted(id: Long, hash: String, now: Long): Int
@@ -87,8 +87,8 @@ interface JournalEntryDao {
         UPDATE journal_entries
         SET analysis_status = 'FAILED', analysis_error = :error,
             analysis_hash = :hash, analysis_last_attempt_at = :now
-        WHERE id = :id
+        WHERE id = :id AND analysis_hash = :hash AND analysis_status = 'ANALYZING'
         """
     )
-    suspend fun markFailed(id: Long, hash: String?, error: String, now: Long): Int
+    suspend fun markFailed(id: Long, hash: String, error: String, now: Long): Int
 }

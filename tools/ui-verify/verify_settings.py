@@ -37,6 +37,10 @@ def collect_all_texts(max_swipes=20):
 
 restart_app()
 check("被测应用已在前台", ensure_foreground())
+# 明确从总览进入设置，避免上一轮测试停留在其它一级页/滚动位置
+if has_tag("tab_overview"):
+    tap_tag("tab_overview")
+    time.sleep(1.0)
 check("首页已渲染", wait_tag("btn_settings", 12))
 tap_tag("btn_settings")
 check("设置页已打开", wait_tag("settings_back", 8))
@@ -77,7 +81,7 @@ tap_tag("btn_settings")
 time.sleep(1.0)
 check("滚动到数据区", scroll_to_tag("settings_export_data", 12))
 check("QA 构建横幅", "QA 测试构建" in " ".join(seen) and "mengya-life-qa.db" in " ".join(seen))
-check("版本号来自安装包", "0.9.0-g3c1-qa" in " ".join(seen), "应为 0.9.0-g3c1-qa")
+check("版本号来自安装包", "0.10.0-g3c2-qa" in " ".join(seen), "应为 0.10.0-g3c2-qa")
 check("BYOK 状态胶囊准确", "自带密钥" in " ".join(seen))
 
 print("========== 3. 截图：数据区 ==========")
@@ -87,7 +91,6 @@ tap_tag("btn_settings")
 time.sleep(1.0)
 check("数据区可见", scroll_to_tag("settings_export_data", 10))
 check("导出入口可点击", has_tag("settings_export_data"))
-check("导入入口标注后续", has_tag("settings_import_data") and has_text("后续接入"))
 shot("01-settings-data-export")
 
 print("========== 4. 截图：主题说明 ==========")
@@ -101,7 +104,7 @@ shot("02-settings-theme-note")
 print("========== 5. 截图：关于 ==========")
 adb("shell input swipe 600 1900 600 700 260")
 time.sleep(1.0)
-check("关于区显示版本", has_text("0.9.0-g3c1-qa"))
+check("关于区显示版本", has_text("0.10.0-g3c2-qa"))
 check("数据存储说明", has_text("本机（无云端同步）"))
 shot("03-settings-about")
 

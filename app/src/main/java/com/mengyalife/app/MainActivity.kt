@@ -22,6 +22,18 @@ class MainActivity : ComponentActivity() {
                 com.mengyalife.app.data.advisor.QaFaultInjector.failUndoAt =
                     intent.getIntExtra("qa_fail_undo_at", -1).takeIf { it > 0 }
             }
+            if (intent?.hasExtra("qa_fail_signal_insert_at") == true) {
+                com.mengyalife.app.data.advisor.QaFaultInjector.failSignalInsertAt =
+                    intent.getIntExtra("qa_fail_signal_insert_at", -1).takeIf { it > 0 }
+            }
+            com.mengyalife.app.data.growth.QaExtractionGate.reset()
+            if (intent?.hasExtra("qa_extract_withdraw_before_request") == true) {
+                com.mengyalife.app.data.growth.QaExtractionGate.withdrawBeforeRequest = true
+            }
+            if (intent?.hasExtra("qa_extract_delay_ms") == true) {
+                com.mengyalife.app.data.growth.QaExtractionGate.delayBeforeRequestMs =
+                    intent.getIntExtra("qa_extract_delay_ms", 0).toLong().coerceAtLeast(0)
+            }
         }
         enableEdgeToEdge()
         setContent {

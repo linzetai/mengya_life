@@ -11,6 +11,7 @@ enum class AdvisorSourceType(val label: String) {
     PROGRESS("进展"),
     JOURNAL("日记"),
     GROWTH("成长线索"),
+    MEMORY("成长记忆"),
 }
 
 data class AdvisorSource(
@@ -46,6 +47,17 @@ data class ContextJournalRecord(
     val updatedAt: Long,
 )
 
+data class ContextGrowthMemory(
+    val id: String,
+    val theme: String,
+    val content: String,
+    val isInference: Boolean,
+    val corrected: Boolean,
+    val insufficient: Boolean,
+    val recentChange: String?,
+    val sourceDiaryIds: List<Long>,
+)
+
 data class ContextGrowthSignal(
     val id: String,
     val diaryId: Long,
@@ -62,6 +74,7 @@ data class AdvisorContextSnapshot(
     val checkins: List<ContextCheckinRecord> = emptyList(),
     val journals: List<ContextJournalRecord> = emptyList(),
     val growthSignals: List<ContextGrowthSignal> = emptyList(),
+    val growthMemories: List<ContextGrowthMemory> = emptyList(),
     val history: List<AdvisorMessage> = emptyList(),
 )
 
@@ -70,6 +83,7 @@ data class AdvisorContextStats(
     val progress: Int = 0,
     val journals: Int = 0,
     val growthSignals: Int = 0,
+    val memories: Int = 0,
     val historyMessages: Int = 0,
     val chars: Int = 0,
     val droppedByBudget: Int = 0,
@@ -231,6 +245,43 @@ class AdvisorContextAssembler(
             }
         }
 
+        var memoriesUsed = 0
+        val memoryDiaryIds = mutableSetOf<Long>()
+        if (consent.enabled(ConsentCategory.JOURNAL) && snapshot.growthMemories.isNotEmpty()) {
+            val selectedJournalIds = sources
+                .filter { it.type == AdvisorSourceType.JOURNAL }
+                .mapNotNull { it.recordId.toLongOrNull() }
+                .toSet()
+            val candidates = snapshot.growthMemories
+                .filter { memory -> memory.sourceDiaryIds.none { it in selectedJournalIds } }
+                .map { memory -> memory to scoreMemory(memory, tokens) }
+                .filter { (_, score) -> score >= 1 || journalIntent || planningIntent }
+                .take(2)
+            candidates.forEach { (memory, _) ->
+                memoryDiaryIds.addAll(memory.sourceDiaryIds)
+                val kind = when {
+                    memory.corrected -> "用户纠正"
+                    memory.isInference -> "含推测"
+                    else -> "事实"
+                }
+                val source = AdvisorSource(
+                    AdvisorSourceType.MEMORY,
+                    memory.id,
+                    "${memory.theme}（记忆）",
+                )
+                entries.add(
+                    AdvisorContextEntry(
+                        "- [成长记忆#${memory.id}] ${memory.theme} · $kind：${memory.content}" +
+                            (memory.recentChange?.let { "（$it）" } ?: "") +
+                            (if (memory.insufficient) "（信息不足，请表达不确定性）" else ""),
+                        source,
+                    ),
+                )
+                sources.add(source)
+                memoriesUsed++
+            }
+        }
+
         var signalsUsed = 0
         if (consent.enabled(ConsentCategory.JOURNAL) && snapshot.growthSignals.isNotEmpty()) {
             val selectedJournalIds = sources
@@ -242,7 +293,7 @@ class AdvisorContextAssembler(
                 .map { it.diaryId }
                 .toSet()
             val candidates = snapshot.growthSignals
-                .filter { it.diaryId !in selectedJournalIds }
+                .filter { it.diaryId !in selectedJournalIds && it.diaryId !in memoryDiaryIds }
                 // 用户纠正过的日记：只使用纠正结果，不再重复发送旧 AI 推测
                 .filter { it.diaryId !in correctedDiaries || it.corrected }
                 .map { signal -> signal to scoreSignal(signal, tokens) }
@@ -284,6 +335,7 @@ class AdvisorContextAssembler(
                 progress = progressUsed,
                 journals = journalsUsed,
                 growthSignals = signalsUsed,
+                memories = memoriesUsed,
                 historyMessages = history.size,
                 chars = finalEntries.sumOf { it.text.length },
                 droppedByBudget = 0,
@@ -317,6 +369,11 @@ class AdvisorContextAssembler(
     private fun scoreGoal(goal: ContextGoalRecord, tokens: Set<String>): Int {
         val text = (goal.title + " " + goal.description.orEmpty()).lowercase()
         return tokens.count { it.isNotBlank() && text.contains(it) }
+    }
+
+    private fun scoreMemory(memory: ContextGrowthMemory, tokens: Set<String>): Int {
+        val text = (memory.theme + " " + memory.content).lowercase()
+        return tokens.count { it.length >= 2 && text.contains(it) }
     }
 
     private fun scoreSignal(signal: ContextGrowthSignal, tokens: Set<String>): Int {

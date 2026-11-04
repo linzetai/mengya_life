@@ -1,7 +1,7 @@
 # 萌芽人生 · Mengya Life
 
 > Android 应用。**工程名 MengyaLife**，包名 `com.mengyalife.app`。
-> 当前版本 **0.9.0-g3c1**（Gate 3C-1：遗留安全修复 + 日记 AI 提取 + 成长线索）。
+> 当前版本 **0.10.0-g3c2**（Gate 3C-2：提取并发安全 + 跨日记成长记忆）。
 >
 > 技术栈：Kotlin + Jetpack Compose + Material 3 + **Room** + **DataStore** + **Android Keystore**。
 > 无自有后端；用户自带 API Key（BYOK），请求直达用户配置的模型服务。
@@ -17,29 +17,31 @@
 | 设置页 AI 服务：HTTPS 地址、模型、API Key、测试连接、修改、删除 | ✅ **Gate 3A** |
 | API Key 加密存储（Android Keystore AES/GCM） | ✅ 明文不落 Room/日志/导出 |
 | 真实顾问对话：输入、发送、等待、失败、重试、取消、重启恢复 | ✅ **Gate 3A** |
-| 单会话持久化（Room `advisor_messages`，数据库 v6） | ✅ |
+| 单会话持久化（Room `advisor_messages`，数据库 v7） | ✅ |
 | 首次一次性授权、四类数据开关、撤回、G3A 升级不自动同意 | ✅ **Gate 3B-1** |
 | 自动上下文：目标/进展/日记/历史按需检索 + 来源展示 | ✅ 规则式，预算 3500 字 |
 | 历史 epoch 隔离、换接收方重授权 | ✅ |
 | AI 目标草案：JSON 协议、校验、持久化、分层 UI | ✅ |
 | 草案审核：编辑/部分选择/父子依赖/已有目标标注 | ✅ **Gate 3B-2** |
 | 日记 AI 提取 + 成长线索 + 用户纠正/删除 | ✅ **Gate 3C-1** |
+| 跨日记成长记忆 + 生命周期 + 顾问 MEMORY | ✅ **Gate 3C-2** |
 | 线索顾问上下文、原日记去重、JOURNAL 隔离 | ✅ 真机验证 |
 | 用户确认后事务创建 + 撤销 + DRAFT/APPLIED/UNDONE | ✅ 唯一 ApplyService |
 | endpoint 竞态、请求预算、草案重试安全修复 | ✅ |
 | QA 隔离包 + 离线测试引擎 | ✅ 仅 QA；正式包不创建假引擎 |
 | 导入恢复 | ⏳ 未实现，界面如实提示 |
-| JVM 单元测试 | ✅ **180/180** |
-| 真机验收 | ✅ Gate 3C-1 功能/回归/真实模型；未验证项见报告 |
+| JVM 单元测试 | ✅ **191/191** |
+| 真机验收 | ✅ Gate 3C-2 并发/记忆/回归/真实模型；未验证项见报告 |
 | Gate 3A 报告 | `docs/reports/REPORT-G3A-ADVISOR.md` |
 | Gate 3B-1 报告 | `docs/reports/REPORT-G3B1.md` |
 | Gate 3B-2 报告 | `docs/reports/REPORT-G3B2.md` |
 | Gate 3C-1 报告 | `docs/reports/REPORT-G3C1.md` |
+| Gate 3C-2 报告 | `docs/reports/REPORT-G3C2.md` |
 | 请求格式 / 安全隐私 | `docs/AI-REQUEST-FORMAT.md`、`docs/SECURITY-PRIVACY-G3A.md` |
 
-**Gate 3C-1 结论：PASS（核心）**。成长线索、日记提取、纠正/删除、顾问上下文、
-P0 编码/故障注入均已真机验证；两份真实日记提取通过。
-处理中撤回/超时真机注入、真实推测样本未验证，详见 `REPORT-G3C1.md`。
+**Gate 3C-2 结论：PASS（核心）**。提取并发 gate/事务/版本条件、跨日记成长记忆、
+纠正/删除/来源失效、顾问 MEMORY 与三篇真实日记记忆均已验证。
+API 超时真机注入、真实推测样本、墓碑重分析真机尝试未验证，详见 `REPORT-G3C2.md`。
 
 **Gate 3B-2 结论：PASS（核心）**（历史）。安全竞态、审核、事务创建与撤销通过；
 批量失败回滚、进展阻止撤销、v5 五页全量回归未验证。

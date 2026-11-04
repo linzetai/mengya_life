@@ -13,6 +13,8 @@ import com.mengyalife.app.data.local.advisor.AdvisorMessageEntity
 import com.mengyalife.app.data.local.goal.GoalCheckinEntity
 import com.mengyalife.app.data.local.goal.GoalDao
 import com.mengyalife.app.data.local.goal.GoalEntity
+import com.mengyalife.app.data.local.growth.GrowthMemoryDao
+import com.mengyalife.app.data.local.growth.GrowthMemoryEntity
 import com.mengyalife.app.data.local.growth.GrowthSignalDao
 import com.mengyalife.app.data.local.growth.GrowthSignalEntity
 import com.mengyalife.app.data.local.proposal.GoalProposalDao
@@ -31,6 +33,7 @@ import com.mengyalife.app.data.local.proposal.GoalProposalEntity
  *   goal_proposals 增加应用/撤销/选择字段
  * - **v6**（Gate 3C-1）：journal_entries 增加分析状态列；
  *   新增 `growth_signals`（日记成长线索）
+ * - **v7**（Gate 3C-2）：新增 `growth_memories`（跨日记成长记忆）
  *
  * 迁移策略：
  * 1. 每次改表都必须 version + 1 并提供 `Migration`；
@@ -39,7 +42,7 @@ import com.mengyalife.app.data.local.proposal.GoalProposalEntity
  * 4. 迁移必须在真机升级安装上验证（本轮已做 v1→v2 实测，见报告）。
  */
 /** 数据库结构版本。导出文件里的 `databaseVersion` 与它保持一致。 */
-const val DB_SCHEMA_VERSION = 6
+const val DB_SCHEMA_VERSION = 7
 
 @Database(
     entities = [
@@ -49,6 +52,7 @@ const val DB_SCHEMA_VERSION = 6
         AdvisorMessageEntity::class,
         GoalProposalEntity::class,
         GrowthSignalEntity::class,
+        GrowthMemoryEntity::class,
     ],
     version = DB_SCHEMA_VERSION,
     exportSchema = true,
@@ -65,6 +69,8 @@ abstract class MengyaDatabase : RoomDatabase() {
     abstract fun goalProposalDao(): GoalProposalDao
 
     abstract fun growthSignalDao(): GrowthSignalDao
+
+    abstract fun growthMemoryDao(): GrowthMemoryDao
 
     companion object {
         // 正式版与 QA 测试构建使用不同的物理库文件（见 app/build.gradle 的 buildConfigField）。
@@ -238,6 +244,43 @@ abstract class MengyaDatabase : RoomDatabase() {
             }
         }
 
+
+        /**
+         * v6 → v7：成长记忆表；不改动日记/线索/业务表。
+         */
+        val MIGRATION_6_7: Migration = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `growth_memories` (
+                        `id` TEXT PRIMARY KEY NOT NULL,
+                        `theme` TEXT NOT NULL,
+                        `content` TEXT NOT NULL,
+                        `is_inference` INTEGER NOT NULL,
+                        `status` TEXT NOT NULL,
+                        `created_at` INTEGER NOT NULL,
+                        `updated_at` INTEGER NOT NULL,
+                        `signal_ids_json` TEXT NOT NULL,
+                        `source_diary_ids_json` TEXT NOT NULL,
+                        `user_corrected` INTEGER NOT NULL,
+                        `version` INTEGER NOT NULL,
+                        `confidence` REAL,
+                        `insufficient` INTEGER NOT NULL,
+                        `recent_change` TEXT,
+                        `fingerprint` TEXT NOT NULL,
+                        `deleted_at` INTEGER
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_growth_memories_theme` ON `growth_memories` (`theme`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_growth_memories_status` ON `growth_memories` (`status`)")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_growth_memories_theme_fingerprint` " +
+                        "ON `growth_memories` (`theme`, `fingerprint`)",
+                )
+            }
+        }
+
         @Volatile
         private var instance: MengyaDatabase? = null
 
@@ -251,7 +294,7 @@ abstract class MengyaDatabase : RoomDatabase() {
                     MengyaDatabase::class.java,
                     DATABASE_NAME,
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .build()
                     .also { instance = it }
             }

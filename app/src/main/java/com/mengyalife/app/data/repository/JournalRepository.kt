@@ -20,6 +20,7 @@ class JournalRepository(
     private val dao: JournalEntryDao,
     private val now: () -> Long = System::currentTimeMillis,
     private val growthSignalDao: GrowthSignalDao? = null,
+    private val transaction: suspend (suspend () -> Unit) -> Unit = { it() },
 ) {
 
     fun observeEntries(): Flow<List<JournalEntryEntity>> = dao.observeAll()
@@ -73,17 +74,23 @@ class JournalRepository(
             // 同内容版本：保留分析状态/哈希/线索，避免重复请求与重复提取
             existing.copy(title = newTitle, body = body, updatedAt = timestamp)
         }
-        val changed = dao.update(updated) > 0
-        if (changed && contentChanged) {
-            growthSignalDao?.markStaleForDiary(id, timestamp)
+        var changed = false
+        transaction {
+            changed = dao.update(updated) > 0
+            if (changed && contentChanged) {
+                growthSignalDao?.markStaleForDiary(id, timestamp)
+            }
         }
         return changed
     }
 
     /** 删除日记时同步移除其线索，避免删除后仍参与未来上下文。 */
     suspend fun deleteEntry(id: Long): Boolean {
-        val deleted = dao.deleteById(id) > 0
-        if (deleted) growthSignalDao?.deleteForDiary(id)
+        var deleted = false
+        transaction {
+            deleted = dao.deleteById(id) > 0
+            if (deleted) growthSignalDao?.deleteForDiary(id)
+        }
         return deleted
     }
 
@@ -98,7 +105,7 @@ class JournalRepository(
     suspend fun markAnalysisCompleted(id: Long, hash: String): Boolean =
         dao.markCompleted(id, hash, now()) > 0
 
-    suspend fun markAnalysisFailed(id: Long, hash: String?, error: String): Boolean =
+    suspend fun markAnalysisFailed(id: Long, hash: String, error: String): Boolean =
         dao.markFailed(id, hash, error.take(300), now()) > 0
 
     private fun normalizeTitle(rawTitle: String?): String? =

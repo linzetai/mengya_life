@@ -2,6 +2,7 @@ package com.mengyalife.app.data.growth
 
 import com.mengyalife.app.data.advisor.AdvisorConfigRepository
 import com.mengyalife.app.data.advisor.AdvisorEngine
+import com.mengyalife.app.data.advisor.QaFaultInjector
 import com.mengyalife.app.data.consent.AiConsentRepository
 import com.mengyalife.app.data.local.growth.GrowthSignalDao
 import com.mengyalife.app.data.local.growth.GrowthSignalEntity
@@ -15,6 +16,9 @@ import com.mengyalife.app.domain.growth.DiaryAnalysisStatus
 import com.mengyalife.app.domain.growth.DiaryExtractionParseResult
 import com.mengyalife.app.domain.growth.DiaryExtractionProtocol
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -32,6 +36,8 @@ sealed interface DiaryExtractionOutcome {
     data object TooSoon : DiaryExtractionOutcome
     data class Skipped(val reason: String) : DiaryExtractionOutcome
     data class Failed(val message: String) : DiaryExtractionOutcome
+    /** 请求期间日记已产生新版本；旧结果已丢弃，未覆盖新状态。 */
+    data object Superseded : DiaryExtractionOutcome
 }
 
 /**
@@ -53,6 +59,8 @@ class DiaryExtractionService(
     private val now: () -> Long = System::currentTimeMillis,
     private val newId: () -> String = { UUID.randomUUID().toString() },
     private val minIntervalMs: Long = 30_000,
+    private val transaction: suspend (suspend () -> Unit) -> Unit = { it() },
+    private val onSignalsChanged: suspend () -> Unit = {},
 ) : DiaryExtractor {
     private val mutex = Mutex()
 
@@ -92,6 +100,19 @@ class DiaryExtractionService(
                     return@withLock DiaryExtractionOutcome.Failed("模型服务配置已变化，请重试")
                 }
                 val engine = if (config.useFakeEngine && fakeEngine != null) fakeEngine else networkEngine
+                // QA 时序注入：模拟「授权在请求发起前撤回」或放大编辑窗口
+                if (QaExtractionGate.withdrawBeforeRequest) {
+                    consentRepository.withdraw()
+                }
+                if (QaExtractionGate.delayBeforeRequestMs > 0) {
+                    delay(QaExtractionGate.delayBeforeRequestMs)
+                }
+                currentCoroutineContext().ensureActive()
+                val gateProblem = readiness()
+                if (gateProblem != null) {
+                    journalRepository.markAnalysisFailed(diaryId, hash, gateProblem)
+                    return@withLock DiaryExtractionOutcome.Failed(gateProblem)
+                }
                 val prompt = DiaryExtractionProtocol.prompt(journal.title, journal.body)
                 val result = engine.chat(
                     config = runtime,
@@ -126,41 +147,59 @@ class DiaryExtractionService(
                     }
                     is AdvisorChatResult.Success -> {
                         when (val parsed = DiaryExtractionProtocol.parse(
-                            result.content, journal.title, journal.body,
+                            result.content, journal.title, journal.body.take(DiaryExtractionProtocol.MAX_DIARY_CHARS),
                         )) {
                             is DiaryExtractionParseResult.Failure -> {
                                 journalRepository.markAnalysisFailed(diaryId, hash, parsed.message)
                                 return@withLock DiaryExtractionOutcome.Failed(parsed.message)
                             }
                             is DiaryExtractionParseResult.Success -> {
-                                growthSignalDao.markStaleOtherVersions(diaryId, hash, now())
                                 var inserted = 0
-                                parsed.signals.forEach { signal ->
-                                    val entity = GrowthSignalEntity(
-                                        id = newId(),
-                                        sourceType = "DIARY",
-                                        sourceId = diaryId,
-                                        sourceVersion = hash,
-                                        category = signal.category.name,
-                                        content = signal.content,
-                                        evidence = signal.evidence,
-                                        isInference = signal.isInference,
-                                        confidence = signal.confidence,
-                                        extractedAt = now(),
-                                        status = "ACTIVE",
-                                        origin = "AI",
-                                        sourceTitle = journal.title,
-                                        contentHash = signalHash(signal.category.name, signal.content),
-                                        updatedAt = now(),
-                                    )
-                                    if (growthSignalDao.insertIgnore(entity) > 0) inserted++
+                                transaction {
+                                    // 与日记删除/编辑并发时，在事务内再次确认来源版本
+                                    val inTransaction = journalRepository.getEntry(diaryId)
+                                    if (inTransaction == null ||
+                                        com.mengyalife.app.domain.growth.DiaryContentHash.of(
+                                            inTransaction.title, inTransaction.body,
+                                        ) != hash
+                                    ) {
+                                        throw StaleExtraction()
+                                    }
+                                    growthSignalDao.markStaleOtherVersions(diaryId, hash, now())
+                                    parsed.signals.forEachIndexed { index, signal ->
+                                        QaFaultInjector.maybeFailSignalInsert(index + 1)
+                                        val entity = GrowthSignalEntity(
+                                            id = newId(),
+                                            sourceType = "DIARY",
+                                            sourceId = diaryId,
+                                            sourceVersion = hash,
+                                            category = signal.category.name,
+                                            content = signal.content,
+                                            evidence = signal.evidence,
+                                            isInference = signal.isInference,
+                                            confidence = signal.confidence,
+                                            extractedAt = now(),
+                                            status = "ACTIVE",
+                                            origin = "AI",
+                                            sourceTitle = journal.title,
+                                            contentHash = signalHash(signal.category.name, signal.content),
+                                            updatedAt = now(),
+                                        )
+                                        if (growthSignalDao.insertIgnore(entity) > 0) inserted++
+                                    }
+                                    if (journalRepository.markAnalysisCompleted(diaryId, hash).not()) {
+                                        throw StaleExtraction()
+                                    }
                                 }
-                                journalRepository.markAnalysisCompleted(diaryId, hash)
+                                runCatching { onSignalsChanged() }
                                 DiaryExtractionOutcome.Success(inserted, parsed.signals.size)
                             }
                         }
                     }
                 }
+            } catch (stale: StaleExtraction) {
+                // 旧版本结果：事务已回滚，不覆盖新状态、不写线索
+                DiaryExtractionOutcome.Superseded
             } catch (cancel: CancellationException) {
                 journalRepository.markAnalysisFailed(diaryId, hash, "分析已取消")
                 throw cancel
@@ -193,3 +232,5 @@ class DiaryExtractionService(
             .digest(text.toByteArray(Charsets.UTF_8))
             .joinToString("") { "%02x".format(it) }
 }
+
+private class StaleExtraction : Exception("analysis superseded")

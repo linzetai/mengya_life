@@ -53,6 +53,9 @@ import com.mengyalife.app.ui.screens.GoalsScreen
 import com.mengyalife.app.ui.screens.OverviewScreen
 import com.mengyalife.app.ui.screens.SettingsScreen
 import com.mengyalife.app.ui.screens.TrendsScreen
+import com.mengyalife.app.ui.growth.GrowthMemoryAction
+import com.mengyalife.app.ui.growth.GrowthMemoryScreen
+import com.mengyalife.app.ui.growth.GrowthMemoryViewModel
 import com.mengyalife.app.ui.settings.AiSettingsViewModel
 import com.mengyalife.app.ui.settings.ExportViewModel
 import com.mengyalife.app.ui.settings.ThemeViewModel
@@ -88,6 +91,9 @@ fun MengyaLifeApp() {
     // ---- 导航状态 ----
     var currentTab by rememberSaveable { mutableStateOf(AppTab.OVERVIEW) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    var showMemories by rememberSaveable { mutableStateOf(false) }
+    val memoryViewModel: GrowthMemoryViewModel = viewModel(factory = GrowthMemoryViewModel.Factory)
+    val memoryState by memoryViewModel.uiState.collectAsStateWithLifecycle()
 
     // ---- 页面滚动位置（进设置返回不丢）----
     val overviewListState = rememberLazyListState()
@@ -122,7 +128,14 @@ fun MengyaLifeApp() {
                 .fillMaxSize()
                 .semantics { testTagsAsResourceId = true },
         ) {
-            if (showSettings) {
+            if (showMemories) {
+                BackHandler { showMemories = false }
+                GrowthMemoryScreen(
+                    state = memoryState,
+                    onAction = memoryViewModel::onAction,
+                    onBack = { showMemories = false },
+                )
+            } else if (showSettings) {
                 SettingsScreen(
                     themeMode = themeMode,
                     onThemeModeChange = { themeViewModel.setThemeMode(it) },
@@ -137,6 +150,7 @@ fun MengyaLifeApp() {
                     onExportMessageConsumed = exportViewModel::consumeMessage,
                     aiState = aiSettingsState,
                     onAiAction = aiSettingsViewModel::onAction,
+                    onOpenMemories = { showMemories = true },
                 )
             } else {
                 MainShell(

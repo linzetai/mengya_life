@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.map
 class GrowthSignalRepository(
     private val dao: GrowthSignalDao,
     private val now: () -> Long = System::currentTimeMillis,
+    private val onChanged: suspend () -> Unit = {},
 ) {
     fun observeForDiary(diaryId: Long): Flow<List<GrowthSignal>> =
         dao.observeForDiary(diaryId).map { rows -> rows.map(::toDomain) }
@@ -19,10 +20,16 @@ class GrowthSignalRepository(
     suspend fun correct(id: String, content: String): Boolean {
         val clean = content.trim()
         if (clean.isEmpty() || clean.length > 500) return false
-        return dao.correct(id, clean, now()) > 0
+        val changed = dao.correct(id, clean, now()) > 0
+        if (changed) runCatching { onChanged() }
+        return changed
     }
 
-    suspend fun delete(id: String): Boolean = dao.softDelete(id, now()) > 0
+    suspend fun delete(id: String): Boolean {
+        val changed = dao.softDelete(id, now()) > 0
+        if (changed) runCatching { onChanged() }
+        return changed
+    }
 
     suspend fun loadForDiary(diaryId: Long): List<GrowthSignal> =
         dao.loadForDiary(diaryId).map(::toDomain)

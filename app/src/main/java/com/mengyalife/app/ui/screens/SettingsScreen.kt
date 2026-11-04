@@ -85,6 +85,7 @@ fun SettingsScreen(
     onExportMessageConsumed: () -> Unit,
     aiState: AiSettingsUiState,
     onAiAction: (AiSettingsAction) -> Unit,
+    onOpenMemories: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -179,6 +180,17 @@ fun SettingsScreen(
 
             item {
                 AiPrivacySection(state = aiState, onAction = onAiAction)
+            }
+
+            item {
+                SettingsGroup(title = "成长记忆") {
+                    SettingsRow(
+                        title = "查看成长记忆",
+                        subtitle = "AI 从多篇日记线索整理的长期变化；可纠正或删除",
+                        testTag = "settings_growth_memories",
+                        onClick = onOpenMemories,
+                    )
+                }
             }
 
             // ---------------- B. 数据与隐私 ----------------
