@@ -5,7 +5,7 @@
 | 版本 | **0.14.0-g3e2** |
 | 数据库 | Room **v10** |
 | 设备 | Xiaomi 2509FPN0BC / Android 17 |
-| 结论 | **PARTIAL / PASS（本地）/ AI 与部分真机项 NOT VERIFIED** |
+| 结论 | **PARTIAL：JVM 233/233；以下代码级项未真机/集成验证，AI 真实模型 NOT VERIFIED** |
 
 ## 1. 本轮完成
 
@@ -23,10 +23,10 @@
 |---|---|---|
 | 8+ 趋势首尾来源 | **PASS（JVM）** | InsightRulesTest 8 点 |
 | prompt factIds / 来源关联 | **PASS（JVM）** | Parser 测试 |
-| 周缓存 dataVersion 失效 | **PASS（代码/服务）** | 未做页面真机改数 |
-| 页面订阅数据变化 | **PASS（代码）** | 未做真机 Worker 更新截图 |
-| 周回顾记忆失效 | **PASS（代码复用 Validity）** | 未单独周回顾真机 |
-| 通知并发去重 | **PASS（原子 SQL 代码）** | 未做并发 Worker 真机 |
+| 周缓存 dataVersion 失效 | **NOT VERIFIED** | 代码已写，未做页面真机改数/集成测试 |
+| 页面订阅数据变化 | **NOT VERIFIED** | 代码已写，未做真机 Worker 更新截图 |
+| 周回顾记忆失效 | **NOT VERIFIED** | 复用 Validity 代码，未做周回顾真机/集成 |
+| 通知并发去重 | **NOT VERIFIED** | 原子 SQL 代码，未做并发 Worker 真机 |
 | 本地回顾不要求 AI 授权 | **PASS（JVM）** | 规则测试 |
 | AI 类别过滤/输入重建 | **PASS（JVM）** | WeeklyAiTest |
 | AI 每自然周一次/解析 | **PASS（JVM）** | FakeAiDao + engine 1 call |
