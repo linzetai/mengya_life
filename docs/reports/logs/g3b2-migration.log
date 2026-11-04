@@ -1,0 +1,23 @@
+# Gate 3B-2 真机迁移 v4 → v5
+时间: 2026-11-04 11:12–11:14 (Asia/Shanghai)
+设备: Xiaomi 2509FPN0BC / Android 17
+正式包: com.mengyalife.app 0.8.0-g3b2（versionCode 8）
+
+== 升级前（v4 备份） ==
+user_version=4
+tables=['android_metadata', 'journal_entries', 'sqlite_sequence', 'room_master_table', 'goals', 'goal_checkins', 'advisor_messages', 'goal_proposals']
+journals=[(6, 'MigrationA', 'alpha v1 content'), (7, 'MigrationB', 'beta v1 content')]
+goals=[]
+messages err=no such column: proposal_mode
+proposals err=no such column: applied_at
+
+== 升级后（v5） ==
+user_version=5
+tables=['android_metadata', 'journal_entries', 'sqlite_sequence', 'room_master_table', 'goals', 'goal_checkins', 'advisor_messages', 'goal_proposals']
+journals=[(6, 'MigrationA', 'alpha v1 content'), (7, 'MigrationB', 'beta v1 content')]
+goals=[]
+messages=(19, 3)
+proposals=[('a0fbe113-40f6-48b5-82bf-21f7a3e8d3d6', 'DRAFT', None, None), ('a313be19-84c7-4fbc-b2b1-15a23fac01ee', 'UNDONE', 1793763273888, 1793763320295)]
+
+结论：非破坏性迁移；旧日记/旧消息/草案保留；新增 proposal_mode 与 APPLIED/UNDONE 字段。
+说明：升级后数据包含随后真实模型测试产生的 7 条消息与 1 个已撤销草案。

@@ -57,4 +57,8 @@ data class AdvisorMessageEntity(
     /** 草案解析失败时的错误（不伪造草案）。 */
     @ColumnInfo(name = "proposal_error")
     val proposalError: String? = null,
+
+    /** 该助手消息是否由「整理为目标草案」请求产生；用于失败重试保持 proposalMode。 */
+    @ColumnInfo(name = "proposal_mode")
+    val proposalMode: Boolean = false,
 )

@@ -61,12 +61,21 @@ data class AdvisorContextStats(
     val droppedByBudget: Int = 0,
 )
 
-data class AssembledAdvisorContext(
-    val systemContext: String?,
-    val history: List<AdvisorMessage>,
-    val sources: List<AdvisorSource>,
-    val stats: AdvisorContextStats,
+/** 一条可被请求预算单独取舍的上下文片段；来源只属于真正进入请求的片段。 */
+data class AdvisorContextEntry(
+    val text: String,
+    val source: AdvisorSource? = null,
 )
+
+data class AssembledAdvisorContext(
+    val entries: List<AdvisorContextEntry>,
+    val history: List<AdvisorMessage>,
+    val stats: AdvisorContextStats,
+) {
+    /** 仅用于调试/旧测试展示；真正发送以 entries + 请求预算为准。 */
+    val systemContext: String? = entries.joinToString("\n") { it.text }.trim().takeIf { it.isNotBlank() }
+    val sources: List<AdvisorSource> = entries.mapNotNull { it.source }
+}
 
 /**
  * 规则式上下文检索（V1，不做向量/Embedding）。
@@ -106,7 +115,7 @@ class AdvisorContextAssembler(
             emptyList()
         }
 
-        val goalBlock = StringBuilder()
+        val entries = mutableListOf<AdvisorContextEntry>()
         val sources = mutableListOf<AdvisorSource>()
         var goalsUsed = 0
         var stagesUsed = 0
@@ -120,7 +129,10 @@ class AdvisorContextAssembler(
                 val desc = goal.description?.takeIf { it.isNotBlank() }
                     ?.let { " —— " + it.take(160) }
                     .orEmpty()
-                goalBlock.appendLine("- [目标#${goal.id}] ${goal.level.label}：${goal.title}$desc")
+                entries.add(AdvisorContextEntry(
+                    "- [目标#${goal.id}] ${goal.level.label}：${goal.title}$desc",
+                    AdvisorSource(AdvisorSourceType.GOAL, goal.id.toString(), goal.title),
+                ))
                 sources.add(AdvisorSource(AdvisorSourceType.GOAL, goal.id.toString(), goal.title))
                 goalsUsed++
                 val children = snapshot.goals
@@ -129,7 +141,8 @@ class AdvisorContextAssembler(
                 children.filter { it.level == GoalLevel.STAGE }.take(maxStages).forEach { stage ->
                     if (stagesUsed >= maxStages) return@forEach
                     selectedIds.add(stage.id)
-                    goalBlock.appendLine("  - [阶段#${stage.id}] ${stage.title}")
+                    entries.add(AdvisorContextEntry("  - [阶段#${stage.id}] ${stage.title}"))
+                    sources.add(AdvisorSource(AdvisorSourceType.GOAL, stage.id.toString(), stage.title))
                     goalsUsed++
                     stagesUsed++
                     snapshot.goals.filter { it.parentId == stage.id && it.level == GoalLevel.ACTION }
@@ -137,7 +150,8 @@ class AdvisorContextAssembler(
                         .take(maxActions - actionsUsed)
                         .forEach { action ->
                             selectedIds.add(action.id)
-                            goalBlock.appendLine("    - [行动#${action.id}] ${action.title}")
+                            entries.add(AdvisorContextEntry("    - [行动#${action.id}] ${action.title}"))
+                            sources.add(AdvisorSource(AdvisorSourceType.GOAL, action.id.toString(), action.title))
                             goalsUsed++
                             actionsUsed++
                         }
@@ -160,7 +174,7 @@ class AdvisorContextAssembler(
                     .thenByDescending { it.first.recordedAt })
                 .take(maxProgress)
             if (scored.isNotEmpty()) {
-                goalBlock.appendLine("进展：")
+                entries.add(AdvisorContextEntry("进展："))
                 scored.forEach { (checkin, _) ->
                     val line = buildString {
                         append("- [进展#${checkin.id}] ")
@@ -171,14 +185,13 @@ class AdvisorContextAssembler(
                             append("（").append(MetricFormat.withUnit(it, checkin.metricUnit)).append("）")
                         }
                     }
-                    goalBlock.appendLine(line)
-                    sources.add(
-                        AdvisorSource(
-                            AdvisorSourceType.PROGRESS,
-                            checkin.id.toString(),
-                            checkin.note.replace('\n', ' ').take(40),
-                        ),
+                    val source = AdvisorSource(
+                        AdvisorSourceType.PROGRESS,
+                        checkin.id.toString(),
+                        checkin.note.replace('\n', ' ').take(40),
                     )
+                    entries.add(AdvisorContextEntry(line, source))
+                    sources.add(source)
                     progressUsed++
                 }
             }
@@ -192,35 +205,31 @@ class AdvisorContextAssembler(
                     .thenByDescending { it.first.updatedAt })
                 .take(maxJournals)
             if (scored.isNotEmpty()) {
-                goalBlock.appendLine("相关日记摘录：")
+                entries.add(AdvisorContextEntry("相关日记摘录："))
                 scored.forEach { (journal, _) ->
                     val title = journal.title?.takeIf { it.isNotBlank() } ?: "无标题"
                     val excerpt = journal.body.replace('\n', ' ').take(maxJournalChars)
-                    goalBlock.appendLine("- [日记#${journal.id}] $title：$excerpt")
-                    sources.add(AdvisorSource(AdvisorSourceType.JOURNAL, journal.id.toString(), title))
+                    val source = AdvisorSource(AdvisorSourceType.JOURNAL, journal.id.toString(), title)
+                    entries.add(AdvisorContextEntry("- [日记#${journal.id}] $title：$excerpt", source))
+                    sources.add(source)
                     journalsUsed++
                 }
             }
         }
 
-        val body = goalBlock.toString().trim()
-        val budgeted = truncateContext(body, maxContextChars)
-        val systemContext = if (budgeted.isBlank()) null else {
-            "【系统按授权自动检索的个人数据（非完整数据库）】\n$budgeted"
+        val finalEntries = if (entries.isEmpty()) emptyList() else {
+            listOf(AdvisorContextEntry("【系统按授权自动检索的个人数据（非完整数据库）】")) + entries
         }
-        val chars = systemContext?.length ?: 0
-        val dropped = if (body.length > budgeted.length) 1 else 0
         return AssembledAdvisorContext(
-            systemContext = systemContext,
+            entries = finalEntries,
             history = history,
-            sources = sources,
             stats = AdvisorContextStats(
                 goals = goalsUsed,
                 progress = progressUsed,
                 journals = journalsUsed,
                 historyMessages = history.size,
-                chars = chars,
-                droppedByBudget = dropped,
+                chars = finalEntries.sumOf { it.text.length },
+                droppedByBudget = 0,
             ),
         )
     }
@@ -261,13 +270,6 @@ class AdvisorContextAssembler(
     private fun scoreJournal(journal: ContextJournalRecord, tokens: Set<String>): Int {
         val text = ((journal.title.orEmpty()) + " " + journal.body).lowercase()
         return tokens.count { it.length >= 2 && text.contains(it) }
-    }
-
-    private fun truncateContext(text: String, maxChars: Int): String {
-        if (text.length <= maxChars) return text
-        val cut = text.take(maxChars)
-        val lastLine = cut.lastIndexOf('\n')
-        return (if (lastLine > maxChars / 2) cut.substring(0, lastLine) else cut).trim()
     }
 
     private fun tokenize(query: String): Set<String> {

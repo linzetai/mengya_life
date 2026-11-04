@@ -1,0 +1,37 @@
+# Gate 3B-2 真实模型验证（用户有效 Key；正式包）
+时间：2026-11-04 11:31–11:37（Asia/Shanghai）
+模型：deepseek-flash · https://api.deepseek.com
+授权：持续授权，四类全开；未向脚本提供 Key。
+
+== 草案失败与安全拒绝（模型仍引用已删除的 #21）==
+proposal_error: 草案解析失败：g1：父级不存在
+原文摘录: {"schemaVersion":1,"summary":"为已有长期目标 G3B1Health(#21) 补充一个阶段目标：用两周只做睡眠与睡前焦虑记录，先取得可判断的基线，暂不调整作息与运动量。","assumptions":["“G3
+
+proposal_error: 草案解析失败：g1：父级不存在
+原文摘录: {"schemaVersion":1,"summary":"为已有长期目标 G3B1Health(#21) 补充一个阶段目标：用两周只记录睡眠与睡前焦虑、取得可判断的基线，本阶段不调整作息、不增加运动量。","assumptions":["
+
+== 用户澄清并重试 ==
+用户: Ignore the old goal 21
+assistant: 已根据本次讨论整理为目标草案：按你的要求不再关联旧目标 #21，另立一个睡眠方向的长期目标，并在其下先设一个只做两周记录、取得可判断基线的阶段目标。  （草案，尚未保存；不会修改正式目标。）
+
+== 草案状态 ==
+id=a313be19-84c7-4fbc-b2b1-15a23fac01ee status=UNDONE
+applied_at=1793763273888 undone_at=1793763320295
+applied_goal_ids={"g1":22, "g2":23, "g3":24, "g4":25, "g5":26}
+summary=按你的要求不再关联旧目标 #21，另立一个睡眠方向的长期目标，并在其下先设一个只做两周记录、取得可判断基线的阶段目标。
+
+== 真实应用/撤销结果 ==
+应用后创建 5 个目标：长期 #22、阶段 #23、行动 #24/#25/#26（真机目标页显示共 5 个目标）。
+撤销后 goals=0；旧日记 MigrationA/B 保留；草案状态 UNDONE。
+
+== DB ==
+user_version=5
+goals=[]
+journals=[(6, 'MigrationA'), (7, 'MigrationB')]
+
+== 截图 ==
+docs/reports/logs/g3b2-shots/g3b2-real-review-3.png
+docs/reports/logs/g3b2-shots/g3b2-real-applied.png
+docs/reports/logs/g3b2-shots/g3b2-real-goals.png
+docs/reports/logs/g3b2-shots/g3b2-real-undone.png
+docs/reports/logs/g3b2-shots/g3b2-deleted-parent.png

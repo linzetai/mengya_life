@@ -30,6 +30,8 @@ data class AdvisorMessage(
     val sources: List<AdvisorSource> = emptyList(),
     /** 草案解析失败时的错误。 */
     val proposalError: String? = null,
+    /** 该消息是否由草案模式产生。 */
+    val proposalMode: Boolean = false,
 )
 
 /** 可安全展示的错误。不要把 API Key、请求头或响应原文塞进来。 */

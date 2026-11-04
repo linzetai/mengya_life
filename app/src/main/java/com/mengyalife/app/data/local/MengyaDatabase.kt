@@ -25,6 +25,8 @@ import com.mengyalife.app.data.local.proposal.GoalProposalEntity
  * - **v3**（Gate 3A）：新增 `advisor_messages`；**不改动** v1/v2 的三张表
  * - **v4**（Gate 3B-1）：advisor_messages 增加 epoch/来源/草案错误列；
  *   新增 `goal_proposals`（草案）
+ * - **v5**（Gate 3B-2）：advisor_messages 增加 proposal_mode；
+ *   goal_proposals 增加应用/撤销/选择字段
  *
  * 迁移策略：
  * 1. 每次改表都必须 version + 1 并提供 `Migration`；
@@ -33,7 +35,7 @@ import com.mengyalife.app.data.local.proposal.GoalProposalEntity
  * 4. 迁移必须在真机升级安装上验证（本轮已做 v1→v2 实测，见报告）。
  */
 /** 数据库结构版本。导出文件里的 `databaseVersion` 与它保持一致。 */
-const val DB_SCHEMA_VERSION = 4
+const val DB_SCHEMA_VERSION = 5
 
 @Database(
     entities = [
@@ -170,6 +172,22 @@ abstract class MengyaDatabase : RoomDatabase() {
             }
         }
 
+
+        /**
+         * v4 → v5：草案应用/撤销状态 + 消息重试模式；不动业务表。
+         */
+        val MIGRATION_4_5: Migration = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `advisor_messages` ADD COLUMN `proposal_mode` INTEGER NOT NULL DEFAULT 0",
+                )
+                db.execSQL("ALTER TABLE `goal_proposals` ADD COLUMN `selected_temp_ids_json` TEXT")
+                db.execSQL("ALTER TABLE `goal_proposals` ADD COLUMN `applied_at` INTEGER")
+                db.execSQL("ALTER TABLE `goal_proposals` ADD COLUMN `applied_goal_ids_json` TEXT")
+                db.execSQL("ALTER TABLE `goal_proposals` ADD COLUMN `undone_at` INTEGER")
+            }
+        }
+
         @Volatile
         private var instance: MengyaDatabase? = null
 
@@ -183,7 +201,7 @@ abstract class MengyaDatabase : RoomDatabase() {
                     MengyaDatabase::class.java,
                     DATABASE_NAME,
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                     .also { instance = it }
             }

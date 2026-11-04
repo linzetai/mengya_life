@@ -6,6 +6,9 @@ import com.mengyalife.app.domain.advisor.GoalProposalDraft
 import com.mengyalife.app.domain.advisor.GoalProposalParser
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonPrimitive
 import java.util.UUID
 
 data class StoredGoalProposal(
@@ -14,12 +17,23 @@ data class StoredGoalProposal(
     val createdAt: Long,
     val draft: GoalProposalDraft,
     val status: String,
-)
+    val selectedTempIds: Set<String> = emptySet(),
+    val appliedAt: Long? = null,
+    val appliedGoalIds: List<Long> = emptyList(),
+    val undoneAt: Long? = null,
+) {
+    val isDraft: Boolean get() = status == "DRAFT"
+    val isApplied: Boolean get() = status == "APPLIED"
+    val isUndone: Boolean get() = status == "UNDONE"
+}
 
 interface GoalProposalRepository {
     fun observeAll(): Flow<List<StoredGoalProposal>>
     suspend fun save(messageId: String, draft: GoalProposalDraft): StoredGoalProposal
     suspend fun findForMessage(messageId: String): StoredGoalProposal?
+    suspend fun findById(id: String): StoredGoalProposal?
+    /** 审核期间编辑/勾选：只更新 DRAFT。 */
+    suspend fun updateDraft(id: String, draft: GoalProposalDraft, selected: Set<String>): Boolean
 }
 
 class RoomGoalProposalRepository(
@@ -35,6 +49,7 @@ class RoomGoalProposalRepository(
         val encoded = GoalProposalParser.encode(draft)
         val id = newId()
         val createdAt = now()
+        val selected = draft.nodes.map { it.tempId }.toSet()
         dao.insert(
             GoalProposalEntity(
                 id = id,
@@ -46,13 +61,33 @@ class RoomGoalProposalRepository(
                 assumptionsJson = encoded.assumptionsJson,
                 risksJson = encoded.risksJson,
                 nodesJson = encoded.nodesJson,
+                selectedTempIdsJson = encodeIds(selected),
             ),
         )
-        return StoredGoalProposal(id, messageId, createdAt, draft, "DRAFT")
+        return StoredGoalProposal(
+            id = id,
+            messageId = messageId,
+            createdAt = createdAt,
+            draft = draft,
+            status = "DRAFT",
+            selectedTempIds = selected,
+        )
     }
 
     override suspend fun findForMessage(messageId: String): StoredGoalProposal? =
         dao.findByMessage(messageId)?.let(::toDomain)
+
+    override suspend fun findById(id: String): StoredGoalProposal? =
+        dao.findById(id)?.let(::toDomain)
+
+    override suspend fun updateDraft(
+        id: String,
+        draft: GoalProposalDraft,
+        selected: Set<String>,
+    ): Boolean {
+        val encoded = GoalProposalParser.encode(draft)
+        return dao.updateDraft(id, encoded.nodesJson, encodeIds(selected)) > 0
+    }
 
     private fun toDomain(entity: GoalProposalEntity): StoredGoalProposal? {
         val draft = GoalProposalParser.decode(
@@ -68,6 +103,23 @@ class RoomGoalProposalRepository(
             createdAt = entity.createdAt,
             draft = draft,
             status = entity.status,
+            selectedTempIds = decodeStrings(entity.selectedTempIdsJson),
+            appliedAt = entity.appliedAt,
+            appliedGoalIds = decodeLongs(entity.appliedGoalIdsJson),
+            undoneAt = entity.undoneAt,
         )
     }
+
+    private fun encodeIds(ids: Set<String>): String =
+        ids.sorted().joinToString(prefix = "[", postfix = "]") { "\"${it.replace("\"", "\\\"")}\"" }
+
+    private fun decodeStrings(raw: String?): Set<String> = runCatching {
+        if (raw.isNullOrBlank()) emptySet()
+        else Json.parseToJsonElement(raw).jsonArray.map { it.jsonPrimitive.content }.toSet()
+    }.getOrDefault(emptySet())
+
+    private fun decodeLongs(raw: String?): List<Long> = runCatching {
+        if (raw.isNullOrBlank()) emptyList()
+        else Json.parseToJsonElement(raw).jsonArray.mapNotNull { it.jsonPrimitive.content.toLongOrNull() }
+    }.getOrDefault(emptyList())
 }

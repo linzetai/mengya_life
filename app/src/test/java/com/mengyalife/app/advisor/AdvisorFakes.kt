@@ -6,7 +6,10 @@ import com.mengyalife.app.data.advisor.AiConfigSaveResult
 import com.mengyalife.app.data.advisor.AiConfigStorage
 import com.mengyalife.app.data.advisor.AdvisorDataRepository
 import com.mengyalife.app.data.advisor.ConversationRepository
+import com.mengyalife.app.data.advisor.GoalProposalApply
 import com.mengyalife.app.data.advisor.GoalProposalRepository
+import com.mengyalife.app.data.advisor.ProposalApplyResult
+import com.mengyalife.app.data.advisor.ProposalUndoResult
 import com.mengyalife.app.data.advisor.StoredGoalProposal
 import com.mengyalife.app.data.consent.AiConsentRepository
 import com.mengyalife.app.data.advisor.SecretCipher
@@ -78,7 +81,12 @@ class FakeConfigRepository(
 
     override suspend fun deleteKey() = real.deleteKey()
 
-    override suspend fun runtimeConfig(): AdvisorRuntimeConfig? = real.runtimeConfig()
+    var runtimeEndpointOverride: String? = null
+
+    override suspend fun runtimeConfig(): AdvisorRuntimeConfig? =
+        real.runtimeConfig()?.let { config ->
+            runtimeEndpointOverride?.let { config.copy(endpoint = it) } ?: config
+        }
 
     override suspend fun setUseFakeEngine(enabled: Boolean) = real.setUseFakeEngine(enabled)
 }
@@ -197,10 +205,43 @@ class FakeGoalProposalRepository : GoalProposalRepository {
     private val flow = MutableStateFlow<List<StoredGoalProposal>>(emptyList())
     override fun observeAll(): Flow<List<StoredGoalProposal>> = flow
     override suspend fun save(messageId: String, draft: GoalProposalDraft): StoredGoalProposal {
-        val proposal = StoredGoalProposal("p-$messageId", messageId, 1L, draft, "DRAFT")
+        val proposal = StoredGoalProposal(
+            "p-$messageId", messageId, 1L, draft, "DRAFT",
+            selectedTempIds = draft.nodes.map { it.tempId }.toSet(),
+        )
         flow.value = flow.value + proposal
         return proposal
     }
     override suspend fun findForMessage(messageId: String): StoredGoalProposal? =
         flow.value.firstOrNull { it.messageId == messageId }
+    override suspend fun findById(id: String): StoredGoalProposal? =
+        flow.value.firstOrNull { it.id == id }
+    override suspend fun updateDraft(
+        id: String,
+        draft: GoalProposalDraft,
+        selected: Set<String>,
+    ): Boolean {
+        val current = flow.value.firstOrNull { it.id == id && it.isDraft } ?: return false
+        flow.value = flow.value.map {
+            if (it.id == id) it.copy(draft = draft, selectedTempIds = selected) else it
+        }
+        return current.isDraft
+    }
+}
+
+class FakeGoalProposalApply : GoalProposalApply {
+    var applyCalls = 0
+    var undoCalls = 0
+    var applyResult: ProposalApplyResult = ProposalApplyResult.Success(
+        listOf(com.mengyalife.app.data.advisor.AppliedGoal("g1", 1L, "健康", com.mengyalife.app.domain.goals.GoalLevel.LONG_TERM)),
+    )
+    var undoResult: ProposalUndoResult = ProposalUndoResult.Success()
+    override suspend fun apply(proposalId: String, selectedTempIds: Set<String>): ProposalApplyResult {
+        applyCalls++
+        return applyResult
+    }
+    override suspend fun undo(proposalId: String): ProposalUndoResult {
+        undoCalls++
+        return undoResult
+    }
 }

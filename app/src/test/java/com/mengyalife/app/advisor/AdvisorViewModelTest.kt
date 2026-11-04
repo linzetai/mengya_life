@@ -57,6 +57,7 @@ class AdvisorViewModelTest {
         val data: FakeAdvisorDataRepository,
         val proposals: FakeGoalProposalRepository,
         val engine: ScriptedAdvisorEngine,
+        val apply: FakeGoalProposalApply,
     )
 
     private suspend fun build(
@@ -73,17 +74,19 @@ class AdvisorViewModelTest {
         val repository = RoomConversationRepository(dao, now = { 1_000L })
         val data = FakeAdvisorDataRepository(snapshot)
         val proposals = FakeGoalProposalRepository()
+        val apply = FakeGoalProposalApply()
         val vm = AdvisorViewModel(
             conversations = repository,
             configRepository = config,
             consentRepository = consent,
             dataRepository = data,
             proposalRepository = proposals,
+            proposalApplyService = apply,
             assembler = AdvisorContextAssembler(),
             networkEngine = engine,
             fakeEngine = null,
         )
-        return Fixture(vm, dao, config, consent, data, proposals, engine)
+        return Fixture(vm, dao, config, consent, data, proposals, engine, apply)
     }
 
     private fun snapshot(query: String = "睡眠 目标"): AdvisorContextSnapshot = AdvisorContextSnapshot(
@@ -237,9 +240,11 @@ class AdvisorViewModelTest {
         f.vm.onAction(AdvisorAction.Retry(failed.id))
         advanceUntilIdle()
         val messages = f.vm.uiState.value.messages
-        assertEquals(2, messages.size)
+        // 失败消息保留作为错误证据；重试只追加新的助手消息，不重复用户消息
+        assertEquals(3, messages.size)
         assertEquals(1, messages.count { it.role == AdvisorRole.USER })
-        assertEquals("重试成功", messages[1].content)
+        assertEquals(AdvisorMessageStatus.FAILED, messages[1].status)
+        assertEquals("重试成功", messages[2].content)
     }
 
     @Test
@@ -259,6 +264,43 @@ class AdvisorViewModelTest {
     }
 
     @Test
+    fun `runtime endpoint 与授权接收方不一致时不发送`() = runTest {
+        val f = build()
+        collectVm(f.vm)
+        advanceUntilIdle()
+        // UI 快照仍是旧地址，但运行时配置已被改成新地址：旧代码会向新地址发送
+        f.config.runtimeEndpointOverride = "https://attacker.example.com/v1"
+        f.engine.enqueue(AdvisorChatResult.Success("不应发送"))
+        f.vm.onAction(AdvisorAction.InputChange("hi"))
+        advanceUntilIdle()
+        f.vm.onAction(AdvisorAction.Send)
+        advanceUntilIdle()
+
+        assertEquals(0, f.engine.calls.size)
+        val last = f.vm.uiState.value.messages.last()
+        assertEquals(AdvisorMessageStatus.CANCELLED, last.status)
+        assertTrue(last.errorMessage.orEmpty().contains("服务配置或授权已变化"))
+    }
+
+    @Test
+    fun `请求中服务地址变化会取消，不保存旧回复`() = runTest {
+        val f = build(engine = ScriptedAdvisorEngine().apply { blockUntilCancelled = true })
+        collectVm(f.vm)
+        advanceUntilIdle()
+        f.vm.onAction(AdvisorAction.InputChange("hi"))
+        advanceUntilIdle()
+        f.vm.onAction(AdvisorAction.Send)
+        advanceUntilIdle()
+        assertEquals(1, f.engine.calls.size)
+
+        f.config.save("https://new.example.com/v1", "new-model", null)
+        advanceUntilIdle()
+        val last = f.vm.uiState.value.messages.last()
+        assertEquals(AdvisorMessageStatus.CANCELLED, last.status)
+        assertTrue(f.vm.uiState.value.messages.none { it.content == "default reply" })
+    }
+
+    @Test
     fun `整理为目标草案并持久化`() = runTest {
         val f = build()
         collectVm(f.vm)
@@ -271,6 +313,47 @@ class AdvisorViewModelTest {
         assertNotNull(f.vm.uiState.value.proposals[message.id])
         assertNotNull(f.vm.uiState.value.proposals[message.id]!!.draft.nodes.firstOrNull())
         assertEquals(1, f.vm.uiState.value.proposals.size)
+    }
+
+    @Test
+    fun `草案解析失败后重试仍使用 proposalMode 且不重复用户消息`() = runTest {
+        val f = build()
+        collectVm(f.vm)
+        advanceUntilIdle()
+        f.engine.enqueue(AdvisorChatResult.Success("不是 JSON"))
+        f.vm.onAction(AdvisorAction.RequestProposal)
+        advanceUntilIdle()
+        val failed = f.vm.uiState.value.messages.last()
+        assertNotNull(failed.proposalError)
+        assertTrue(failed.proposalMode)
+        assertEquals(1, f.vm.uiState.value.messages.count { it.role == AdvisorRole.USER })
+
+        f.engine.enqueue(AdvisorChatResult.Success(proposalJson()))
+        f.vm.onAction(AdvisorAction.Retry(failed.id))
+        advanceUntilIdle()
+        val messages = f.vm.uiState.value.messages
+        assertEquals(1, messages.count { it.role == AdvisorRole.USER })
+        assertEquals(3, messages.size)
+        assertTrue(failed.proposalError != null)
+        assertNotNull(f.vm.uiState.value.proposals[messages.last().id])
+        assertTrue(messages.last().proposalMode)
+    }
+
+    @Test
+    fun `快速双击确认只调用一次 apply`() = runTest {
+        val f = build()
+        collectVm(f.vm)
+        advanceUntilIdle()
+        f.engine.enqueue(AdvisorChatResult.Success(proposalJson()))
+        f.vm.onAction(AdvisorAction.RequestProposal)
+        advanceUntilIdle()
+        val proposal = f.vm.uiState.value.proposals.values.first()
+        val draft = proposal.draft
+        f.vm.onAction(AdvisorAction.ApplyProposal(proposal.id, draft, draft.nodes.map { it.tempId }.toSet()))
+        f.vm.onAction(AdvisorAction.ApplyProposal(proposal.id, draft, draft.nodes.map { it.tempId }.toSet()))
+        advanceUntilIdle()
+        // ViewModel 的 loading 防抖；真实事务/幂等由 GoalProposalApplyService 与真机验证
+        assertEquals(1, f.apply.applyCalls)
     }
 
     @Test

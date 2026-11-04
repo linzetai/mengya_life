@@ -198,6 +198,23 @@ class FakeAdvisorEngine(
         val last = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
         if (last.contains("[slow]")) delay(10_000)
         if (messages.any { it.content.contains("整理为目标草案") }) {
+            val all = messages.joinToString("\n") { it.content }
+            val stageId = Regex("\\[阶段#(\\d+)]").find(all)?.groupValues?.get(1)?.toLongOrNull()
+            val goalId = Regex("\\[目标#(\\d+)]").find(all)?.groupValues?.get(1)?.toLongOrNull()
+            if (stageId != null) {
+                return AdvisorChatResult.Success(
+                    """{"schemaVersion":1,"summary":"给已有阶段补充行动","assumptions":[],"risks":[],"goals":[
+                    {"tempId":"a1","level":"ACTION","title":"QA 给已有阶段补充行动","description":null,"domain":"HEALTH",
+                     "parentTempId":null,"parentGoalId":$stageId,"startDate":null,"dueDate":null,"basis":"QA fake"}]}""",
+                )
+            }
+            if (goalId != null) {
+                return AdvisorChatResult.Success(
+                    """{"schemaVersion":1,"summary":"给已有长期目标补充阶段","assumptions":[],"risks":[],"goals":[
+                    {"tempId":"s1","level":"STAGE","title":"QA 给已有长期目标补充阶段","description":null,"domain":"HEALTH",
+                     "parentTempId":null,"parentGoalId":$goalId,"startDate":null,"dueDate":null,"basis":"QA fake"}]}""",
+                )
+            }
             return AdvisorChatResult.Success(
                 """
                 {"schemaVersion":1,"summary":"从对话整理的健康目标草案","assumptions":["每周可投入三次"],

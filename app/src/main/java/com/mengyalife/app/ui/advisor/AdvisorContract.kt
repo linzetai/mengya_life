@@ -5,6 +5,17 @@ import com.mengyalife.app.domain.advisor.AdvisorMessage
 import com.mengyalife.app.domain.advisor.AiConfigState
 import com.mengyalife.app.domain.advisor.AiConsentState
 import com.mengyalife.app.domain.advisor.ConsentCategory
+import com.mengyalife.app.domain.advisor.GoalProposalDraft
+
+data class ProposalApplyUiState(
+    val proposalId: String,
+    val loading: Boolean = false,
+    val message: String? = null,
+    val error: String? = null,
+    val createdTitles: List<String> = emptyList(),
+    val canUndo: Boolean = false,
+    val undone: Boolean = false,
+)
 
 /** 顾问页只读状态。 */
 data class AdvisorUiState(
@@ -17,6 +28,7 @@ data class AdvisorUiState(
     val proposals: Map<String, StoredGoalProposal> = emptyMap(),
     val errorMessage: String? = null,
     val infoMessage: String? = null,
+    val applyState: ProposalApplyUiState? = null,
 ) {
     val configured: Boolean get() = config.configured
     val canSend: Boolean
@@ -51,6 +63,18 @@ sealed interface AdvisorAction {
     data object GrantConsent : AdvisorAction
     data object DeclineConsent : AdvisorAction
     data object RequestProposal : AdvisorAction
+    data class UpdateProposalDraft(
+        val proposalId: String,
+        val draft: GoalProposalDraft,
+        val selected: Set<String>,
+    ) : AdvisorAction
+    data class ApplyProposal(
+        val proposalId: String,
+        val draft: GoalProposalDraft,
+        val selected: Set<String>,
+    ) : AdvisorAction
+    data class UndoProposal(val proposalId: String) : AdvisorAction
+    data object DismissApplyState : AdvisorAction
     data object DismissError : AdvisorAction
     data object DismissInfo : AdvisorAction
 }

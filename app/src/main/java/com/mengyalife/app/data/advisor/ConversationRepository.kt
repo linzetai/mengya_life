@@ -28,9 +28,15 @@ interface ConversationRepository {
         contextEpoch: Long,
         sources: List<AdvisorSource> = emptyList(),
         proposalError: String? = null,
+        proposalMode: Boolean = false,
     ): AdvisorMessage
 
-    suspend fun appendFailure(error: AdvisorError, cancelled: Boolean, contextEpoch: Long = 0): AdvisorMessage
+    suspend fun appendFailure(
+        error: AdvisorError,
+        cancelled: Boolean,
+        contextEpoch: Long = 0,
+        proposalMode: Boolean = false,
+    ): AdvisorMessage
     suspend fun deleteMessage(id: String)
     suspend fun loadAll(): List<AdvisorMessage>
 }
@@ -67,6 +73,7 @@ class RoomConversationRepository(
         contextEpoch: Long,
         sources: List<AdvisorSource>,
         proposalError: String?,
+        proposalMode: Boolean,
     ): AdvisorMessage =
         insert(
             AdvisorMessageEntity(
@@ -78,6 +85,7 @@ class RoomConversationRepository(
                 contextEpoch = contextEpoch,
                 sourcesJson = encodeSources(sources),
                 proposalError = proposalError,
+                proposalMode = proposalMode,
             ),
         )
 
@@ -85,6 +93,7 @@ class RoomConversationRepository(
         error: AdvisorError,
         cancelled: Boolean,
         contextEpoch: Long,
+        proposalMode: Boolean,
     ): AdvisorMessage =
         insert(
             AdvisorMessageEntity(
@@ -97,6 +106,7 @@ class RoomConversationRepository(
                 errorCode = error.code,
                 errorMessage = error.userMessage,
                 contextEpoch = contextEpoch,
+                proposalMode = proposalMode,
             ),
         )
 
@@ -130,6 +140,7 @@ class RoomConversationRepository(
         contextEpoch = entity.contextEpoch,
         sources = decodeSources(entity.sourcesJson),
         proposalError = entity.proposalError,
+        proposalMode = entity.proposalMode,
     )
 
     private fun encodeSources(sources: List<AdvisorSource>): String? {

@@ -53,11 +53,11 @@ import com.mengyalife.app.domain.advisor.AdvisorSource
 import com.mengyalife.app.domain.advisor.AdvisorSourceType
 import com.mengyalife.app.domain.advisor.AiConsentRules
 import com.mengyalife.app.domain.advisor.ConsentCategory
-import com.mengyalife.app.domain.advisor.GoalProposalNode
 import com.mengyalife.app.domain.advisor.safeEndpointLabel
 import com.mengyalife.app.domain.goals.GoalLevel
 import com.mengyalife.app.ui.advisor.AdvisorAction
 import com.mengyalife.app.ui.advisor.AdvisorUiState
+import com.mengyalife.app.ui.advisor.GoalProposalReviewDialog
 import com.mengyalife.app.ui.components.InlineNote
 import com.mengyalife.app.ui.components.StatusPill
 import com.mengyalife.app.util.Timestamps
@@ -86,8 +86,9 @@ fun AdvisorScreen(
         }
     }
 
+    Box(modifier = modifier.fillMaxSize()) {
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .imePadding(),
     ) {
@@ -152,11 +153,15 @@ fun AdvisorScreen(
                                     it.status == AdvisorMessageStatus.FAILED ||
                                         it.status == AdvisorMessageStatus.CANCELLED
                                 }
+                            val proposal = state.proposals[message.id]
+                            val lastProposal = proposal != null &&
+                                state.messages.drop(index + 1).none { state.proposals[it.id] != null }
                             MessageRow(
                                 message = message,
                                 lastFailed = lastFailed,
                                 lastWithSources = lastWithSources,
-                                proposal = state.proposals[message.id],
+                                lastProposal = lastProposal,
+                                proposal = proposal,
                                 onRetry = { onAction(AdvisorAction.Retry(message.id)) },
                                 onOpenSources = { sourceDialogFor = message },
                                 onOpenProposal = { proposalDialogFor = it },
@@ -303,8 +308,21 @@ fun AdvisorScreen(
     sourceDialogFor?.let { message ->
         SourceDialog(message = message, onDismiss = { sourceDialogFor = null })
     }
-    proposalDialogFor?.let { proposal ->
-        GoalProposalDialog(proposal = proposal, onDismiss = { proposalDialogFor = null })
+    proposalDialogFor?.let { opened ->
+        val proposal = state.proposals.values.firstOrNull { it.id == opened.id } ?: opened
+        GoalProposalReviewDialog(
+            proposal = proposal,
+            applyState = state.applyState?.takeIf { it.proposalId == proposal.id },
+            onDismiss = { proposalDialogFor = null },
+            onUpdate = { draft, selected ->
+                onAction(AdvisorAction.UpdateProposalDraft(proposal.id, draft, selected))
+            },
+            onApply = { draft, selected ->
+                onAction(AdvisorAction.ApplyProposal(proposal.id, draft, selected))
+            },
+            onUndo = { onAction(AdvisorAction.UndoProposal(proposal.id)) },
+        )
+    }
     }
 }
 
@@ -439,6 +457,7 @@ private fun MessageRow(
     message: AdvisorMessage,
     lastFailed: Boolean,
     lastWithSources: Boolean,
+    lastProposal: Boolean,
     proposal: StoredGoalProposal?,
     onRetry: () -> Unit,
     onOpenSources: () -> Unit,
@@ -533,12 +552,28 @@ private fun MessageRow(
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.testTag("advisor_proposal_error"),
             )
+            if (message.status == AdvisorMessageStatus.SENT) {
+                TextButton(
+                    onClick = onRetry,
+                    modifier = Modifier.testTag("advisor_retry_proposal"),
+                ) { Text("重试草案") }
+            }
         }
         if (proposal != null) {
             TextButton(
                 onClick = { onOpenProposal(proposal) },
-                modifier = Modifier.testTag("advisor_proposal_open"),
-            ) { Text("查看目标草案（尚未保存）") }
+                modifier = Modifier.testTag(
+                    if (lastProposal) "advisor_proposal_open_last" else "advisor_proposal_open",
+                ),
+            ) {
+                Text(
+                    when {
+                        proposal.isApplied -> "查看创建结果"
+                        proposal.isUndone -> "查看已撤销草案"
+                        else -> "查看目标草案（尚未保存）"
+                    },
+                )
+            }
         }
         Text(
             text = Timestamps.formatDateTime(message.createdAt),
@@ -584,127 +619,4 @@ private fun SourceDialog(message: AdvisorMessage, onDismiss: () -> Unit) {
             }
         },
     )
-}
-
-@Composable
-private fun GoalProposalDialog(proposal: StoredGoalProposal, onDismiss: () -> Unit) {
-    val draft = proposal.draft
-    val longTerm = draft.nodes.filter { it.level == GoalLevel.LONG_TERM }
-
-    AlertDialog(
-        modifier = Modifier
-            .semantics { testTagsAsResourceId = true }
-            .testTag("goal_proposal_dialog"),
-        onDismissRequest = onDismiss,
-        title = { Text("目标草案（尚未保存）") },
-        text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                Text(draft.summary, style = MaterialTheme.typography.bodyMedium)
-                Spacer(Modifier.height(8.dp))
-                if (draft.assumptions.isNotEmpty()) {
-                    Text("假设", style = MaterialTheme.typography.labelMedium)
-                    draft.assumptions.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
-                }
-                if (draft.risks.isNotEmpty()) {
-                    Text("风险", style = MaterialTheme.typography.labelMedium)
-                    draft.risks.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
-                }
-                Spacer(Modifier.height(8.dp))
-                val rendered = mutableSetOf<String>()
-                longTerm.forEach { root ->
-                    if (rendered.add(root.tempId)) {
-                        ProposalNodeBlock(root, 0)
-                        draft.nodes.filter { it.parentTempId == root.tempId }
-                            .sortedBy { it.level.ordinal }
-                            .forEach { stage ->
-                                if (rendered.add(stage.tempId)) {
-                                    ProposalNodeBlock(stage, 1)
-                                    draft.nodes.filter { it.parentTempId == stage.tempId }
-                                        .forEach { action ->
-                                            if (rendered.add(action.tempId)) {
-                                                ProposalNodeBlock(action, 2)
-                                            }
-                                        }
-                                }
-                            }
-                    }
-                }
-                val attachedStages = draft.nodes.filter {
-                    it.level == GoalLevel.STAGE && it.parentGoalId != null
-                }
-                if (attachedStages.isNotEmpty()) {
-                    Text("补充到已有长期目标", style = MaterialTheme.typography.labelMedium)
-                    attachedStages.forEach { stage ->
-                        if (rendered.add(stage.tempId)) {
-                            Text(
-                                "• [阶段] ${stage.title} → 已有目标 #${stage.parentGoalId}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.testTag("goal_proposal_node_${stage.tempId}"),
-                            )
-                            draft.nodes.filter { it.parentTempId == stage.tempId }
-                                .forEach { action ->
-                                    if (rendered.add(action.tempId)) {
-                                        ProposalNodeBlock(action, 1)
-                                    }
-                                }
-                        }
-                    }
-                }
-                draft.nodes.filter {
-                    it.level == GoalLevel.ACTION && it.parentGoalId != null
-                }.forEach { action ->
-                    if (rendered.add(action.tempId)) {
-                        Text(
-                            "• [行动] ${action.title} → 已有目标 #${action.parentGoalId}",
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.testTag("goal_proposal_node_${action.tempId}"),
-                        )
-                    }
-                }
-                val orphans = draft.nodes.filter { it.tempId !in rendered }
-                if (orphans.isNotEmpty()) {
-                    Text("未挂接节点", style = MaterialTheme.typography.labelMedium)
-                    orphans.forEach { ProposalNodeBlock(it, 0) }
-                }
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "草案仅保存在本机，不会修改正式目标；确认写入留给 Gate 3B-2。",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss, modifier = Modifier.testTag("goal_proposal_close")) {
-                Text("关闭")
-            }
-        },
-    )
-}
-
-@Composable
-private fun ProposalNodeBlock(node: GoalProposalNode, depth: Int) {
-    Text(
-        text = ("　".repeat(depth)) + "[${node.level.label}] ${node.title}",
-        style = when (node.level) {
-            GoalLevel.LONG_TERM -> MaterialTheme.typography.titleSmall
-            GoalLevel.STAGE -> MaterialTheme.typography.bodyMedium
-            GoalLevel.ACTION -> MaterialTheme.typography.bodySmall
-        },
-        modifier = Modifier.testTag("goal_proposal_node_${node.tempId}"),
-    )
-    node.description?.takeIf { it.isNotBlank() }?.let {
-        Text(
-            text = ("　".repeat(depth + 1)) + it.take(160),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-    node.basis?.takeIf { it.isNotBlank() }?.let {
-        Text(
-            text = ("　".repeat(depth + 1)) + "依据：" + it.take(120),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
 }

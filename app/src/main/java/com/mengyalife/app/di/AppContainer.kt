@@ -10,6 +10,7 @@ import com.mengyalife.app.data.advisor.ConversationRepository
 import com.mengyalife.app.data.advisor.DataStoreAdvisorConfigRepository
 import com.mengyalife.app.data.advisor.DataStoreAiConfigStorage
 import com.mengyalife.app.data.advisor.FakeAdvisorEngine
+import com.mengyalife.app.data.advisor.GoalProposalApplyService
 import com.mengyalife.app.data.advisor.GoalProposalRepository
 import com.mengyalife.app.data.advisor.RoomAdvisorDataRepository
 import com.mengyalife.app.data.advisor.RoomGoalProposalRepository
@@ -76,6 +77,14 @@ class AppContainer(context: Context) {
 
     val goalProposalRepository: GoalProposalRepository by lazy {
         RoomGoalProposalRepository(database.goalProposalDao())
+    }
+
+    val goalProposalApplyService: GoalProposalApplyService by lazy {
+        GoalProposalApplyService(
+            database = database,
+            proposalDao = database.goalProposalDao(),
+            goalRepository = goalRepository,
+        )
     }
 
     val networkAdvisorEngine: NetworkAdvisorEngine by lazy { NetworkAdvisorEngine() }

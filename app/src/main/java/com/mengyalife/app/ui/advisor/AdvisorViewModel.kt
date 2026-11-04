@@ -10,6 +10,7 @@ import com.mengyalife.app.data.advisor.AdvisorConfigRepository
 import com.mengyalife.app.data.advisor.AdvisorDataRepository
 import com.mengyalife.app.data.advisor.AdvisorEngine
 import com.mengyalife.app.data.advisor.ConversationRepository
+import com.mengyalife.app.data.advisor.GoalProposalApply
 import com.mengyalife.app.data.advisor.GoalProposalRepository
 import com.mengyalife.app.data.consent.AiConsentRepository
 import com.mengyalife.app.domain.advisor.AdvisorChatResult
@@ -24,6 +25,7 @@ import com.mengyalife.app.domain.advisor.AiConsentRules
 import com.mengyalife.app.domain.advisor.AiConsentState
 import com.mengyalife.app.domain.advisor.ConsentCategory
 import com.mengyalife.app.domain.advisor.GoalProposalParseResult
+import com.mengyalife.app.domain.advisor.GoalProposalDraft
 import com.mengyalife.app.domain.advisor.GoalProposalParser
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -32,6 +34,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -52,6 +55,7 @@ class AdvisorViewModel(
     private val consentRepository: AiConsentRepository,
     private val dataRepository: AdvisorDataRepository,
     private val proposalRepository: GoalProposalRepository,
+    private val proposalApplyService: GoalProposalApply,
     private val assembler: AdvisorContextAssembler,
     private val networkEngine: AdvisorEngine,
     private val fakeEngine: AdvisorEngine?,
@@ -62,12 +66,16 @@ class AdvisorViewModel(
         val sending: Boolean = false,
         val errorMessage: String? = null,
         val infoMessage: String? = null,
+        val applyState: ProposalApplyUiState? = null,
     )
 
     private val local = MutableStateFlow(LocalState())
     private var requestJob: Job? = null
     private var activeEpoch: Long? = null
     private var latestConsent: AiConsentState = AiConsentState()
+    private var applying = false
+    private var latestConfig: com.mengyalife.app.domain.advisor.AiConfigState =
+        com.mengyalife.app.domain.advisor.AiConfigState()
 
     private val messagesFlow = conversations.observeMessages()
     private val configFlow = configRepository.state
@@ -94,6 +102,7 @@ class AdvisorViewModel(
             proposals = proposals.associateBy { it.messageId },
             errorMessage = localState.errorMessage,
             infoMessage = localState.infoMessage,
+            applyState = localState.applyState,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -103,7 +112,19 @@ class AdvisorViewModel(
 
     init {
         viewModelScope.launch {
-            configFlow.collect { configState.value = it }
+            configFlow.collect { config ->
+                val previous = latestConfig
+                latestConfig = config
+                configState.value = config
+                val changed = previous.endpoint != config.endpoint ||
+                    previous.model != config.model ||
+                    previous.hasKey != config.hasKey ||
+                    previous.useFakeEngine != config.useFakeEngine
+                // 服务配置变化时，进行中的请求不能继续用旧 endpoint 发出去
+                if (local.value.sending && changed) {
+                    requestJob?.cancel()
+                }
+            }
         }
         viewModelScope.launch {
             consentFlow.collect { consent ->
@@ -131,6 +152,14 @@ class AdvisorViewModel(
                 )
             }
             AdvisorAction.RequestProposal -> requestProposal()
+            is AdvisorAction.UpdateProposalDraft -> updateProposalDraft(
+                action.proposalId, action.draft, action.selected,
+            )
+            is AdvisorAction.ApplyProposal -> applyProposal(
+                action.proposalId, action.draft, action.selected,
+            )
+            is AdvisorAction.UndoProposal -> undoProposal(action.proposalId)
+            AdvisorAction.DismissApplyState -> local.update { it.copy(applyState = null) }
             AdvisorAction.DismissError -> local.update { it.copy(errorMessage = null) }
             AdvisorAction.DismissInfo -> local.update { it.copy(infoMessage = null) }
         }
@@ -188,7 +217,8 @@ class AdvisorViewModel(
         }
         val consent = state.consent
         val epoch = consent.epoch
-        val engine = engineFor(state.config)
+        val sendConfig = state.config
+        val engine = engineFor(sendConfig)
         activeEpoch = epoch
 
         local.update {
@@ -217,41 +247,54 @@ class AdvisorViewModel(
                         AdvisorError(AdvisorError.NOT_CONFIGURED, "密钥不可用，请到设置页重新保存 API Key。"),
                         cancelled = false,
                         contextEpoch = epoch,
+                        proposalMode = proposalMode,
                     )
                     local.update { it.copy(sending = false) }
                     return@launch
                 }
 
+                // 关键竞态修复：发起请求的 runtime endpoint 必须仍然是
+                // 用户当初授权时确认的接收方，且与 UI 快照一致。
+                val currentConfig = configRepository.state.first()
                 val currentConsent = consentRepository.current()
-                if (!currentConsent.isValidFor(state.config.endpoint) || currentConsent.epoch != epoch) {
+                if (runtime.endpoint != sendConfig.endpoint ||
+                    currentConfig.endpoint != runtime.endpoint ||
+                    !currentConsent.isValidFor(runtime.endpoint) ||
+                    currentConsent.epoch != epoch
+                ) {
                     conversations.appendFailure(
-                        AdvisorError(AdvisorError.CANCELLED, "授权状态已变化，本次请求未发送。"),
+                        AdvisorError(AdvisorError.CANCELLED, "服务配置或授权已变化，本次请求未发送。"),
                         cancelled = true,
                         contextEpoch = epoch,
+                        proposalMode = proposalMode,
                     )
                     local.update { it.copy(sending = false) }
                     return@launch
                 }
 
-                val requestMessages = AdvisorRules.buildRequestMessages(
+                val builtRequest = AdvisorRules.buildRequest(
                     history = assembled.history,
                     currentInput = input,
-                    goalContext = null,
-                    extraSystemContext = assembled.systemContext,
+                    contextEntries = assembled.entries,
                     extraSystemPrompt = if (proposalMode) AdvisorRules.proposalSystemPrompt() else null,
                 )
                 when (val result = engine.chat(
                     runtime,
-                    requestMessages,
+                    builtRequest.messages,
                     maxTokens = if (proposalMode) 3_000 else AdvisorRules.MAX_OUTPUT_TOKENS,
                 )) {
                     is AdvisorChatResult.Success -> {
+                        val afterConfig = configRepository.state.first()
                         val after = consentRepository.current()
-                        if (!after.isValidFor(state.config.endpoint) || after.epoch != epoch) {
+                        if (afterConfig.endpoint != runtime.endpoint ||
+                            !after.isValidFor(runtime.endpoint) ||
+                            after.epoch != epoch
+                        ) {
                             conversations.appendFailure(
-                                AdvisorError(AdvisorError.CANCELLED, "授权状态已变化，本次回复未保存。"),
+                                AdvisorError(AdvisorError.CANCELLED, "服务配置或授权已变化，本次回复未保存。"),
                                 cancelled = true,
                                 contextEpoch = epoch,
+                                proposalMode = proposalMode,
                             )
                             local.update { it.copy(sending = false) }
                             return@launch
@@ -260,15 +303,16 @@ class AdvisorViewModel(
                             handleProposalResult(
                                 raw = result.content,
                                 epoch = epoch,
-                                sources = assembled.sources,
+                                sources = builtRequest.usedSources,
                                 existingGoals = data.goals.associate { it.id to it.level },
-                                contextChars = assembled.stats.chars,
+                                contextChars = builtRequest.contextChars,
                             )
                         } else {
                             conversations.appendAssistant(
                                 content = result.content,
                                 contextEpoch = epoch,
-                                sources = assembled.sources,
+                                sources = builtRequest.usedSources,
+                                proposalMode = false,
                             )
                         }
                     }
@@ -276,6 +320,7 @@ class AdvisorViewModel(
                         error = result.error,
                         cancelled = false,
                         contextEpoch = epoch,
+                        proposalMode = proposalMode,
                     )
                 }
                 local.update { it.copy(sending = false) }
@@ -285,6 +330,7 @@ class AdvisorViewModel(
                         AdvisorError.cancelled(),
                         cancelled = true,
                         contextEpoch = epoch,
+                        proposalMode = proposalMode,
                     )
                 }
                 local.update { it.copy(sending = false, infoMessage = "已取消本次请求。") }
@@ -295,6 +341,7 @@ class AdvisorViewModel(
                         AdvisorError.unknown(),
                         cancelled = false,
                         contextEpoch = epoch,
+                        proposalMode = proposalMode,
                     )
                 }
                 local.update { it.copy(sending = false) }
@@ -319,6 +366,7 @@ class AdvisorViewModel(
                         "\n\n（草案，尚未保存；不会修改正式目标。）",
                     contextEpoch = epoch,
                     sources = sources,
+                    proposalMode = true,
                 )
                 proposalRepository.save(message.id, parsed.draft)
             }
@@ -328,6 +376,7 @@ class AdvisorViewModel(
                     contextEpoch = epoch,
                     sources = sources,
                     proposalError = "草案解析失败：${parsed.message}",
+                    proposalMode = true,
                 )
             }
         }
@@ -352,11 +401,121 @@ class AdvisorViewModel(
         )
     }
 
+    private fun updateProposalDraft(
+        proposalId: String,
+        draft: GoalProposalDraft,
+        selected: Set<String>,
+    ) {
+        viewModelScope.launch {
+            proposalRepository.updateDraft(proposalId, draft, selected)
+        }
+    }
+
+    private fun applyProposal(
+        proposalId: String,
+        draft: GoalProposalDraft,
+        selected: Set<String>,
+    ) {
+        // 同步防抖，不能只依赖 StateFlow 的下一帧
+        if (applying) return
+        applying = true
+        val current = uiState.value.applyState
+        if (current?.loading == true) {
+            applying = false
+            return
+        }
+        local.update {
+            it.copy(
+                applyState = ProposalApplyUiState(proposalId = proposalId, loading = true),
+            )
+        }
+        viewModelScope.launch {
+            try {
+            val saved = proposalRepository.updateDraft(proposalId, draft, selected)
+            if (!saved) {
+                local.update {
+                    it.copy(
+                        applyState = ProposalApplyUiState(
+                            proposalId = proposalId,
+                            error = "草案已处理或状态已变化，请重新打开",
+                        ),
+                    )
+                }
+                return@launch
+            }
+            when (val result = proposalApplyService.apply(proposalId, selected)) {
+                is com.mengyalife.app.data.advisor.ProposalApplyResult.Success -> local.update {
+                    it.copy(
+                        applyState = ProposalApplyUiState(
+                            proposalId = proposalId,
+                            message = "已创建 ${result.created.size} 个目标",
+                            createdTitles = result.created.map { goal -> goal.title },
+                            canUndo = true,
+                        ),
+                    )
+                }
+                is com.mengyalife.app.data.advisor.ProposalApplyResult.Failure -> local.update {
+                    it.copy(
+                        applyState = ProposalApplyUiState(
+                            proposalId = proposalId,
+                            error = result.message,
+                        ),
+                    )
+                }
+            }
+            } finally {
+                applying = false
+            }
+        }
+    }
+
+    private fun undoProposal(proposalId: String) {
+        if (applying) return
+        applying = true
+        if (uiState.value.applyState?.loading == true) {
+            applying = false
+            return
+        }
+        local.update {
+            it.copy(
+                applyState = ProposalApplyUiState(proposalId = proposalId, loading = true),
+            )
+        }
+        viewModelScope.launch {
+            try {
+            when (val result = proposalApplyService.undo(proposalId)) {
+                is com.mengyalife.app.data.advisor.ProposalUndoResult.Success -> local.update {
+                    it.copy(
+                        applyState = ProposalApplyUiState(
+                            proposalId = proposalId,
+                            message = if (result.alreadyUndone) "本次创建已撤销（无需重复操作）" else "已撤销本次创建",
+                            undone = true,
+                        ),
+                    )
+                }
+                is com.mengyalife.app.data.advisor.ProposalUndoResult.Failure -> local.update {
+                    it.copy(
+                        applyState = ProposalApplyUiState(
+                            proposalId = proposalId,
+                            error = result.message,
+                        ),
+                    )
+                }
+            }
+            } finally {
+                applying = false
+            }
+        }
+    }
+
     private fun retry(messageId: String) {
         val state = uiState.value
         if (local.value.sending) return
         val failed = state.messages.firstOrNull { it.id == messageId } ?: return
-        if (failed.status == AdvisorMessageStatus.SENT || failed.role != AdvisorRole.ASSISTANT) return
+        if (failed.role != AdvisorRole.ASSISTANT) return
+        // 草案解析失败保存为 SENT + proposalError（保留原文），也允许重试；
+        // 普通成功消息不能重试。
+        if (failed.status == AdvisorMessageStatus.SENT && failed.proposalError == null) return
         val userMessage = state.messages
             .takeWhile { it.id != failed.id }
             .lastOrNull { it.role == AdvisorRole.USER && it.status == AdvisorMessageStatus.SENT }
@@ -364,17 +523,22 @@ class AdvisorViewModel(
                 local.update { it.copy(errorMessage = "找不到对应的用户问题，无法重试。") }
                 return
             }
-        viewModelScope.launch {
-            conversations.deleteMessage(failed.id)
-            startRequest(
-                input = userMessage.content,
-                insertUser = false,
-                excludeMessageId = userMessage.id,
-                proposalMode = false,
-            )
-        }
+        // 不删除失败消息：保留原始错误证据；重试只追加新的助手消息，
+        // 且草案失败必须继续用 proposalMode，不能退化成普通聊天。
+        startRequest(
+            input = userMessage.content,
+            insertUser = false,
+            excludeMessageId = userMessage.id,
+            proposalMode = failed.proposalMode,
+        )
         local.update {
-            it.copy(infoMessage = "正在重试；不会重复发送你的上一条问题，也不会重复附带目标摘要。")
+            it.copy(
+                infoMessage = if (failed.proposalMode) {
+                    "正在重试目标草案；不会重复用户消息或重复创建草案。"
+                } else {
+                    "正在重试；不会重复发送你的上一条问题。"
+                },
+            )
         }
     }
 
@@ -397,6 +561,7 @@ class AdvisorViewModel(
                     consentRepository = app.container.aiConsentRepository,
                     dataRepository = app.container.advisorDataRepository,
                     proposalRepository = app.container.goalProposalRepository,
+                    proposalApplyService = app.container.goalProposalApplyService,
                     assembler = AdvisorContextAssembler(),
                     networkEngine = app.container.networkAdvisorEngine,
                     fakeEngine = app.container.fakeAdvisorEngine,

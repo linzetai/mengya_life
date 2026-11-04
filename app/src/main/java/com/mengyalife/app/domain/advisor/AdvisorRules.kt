@@ -121,13 +121,26 @@ object AdvisorRules {
      *
      * @param history 本地已保存且状态为 SENT 的消息（不含当前问题）
      */
-    fun buildRequestMessages(
+    data class BuiltRequest(
+        val messages: List<AdvisorChatMessage>,
+        val usedSources: List<AdvisorSource>,
+        val contextChars: Int,
+        val historyMessages: Int,
+        val droppedContextEntries: Int,
+        val truncated: Boolean,
+    )
+
+    /**
+     * 统一构建请求：system、extra prompt、自动上下文、历史、当前问题共同受
+     * [MAX_CONTEXT_CHARS] 约束。只有真正进入请求的上下文条目才返回来源。
+     */
+    fun buildRequest(
         history: List<AdvisorMessage>,
         currentInput: String,
-        goalContext: AdvisorGoalContext? = null,
-        extraSystemContext: String? = null,
+        contextEntries: List<AdvisorContextEntry>,
         extraSystemPrompt: String? = null,
-    ): List<AdvisorChatMessage> {
+        maxChars: Int = MAX_CONTEXT_CHARS,
+    ): BuiltRequest {
         val systemText = buildString {
             append(systemPrompt())
             extraSystemPrompt?.takeIf { it.isNotBlank() }?.let {
@@ -135,33 +148,40 @@ object AdvisorRules {
                 append(it)
             }
         }
-        val system = AdvisorChatMessage(role = "system", content = systemText)
-        val contextBlocks = buildList {
-            goalContext?.let { add(goalContextBlock(it)) }
-            extraSystemContext?.takeIf { it.isNotBlank() }?.let { add(it) }
-        }
-        val current = AdvisorChatMessage(role = "user", content = currentInput.trim())
+        val currentText = currentInput.trim()
+        val fixed = systemText.length + currentText.length
+        var remaining = (maxChars - fixed).coerceAtLeast(0)
 
-        var budget = MAX_CONTEXT_CHARS - system.content.length - current.content.length -
-            contextBlocks.sumOf { it.length }
-        val selected = mutableListOf<AdvisorMessage>()
-        val sentHistory = history
+        val includedEntries = mutableListOf<AdvisorContextEntry>()
+        var dropped = 0
+        for (entry in contextEntries) {
+            val cost = entry.text.length + 1
+            if (cost <= remaining) {
+                includedEntries.add(entry)
+                remaining -= cost
+            } else {
+                dropped++
+            }
+        }
+
+        val historyCandidates = history
             .filter { it.status == AdvisorMessageStatus.SENT && it.content.isNotBlank() }
             .takeLast(MAX_HISTORY_MESSAGES)
-        for (message in sentHistory.asReversed()) {
-            if (budget <= 0) break
-            val cost = message.content.length
-            if (cost > budget) break
-            selected.add(message)
-            budget -= cost
+        val selectedHistory = mutableListOf<AdvisorMessage>()
+        for (message in historyCandidates.asReversed()) {
+            val cost = message.content.length + 1
+            if (cost <= remaining) {
+                selectedHistory.add(message)
+                remaining -= cost
+            }
         }
 
-        return buildList {
-            add(system)
-            contextBlocks.forEach { block ->
-                add(AdvisorChatMessage(role = "system", content = block))
+        val messages = buildList {
+            add(AdvisorChatMessage(role = "system", content = systemText))
+            includedEntries.forEach { entry ->
+                add(AdvisorChatMessage(role = "system", content = entry.text))
             }
-            selected.asReversed().forEach { message ->
+            selectedHistory.asReversed().forEach { message ->
                 add(
                     AdvisorChatMessage(
                         role = when (message.role) {
@@ -172,8 +192,38 @@ object AdvisorRules {
                     ),
                 )
             }
-            add(current)
+            add(AdvisorChatMessage(role = "user", content = currentText))
         }
+        return BuiltRequest(
+            messages = messages,
+            usedSources = includedEntries.mapNotNull { it.source },
+            contextChars = includedEntries.sumOf { it.text.length },
+            historyMessages = selectedHistory.size,
+            droppedContextEntries = dropped,
+            truncated = fixed > maxChars,
+        )
+    }
+
+    /** 兼容旧测试/调用：把上下文当成一个 block，来源为空。 */
+    fun buildRequestMessages(
+        history: List<AdvisorMessage>,
+        currentInput: String,
+        goalContext: AdvisorGoalContext? = null,
+        extraSystemContext: String? = null,
+        extraSystemPrompt: String? = null,
+    ): List<AdvisorChatMessage> {
+        val blocks = buildList {
+            goalContext?.let { add(AdvisorContextEntry(goalContextBlock(it))) }
+            extraSystemContext?.takeIf { it.isNotBlank() }?.let {
+                add(AdvisorContextEntry(it))
+            }
+        }
+        return buildRequest(
+            history = history,
+            currentInput = currentInput,
+            contextEntries = blocks,
+            extraSystemPrompt = extraSystemPrompt,
+        ).messages
     }
 
     /** 目标草案生成的严格 JSON 协议（不依赖 tool calling）。 */
