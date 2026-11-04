@@ -1,0 +1,19 @@
+# Gate 3D-1 真机迁移 v7 → v8
+
+设备: Xiaomi 2509FPN0BC / Android 17
+正式包: com.mengyalife.app 0.11.0-g3d1（versionCode 11）
+时间: 2026-11-04 17:02
+
+升级前（v7）:
+- user_version=7
+- 表: journal_entries/goals/goal_checkins/advisor_messages/goal_proposals/growth_signals/growth_memories
+- 日记 2 篇（MigrationA/B）
+- 目标 0；测试记忆 STALE/DELETED
+
+升级后（v8）:
+- user_version=8
+- 新增 insight_reports 表与索引
+- 旧日记/目标/打卡/消息/草案/线索/记忆全部保留
+- 旧洞察缓存为空
+
+结论：非破坏性迁移；业务表结构未改变。

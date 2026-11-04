@@ -1,6 +1,7 @@
 package com.mengyalife.app.data.advisor
 
 import com.mengyalife.app.data.local.JournalEntryDao
+import com.mengyalife.app.data.growth.GrowthMemoryValidity
 import com.mengyalife.app.data.local.growth.GrowthMemoryDao
 import com.mengyalife.app.data.local.growth.GrowthSignalDao
 import com.mengyalife.app.data.local.goal.GoalDao
@@ -41,6 +42,8 @@ class RoomAdvisorDataRepository(
                     domain = it.domain,
                     status = it.status,
                     createdAt = it.createdAt,
+                    startDate = it.startDate,
+                    dueDate = it.dueDate,
                 )
             }
         } else {
@@ -97,12 +100,11 @@ class RoomAdvisorDataRepository(
         }
         val memories = if (consent.enabled(ConsentCategory.JOURNAL)) {
             val allJournals = journalById
+            val activeSignals = growthSignalDao.loadActive(300).associateBy { it.id }
             growthMemoryDao.loadAll()
                 .filter { it.status == "ACTIVE" || it.status == "CORRECTED" }
                 .filter { memory ->
-                    val ids = com.mengyalife.app.domain.growth.GrowthMemoryIds
-                        .decodeLongs(memory.sourceDiaryIdsJson)
-                    ids.isNotEmpty() && ids.all { it in allJournals }
+                    GrowthMemoryValidity.usable(memory, activeSignals, allJournals)
                 }
                 .map { memory ->
                     ContextGrowthMemory(

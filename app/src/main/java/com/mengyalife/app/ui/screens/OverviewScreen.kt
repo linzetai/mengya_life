@@ -30,6 +30,8 @@ import com.mengyalife.app.ui.components.SectionCard
 import com.mengyalife.app.ui.components.Sparkline
 import com.mengyalife.app.ui.components.StatusPill
 import com.mengyalife.app.ui.components.ThinProgressBar
+import com.mengyalife.app.ui.insight.InsightSection
+import com.mengyalife.app.ui.insight.InsightUiState
 import com.mengyalife.app.util.Timestamps
 
 /**
@@ -47,6 +49,11 @@ fun OverviewScreen(
     onOpenGoals: () -> Unit,
     onCreateGoal: () -> Unit,
     onOpenAdvisor: () -> Unit,
+    insights: InsightUiState = InsightUiState(),
+    onGenerateInsight: () -> Unit = {},
+    onOpenTrends: () -> Unit = {},
+    onDiscussInsight: (String) -> Unit = {},
+    onDraftInsight: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -119,6 +126,17 @@ fun OverviewScreen(
                     }
                 }
             }
+        }
+
+        item {
+            InsightSection(
+                state = insights,
+                onGenerate = onGenerateInsight,
+                onOpenGoals = onOpenGoals,
+                onOpenTrends = onOpenTrends,
+                onDiscuss = onDiscussInsight,
+                onDraft = onDraftInsight,
+            )
         }
 
         item {

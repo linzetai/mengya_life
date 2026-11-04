@@ -14,6 +14,8 @@ import com.mengyalife.app.data.local.goal.GoalCheckinEntity
 import com.mengyalife.app.data.local.goal.GoalDao
 import com.mengyalife.app.data.local.goal.GoalEntity
 import com.mengyalife.app.data.local.growth.GrowthMemoryDao
+import com.mengyalife.app.data.local.insight.InsightReportDao
+import com.mengyalife.app.data.local.insight.InsightReportEntity
 import com.mengyalife.app.data.local.growth.GrowthMemoryEntity
 import com.mengyalife.app.data.local.growth.GrowthSignalDao
 import com.mengyalife.app.data.local.growth.GrowthSignalEntity
@@ -34,6 +36,7 @@ import com.mengyalife.app.data.local.proposal.GoalProposalEntity
  * - **v6**（Gate 3C-1）：journal_entries 增加分析状态列；
  *   新增 `growth_signals`（日记成长线索）
  * - **v7**（Gate 3C-2）：新增 `growth_memories`（跨日记成长记忆）
+ * - **v8**（Gate 3D-1）：新增 `insight_reports`（规则事实 + AI 洞察缓存）
  *
  * 迁移策略：
  * 1. 每次改表都必须 version + 1 并提供 `Migration`；
@@ -42,7 +45,7 @@ import com.mengyalife.app.data.local.proposal.GoalProposalEntity
  * 4. 迁移必须在真机升级安装上验证（本轮已做 v1→v2 实测，见报告）。
  */
 /** 数据库结构版本。导出文件里的 `databaseVersion` 与它保持一致。 */
-const val DB_SCHEMA_VERSION = 7
+const val DB_SCHEMA_VERSION = 8
 
 @Database(
     entities = [
@@ -53,6 +56,7 @@ const val DB_SCHEMA_VERSION = 7
         GoalProposalEntity::class,
         GrowthSignalEntity::class,
         GrowthMemoryEntity::class,
+        InsightReportEntity::class,
     ],
     version = DB_SCHEMA_VERSION,
     exportSchema = true,
@@ -71,6 +75,8 @@ abstract class MengyaDatabase : RoomDatabase() {
     abstract fun growthSignalDao(): GrowthSignalDao
 
     abstract fun growthMemoryDao(): GrowthMemoryDao
+
+    abstract fun insightReportDao(): InsightReportDao
 
     companion object {
         // 正式版与 QA 测试构建使用不同的物理库文件（见 app/build.gradle 的 buildConfigField）。
@@ -281,6 +287,32 @@ abstract class MengyaDatabase : RoomDatabase() {
             }
         }
 
+
+        /** v7 → v8：洞察报告缓存；不动业务表。 */
+        val MIGRATION_7_8: Migration = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `insight_reports` (
+                        `id` TEXT PRIMARY KEY NOT NULL,
+                        `data_version` TEXT NOT NULL,
+                        `status` TEXT NOT NULL,
+                        `summary` TEXT NOT NULL,
+                        `facts_json` TEXT NOT NULL,
+                        `insights_json` TEXT NOT NULL,
+                        `period_start` INTEGER NOT NULL,
+                        `period_end` INTEGER NOT NULL,
+                        `generated_at` INTEGER NOT NULL,
+                        `error` TEXT,
+                        `model` TEXT
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_insight_reports_data_version` ON `insight_reports` (`data_version`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_insight_reports_generated_at` ON `insight_reports` (`generated_at`)")
+            }
+        }
+
         @Volatile
         private var instance: MengyaDatabase? = null
 
@@ -294,7 +326,7 @@ abstract class MengyaDatabase : RoomDatabase() {
                     MengyaDatabase::class.java,
                     DATABASE_NAME,
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                     .build()
                     .also { instance = it }
             }

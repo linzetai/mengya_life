@@ -56,6 +56,8 @@ import com.mengyalife.app.ui.screens.TrendsScreen
 import com.mengyalife.app.ui.growth.GrowthMemoryAction
 import com.mengyalife.app.ui.growth.GrowthMemoryScreen
 import com.mengyalife.app.ui.growth.GrowthMemoryViewModel
+import com.mengyalife.app.ui.insight.InsightUiState
+import com.mengyalife.app.ui.insight.InsightViewModel
 import com.mengyalife.app.ui.settings.AiSettingsViewModel
 import com.mengyalife.app.ui.settings.ExportViewModel
 import com.mengyalife.app.ui.settings.ThemeViewModel
@@ -84,6 +86,9 @@ fun MengyaLifeApp() {
     val goalsViewModel: GoalsViewModel = viewModel(factory = GoalsViewModel.Factory)
     val goalsState by goalsViewModel.uiState.collectAsStateWithLifecycle()
 
+    val insightViewModel: InsightViewModel = viewModel(factory = InsightViewModel.Factory)
+    val insightState by insightViewModel.state.collectAsStateWithLifecycle()
+
     // ---- 数据导出（设置页）----
     val exportViewModel: ExportViewModel = viewModel(factory = ExportViewModel.Factory)
     val exportState by exportViewModel.state.collectAsStateWithLifecycle()
@@ -101,6 +106,12 @@ fun MengyaLifeApp() {
     val trendsListState = rememberLazyListState()
     val diaryListState = rememberLazyListState()
     val advisorListState = rememberLazyListState()
+
+    LaunchedEffect(currentTab, showSettings, showMemories) {
+        if (currentTab == AppTab.OVERVIEW && !showSettings && !showMemories) {
+            insightViewModel.refresh()
+        }
+    }
 
     // ---- AI 顾问（真实请求 + 本地持久化）----
     val advisorViewModel: AdvisorViewModel = viewModel(factory = AdvisorViewModel.Factory)
@@ -172,6 +183,8 @@ fun MengyaLifeApp() {
                     },
                     advisorState = advisorState,
                     onAdvisorAction = advisorViewModel::onAction,
+                    insightState = insightState,
+                    onGenerateInsight = insightViewModel::generate,
                 )
             }
 
@@ -198,6 +211,8 @@ private fun MainShell(
     onCreateGoalFromOverview: () -> Unit,
     advisorState: AdvisorUiState,
     onAdvisorAction: (AdvisorAction) -> Unit,
+    insightState: InsightUiState,
+    onGenerateInsight: () -> Unit,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -251,6 +266,18 @@ private fun MainShell(
                     onOpenGoals = { onTabChange(AppTab.GOALS) },
                     onCreateGoal = onCreateGoalFromOverview,
                     onOpenAdvisor = { onTabChange(AppTab.ADVISOR) },
+                    insights = insightState,
+                    onGenerateInsight = onGenerateInsight,
+                    onOpenTrends = { onTabChange(AppTab.TRENDS) },
+                    onDiscussInsight = { text ->
+                        onTabChange(AppTab.ADVISOR)
+                        onAdvisorAction(AdvisorAction.InputChange(text))
+                    },
+                    onDraftInsight = { text ->
+                        onTabChange(AppTab.ADVISOR)
+                        onAdvisorAction(AdvisorAction.InputChange(text))
+                        onAdvisorAction(AdvisorAction.RequestProposal)
+                    },
                 )
 
                 AppTab.GOALS -> GoalsScreen(

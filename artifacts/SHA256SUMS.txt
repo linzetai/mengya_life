@@ -1,2 +1,2 @@
-c7f69fba9b32b51ea5aaf79315e8d948b99c8088a789428c1ee47da9714e77bb  artifacts/mengya-life-0.10.0-g3c2-debug.apk
-440aed7ed7ad53036c442ccac64fb5d19f82cd314b905ec63a8e3aa16b1baee3  artifacts/mengya-life-0.10.0-g3c2-qa-test.apk
+3f53eab661a651c21bf4444a912a9c3d50c5bef11aa983e087ffde402562a38a  artifacts/mengya-life-0.11.0-g3d1-debug.apk
+ca8612adfb334160f2a14df3881aff6e472ea867fd75b85266f1da99e77e6485  artifacts/mengya-life-0.11.0-g3d1-qa-test.apk

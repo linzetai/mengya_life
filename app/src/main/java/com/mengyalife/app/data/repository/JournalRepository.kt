@@ -21,6 +21,7 @@ class JournalRepository(
     private val now: () -> Long = System::currentTimeMillis,
     private val growthSignalDao: GrowthSignalDao? = null,
     private val transaction: suspend (suspend () -> Unit) -> Unit = { it() },
+    private val onSignalsChanged: suspend () -> Unit = {},
 ) {
 
     fun observeEntries(): Flow<List<JournalEntryEntity>> = dao.observeAll()
@@ -81,6 +82,7 @@ class JournalRepository(
                 growthSignalDao?.markStaleForDiary(id, timestamp)
             }
         }
+        if (changed && contentChanged) runCatching { onSignalsChanged() }
         return changed
     }
 
@@ -91,6 +93,7 @@ class JournalRepository(
             deleted = dao.deleteById(id) > 0
             if (deleted) growthSignalDao?.deleteForDiary(id)
         }
+        if (deleted) runCatching { onSignalsChanged() }
         return deleted
     }
 

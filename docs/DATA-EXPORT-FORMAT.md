@@ -1,6 +1,6 @@
 # 数据导出格式说明（Mengya Life · Gate 2C）
 
-> 版本：导出格式 `schemaVersion = 1`，数据库 `schemaVersion = 7`，应用 `0.10.0-g3c2`
+> 版本：导出格式 `schemaVersion = 1`，数据库 `schemaVersion = 8`，应用 `0.11.0-g3d1`
 > 实现：`app/src/main/java/com/mengyalife/app/data/export/ExportJson.kt`、
 > `DataExportRepository.kt`、`ui/settings/ExportViewModel.kt`
 
@@ -68,7 +68,7 @@ RoomDatabase.withTransaction {
     "versionName": "0.5.0-g2c",
     "versionCode": 5
   },
-  "database": { "engine": "room", "schemaVersion": 7 },
+  "database": { "engine": "room", "schemaVersion": 8 },
   "counts": { "journalEntries": 2, "goals": 3, "goalCheckins": 3 },
   "data": {
     "journalEntries": [],

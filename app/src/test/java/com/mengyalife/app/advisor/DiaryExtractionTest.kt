@@ -196,6 +196,49 @@ class DiaryExtractionTest {
     }
 
     @Test
+    fun `请求前配置变化不调用引擎`() = runTest {
+        val e = env()
+        val id = e.newDiary("今天完成了一次重要汇报")
+        val service = DiaryExtractionService(
+            journalRepository = e.journal,
+            growthSignalDao = e.signalDao,
+            configRepository = e.config,
+            consentRepository = e.consent,
+            networkEngine = e.engine,
+            fakeEngine = null,
+            now = { 1_000L },
+            minIntervalMs = 0,
+            preRequestHook = { e.config.save("https://new.example.com/v1", "new", null) },
+        )
+        val result = service.extract(id)
+        assertTrue(result is DiaryExtractionOutcome.Failed)
+        assertEquals(0, e.engine.calls.size)
+        assertTrue(e.signalDao.rows.value.isEmpty())
+    }
+
+    @Test
+    fun `请求前编辑日记不发送旧内容`() = runTest {
+        val e = env()
+        val id = e.newDiary("今天完成了一次重要汇报")
+        val service = DiaryExtractionService(
+            journalRepository = e.journal,
+            growthSignalDao = e.signalDao,
+            configRepository = e.config,
+            consentRepository = e.consent,
+            networkEngine = e.engine,
+            fakeEngine = null,
+            now = { 1_000L },
+            minIntervalMs = 0,
+            preRequestHook = { e.journal.updateEntry(id, "已经换成新的内容", "标题") },
+        )
+        val result = service.extract(id)
+        assertTrue(result is DiaryExtractionOutcome.Failed || result is DiaryExtractionOutcome.Superseded)
+        assertEquals(0, e.engine.calls.size)
+        assertTrue(e.signalDao.rows.value.isEmpty())
+        assertEquals("已经换成新的内容", e.dao.state.value.first().body)
+    }
+
+    @Test
     fun `授权在请求发起前撤回不会调用引擎`() = runTest {
         QaExtractionGate.reset()
         QaExtractionGate.withdrawBeforeRequest = true

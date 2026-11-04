@@ -1,0 +1,55 @@
+# Gate 3D-1 真实模型 Insight 验证
+
+模型：deepseek-flash / https://api.deepseek.com（用户自己的 Key）
+时间：2026-11-04 17:06–17:20
+未向脚本提供 Key；证据不含 Key/密文/请求头。
+
+## 输入事实（规则层，写入 report.facts_json）
+
+数据版本：`4aef3e38ecc610a50ff5b606afa0d6b6750256b0c20de1ce3f1bd2bea92fff1d`
+- 1 个进行中的长期目标 SavingsGoal（生活），3 条进度
+- [goal-count] 共有 1 个目标，其中进行中 1 个（长期 1 / 阶段 0 / 行动 0）
+- [progress-count] 共有 3 条进展记录，最近 30 天 3 条，覆盖 1 个目标
+- [trend-27-CNY] CNY 记录从 1000 CNY 变为 2000 CNY（上升 1000 CNY，3 个点）
+- 不同单位：仅 CNY；没有跨单位比较
+
+## 模型输出（解析后、脱敏）
+
+summary：
+现有事实显示：1 个进行中的长期储蓄目标；近 30 天有 3 条进展记录，均覆盖该目标；CNY 记录从 1000 CNY 升至 2000 CNY（3 个点）。仅凭这些事实无法判断目标是否达成或趋势能否持续。
+
+insights：
+1. POSITIVE / 储蓄目标记录呈上升 / isInference=false / 1.0
+   - sources: CHECKIN #7,#8,#9
+2. SUGGESTION / 继续按同一单位记录 / isInference=true / 0.7
+   - body 提到缺少目标金额、期限，无法判断是否达成
+   - sources: GOAL #27, CHECKIN #7,#8,#9
+3. SUGGESTION / 补充目标结构信息 / isInference=true / 0.6
+   - sources: GOAL #27, CHECKIN #7,#8,#9
+
+## 来源校验
+
+- 所有来源 ID 均属于本轮 allowedSources（GOAL:27 / CHECKIN:7-9）；
+- 无捏造来源；
+- 数值只使用 CNY 同单位；
+- 模型未声称目标已完成；建议标记为推测；
+- 解析器对越权来源（曾出现 CHECKIN:CHECKIN:7 写法）归一化后校验；其他失败尝试均未写入 AI insights，保留规则事实与失败状态。
+
+## 失败重试记录
+
+真实生成过程中出现过：
+- 输出被 1400 token 截断 → JSON 解析失败；
+- 模型把来源写成 `CHECKIN:7` 前缀 → 归一化后修复；
+- 过度严格的“已完成”短语误判 → 移除该启发式，改为要求来源白名单 + prompt 约束；
+- 最终使用 2500 output tokens 成功。
+失败报告保留 facts + error，不展示伪造 AI 洞察；成功报告覆盖为最新缓存。
+
+## 截图
+
+- `g3d1-insight-overview-7.png`：总览洞察卡（做得好 / 下一步建议）
+- `g3d1-insight-detail.png`：数据区间、为什么这样判断、来源
+- `g3d1-journal-off-insight.png`：关闭 JOURNAL 后不展示旧洞察
+
+## 数据清理
+
+验证完成后 SavingsGoal 与 3 条进展已删除；insight_reports 保留历史缓存但 dataVersion 已不匹配，不会再展示为有效洞察。测试记忆为 STALE/DELETED，不进入顾问。

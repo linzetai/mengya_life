@@ -1,0 +1,63 @@
+# Gate 3D-1 真机验证记录
+
+设备：Xiaomi 2509FPN0BC / Android 17
+正式包：0.11.0-g3d1（versionCode 11）
+QA 包：0.11.0-g3d1-qa
+时间：2026-11-04 16:50–18:00（Asia/Shanghai）
+
+## A. G3C2 遗留
+
+A1 旧记忆失效：
+- 写入链路：JournalRepository 编辑/删除后触发 memory rebuild；信号 STALE/DELETED。
+- AdvisorDataRepository：使用 GrowthMemoryValidity 再次校验来源日记存在、signal 当前版本且 ACTIVE/CORRECTED；失败则排除。
+- JVM：GrowthMemoryValidityTest（编辑/删除来源）PASS；GrowthMemoryTest（来源失效）PASS。
+- 真机：删除测试日记后 signals=0，memories STALE/DELETED，不进入顾问。
+
+A2 请求前绑定校验：
+- 服务捕获 boundConfig/boundRuntime/boundConsent，gate 后重新校验 config endpoint、runtime endpoint、consent epoch/recipient/JOURNAL、日记 hash。
+- JVM：请求前配置变化、日记编辑 → engine.calls=0；授权撤回 → 0 线索。
+- QA gate：撤回后 FAILED、signals=0；插入失败事务回滚 signals=0/memories=0。
+
+A3 受控交错：
+- `请求前配置变化不调用引擎` PASS
+- `请求前编辑日记不发送旧内容` PASS
+- `授权在请求发起前撤回不调用引擎` PASS
+- `旧版本结果不覆盖新状态` PASS（status=PENDING、0 线索）
+- `线索插入中途失败回滚且不完成` PASS
+
+A4 边界：
+- 已发出的网络字节无法撤回；保证请求前 gate、进行中取消、结果隔离三层。
+- 本轮没有宣称服务端可撤回已发送数据。
+
+## B/C 洞察
+
+B1/B2：规则事实 + 授权类别控制；B3 同单位趋势/截止日期/数据不足；B4 JSON 来源白名单。
+- JVM：InsightRulesTest / InsightParserTest / InsightServiceTest PASS。
+
+UI：
+- 总览「最近值得关注」卡片（做得好/下一步建议），展开详情显示数据区间、为什么判断、来源。
+- 关闭 JOURNAL 后旧洞察卡片消失，不展示旧版本。
+- 记忆页状态栏 inset 修复：g3d1-memory-inset.png，标题不再与状态栏重叠。
+
+真实模型：
+- 同一数据版本 `4aef…`，DeepSeek 输出 3 条洞察；来源 CHECKIN #7-9 / GOAL #27，全部在 allowedSources。
+- 数据只有 CNY，规则和模型未跨单位比较。
+- 截图 g3d1-insight-overview-7.png / g3d1-insight-detail.png。
+- 失败重试：早期截断/前缀 ID/过度严格校验均保留 FAILED facts，不展示伪 AI；最终成功。
+
+未验证：
+- C3/C4 详情里的“目标/趋势”跳转和“和顾问讨论/整理草案”按钮未逐一点击真机验证（代码路径已接线）。
+- 真实模型未生成 RISK 类型卡片（本次输出 POSITIVE+SUGGESTION；模型/规则支持 RISK）。
+- A1 “编辑后提取失败再打开顾问”未单独制造真机完整链路；由 JVM 两层测试 + 真机来源删除验证覆盖。
+- A2 真机未单独注入请求前配置切换（JVM 可控测试覆盖；QA 撤回 gate 已真机）。
+
+## D 回归（v8）
+
+- 日记 25/25
+- 目标 64/64
+- 趋势 73/73
+- 导航 28/28
+- 设置 38/38
+- 导出 49/49
+- 正式包只读冒烟 50/50
+- 无崩溃

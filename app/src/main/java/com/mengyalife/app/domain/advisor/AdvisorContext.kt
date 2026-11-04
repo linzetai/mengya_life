@@ -29,6 +29,8 @@ data class ContextGoalRecord(
     val domain: GoalDomain,
     val status: GoalStatus,
     val createdAt: Long,
+    val startDate: Long? = null,
+    val dueDate: Long? = null,
 )
 
 data class ContextCheckinRecord(

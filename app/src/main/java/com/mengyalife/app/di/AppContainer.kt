@@ -24,6 +24,7 @@ import com.mengyalife.app.data.growth.DiaryExtractionService
 import com.mengyalife.app.data.growth.GrowthMemoryRepository
 import com.mengyalife.app.data.growth.GrowthMemoryService
 import com.mengyalife.app.data.growth.GrowthSignalRepository
+import com.mengyalife.app.data.insight.InsightService
 import com.mengyalife.app.data.local.DB_SCHEMA_VERSION
 import com.mengyalife.app.data.local.MengyaDatabase
 import com.mengyalife.app.data.preferences.ThemePreferences
@@ -46,6 +47,7 @@ class AppContainer(context: Context) {
             dao = database.journalEntryDao(),
             growthSignalDao = database.growthSignalDao(),
             transaction = { block -> database.withTransaction { block() } },
+            onSignalsChanged = { growthMemoryService.rebuildAll() },
         )
     }
 
@@ -62,6 +64,17 @@ class AppContainer(context: Context) {
         GrowthSignalRepository(
             dao = database.growthSignalDao(),
             onChanged = { growthMemoryService.rebuildAll() },
+        )
+    }
+
+    val insightService: InsightService by lazy {
+        InsightService(
+            dataRepository = advisorDataRepository,
+            consentRepository = aiConsentRepository,
+            configRepository = advisorConfigRepository,
+            networkEngine = networkAdvisorEngine,
+            fakeEngine = fakeAdvisorEngine,
+            dao = database.insightReportDao(),
         )
     }
 
