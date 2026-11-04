@@ -269,6 +269,10 @@ private fun MainShell(
                     insights = insightState,
                     onGenerateInsight = onGenerateInsight,
                     onOpenTrends = { onTabChange(AppTab.TRENDS) },
+                    onOpenInsightGoal = { id ->
+                        onGoalAction(GoalAction.FocusGoal(id))
+                        onTabChange(AppTab.GOALS)
+                    },
                     onDiscussInsight = { text ->
                         onTabChange(AppTab.ADVISOR)
                         onAdvisorAction(AdvisorAction.InputChange(text))

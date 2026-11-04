@@ -31,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -66,6 +67,11 @@ fun GoalsScreen(
     onAction: (GoalAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    LaunchedEffect(state.focusedGoalId, state.snapshot.roots) {
+        val id = state.focusedGoalId ?: return@LaunchedEffect
+        val index = state.snapshot.roots.indexOfFirst { it.goal.id == id || it.goal.id in it.children.map { c -> c.goal.id } }
+        if (index >= 0) listState.animateScrollToItem(index + 2)
+    }
     LazyColumn(
         modifier = modifier
             .fillMaxSize()

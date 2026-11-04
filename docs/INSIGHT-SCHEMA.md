@@ -66,3 +66,12 @@ AI JSON：
 - JOURNAL 关闭：不读取成长记忆；
 - 全部关闭/未授权：不调用 AI，显示数据不足/未授权；
 - 请求后重新校验 dataVersion/consent，变化则丢弃 AI 结果。
+
+## Gate 3D-2 补充
+
+- AI insight 必须带 `factIds`，且只能引用本轮规则事实；
+- dataVersion 增加 day bucket，时间推进会使缓存失效；
+- 趋势 fact 记录实际首末日期；
+- 单目标无进展不算充分；
+- 记忆 fact 使用实际内容，用户纠正优先；
+- 目标描述/层级/父目标/日期进入 dataVersion。

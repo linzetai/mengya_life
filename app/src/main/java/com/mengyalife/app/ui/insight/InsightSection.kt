@@ -17,6 +17,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,6 +43,7 @@ fun InsightSection(
     state: InsightUiState,
     onGenerate: () -> Unit,
     onOpenGoals: () -> Unit,
+    onOpenGoal: (Long) -> Unit = {},
     onOpenTrends: () -> Unit,
     onDiscuss: (String) -> Unit,
     onDraft: (String) -> Unit,
@@ -49,6 +51,9 @@ fun InsightSection(
     var detail by remember { mutableStateOf<GrowthInsight?>(null) }
     val report = state.report
     val current = state.hasReport
+    LaunchedEffect(state.currentVersion, state.hasReport) {
+        if (!state.hasReport) detail = null
+    }
 
     SectionCard(
         title = "最近值得关注",
@@ -111,6 +116,7 @@ fun InsightSection(
             report = report,
             onDismiss = { detail = null },
             onOpenGoals = onOpenGoals,
+            onOpenGoal = onOpenGoal,
             onOpenTrends = onOpenTrends,
             onDiscuss = { onDiscuss(insight.title + "：" + insight.body); detail = null },
             onDraft = { onDraft(insight.title + "：" + insight.body); detail = null },
@@ -166,6 +172,7 @@ private fun InsightDetailDialog(
     report: InsightReport?,
     onDismiss: () -> Unit,
     onOpenGoals: () -> Unit,
+    onOpenGoal: (Long) -> Unit,
     onOpenTrends: () -> Unit,
     onDiscuss: () -> Unit,
     onDraft: () -> Unit,
@@ -189,7 +196,8 @@ private fun InsightDetailDialog(
                 if (report != null) {
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "数据区间：${Timestamps.formatDate(report.periodStart)} – ${Timestamps.formatDate(report.periodEnd)}",
+                        "数据区间：${Timestamps.formatDate(report.periodStart)} – ${Timestamps.formatDate(report.periodEnd)}" +
+                            " · 生成于 ${Timestamps.formatDateTime(report.generatedAt)}",
                         style = MaterialTheme.typography.labelSmall,
                     )
                     Text(
@@ -197,7 +205,9 @@ private fun InsightDetailDialog(
                         style = MaterialTheme.typography.labelMedium,
                         modifier = Modifier.padding(top = 8.dp),
                     )
-                    report.facts.forEach { FactLine(it) }
+                    val relevant = report.facts.filter { it.id in insight.factIds }
+                        .ifEmpty { report.facts }
+                    relevant.forEach { FactLine(it) }
                 }
                 if (insight.sources.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
@@ -208,10 +218,20 @@ private fun InsightDetailDialog(
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = onOpenGoals, modifier = Modifier.testTag("insight_open_goals")) {
+                    TextButton(
+                        onClick = {
+                            val goalId = insight.sources.firstOrNull { it.type == "GOAL" }?.recordId?.toLongOrNull()
+                            onDismiss()
+                            if (goalId != null) onOpenGoal(goalId) else onOpenGoals()
+                        },
+                        modifier = Modifier.testTag("insight_open_goals"),
+                    ) {
                         Text("目标")
                     }
-                    TextButton(onClick = onOpenTrends, modifier = Modifier.testTag("insight_open_trends")) {
+                    TextButton(
+                        onClick = { onDismiss(); onOpenTrends() },
+                        modifier = Modifier.testTag("insight_open_trends"),
+                    ) {
                         Text("趋势")
                     }
                 }

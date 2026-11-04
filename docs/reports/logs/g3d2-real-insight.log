@@ -1,0 +1,59 @@
+# Gate 3D-2 真实模型洞察验证
+
+模型：deepseek-flash / https://api.deepseek.com（用户自己的 Key）
+时间：2026-11-04 20:09–20:16
+未向脚本提供 Key；证据不含 Key/密文/请求头。
+
+## 输入事实（规则层）
+
+dataVersion：`312c922acf9266b1a82eb94168b54bf56a37c1cb23fe27a470b7f03b6e1c32bf`
+- goal-count：1 个进行中长期储蓄目标（长期1/阶段0/行动0）
+- progress-count：全部历史 3 条，最近 30 天 3 条，覆盖 1 个目标
+- trend-28-CNY：目标 SavingsGoal2 的 CNY 从 2026-11-04 的 1000 CNY 到 2026-11-04 的 2000 CNY（上升1000，3点；区间 2026-11-04 – 2026-11-04）
+- 只有 CNY；没有跨单位比较
+
+## 模型输出（解析后、脱敏）
+
+summary：当前有 1 个进行中的长期储蓄目标；近 30 天有 3 条进展记录，覆盖该目标。CNY 记录显示金额从 1000 升至 2000，但记录区间起止为同一天，信息不足以判断长期趋势。
+
+insights：
+
+1. POSITIVE / 目标与记录集中 / isInference=true
+   factIds: goal-count, progress-count
+   sources: GOAL #28, CHECKIN #10,#11,#12
+2. RISK / 趋势区间需核对 / isInference=true
+   factIds: trend-28-CNY
+   sources: CHECKIN #10,#11,#12
+   body 明确“区间起止均为同一天，信息不足”
+3. SUGGESTION / 补充记录口径 / isInference=true
+   factIds: goal-count, progress-count, trend-28-CNY
+   sources: GOAL #28, CHECKIN #10,#11,#12
+   body 建议补充目标金额/期限，避免同日多笔被误读
+
+## 校验
+
+- 所有 factIds 属于本轮规则事实集合；
+- 所有来源 ID 属于本轮 allowedSources；
+- UI 详情只展开该 insight 对应的 factIds；
+- 模型没有把“同日三点”说成长期增长，明确写信息不足；
+- 规则层没有跨单位计算。
+
+## 失败重试
+
+- 早期模型输出未带 factIds → 解析器拒绝，保留规则 facts + FAILED；
+- 强化 prompt 后成功；失败状态未显示为 AI 洞察。
+- 真实生成前后规则层事实与模型建议分开存储/展示。
+
+## 截图
+
+- `g3d2-insight-overview-3.png`：POSITIVE + RISK + SUGGESTION
+- `g3d2-insight-to-goal.png`：详情 → 目标定位
+- `g3d2-insight-to-trends.png`：详情 → 趋势
+- `g3d2-insight-discuss.png`：建议 → 顾问讨论（预填）
+- `g3d2-insight-draft.png` / `g3d2-proposal-review.png` / `g3d2-proposal-applied.png`：建议 → 目标草案 → 用户确认创建
+- `g3d2-insight-detail.png`（若存在）：详情
+
+## 数据清理
+
+验证完成后 SavingsGoal2 及草案创建的 6 个子目标已删除；goals=0、checkins=0。
+insight_reports 保留历史缓存，dataVersion 已不匹配，不再显示为有效洞察。

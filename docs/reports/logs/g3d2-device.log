@@ -1,0 +1,28 @@
+# Gate 3D-2 真机验证记录
+
+设备：Xiaomi 2509FPN0BC / Android 17
+正式包：0.12.0-g3d2（versionCode 12），Room v8
+时间：2026-11-04 20:09–20:45
+
+## A
+- 请求前撤回/JOURNAL 关闭/endpoint 切换/编辑进展：JVM 0 calls；未单独真机注入。
+- 请求期间改数据：JVM 1 call、无 READY。
+- ViewModel 取消逻辑接线；真机网络中途取消未验证。
+- 边界：已发送字节无法撤回，报告未宣称绝对安全。
+
+## B/C
+- 同单位趋势、趋势区间、最新点来源、单目标不足、factIds、记忆实际内容/纠正优先：JVM PASS。
+- 真实模型：POSITIVE + RISK + SUGGESTION；factIds 全部属于规则事实；来源 GOAL#28/CHECKIN#10-12。
+- 早期缺 factIds 被拒，保留 facts/FAILED；强化 prompt 后成功。
+
+## D
+- 详情 → 目标：PASS，目标页定位 SavingsGoal2（g3d2-insight-to-goal.png）。
+- 详情 → 趋势：页面显示 CNY 趋势（g3d2-insight-to-trends.png）；容器 tag 自动断言未命中，按目视 PASS 记录。
+- 建议 → 顾问讨论：PASS，输入预填（g3d2-insight-discuss.png）。
+- 建议 → 草案：PASS，审核显示“尚未保存”（g3d2-insight-draft.png）。
+- 用户确认：点“确认创建 6 个目标”后 goals 1→7；确认前未创建（g3d2-proposal-review.png / applied）。
+- 数据清理：SavingsGoal2 + 6 子目标已删除；goals=0、checkins=0。
+- 未验证：D3 相关事实视觉、D4 详情打开中权限变化、职业/不足真实洞察。
+
+## 回归
+日记 25/25、目标 64/64、趋势 73/73、导航 28/28、设置 38/38、导出 49/49、正式包 50/50。

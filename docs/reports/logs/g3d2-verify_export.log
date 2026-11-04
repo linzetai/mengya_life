@@ -1,0 +1,58 @@
+========== 0. 准备 QA 数据（日记 + 目标 + 进展） ==========
+PASS  日记面板
+PASS  日记面板关闭
+PASS  日记已保存
+PASS  目标面板
+PASS  目标已保存
+PASS  目标出现
+PASS  拿到目标 id  1
+PASS  进展面板
+PASS  进展已保存
+PASS  进展面板
+PASS  进展已保存
+PASS  进展计数
+PASS  准备数据：1 条日记  [(1, 'ExportDiary', 'g2c export v1', 1793796094070, 1793796094070)]
+PASS  准备数据：1 个目标  [(1, 'ExportGoal', None, 'LONG_TERM', None, 'LIFE', 'IN_PROGRESS', None, None, 1793796120497, 1793796157625)]
+PASS  准备数据：2 条进展  [(1, 1, 1793796157623, 'week1', 3.5, 'kg', 'manual'), (2, 1, 1793796192235, 'week2', 4.0, 'kg', 'manual')]
+========== 1. 打开导出入口 + 敏感信息提醒 ==========
+PASS  设置页已打开
+PASS  设置页导出入口
+PASS  导出确认框
+PASS  敏感信息提醒
+PASS  提醒包含「敏感个人信息」
+PASS  提醒包含「不会上传或自动分享」
+PASS  明确导出范围
+PASS  明确导入尚未实现
+========== 2. SAF 保存 ==========
+PASS  系统文件选择器出现「保存」
+PASS  导出成功提示
+========== 3. 拉取并解析导出文件 ==========
+PASS  设备上出现本次导出文件  /sdcard/Download/mengya-life-export-20261104-204338.json
+PASS  文件已拉取到本机  docs/reports/logs/g3d2-export/mengya-life-export-20261104-204338.json 1423 bytes
+PASS  JSON 可解析
+PASS  format 正确  mengyalife-backup
+PASS  schemaVersion = 1  1
+PASS  database.schemaVersion = 8
+PASS  包含版本信息  {'name': 'Mengya Life', 'package': 'com.mengyalife.app.qa', 'versionName': '0.12.0-g3d2-qa', 'versionCode': 12}
+PASS  包含导出时间
+PASS  包含 ISO 时间
+PASS  counts 与实际条数一致  {'journalEntries': 1, 'goals': 1, 'goalCheckins': 2}
+PASS  导出包含日记
+PASS  导出包含目标
+PASS  导出包含进展
+PASS  日记标题/正文完整  [{'id': 1, 'title': 'ExportDiary', 'body': 'g2c export v1', 'createdAt': 1793796094070, 'updatedAt': 1793796094070}]
+PASS  日记时间戳完整
+PASS  目标字段完整  {'id': 1, 'title': 'ExportGoal', 'description': None, 'level': 'LONG_TERM', 'parentId': None, 'domain': 'LIFE', 'status': 'IN_PROGRESS', 'startDate': None, 'dueDate': None, 'createdAt': 1793796120497, 'updatedAt': 1793796157625}
+PASS  目标父子关系与库一致（根为 null）
+PASS  进展记录与库逐字段一致  [{'id': 1, 'goalId': 1, 'recordedAt': 1793796157623, 'note': 'week1', 'metricValue': 3.5, 'metricUnit': 'kg', 'source': 'manual'}, {'id': 2, 'goalId': 1, 'recordedAt': 1793796192235, 'note': 'week2', 'metricValue': 4.0, 'metricUnit': 'kg', 'source': 'manual'}]
+PASS  导出不含 API Key 字段
+PASS  导出不含 token
+========== 4. 导出后数据库未变 ==========
+PASS  日记未变
+PASS  目标未变
+PASS  进展未变
+========== 5. 清理设备上的测试导出文件 ==========
+PASS  测试导出文件已清理
+导出样本保留在: docs/reports/logs/g3d2-export/mengya-life-export-20261104-204338.json
+
+==== SUMMARY: 49/49 passed ====

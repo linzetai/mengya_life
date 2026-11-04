@@ -1,0 +1,45 @@
+# Gate 3D-2 源码改动清单
+
+## 新增/未跟踪
+- artifacts/mengya-life-0.12.0-g3d2-debug.apk.sha256
+- artifacts/mengya-life-0.12.0-g3d2-qa-test.apk.sha256
+- docs/MIGRATION-G3D2.md
+- docs/reports/REPORT-G3D2.md
+- docs/reports/logs/g3d2-acceptance-summary.md
+- docs/reports/logs/g3d2-device.log
+- docs/reports/logs/g3d2-export/
+- docs/reports/logs/g3d2-real-insight.log
+- docs/reports/logs/g3d2-shots/
+- docs/reports/logs/g3d2-source-changes.md
+- docs/reports/logs/g3d2-unit-tests.md
+- docs/reports/logs/g3d2-verify_diary.log
+- docs/reports/logs/g3d2-verify_export.log
+- docs/reports/logs/g3d2-verify_goals.log
+- docs/reports/logs/g3d2-verify_navigation.log
+- docs/reports/logs/g3d2-verify_prod_smoke.log
+- docs/reports/logs/g3d2-verify_settings.log
+- docs/reports/logs/g3d2-verify_trends.log
+
+## 修改
+- README.md
+- app/build.gradle
+- app/src/main/java/com/mengyalife/app/MengyaLifeApp.kt
+- app/src/main/java/com/mengyalife/app/data/insight/InsightService.kt
+- app/src/main/java/com/mengyalife/app/domain/insight/InsightCodec.kt
+- app/src/main/java/com/mengyalife/app/domain/insight/InsightModels.kt
+- app/src/main/java/com/mengyalife/app/domain/insight/InsightParser.kt
+- app/src/main/java/com/mengyalife/app/domain/insight/InsightRules.kt
+- app/src/main/java/com/mengyalife/app/ui/goals/GoalContract.kt
+- app/src/main/java/com/mengyalife/app/ui/goals/GoalsViewModel.kt
+- app/src/main/java/com/mengyalife/app/ui/insight/InsightSection.kt
+- app/src/main/java/com/mengyalife/app/ui/insight/InsightViewModel.kt
+- app/src/main/java/com/mengyalife/app/ui/screens/GoalsScreen.kt
+- app/src/main/java/com/mengyalife/app/ui/screens/OverviewScreen.kt
+- app/src/test/java/com/mengyalife/app/advisor/InsightParserTest.kt
+- app/src/test/java/com/mengyalife/app/advisor/InsightRulesTest.kt
+- app/src/test/java/com/mengyalife/app/advisor/InsightServiceTest.kt
+- app/src/test/java/com/mengyalife/app/data/ExportTest.kt
+- artifacts/SHA256SUMS.txt
+- docs/DATA-EXPORT-FORMAT.md
+- tools/ui-verify/verify_prod_smoke.py
+- tools/ui-verify/verify_settings.py

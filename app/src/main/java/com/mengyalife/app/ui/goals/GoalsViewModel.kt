@@ -45,6 +45,7 @@ class GoalsViewModel(
         val delete: DeleteConfirmState = DeleteConfirmState(),
         val statusPicker: StatusPickerState = StatusPickerState(),
         val message: String? = null,
+        val focusedGoalId: Long? = null,
     )
 
     private val localState = MutableStateFlow(LocalState())
@@ -80,6 +81,7 @@ class GoalsViewModel(
             delete = local.delete,
             statusPicker = local.statusPicker,
             message = local.message,
+            focusedGoalId = local.focusedGoalId,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -89,6 +91,10 @@ class GoalsViewModel(
 
     fun onAction(action: GoalAction) {
         when (action) {
+            is GoalAction.FocusGoal -> localState.update {
+                it.copy(focusedGoalId = action.id)
+            }
+
             is GoalAction.ToggleExpand -> localState.update { state ->
                 val expanded = state.expandedIds.toMutableSet()
                 if (!expanded.add(action.id)) expanded.remove(action.id)

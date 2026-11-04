@@ -4,7 +4,13 @@ import com.mengyalife.app.data.insight.InsightGenerationResult
 import com.mengyalife.app.data.insight.InsightService
 import com.mengyalife.app.data.local.insight.InsightReportDao
 import com.mengyalife.app.data.local.insight.InsightReportEntity
+import com.mengyalife.app.data.advisor.AdvisorConfigRepository
+import com.mengyalife.app.data.advisor.AdvisorEngine
+import com.mengyalife.app.data.consent.AiConsentRepository
+import com.mengyalife.app.domain.advisor.AdvisorChatMessage
 import com.mengyalife.app.domain.advisor.AdvisorChatResult
+import com.mengyalife.app.domain.advisor.AdvisorRuntimeConfig
+import com.mengyalife.app.domain.advisor.ConsentCategory
 import com.mengyalife.app.domain.advisor.AdvisorContextSnapshot
 import com.mengyalife.app.domain.advisor.AiConsentRules
 import com.mengyalife.app.domain.advisor.ContextCheckinRecord
@@ -66,9 +72,34 @@ class InsightServiceTest {
         )
     }
 
+    private suspend fun serviceBound(
+        engine: AdvisorEngine,
+        data: FakeAdvisorDataRepository,
+        consent: AiConsentRepository,
+        config: AdvisorConfigRepository,
+        dao: FakeInsightDao,
+        before: suspend () -> Unit,
+    ): InsightService = InsightService(
+        dataRepository = data,
+        consentRepository = consent,
+        configRepository = config,
+        networkEngine = engine,
+        fakeEngine = null,
+        dao = dao,
+        now = { now },
+        beforeRequest = before,
+    )
+
+    private suspend fun boundFakes(): Triple<FakeAdvisorDataRepository, FakeConsentRepository, FakeConfigRepository> {
+        val data = FakeAdvisorDataRepository(snapshot)
+        val consent = FakeConsentRepository().apply { grant(endpoint, AiConsentRules.allCategories) }
+        val config = FakeConfigRepository().apply { save(endpoint, "model", "sk-test") }
+        return Triple(data, consent, config)
+    }
+
     private fun validJson() = """
         {"schemaVersion":1,"summary":"储蓄在增加","insights":[
-        {"type":"POSITIVE","title":"稳步储蓄","body":"两期记录都来自同一单位，金额在增加。","isInference":true,"confidence":0.8,
+        {"type":"POSITIVE","title":"稳步储蓄","body":"两期记录都来自同一单位，金额在增加。","isInference":true,"confidence":0.8,"factIds":["trend-1-CNY"],
          "sources":[{"type":"CHECKIN","id":"2","label":"第二期"}]}]}
     """.trimIndent()
 
@@ -112,5 +143,87 @@ class InsightServiceTest {
         val current = svc.loadCurrent()
         assertEquals(null, current) // 新版本没有缓存
         assertEquals(1, eng.calls.size) // 打开页面不触发模型
+    }
+
+    @Test
+    fun `请求前撤回授权不调用引擎`() = runTest {
+        val (data, consent, config) = boundFakes()
+        val engine = ScriptedAdvisorEngine().apply { enqueue(AdvisorChatResult.Success(validJson())) }
+        val dao = FakeInsightDao()
+        val svc = serviceBound(engine, data, consent, config, dao) { consent.withdraw() }
+        val result = svc.generate(force = true)
+        assertTrue(result is InsightGenerationResult.Failed)
+        assertEquals(0, engine.calls.size)
+        assertTrue(dao.rows.value.isEmpty())
+    }
+
+    @Test
+    fun `请求前关闭 JOURNAL 不调用引擎`() = runTest {
+        val (data, consent, config) = boundFakes()
+        val engine = ScriptedAdvisorEngine().apply { enqueue(AdvisorChatResult.Success(validJson())) }
+        val dao = FakeInsightDao()
+        val svc = serviceBound(engine, data, consent, config, dao) {
+            consent.setCategory(ConsentCategory.JOURNAL, false)
+        }
+        val result = svc.generate(force = true)
+        assertTrue(result is InsightGenerationResult.Failed)
+        assertEquals(0, engine.calls.size)
+        assertTrue(dao.rows.value.isEmpty())
+    }
+
+    @Test
+    fun `请求前切换 endpoint 不调用引擎`() = runTest {
+        val (data, consent, config) = boundFakes()
+        val engine = ScriptedAdvisorEngine().apply { enqueue(AdvisorChatResult.Success(validJson())) }
+        val dao = FakeInsightDao()
+        val svc = serviceBound(engine, data, consent, config, dao) {
+            config.save("https://other.example.com/v1", "model", null)
+        }
+        val result = svc.generate(force = true)
+        assertTrue(result is InsightGenerationResult.Failed)
+        assertEquals(0, engine.calls.size)
+        assertTrue(dao.rows.value.isEmpty())
+    }
+
+    @Test
+    fun `请求前编辑进展不调用引擎`() = runTest {
+        val (data, consent, config) = boundFakes()
+        val engine = ScriptedAdvisorEngine().apply { enqueue(AdvisorChatResult.Success(validJson())) }
+        val dao = FakeInsightDao()
+        val svc = serviceBound(engine, data, consent, config, dao) {
+            data.snapshot = snapshot.copy(
+                checkins = snapshot.checkins + ContextCheckinRecord(9, 1, now - 100, "new", 3000.0, "CNY"),
+            )
+        }
+        val result = svc.generate(force = true)
+        assertTrue(result is InsightGenerationResult.Failed)
+        assertEquals(0, engine.calls.size)
+        assertTrue(dao.rows.value.isEmpty())
+    }
+
+    @Test
+    fun `请求期间数据变化调用一次但不写入 AI 结果`() = runTest {
+        val (data, consent, config) = boundFakes()
+        val base = ScriptedAdvisorEngine().apply { enqueue(AdvisorChatResult.Success(validJson())) }
+        val engine = object : AdvisorEngine {
+            override suspend fun chat(
+                config: AdvisorRuntimeConfig,
+                messages: List<AdvisorChatMessage>,
+                maxTokens: Int,
+            ): AdvisorChatResult {
+                data.snapshot = snapshot.copy(
+                    checkins = snapshot.checkins + ContextCheckinRecord(10, 1, now - 50, "new", 5000.0, "CNY"),
+                )
+                return base.chat(config, messages, maxTokens)
+            }
+
+            override suspend fun testConnection(config: AdvisorRuntimeConfig) = base.testConnection(config)
+        }
+        val dao = FakeInsightDao()
+        val svc = serviceBound(engine, data, consent, config, dao) {}
+        val result = svc.generate(force = true)
+        assertTrue(result is InsightGenerationResult.Failed)
+        assertEquals(1, base.calls.size)
+        assertTrue(dao.rows.value.none { it.status == "READY" })
     }
 }

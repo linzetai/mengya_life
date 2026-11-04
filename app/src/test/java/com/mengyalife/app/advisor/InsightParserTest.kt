@@ -15,7 +15,7 @@ class InsightParserTest {
     private val facts = listOf(InsightFact("f1", "储蓄从 1000 上升到 1500 CNY", refs))
 
     private fun json(source: String = "\"type\":\"CHECKIN\",\"id\":\"2\",\"label\":\"第一期\"", body: String = "储蓄在稳步增加") =
-        """{"schemaVersion":1,"summary":"s","insights":[{"type":"POSITIVE","title":"稳步储蓄","body":"$body","isInference":true,"confidence":0.8,"sources":[{$source}]}]}"""
+        """{"schemaVersion":1,"summary":"s","insights":[{"type":"POSITIVE","title":"稳步储蓄","body":"$body","isInference":true,"confidence":0.8,"factIds":["f1"],"sources":[{$source}]}]}"""
 
     @Test
     fun `合法来源通过`() {
@@ -34,9 +34,15 @@ class InsightParserTest {
     }
 
     @Test
+    fun `factId 不在本轮事实中被拒绝`() {
+        val bad = """{"schemaVersion":1,"summary":"s","insights":[{"type":"POSITIVE","title":"t","body":"b","isInference":true,"factIds":["f9"],"sources":[{"type":"CHECKIN","id":"2","label":"x"}]}]}"""
+        assertTrue(InsightParser.parse(bad, facts, refs) { "i1" } is InsightParseResult.Failure)
+    }
+
+    @Test
     fun `非法 JSON 或空来源被拒绝`() {
         assertTrue(InsightParser.parse("no json", facts, refs) { "i1" } is InsightParseResult.Failure)
-        val emptySources = """{"schemaVersion":1,"summary":"s","insights":[{"type":"RISK","title":"t","body":"b","isInference":true,"sources":[]}]}"""
+        val emptySources = """{"schemaVersion":1,"summary":"s","insights":[{"type":"RISK","title":"t","body":"b","isInference":true,"factIds":["f1"],"sources":[]}]}"""
         assertTrue(InsightParser.parse(emptySources, facts, refs) { "i1" } is InsightParseResult.Failure)
     }
 }

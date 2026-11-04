@@ -29,6 +29,7 @@ data class GrowthInsight(
     val isInference: Boolean,
     val confidence: Double?,
     val sources: List<InsightSourceRef>,
+    val factIds: List<String> = emptyList(),
 )
 
 data class InsightReport(

@@ -64,11 +64,13 @@ data class GoalsUiState(
     val delete: DeleteConfirmState = DeleteConfirmState(),
     val statusPicker: StatusPickerState = StatusPickerState(),
     val message: String? = null,
+    val focusedGoalId: Long? = null,
 )
 
 /** Compose 只发意图，不碰数据层。 */
 sealed interface GoalAction {
     data class ToggleExpand(val id: Long) : GoalAction
+    data class FocusGoal(val id: Long) : GoalAction
     data class NewGoal(val level: GoalLevel, val parentId: Long?, val parentTitle: String? = null) : GoalAction
     data class EditGoal(val goal: GoalEntity) : GoalAction
     data class TitleChange(val value: String) : GoalAction

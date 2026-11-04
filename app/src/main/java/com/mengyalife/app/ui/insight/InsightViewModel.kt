@@ -6,13 +6,19 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mengyalife.app.MengyaApplication
+import com.mengyalife.app.data.advisor.AdvisorConfigRepository
+import com.mengyalife.app.data.consent.AiConsentRepository
 import com.mengyalife.app.data.insight.InsightGenerationResult
 import com.mengyalife.app.data.insight.InsightService
 import com.mengyalife.app.domain.insight.InsightReport
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 
 data class InsightUiState(
@@ -26,9 +32,25 @@ data class InsightUiState(
 
 class InsightViewModel(
     private val service: InsightService,
+    consentRepository: AiConsentRepository,
+    configRepository: AdvisorConfigRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow(InsightUiState())
     val state: StateFlow<InsightUiState> = _state.asStateFlow()
+    private var generationJob: Job? = null
+
+    init {
+        viewModelScope.launch {
+            combine(consentRepository.state, configRepository.state) { _, _ -> Unit }
+                .drop(1)
+                .collect {
+                    if (generationJob?.isActive == true) {
+                        generationJob?.cancel()
+                        _state.update { it.copy(loading = false, error = "授权或模型配置已变化，本次洞察已取消") }
+                    }
+                }
+        }
+    }
 
     fun refresh() {
         viewModelScope.launch {
@@ -43,8 +65,13 @@ class InsightViewModel(
     fun generate() {
         if (_state.value.loading) return
         _state.update { it.copy(loading = true, error = null) }
-        viewModelScope.launch {
-            val result = service.generate(force = true)
+        generationJob = viewModelScope.launch {
+            val result = try {
+                service.generate(force = true)
+            } catch (cancelled: CancellationException) {
+                _state.update { it.copy(loading = false, error = "授权或模型配置已变化，本次洞察已取消") }
+                throw cancelled
+            }
             when (result) {
                 is InsightGenerationResult.Ready -> _state.update {
                     it.copy(loading = false, report = result.report, error = null)
@@ -62,7 +89,11 @@ class InsightViewModel(
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as MengyaApplication
-                InsightViewModel(app.container.insightService)
+                InsightViewModel(
+                    app.container.insightService,
+                    app.container.aiConsentRepository,
+                    app.container.advisorConfigRepository,
+                )
             }
         }
     }

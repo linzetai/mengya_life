@@ -31,6 +31,7 @@ object InsightCodec {
                 put("title", insight.title); put("body", insight.body)
                 put("isInference", insight.isInference)
                 put("confidence", insight.confidence)
+                put("factIds", kotlinx.serialization.json.buildJsonArray { insight.factIds.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) } })
                 put("sources", sourcesArray(insight.sources))
             })
         }
@@ -67,6 +68,9 @@ object InsightCodec {
                 isInference = obj["isInference"]?.jsonPrimitive?.booleanOrNull ?: true,
                 confidence = obj["confidence"]?.jsonPrimitive?.doubleOrNull,
                 sources = parseSources(obj["sources"]),
+                factIds = runCatching {
+                    obj["factIds"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+                }.getOrDefault(emptyList()),
             )
         }
     }.getOrDefault(emptyList())

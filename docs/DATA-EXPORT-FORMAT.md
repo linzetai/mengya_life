@@ -1,6 +1,6 @@
 # 数据导出格式说明（Mengya Life · Gate 2C）
 
-> 版本：导出格式 `schemaVersion = 1`，数据库 `schemaVersion = 8`，应用 `0.11.0-g3d1`
+> 版本：导出格式 `schemaVersion = 1`，数据库 `schemaVersion = 8`，应用 `0.12.0-g3d2`
 > 实现：`app/src/main/java/com/mengyalife/app/data/export/ExportJson.kt`、
 > `DataExportRepository.kt`、`ui/settings/ExportViewModel.kt`
 

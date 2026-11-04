@@ -40,7 +40,7 @@ object InsightParser {
             ?: return InsightParseResult.Failure("缺少 insights 数组")
         if (array.size > MAX_INSIGHTS) return InsightParseResult.Failure("洞察数量超过上限")
         val allowedKeys = allowedSources.map { it.type + ":" + it.recordId }.toSet()
-        val factText = facts.joinToString(" ") { it.text }
+        val allowedFactIds = facts.map { it.id }.toSet()
         val result = mutableListOf<GrowthInsight>()
         for ((index, element) in array.withIndex()) {
             val obj = element as? JsonObject
@@ -56,6 +56,13 @@ object InsightParser {
                 ?: return InsightParseResult.Failure("insights[$index] 缺少 isInference")
             val confidence = obj["confidence"]?.jsonPrimitive?.doubleOrNull?.also {
                 if (!it.isFinite() || it < 0 || it > 1) return InsightParseResult.Failure("confidence 非法")
+            }
+            val factIdArray = obj["factIds"] as? JsonArray
+                ?: return InsightParseResult.Failure("insights[$index] 缺少 factIds")
+            if (factIdArray.isEmpty()) return InsightParseResult.Failure("insights[$index] factIds 不能为空")
+            val factIds = factIdArray.mapNotNull { it.jsonPrimitive.contentOrNull }
+            if (factIds.size != factIdArray.size || factIds.any { it !in allowedFactIds }) {
+                return InsightParseResult.Failure("insights[$index] 引用了本轮不存在的事实")
             }
             val sourceArray = obj["sources"] as? JsonArray
                 ?: return InsightParseResult.Failure("insights[$index] 缺少 sources")
@@ -89,6 +96,7 @@ object InsightParser {
                     isInference = inference,
                     confidence = confidence,
                     sources = sources,
+                    factIds = factIds,
                 ),
             )
         }
@@ -101,7 +109,9 @@ object InsightParser {
         appendLine("只能解释这些事实、提出行动建议，不能编造事实，不能声称已完成任何目标/进展。")
         appendLine("只输出严格 JSON，不要 Markdown。schemaVersion=1：")
         appendLine("{\"schemaVersion\":1,\"summary\":\"...\",\"insights\":[{\"type\":\"POSITIVE|RISK|SUGGESTION\",\"title\":\"...\",\"body\":\"...\",\"isInference\":true,\"confidence\":0.0,\"sources\":[{\"type\":\"GOAL|CHECKIN|MEMORY\",\"id\":\"...\",\"label\":\"...\"}]}]}")
-        appendLine("最多 3 条；每条 body 不超过 300 字；sources 必须来自 allowedSources；不同单位不得比较/相加；")
+        appendLine("最多 3 条；每条 body 不超过 300 字；**每条 insight 必须包含 factIds 数组**，只能从本轮事实 ID 中选择；")
+        appendLine("缺少 factIds 或引用不存在的事实会被拒绝；sources 必须来自 allowedSources；不同单位不得比较/相加；")
+        appendLine("可用 factIds：${input.facts.joinToString(",") { it.id }}")
         appendLine("数据不足时明确说「信息不足」；建议必须是 isInference=true。")
         appendLine("允许来源：")
         input.allowedSources.forEach { appendLine("- ${it.type}:${it.recordId} (${it.label})") }

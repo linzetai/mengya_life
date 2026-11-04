@@ -42,6 +42,7 @@ class InsightService(
     private val dao: InsightReportDao,
     private val now: () -> Long = System::currentTimeMillis,
     private val newId: () -> String = { UUID.randomUUID().toString() },
+    private val beforeRequest: suspend () -> Unit = {},
 ) {
     suspend fun currentInput(): InsightInput {
         val consent = consentRepository.current()
@@ -61,54 +62,60 @@ class InsightService(
         val cached = dao.findByDataVersion(input.dataVersion)
         if (!force && cached != null) return InsightGenerationResult.Ready(cached.toDomain())
 
-        val rules = input
-        val config = configRepository.state.first()
-        val runtime = configRepository.runtimeConfig()
-        if (!consent.granted ||
+        val boundConsent = consent
+        val boundCategories = consent.categories
+        val boundInput = input
+        val boundConfig = configRepository.state.first()
+        val boundRuntime = configRepository.runtimeConfig()
+        if (!boundConsent.granted ||
             !consent.enabled(ConsentCategory.PROGRESS) &&
             !consent.enabled(ConsentCategory.GOALS) &&
             !consent.enabled(ConsentCategory.JOURNAL)
         ) {
             return saveFailed(input, "尚未授权任何成长数据类别", null)
         }
-        if (!config.configured || runtime == null || runtime.endpoint != config.endpoint ||
-            !consent.isValidFor(runtime.endpoint)
+        if (!boundConfig.configured || boundRuntime == null ||
+            boundRuntime.endpoint != boundConfig.endpoint ||
+            !boundConsent.isValidFor(boundRuntime.endpoint)
         ) {
             return saveFailed(input, "AI 服务未配置或授权已失效；已保留本地规则分析", null)
         }
 
-        val engine = if (config.useFakeEngine && fakeEngine != null) fakeEngine else networkEngine
-        val prompt = InsightParser.prompt(input)
+        beforeRequest()
+        val preflight = preflightProblem(boundConsent, boundCategories, boundRuntime, boundInput)
+        if (preflight != null) return InsightGenerationResult.Failed(preflight, null)
+
+        val engine = if (boundConfig.useFakeEngine && fakeEngine != null) fakeEngine else networkEngine
+        val prompt = InsightParser.prompt(boundInput)
         val result = engine.chat(
-            config = runtime,
+            config = boundRuntime,
             messages = listOf(
                 AdvisorChatMessage("system", "只输出严格 JSON；只解释给定事实，不编造。"),
                 AdvisorChatMessage("user", prompt),
             ),
             maxTokens = 2_500,
         )
-        // 请求后数据/授权变化则不保存 AI 结果
-        val afterConsent = consentRepository.current()
-        val afterInput = InsightRules.build(dataRepository.snapshot(afterConsent), afterConsent, now())
-        if (afterInput.dataVersion != input.dataVersion || !afterConsent.isValidFor(runtime.endpoint)) {
-            return saveFailed(input, "数据或授权已变化，本次 AI 洞察已丢弃；请重新生成", null)
+        // 请求后再次校验；旧结果不得写入 READY
+        val afterProblem = preflightProblem(boundConsent, boundCategories, boundRuntime, boundInput)
+        if (afterProblem != null) {
+            return InsightGenerationResult.Failed("$afterProblem；本次 AI 结果已丢弃", null)
         }
         return when (result) {
-            is AdvisorChatResult.Failure -> saveFailed(input, result.error.userMessage, null)
+            is AdvisorChatResult.Failure -> saveFailed(boundInput, result.error.userMessage, null)
             is AdvisorChatResult.Success -> when (val parsed = InsightParser.parse(
-                result.content, input.facts, input.allowedSources, newId,
+                result.content, boundInput.facts, boundInput.allowedSources, newId,
             )) {
-                is InsightParseResult.Failure -> saveFailed(input, "洞察解析失败：${parsed.message}", null)
+                is InsightParseResult.Failure -> saveFailed(boundInput, "洞察解析失败：${parsed.message}", null)
                 is InsightParseResult.Success -> {
                     val report = InsightReport(
                         id = newId(),
-                        dataVersion = input.dataVersion,
+                        dataVersion = boundInput.dataVersion,
                         status = InsightReportStatus.READY,
                         summary = parsed.summary,
-                        facts = input.facts,
+                        facts = boundInput.facts,
                         insights = parsed.insights,
-                        periodStart = input.periodStart,
-                        periodEnd = input.periodEnd,
+                        periodStart = boundInput.periodStart,
+                        periodEnd = boundInput.periodEnd,
                         generatedAt = now(),
                         error = null,
                         model = null,
@@ -118,6 +125,27 @@ class InsightService(
                 }
             }
         }
+    }
+
+    private suspend fun preflightProblem(
+        boundConsent: com.mengyalife.app.domain.advisor.AiConsentState,
+        boundCategories: Set<ConsentCategory>,
+        boundRuntime: com.mengyalife.app.domain.advisor.AdvisorRuntimeConfig,
+        boundInput: InsightInput,
+    ): String? {
+        val currentConsent = consentRepository.current()
+        val currentConfig = configRepository.state.first()
+        val currentRuntime = configRepository.runtimeConfig()
+        if (!currentConsent.granted || currentConsent.epoch != boundConsent.epoch ||
+            currentConsent.categories != boundCategories
+        ) return "授权已变化，请求未发起或结果已丢弃"
+        if (!currentConsent.isValidFor(boundRuntime.endpoint)) return "接收方授权已失效"
+        if (currentRuntime == null || currentRuntime.endpoint != boundRuntime.endpoint ||
+            currentConfig.endpoint != boundRuntime.endpoint
+        ) return "模型服务地址已变化"
+        val currentInput = currentInput()
+        if (currentInput.dataVersion != boundInput.dataVersion) return "目标/进展数据已变化"
+        return null
     }
 
     private suspend fun saveFailed(

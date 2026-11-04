@@ -65,8 +65,8 @@ object InsightRules {
             val grouped = snapshot.checkins.groupBy { it.goalId }
             facts += InsightFact(
                 "progress-count",
-                "共有 ${snapshot.checkins.size} 条进展记录，最近 30 天 ${recent.size} 条，覆盖 ${grouped.size} 个目标。",
-                snapshot.checkins.take(8).map {
+                "进展记录：全部历史 ${snapshot.checkins.size} 条，最近 30 天 ${recent.size} 条，覆盖 ${grouped.size} 个目标。",
+                snapshot.checkins.sortedBy { it.recordedAt }.takeLast(8).map {
                     InsightSourceRef("CHECKIN", it.id.toString(), goalsById[it.goalId]?.title ?: "目标#${it.goalId}")
                 },
             )
@@ -87,8 +87,8 @@ object InsightRules {
                     }
                     facts += InsightFact(
                         "trend-${key.first}-${key.second}",
-                        "目标「${goalsById[key.first]?.title ?: "#${key.first}"}」的「${key.second}」记录从 ${MetricFormat.withUnit(first, key.second)} 变为 ${MetricFormat.withUnit(last, key.second)}（$direction ${MetricFormat.withUnit(kotlin.math.abs(delta), key.second)}，${ordered.size} 个点）。",
-                        ordered.take(6).map {
+                        "目标「${goalsById[key.first]?.title ?: "#${key.first}"}」的「${key.second}」记录从 ${Timestamps.formatDate(ordered.first().recordedAt)} 的 ${MetricFormat.withUnit(first, key.second)} 变为 ${Timestamps.formatDate(ordered.last().recordedAt)} 的 ${MetricFormat.withUnit(last, key.second)}（$direction ${MetricFormat.withUnit(kotlin.math.abs(delta), key.second)}，${ordered.size} 个点；区间 ${Timestamps.formatDate(ordered.first().recordedAt)} – ${Timestamps.formatDate(ordered.last().recordedAt)}）。",
+                        ordered.takeLast(6).map {
                             InsightSourceRef("CHECKIN", it.id.toString(), goalsById[it.goalId]?.title ?: "目标#${it.goalId}")
                         },
                     )
@@ -99,7 +99,7 @@ object InsightRules {
                 facts += InsightFact(
                     "units-separate",
                     "数值记录包含 ${units.joinToString("、")} 等不同单位；系统按单位分开计算，不做跨单位相加或换算。",
-                    snapshot.checkins.take(6).map {
+                    snapshot.checkins.sortedBy { it.recordedAt }.takeLast(6).map {
                         InsightSourceRef("CHECKIN", it.id.toString(), goalsById[it.goalId]?.title ?: "目标#${it.goalId}")
                     },
                 )
@@ -114,18 +114,24 @@ object InsightRules {
                     InsightSourceRef("MEMORY", it.id, it.theme)
                 },
             )
-            snapshot.growthMemories.filter { it.corrected }.take(2).forEach { memory ->
-                facts += InsightFact(
-                    "memory-corrected-${memory.id}",
-                    "成长记忆「${memory.theme}」已由用户纠正，应优先采用纠正后的内容。",
-                    listOf(InsightSourceRef("MEMORY", memory.id, memory.theme)),
-                )
-            }
+            // 用户纠正优先；同主题只取纠正版本，避免旧 AI 记忆覆盖用户事实
+            val correctedThemes = snapshot.growthMemories.filter { it.corrected }.map { it.theme }.toSet()
+            snapshot.growthMemories
+                .filter { it.corrected || it.theme !in correctedThemes }
+                .take(3)
+                .forEach { memory ->
+                    facts += InsightFact(
+                        "memory-content-${memory.id}",
+                        "成长记忆「${memory.theme}」${if (memory.corrected) "（用户纠正，优先）" else ""}：${memory.content.take(240)}" +
+                            "（来源 ${memory.sourceDiaryIds.size} 篇日记）",
+                        listOf(InsightSourceRef("MEMORY", memory.id, memory.theme)),
+                    )
+                }
         }
 
+        // 只有一个目标、没有任何进展/记忆，不能算“数据充分”
         val hasEnough = (consent.enabled(ConsentCategory.PROGRESS) && snapshot.checkins.size >= 2) ||
-            (consent.enabled(ConsentCategory.JOURNAL) && snapshot.growthMemories.isNotEmpty()) ||
-            (consent.enabled(ConsentCategory.GOALS) && snapshot.goals.isNotEmpty())
+            (consent.enabled(ConsentCategory.JOURNAL) && snapshot.growthMemories.isNotEmpty())
         if (facts.isEmpty()) {
             facts += InsightFact(
                 "insufficient",
@@ -140,7 +146,7 @@ object InsightRules {
             )
         }
 
-        val version = dataVersion(snapshot, consent)
+        val version = dataVersion(snapshot, consent, now)
         return InsightInput(
             dataVersion = version,
             periodStart = periodStart,
@@ -152,12 +158,17 @@ object InsightRules {
         )
     }
 
-    fun dataVersion(snapshot: AdvisorContextSnapshot, consent: AiConsentState): String {
+    fun dataVersion(
+        snapshot: AdvisorContextSnapshot,
+        consent: AiConsentState,
+        now: Long = System.currentTimeMillis(),
+    ): String {
         val root = buildJsonObject {
             put("categories", consent.categories.sortedBy { it.ordinal }.joinToString(","))
+            put("timeBucket", now / (24L * 60 * 60 * 1000))
             put("goals", buildJsonObject {
                 snapshot.goals.sortedBy { it.id }.forEach { goal ->
-                    put(goal.id.toString(), "${goal.title}|${goal.level}|${goal.status}|${goal.startDate}|${goal.dueDate}|${goal.createdAt}")
+                    put(goal.id.toString(), "${goal.title}|${goal.description}|${goal.level}|${goal.status}|${goal.startDate}|${goal.dueDate}|${goal.createdAt}|${goal.parentId}")
                 }
             })
             put("checkins", buildJsonObject {

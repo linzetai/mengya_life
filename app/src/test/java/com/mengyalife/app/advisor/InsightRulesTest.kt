@@ -71,8 +71,52 @@ class InsightRulesTest {
             consent, now,
         )
         assertTrue(input.facts.any { it.id == "memory-count" && it.text.contains("职业成长") })
-        assertTrue(input.facts.any { it.id == "memory-corrected-m1" })
+        assertTrue(input.facts.any { it.id == "memory-content-m1" && it.text.contains("用户纠正") })
+        assertTrue(input.facts.any { it.id == "memory-content-m1" && it.text.contains("持续承担项目汇报") })
         assertTrue(input.allowedSources.any { it.type == "MEMORY" && it.recordId == "m1" })
+    }
+
+    @Test
+    fun `只有一个目标没有进展时仍是不足`() {
+        val input = InsightRules.build(AdvisorContextSnapshot(goals = listOf(goal)), consent, now)
+        assertFalse(input.hasEnoughData)
+        assertTrue(input.facts.any { it.id == "insufficient" })
+    }
+
+    @Test
+    fun `趋势来源必须包含最新点`() {
+        val many = (1..8).map {
+            ContextCheckinRecord(it.toLong(), 1, now - (9 - it) * 1000L, "第${it}期", it * 100.0, "CNY")
+        }
+        val input = InsightRules.build(AdvisorContextSnapshot(goals = listOf(goal), checkins = many), consent, now)
+        val trend = input.facts.first { it.id == "trend-1-CNY" }
+        assertTrue(trend.sourceRefs.any { it.recordId == "8" })
+        assertTrue(trend.text.contains("区间"))
+    }
+
+    @Test
+    fun `同主题用户纠正记忆优先且旧记忆内容不进入事实`() {
+        val old = ContextGrowthMemory("old", "职业成长", "旧 AI 内容", false, false, false, null, listOf(1L))
+        val new = ContextGrowthMemory("new", "职业成长", "用户纠正内容", false, true, false, null, listOf(1L))
+        val input = InsightRules.build(
+            AdvisorContextSnapshot(goals = listOf(goal), growthMemories = listOf(old, new)), consent, now,
+        )
+        assertTrue(input.facts.any { it.id == "memory-content-new" && it.text.contains("用户纠正内容") })
+        assertFalse(input.facts.any { it.id == "memory-content-old" })
+    }
+
+    @Test
+    fun `目标描述和日期分桶改变 dataVersion`() {
+        val base = InsightRules.build(AdvisorContextSnapshot(goals = listOf(goal), checkins = checkins), consent, now)
+        val changed = InsightRules.build(
+            AdvisorContextSnapshot(goals = listOf(goal.copy(description = "新的描述")), checkins = checkins),
+            consent, now,
+        )
+        val nextDay = InsightRules.build(
+            AdvisorContextSnapshot(goals = listOf(goal), checkins = checkins), consent, now + 24L * 60 * 60 * 1000,
+        )
+        assertNotEquals(base.dataVersion, changed.dataVersion)
+        assertNotEquals(base.dataVersion, nextDay.dataVersion)
     }
 
     @Test
