@@ -52,6 +52,7 @@ import com.mengyalife.app.ui.components.SettingsRow
 import com.mengyalife.app.ui.components.StatusPill
 import com.mengyalife.app.ui.advisor.AiSettingsAction
 import com.mengyalife.app.ui.advisor.AiSettingsUiState
+import com.mengyalife.app.ui.settings.AiPrivacySection
 import com.mengyalife.app.ui.settings.AiSettingsSection
 import com.mengyalife.app.ui.settings.ExportUiState
 import com.mengyalife.app.ui.theme.ThemeMode
@@ -174,6 +175,10 @@ fun SettingsScreen(
             // ---------------- A. AI 服务 ----------------
             item {
                 AiSettingsSection(state = aiState, onAction = onAiAction)
+            }
+
+            item {
+                AiPrivacySection(state = aiState, onAction = onAiAction)
             }
 
             // ---------------- B. 数据与隐私 ----------------

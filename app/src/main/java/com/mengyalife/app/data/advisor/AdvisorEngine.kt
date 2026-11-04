@@ -197,6 +197,17 @@ class FakeAdvisorEngine(
         delay(delayMs)
         val last = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
         if (last.contains("[slow]")) delay(10_000)
+        if (messages.any { it.content.contains("整理为目标草案") }) {
+            return AdvisorChatResult.Success(
+                """
+                {"schemaVersion":1,"summary":"从对话整理的健康目标草案","assumptions":["每周可投入三次"],
+                 "risks":["工作忙时容易中断"],"goals":[
+                 {"tempId":"g1","level":"LONG","title":"把健康变成长期复利","description":"稳定睡眠与运动","domain":"HEALTH","parentTempId":null,"parentGoalId":null,"startDate":null,"dueDate":null,"basis":"对话讨论"},
+                 {"tempId":"s1","level":"STAGE","title":"建立每周三次运动节律","description":null,"domain":"HEALTH","parentTempId":"g1","parentGoalId":null,"startDate":null,"dueDate":null,"basis":"近期进展"},
+                 {"tempId":"a1","level":"ACTION","title":"本周安排三次晨跑","description":null,"domain":"HEALTH","parentTempId":"s1","parentGoalId":null,"startDate":null,"dueDate":null,"basis":"可执行下一步"}]}
+                """.trimIndent(),
+            )
+        }
         return when {
             last.contains("[401]") -> AdvisorChatResult.Failure(AdvisorError.unauthorized())
             last.contains("[429]") -> AdvisorChatResult.Failure(AdvisorError.rateLimited())

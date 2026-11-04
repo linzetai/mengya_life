@@ -1,0 +1,66 @@
+# Gate 3B-1 源码改动清单
+
+## 新增
+- app/schemas/com.mengyalife.app.data.local.MengyaDatabase/4.json
+- app/src/main/java/com/mengyalife/app/data/advisor/AdvisorDataRepository.kt
+- app/src/main/java/com/mengyalife/app/data/advisor/GoalProposalRepository.kt
+- app/src/main/java/com/mengyalife/app/data/consent/
+- app/src/main/java/com/mengyalife/app/data/local/proposal/
+- app/src/main/java/com/mengyalife/app/domain/advisor/AdvisorContext.kt
+- app/src/main/java/com/mengyalife/app/domain/advisor/AiConsent.kt
+- app/src/main/java/com/mengyalife/app/domain/advisor/GoalProposal.kt
+- app/src/main/java/com/mengyalife/app/ui/settings/AiPrivacySection.kt
+- app/src/test/java/com/mengyalife/app/advisor/AdvisorContextAssemblerTest.kt
+- app/src/test/java/com/mengyalife/app/advisor/AiConsentRulesTest.kt
+- app/src/test/java/com/mengyalife/app/advisor/GoalProposalParserTest.kt
+- artifacts/mengya-life-0.7.0-g3b1-debug.apk.sha256
+- artifacts/mengya-life-0.7.0-g3b1-qa-test.apk.sha256
+- docs/AI-CONTEXT-G3B1.md
+- docs/GOAL-PROPOSAL-SCHEMA.md
+- docs/MIGRATION-G3B1.md
+- docs/PRIVACY-CONSENT-G3B1.md
+- docs/reports/REPORT-G3B1.md
+- docs/reports/logs/g3b1-apk-hash.log
+- docs/reports/logs/g3b1-device.log
+- docs/reports/logs/g3b1-export/
+- docs/reports/logs/g3b1-goal-edit.log
+- docs/reports/logs/g3b1-migration.log
+- docs/reports/logs/g3b1-real-model.log
+- docs/reports/logs/g3b1-shots/
+- docs/reports/logs/g3b1-source-changes.md
+- docs/reports/logs/g3b1-unit-tests.md
+- docs/reports/logs/g3b1-verify_diary.log
+- docs/reports/logs/g3b1-verify_export.log
+- docs/reports/logs/g3b1-verify_goals.log
+- docs/reports/logs/g3b1-verify_prod_smoke.log
+- docs/reports/logs/g3b1-verify_settings.log
+- docs/reports/logs/g3b1-verify_trends.log
+- tools/ui-verify/verify_g3b1.py
+
+## 修改
+- README.md
+- app/build.gradle
+- app/src/main/java/com/mengyalife/app/data/advisor/AdvisorEngine.kt
+- app/src/main/java/com/mengyalife/app/data/advisor/ConversationRepository.kt
+- app/src/main/java/com/mengyalife/app/data/local/MengyaDatabase.kt
+- app/src/main/java/com/mengyalife/app/data/local/advisor/AdvisorMessageEntity.kt
+- app/src/main/java/com/mengyalife/app/di/AppContainer.kt
+- app/src/main/java/com/mengyalife/app/domain/advisor/AdvisorModels.kt
+- app/src/main/java/com/mengyalife/app/domain/advisor/AdvisorRules.kt
+- app/src/main/java/com/mengyalife/app/ui/advisor/AdvisorContract.kt
+- app/src/main/java/com/mengyalife/app/ui/advisor/AdvisorViewModel.kt
+- app/src/main/java/com/mengyalife/app/ui/screens/AdvisorScreen.kt
+- app/src/main/java/com/mengyalife/app/ui/screens/SettingsScreen.kt
+- app/src/main/java/com/mengyalife/app/ui/settings/AiSettingsViewModel.kt
+- app/src/test/java/com/mengyalife/app/advisor/AdvisorFakes.kt
+- app/src/test/java/com/mengyalife/app/advisor/AdvisorViewModelTest.kt
+- app/src/test/java/com/mengyalife/app/data/ExportTest.kt
+- artifacts/SHA256SUMS.txt
+- docs/DATA-EXPORT-FORMAT.md
+- tools/ui-verify/verify_export.py
+- tools/ui-verify/verify_goals.py
+- tools/ui-verify/verify_prod_smoke.py
+- tools/ui-verify/verify_settings.py
+
+## 统计
+ 23 files changed, 1261 insertions(+), 677 deletions(-)

@@ -125,15 +125,25 @@ object AdvisorRules {
         history: List<AdvisorMessage>,
         currentInput: String,
         goalContext: AdvisorGoalContext? = null,
+        extraSystemContext: String? = null,
+        extraSystemPrompt: String? = null,
     ): List<AdvisorChatMessage> {
-        val system = AdvisorChatMessage(role = "system", content = systemPrompt())
-        val context = goalContext?.let {
-            AdvisorChatMessage(role = "system", content = goalContextBlock(it))
+        val systemText = buildString {
+            append(systemPrompt())
+            extraSystemPrompt?.takeIf { it.isNotBlank() }?.let {
+                append("\n\n")
+                append(it)
+            }
+        }
+        val system = AdvisorChatMessage(role = "system", content = systemText)
+        val contextBlocks = buildList {
+            goalContext?.let { add(goalContextBlock(it)) }
+            extraSystemContext?.takeIf { it.isNotBlank() }?.let { add(it) }
         }
         val current = AdvisorChatMessage(role = "user", content = currentInput.trim())
 
         var budget = MAX_CONTEXT_CHARS - system.content.length - current.content.length -
-            (context?.content?.length ?: 0)
+            contextBlocks.sumOf { it.length }
         val selected = mutableListOf<AdvisorMessage>()
         val sentHistory = history
             .filter { it.status == AdvisorMessageStatus.SENT && it.content.isNotBlank() }
@@ -148,7 +158,9 @@ object AdvisorRules {
 
         return buildList {
             add(system)
-            context?.let { add(it) }
+            contextBlocks.forEach { block ->
+                add(AdvisorChatMessage(role = "system", content = block))
+            }
             selected.asReversed().forEach { message ->
                 add(
                     AdvisorChatMessage(
@@ -163,6 +175,41 @@ object AdvisorRules {
             add(current)
         }
     }
+
+    /** 目标草案生成的严格 JSON 协议（不依赖 tool calling）。 */
+    fun proposalSystemPrompt(): String =
+        """
+        现在请把对话讨论整理为「目标草案」，只输出一个 JSON 对象，不要 Markdown 代码块，不要额外解释。
+        schemaVersion 必须为 1。字段：
+        {
+          "schemaVersion": 1,
+          "summary": "一句话总结",
+          "assumptions": ["需要用户确认的假设"],
+          "risks": ["可能的风险"],
+          "goals": [
+            {
+              "tempId": "g1",
+              "level": "LONG" | "STAGE" | "ACTION",
+              "parentTempId": "g1" | null,
+              "parentGoalId": 123 | null,
+              "title": "标题",
+              "description": "描述",
+              "domain": "HEALTH|CAREER|WEALTH|LIFE|LEARNING",
+              "startDate": "yyyy-MM-dd" | null,
+              "dueDate": "yyyy-MM-dd" | null,
+              "basis": "建议依据"
+            }
+          ]
+        }
+        规则：
+        - 长期目标 level=LONG，parentTempId/parentGoalId 必须为 null；
+        - 阶段目标必须挂在长期目标下；短期行动必须挂在阶段目标下；
+        - 新节点内部用 tempId/parentTempId 连接；给已有目标补充时可用 parentGoalId；
+        - tempId 必须唯一，不能形成循环；
+        - 不要编造收入、资产、完成概率或用户未提供的个人事实；
+        - 信息不足时在 assumptions 中写清楚，而不是假设成事实；
+        - 草案最多 12 个节点，每个 description 不超过 120 字，确保 JSON 完整输出。
+        """.trimIndent()
 
     /** 给 UI 的授权摘要（不是发给模型的内容本身）。 */
     fun consentLines(context: AdvisorGoalContext): List<String> {

@@ -14,8 +14,8 @@ android {
         applicationId 'com.mengyalife.app'
         minSdk 26
         targetSdk 35
-        versionCode 6
-        versionName '0.6.0-g3a'
+        versionCode 7
+        versionName '0.7.0-g3b1'
 
         // Gate 2C：QA 构建通过独立 applicationId + 独立库名做真机破坏性测试，
         // 保证测试永远不会碰正式版里用户自己的日记与目标。
@@ -24,6 +24,7 @@ android {
         // Gate 3A：AI 配置与密钥别名也必须按构建类型隔离
         buildConfigField 'String', 'AI_PREFS_NAME', '"mengya_ai"'
         buildConfigField 'String', 'AI_KEY_ALIAS', '"mengya_ai_key"'
+        buildConfigField 'String', 'CONSENT_PREFS_NAME', '"mengya_consent"'
         buildConfigField 'boolean', 'QA_BUILD', 'false'
         manifestPlaceholders = [appLabel: '萌芽人生']
     }
@@ -61,6 +62,7 @@ android {
             buildConfigField 'String', 'PREFS_NAME', '"mengya_settings_qa"'
             buildConfigField 'String', 'AI_PREFS_NAME', '"mengya_ai_qa"'
             buildConfigField 'String', 'AI_KEY_ALIAS', '"mengya_ai_key_qa"'
+            buildConfigField 'String', 'CONSENT_PREFS_NAME', '"mengya_consent_qa"'
             buildConfigField 'boolean', 'QA_BUILD', 'true'
         }
     }

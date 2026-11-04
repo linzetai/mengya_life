@@ -1,0 +1,23 @@
+# Gate 3B-1 真机迁移 v3 → v4
+时间: 2026-11-04 08:42–08:44 (Asia/Shanghai)
+设备: Xiaomi 2509FPN0BC / Android 17
+正式包: com.mengyalife.app 0.7.0-g3b1
+
+== 升级前（v3 备份） ==
+user_version=3
+tables=['android_metadata', 'journal_entries', 'sqlite_sequence', 'room_master_table', 'goals', 'goal_checkins', 'advisor_messages']
+journals=[(6, 'MigrationA', 'alpha v1 content'), (7, 'MigrationB', 'beta v1 content')]
+goals=[]
+advisor_messages(role,status)=[('USER', 'SENT'), ('ASSISTANT', 'SENT')]
+goal_proposals err=no such table: goal_proposals
+
+== 升级后（v4） ==
+user_version=4
+tables=['android_metadata', 'journal_entries', 'sqlite_sequence', 'room_master_table', 'goals', 'goal_checkins', 'advisor_messages', 'goal_proposals']
+journals=[(6, 'MigrationA', 'alpha v1 content'), (7, 'MigrationB', 'beta v1 content')]
+goals=[]
+advisor_messages=[('USER', 'SENT', 0), ('ASSISTANT', 'SENT', 0), ('USER', 'SENT', 1), ('ASSISTANT', 'SENT', 1), ('USER', 'SENT', 1), ('ASSISTANT', 'SENT', 1), ('USER', 'SENT', 1), ('ASSISTANT', 'SENT', 1), ('USER', 'SENT', 1), ('ASSISTANT', 'SENT', 1), ('USER', 'SENT', 1), ('ASSISTANT', 'SENT', 1)]
+goal_proposals=1
+
+结论：非破坏性迁移；旧日记逐字段保留，旧顾问消息保留（epoch=0），新增 goal_proposals 表。
+说明：升级后消息数包含随后真实模型测试产生的消息；旧 2 条消息仍为 epoch=0。

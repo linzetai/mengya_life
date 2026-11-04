@@ -9,10 +9,12 @@ import com.mengyalife.app.BuildConfig
 import com.mengyalife.app.MengyaApplication
 import com.mengyalife.app.data.advisor.AdvisorConfigRepository
 import com.mengyalife.app.data.advisor.AdvisorEngine
+import com.mengyalife.app.data.consent.AiConsentRepository
 import com.mengyalife.app.domain.advisor.AdvisorRuntimeConfig
 import com.mengyalife.app.domain.advisor.AdvisorRules
 import com.mengyalife.app.ui.advisor.AiSettingsAction
 import com.mengyalife.app.ui.advisor.AiSettingsUiState
+import com.mengyalife.app.domain.advisor.ConsentCategory
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,6 +30,7 @@ import kotlinx.coroutines.launch
  */
 class AiSettingsViewModel(
     private val configRepository: AdvisorConfigRepository,
+    private val consentRepository: AiConsentRepository,
     private val networkEngine: AdvisorEngine,
     private val fakeEngine: AdvisorEngine?,
 ) : ViewModel() {
@@ -48,6 +51,20 @@ class AiSettingsViewModel(
                         loading = false,
                         useFakeEngine = config.useFakeEngine,
                         allowFakeEngine = BuildConfig.QA_BUILD,
+                        consentValid = it.consent.isValidFor(config.endpoint) &&
+                            config.endpoint.isNotBlank() && config.model.isNotBlank() &&
+                            config.hasKey,
+                    )
+                }
+            }
+        }
+        viewModelScope.launch {
+            consentRepository.state.collect { consent ->
+                _state.update {
+                    it.copy(
+                        consent = consent,
+                        consentValid = consent.isValidFor(it.endpoint) &&
+                            it.endpoint.isNotBlank() && it.model.isNotBlank() && it.hasKey,
                     )
                 }
             }
@@ -72,6 +89,8 @@ class AiSettingsViewModel(
                 it.copy(message = null, error = null)
             }
             is AiSettingsAction.SetFakeEngine -> setFakeEngine(action.enabled)
+            is AiSettingsAction.ToggleCategory -> toggleCategory(action.category, action.enabled)
+            AiSettingsAction.WithdrawConsent -> withdrawConsent()
         }
     }
 
@@ -153,6 +172,33 @@ class AiSettingsViewModel(
         }
     }
 
+    private fun toggleCategory(category: ConsentCategory, enabled: Boolean) {
+        if (!_state.value.consent.granted) {
+            _state.update { it.copy(error = "尚未授权；请先在顾问页完成首次授权。") }
+            return
+        }
+        viewModelScope.launch {
+            consentRepository.setCategory(category, enabled)
+            _state.update {
+                it.copy(
+                    message = if (enabled) "已开启「${category.label}」" else "已关闭「${category.label}」",
+                )
+            }
+        }
+    }
+
+    private fun withdrawConsent() {
+        viewModelScope.launch {
+            consentRepository.withdraw()
+            _state.update {
+                it.copy(
+                    message = "已撤回授权；未来请求不会再自动使用个人数据，本地数据未删除。",
+                    error = null,
+                )
+            }
+        }
+    }
+
     private fun setFakeEngine(enabled: Boolean) {
         if (!BuildConfig.QA_BUILD) return
         viewModelScope.launch {
@@ -167,6 +213,7 @@ class AiSettingsViewModel(
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as MengyaApplication
                 AiSettingsViewModel(
                     configRepository = app.container.advisorConfigRepository,
+                    consentRepository = app.container.aiConsentRepository,
                     networkEngine = app.container.networkAdvisorEngine,
                     fakeEngine = app.container.fakeAdvisorEngine,
                 )

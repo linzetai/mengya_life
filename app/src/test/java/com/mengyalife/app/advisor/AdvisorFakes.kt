@@ -4,13 +4,22 @@ import com.mengyalife.app.data.advisor.AdvisorConfigRepository
 import com.mengyalife.app.data.advisor.AdvisorEngine
 import com.mengyalife.app.data.advisor.AiConfigSaveResult
 import com.mengyalife.app.data.advisor.AiConfigStorage
+import com.mengyalife.app.data.advisor.AdvisorDataRepository
 import com.mengyalife.app.data.advisor.ConversationRepository
+import com.mengyalife.app.data.advisor.GoalProposalRepository
+import com.mengyalife.app.data.advisor.StoredGoalProposal
+import com.mengyalife.app.data.consent.AiConsentRepository
 import com.mengyalife.app.data.advisor.SecretCipher
 import com.mengyalife.app.data.advisor.StoredAiConfig
 import com.mengyalife.app.data.local.advisor.AdvisorMessageDao
 import com.mengyalife.app.data.local.advisor.AdvisorMessageEntity
 import com.mengyalife.app.domain.advisor.AdvisorChatMessage
 import com.mengyalife.app.domain.advisor.AdvisorChatResult
+import com.mengyalife.app.domain.advisor.AdvisorContextSnapshot
+import com.mengyalife.app.domain.advisor.AiConsentRules
+import com.mengyalife.app.domain.advisor.AiConsentState
+import com.mengyalife.app.domain.advisor.ConsentCategory
+import com.mengyalife.app.domain.advisor.GoalProposalDraft
 import com.mengyalife.app.domain.advisor.AdvisorContextSource
 import com.mengyalife.app.domain.advisor.AdvisorError
 import com.mengyalife.app.domain.advisor.AdvisorGoalChoice
@@ -150,3 +159,48 @@ fun sampleContext(goalId: Long = 1L) = AdvisorGoalContext(
 )
 
 fun sampleGoal(id: Long = 1L, title: String = "健康") = AdvisorGoalChoice(id, title)
+
+
+class FakeConsentRepository(
+    initial: AiConsentState = AiConsentState(),
+) : AiConsentRepository {
+    private val flow = MutableStateFlow(initial)
+    override val state: Flow<AiConsentState> = flow
+    override suspend fun current(): AiConsentState = flow.value
+    override suspend fun grant(recipient: String, categories: Set<ConsentCategory>) {
+        flow.value = AiConsentState(
+            granted = true,
+            textVersion = AiConsentRules.TEXT_VERSION,
+            categoriesVersion = AiConsentRules.CATEGORIES_VERSION,
+            grantedAt = 1L,
+            recipient = AiConsentRules.normalizeRecipient(recipient),
+            categories = categories,
+            epoch = flow.value.epoch + 1,
+        )
+    }
+    override suspend fun setCategory(category: ConsentCategory, enabled: Boolean) {
+        val current = flow.value.categories.toMutableSet()
+        if (enabled) current.add(category) else current.remove(category)
+        flow.value = flow.value.copy(categories = current, epoch = flow.value.epoch + 1)
+    }
+    override suspend fun withdraw() {
+        flow.value = AiConsentState(epoch = flow.value.epoch + 1)
+    }
+}
+
+class FakeAdvisorDataRepository(var snapshot: AdvisorContextSnapshot = AdvisorContextSnapshot()) :
+    AdvisorDataRepository {
+    override suspend fun snapshot(consent: AiConsentState): AdvisorContextSnapshot = snapshot
+}
+
+class FakeGoalProposalRepository : GoalProposalRepository {
+    private val flow = MutableStateFlow<List<StoredGoalProposal>>(emptyList())
+    override fun observeAll(): Flow<List<StoredGoalProposal>> = flow
+    override suspend fun save(messageId: String, draft: GoalProposalDraft): StoredGoalProposal {
+        val proposal = StoredGoalProposal("p-$messageId", messageId, 1L, draft, "DRAFT")
+        flow.value = flow.value + proposal
+        return proposal
+    }
+    override suspend fun findForMessage(messageId: String): StoredGoalProposal? =
+        flow.value.firstOrNull { it.messageId == messageId }
+}

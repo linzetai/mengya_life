@@ -1,0 +1,38 @@
+Gate 3B-1 真实模型验证（用户有效 Key；正式包）
+时间：2026-11-04 08:45–08:50（Asia/Shanghai）
+模型：deepseek-flash · https://api.deepseek.com（用户配置）
+授权：首次一次性授权，四类全开；recipient=api.deepseek.com
+证据包不包含 API Key、密文、请求头或完整提示词正文。
+
+== 场景 1：结合已有目标与进展 ==
+助手 sources: [{"type":"GOAL","id":"21","label":"G3B1Health"},{"type":"PROGRESS","id":"6","label":"run_three_times"}]
+助手回复摘录: 我看到你附带的摘要里有这些信息：  - **目标 #21｜长期目标：G3B1Health** - **进展 #6｜2026年11月4日：run_three_times（3 times）**  在给出方向性建议前，有三点我需要先跟你确认，否则容易建议偏：  **1. 目标本身的定义** "G3B1Health" 看起来是
+
+== 场景 2：结合相关日记 ==
+助手 sources: [{"type":"JOURNAL","id":"10","label":"SleepNote"}]
+助手回复摘录: 我从摘要里只能读到这一条日记的标签式摘要：**「睡眠不好、有焦虑，但入睡较早」**（#10）。具体内容我没看到，所以下面只基于这三点展开，其余不猜。  **先说清楚我读不出的东西**，这些会决定建议方向：  - **「睡眠不好」指哪一段**——躺下睡不着？半夜醒？还是睡够了但早上仍疲惫？ - **焦虑出现的时间点**—
+
+== 场景 3：整理为目标草案 ==
+第一次尝试（max_tokens=1600）：助手 proposal_error=草案解析失败：JSON 解析失败；未保存草案。
+  失败记录: 草案解析失败：JSON 解析失败
+成功草案: schema=1 status=DRAFT message=f9e16253-6deb-4870-b52b-26161f8e12d7
+summary: 为已有长期目标 #21（G3B1Health）补充一个“先用两周记录睡眠与睡前焦虑、找出问题类型”的阶段目标，本阶段不调整作息，也不增加运动量。
+nodes=4 {'STAGE': 1, 'ACTION': 3}
+parentGoalId: [21]
+
+== 业务数据未被草案修改 ==
+goals=[(21, 'G3B1Health')]
+goal_checkins=1
+journals=[(6, 'MigrationA'), (7, 'MigrationB'), (10, 'SleepNote')]
+goal_proposals=1
+
+== 数据库 ==
+user_version=4
+messages epoch=0 的 G3A 旧消息保留；epoch>=1 的新消息见上。
+
+== 截图 ==
+docs/reports/logs/g3b1-shots/consent-granted-settings.png
+docs/reports/logs/g3b1-shots/real-goals-progress.png
+docs/reports/logs/g3b1-shots/real-journal-2.png
+docs/reports/logs/g3b1-shots/real-proposal-2.png
+docs/reports/logs/g3b1-shots/real-proposal-dialog-2.png

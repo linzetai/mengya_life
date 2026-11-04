@@ -24,6 +24,12 @@ data class AdvisorMessage(
     val errorMessage: String? = null,
     /** 用户消息发出时附带的目标上下文（仅记录 id，便于用户回看；不保存目标快照）。 */
     val contextGoalId: Long? = null,
+    /** 产生这条消息时的授权 epoch。 */
+    val contextEpoch: Long = 0L,
+    /** 助手回复实际引用的来源（仅引用，不含正文副本）。 */
+    val sources: List<AdvisorSource> = emptyList(),
+    /** 草案解析失败时的错误。 */
+    val proposalError: String? = null,
 )
 
 /** 可安全展示的错误。不要把 API Key、请求头或响应原文塞进来。 */

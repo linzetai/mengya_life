@@ -103,9 +103,9 @@ class ExportTest {
     private fun bundle() = ExportJson.Bundle(
         exportedAt = t0 + 500,
         appPackage = "com.mengyalife.app",
-        appVersionName = "0.5.0-g2c",
-        appVersionCode = 5,
-        databaseVersion = 3,
+        appVersionName = "0.7.0-g3b1",
+        appVersionCode = 7,
+        databaseVersion = 4,
         journalEntries = journals,
         goals = goals,
         goalCheckins = checkins,
@@ -119,9 +119,9 @@ class ExportTest {
         journalDao = ExportJournalDao(journals),
         goalDao = ExportGoalDao(goals, checkins),
         appPackage = "com.mengyalife.app",
-        appVersionName = "0.5.0-g2c",
-        appVersionCode = 5,
-        databaseVersion = 3,
+        appVersionName = "0.7.0-g3b1",
+        appVersionCode = 7,
+        databaseVersion = 4,
         now = { t0 + 500 },
     )
 
@@ -138,9 +138,9 @@ class ExportTest {
     fun `导出文件包含 schemaVersion 与版本信息`() {
         val text = ExportJson.encode(bundle())
         assertTrue(text.contains("\"schemaVersion\": 1"))
-        assertTrue(text.contains("\"versionName\": \"0.5.0-g2c\""))
-        assertTrue(text.contains("\"versionCode\": 5"))
-        assertTrue(text.contains("\"schemaVersion\": 3")) // database.schemaVersion
+        assertTrue(text.contains("\"versionName\": \"0.7.0-g3b1\""))
+        assertTrue(text.contains("\"versionCode\": 7"))
+        assertTrue(text.contains("\"schemaVersion\": 4")) // database.schemaVersion
         assertTrue(text.contains("\"format\": \"mengyalife-backup\""))
     }
 
@@ -217,9 +217,9 @@ class ExportTest {
             journalDao = ExportJournalDao(journals),
             goalDao = ExportGoalDao(goals, checkins),
             appPackage = "com.mengyalife.app",
-            appVersionName = "0.5.0-g2c",
-            appVersionCode = 5,
-            databaseVersion = 3,
+            appVersionName = "0.7.0-g3b1",
+            appVersionCode = 7,
+            databaseVersion = 4,
             now = { t0 + 500 },
             transaction = { block ->
                 transactions++

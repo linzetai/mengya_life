@@ -6,15 +6,31 @@ import com.mengyalife.app.domain.advisor.AdvisorError
 import com.mengyalife.app.domain.advisor.AdvisorMessage
 import com.mengyalife.app.domain.advisor.AdvisorMessageStatus
 import com.mengyalife.app.domain.advisor.AdvisorRole
+import com.mengyalife.app.domain.advisor.AdvisorSource
+import com.mengyalife.app.domain.advisor.AdvisorSourceType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import java.util.UUID
 
 interface ConversationRepository {
     fun observeMessages(): Flow<List<AdvisorMessage>>
-    suspend fun appendUser(content: String, contextGoalId: Long?): AdvisorMessage
-    suspend fun appendAssistant(content: String): AdvisorMessage
-    suspend fun appendFailure(error: AdvisorError, cancelled: Boolean): AdvisorMessage
+    suspend fun appendUser(content: String, contextGoalId: Long?, contextEpoch: Long = 0): AdvisorMessage
+    suspend fun appendAssistant(
+        content: String,
+        contextEpoch: Long,
+        sources: List<AdvisorSource> = emptyList(),
+        proposalError: String? = null,
+    ): AdvisorMessage
+
+    suspend fun appendFailure(error: AdvisorError, cancelled: Boolean, contextEpoch: Long = 0): AdvisorMessage
     suspend fun deleteMessage(id: String)
     suspend fun loadAll(): List<AdvisorMessage>
 }
@@ -29,7 +45,11 @@ class RoomConversationRepository(
     override fun observeMessages(): Flow<List<AdvisorMessage>> =
         dao.observeAll().map { rows -> rows.map(::toDomain) }
 
-    override suspend fun appendUser(content: String, contextGoalId: Long?): AdvisorMessage =
+    override suspend fun appendUser(
+        content: String,
+        contextGoalId: Long?,
+        contextEpoch: Long,
+    ): AdvisorMessage =
         insert(
             AdvisorMessageEntity(
                 id = newId(),
@@ -38,10 +58,16 @@ class RoomConversationRepository(
                 createdAt = nextTimestamp(),
                 status = AdvisorMessageStatus.SENT.name,
                 contextGoalId = contextGoalId,
+                contextEpoch = contextEpoch,
             ),
         )
 
-    override suspend fun appendAssistant(content: String): AdvisorMessage =
+    override suspend fun appendAssistant(
+        content: String,
+        contextEpoch: Long,
+        sources: List<AdvisorSource>,
+        proposalError: String?,
+    ): AdvisorMessage =
         insert(
             AdvisorMessageEntity(
                 id = newId(),
@@ -49,10 +75,17 @@ class RoomConversationRepository(
                 content = content.trim(),
                 createdAt = nextTimestamp(),
                 status = AdvisorMessageStatus.SENT.name,
+                contextEpoch = contextEpoch,
+                sourcesJson = encodeSources(sources),
+                proposalError = proposalError,
             ),
         )
 
-    override suspend fun appendFailure(error: AdvisorError, cancelled: Boolean): AdvisorMessage =
+    override suspend fun appendFailure(
+        error: AdvisorError,
+        cancelled: Boolean,
+        contextEpoch: Long,
+    ): AdvisorMessage =
         insert(
             AdvisorMessageEntity(
                 id = newId(),
@@ -63,6 +96,7 @@ class RoomConversationRepository(
                 else AdvisorMessageStatus.FAILED.name,
                 errorCode = error.code,
                 errorMessage = error.userMessage,
+                contextEpoch = contextEpoch,
             ),
         )
 
@@ -93,5 +127,40 @@ class RoomConversationRepository(
         errorCode = entity.errorCode,
         errorMessage = entity.errorMessage,
         contextGoalId = entity.contextGoalId,
+        contextEpoch = entity.contextEpoch,
+        sources = decodeSources(entity.sourcesJson),
+        proposalError = entity.proposalError,
     )
+
+    private fun encodeSources(sources: List<AdvisorSource>): String? {
+        if (sources.isEmpty()) return null
+        return buildJsonArray {
+            sources.forEach { source ->
+                add(
+                    buildJsonObject {
+                        put("type", source.type.name)
+                        put("id", source.recordId)
+                        put("label", source.label)
+                    },
+                )
+            }
+        }.toString()
+    }
+
+    private fun decodeSources(raw: String?): List<AdvisorSource> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return runCatching {
+            Json.parseToJsonElement(raw).jsonArray.mapNotNull { element ->
+                val obj = element.jsonObject
+                val type = AdvisorSourceType.entries.firstOrNull {
+                    it.name == obj["type"]?.jsonPrimitive?.contentOrNull
+                } ?: return@mapNotNull null
+                AdvisorSource(
+                    type = type,
+                    recordId = obj["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null,
+                    label = obj["label"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                )
+            }
+        }.getOrDefault(emptyList())
+    }
 }

@@ -13,6 +13,8 @@ import com.mengyalife.app.data.local.advisor.AdvisorMessageEntity
 import com.mengyalife.app.data.local.goal.GoalCheckinEntity
 import com.mengyalife.app.data.local.goal.GoalDao
 import com.mengyalife.app.data.local.goal.GoalEntity
+import com.mengyalife.app.data.local.proposal.GoalProposalDao
+import com.mengyalife.app.data.local.proposal.GoalProposalEntity
 
 /**
  * 本地数据库。
@@ -21,6 +23,8 @@ import com.mengyalife.app.data.local.goal.GoalEntity
  * - **v1**：`journal_entries`（日记）
  * - **v2**（Gate 2B）：新增 `goals`、`goal_checkins`；**不改动** `journal_entries`
  * - **v3**（Gate 3A）：新增 `advisor_messages`；**不改动** v1/v2 的三张表
+ * - **v4**（Gate 3B-1）：advisor_messages 增加 epoch/来源/草案错误列；
+ *   新增 `goal_proposals`（草案）
  *
  * 迁移策略：
  * 1. 每次改表都必须 version + 1 并提供 `Migration`；
@@ -29,7 +33,7 @@ import com.mengyalife.app.data.local.goal.GoalEntity
  * 4. 迁移必须在真机升级安装上验证（本轮已做 v1→v2 实测，见报告）。
  */
 /** 数据库结构版本。导出文件里的 `databaseVersion` 与它保持一致。 */
-const val DB_SCHEMA_VERSION = 3
+const val DB_SCHEMA_VERSION = 4
 
 @Database(
     entities = [
@@ -37,6 +41,7 @@ const val DB_SCHEMA_VERSION = 3
         GoalEntity::class,
         GoalCheckinEntity::class,
         AdvisorMessageEntity::class,
+        GoalProposalEntity::class,
     ],
     version = DB_SCHEMA_VERSION,
     exportSchema = true,
@@ -49,6 +54,8 @@ abstract class MengyaDatabase : RoomDatabase() {
     abstract fun goalDao(): GoalDao
 
     abstract fun advisorMessageDao(): AdvisorMessageDao
+
+    abstract fun goalProposalDao(): GoalProposalDao
 
     companion object {
         // 正式版与 QA 测试构建使用不同的物理库文件（见 app/build.gradle 的 buildConfigField）。
@@ -130,6 +137,39 @@ abstract class MengyaDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v3 → v4：advisor_messages 增加 3 列 + 草案表；不动业务表。
+         * 列的 DEFAULT 保证旧消息可读，但仍不会进入新的上下文（epoch=0）。
+         */
+        val MIGRATION_3_4: Migration = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `advisor_messages` ADD COLUMN `context_epoch` INTEGER NOT NULL DEFAULT 0",
+                )
+                db.execSQL("ALTER TABLE `advisor_messages` ADD COLUMN `sources_json` TEXT")
+                db.execSQL("ALTER TABLE `advisor_messages` ADD COLUMN `proposal_error` TEXT")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `goal_proposals` (
+                        `id` TEXT PRIMARY KEY NOT NULL,
+                        `message_id` TEXT NOT NULL,
+                        `created_at` INTEGER NOT NULL,
+                        `schema_version` INTEGER NOT NULL,
+                        `status` TEXT NOT NULL,
+                        `summary` TEXT NOT NULL,
+                        `assumptions_json` TEXT NOT NULL,
+                        `risks_json` TEXT NOT NULL,
+                        `nodes_json` TEXT NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_goal_proposals_message_id` " +
+                        "ON `goal_proposals` (`message_id`)",
+                )
+            }
+        }
+
         @Volatile
         private var instance: MengyaDatabase? = null
 
@@ -143,7 +183,7 @@ abstract class MengyaDatabase : RoomDatabase() {
                     MengyaDatabase::class.java,
                     DATABASE_NAME,
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { instance = it }
             }

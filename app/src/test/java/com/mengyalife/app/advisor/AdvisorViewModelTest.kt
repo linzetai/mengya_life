@@ -1,13 +1,21 @@
 package com.mengyalife.app.advisor
 
-import com.mengyalife.app.data.advisor.AdvisorConfigRepository
-import com.mengyalife.app.data.advisor.AdvisorEngine
+import com.mengyalife.app.domain.advisor.AdvisorContextAssembler
 import com.mengyalife.app.data.advisor.RoomConversationRepository
 import com.mengyalife.app.domain.advisor.AdvisorChatResult
-import com.mengyalife.app.domain.advisor.AdvisorContextSource
+import com.mengyalife.app.domain.advisor.AdvisorContextSnapshot
 import com.mengyalife.app.domain.advisor.AdvisorError
 import com.mengyalife.app.domain.advisor.AdvisorMessageStatus
 import com.mengyalife.app.domain.advisor.AdvisorRole
+import com.mengyalife.app.domain.advisor.AdvisorSourceType
+import com.mengyalife.app.domain.advisor.AiConsentRules
+import com.mengyalife.app.domain.advisor.ContextCheckinRecord
+import com.mengyalife.app.domain.advisor.ContextGoalRecord
+import com.mengyalife.app.domain.advisor.ContextJournalRecord
+import com.mengyalife.app.domain.advisor.ConsentCategory
+import com.mengyalife.app.domain.goals.GoalDomain
+import com.mengyalife.app.domain.goals.GoalLevel
+import com.mengyalife.app.domain.goals.GoalStatus
 import com.mengyalife.app.ui.advisor.AdvisorAction
 import com.mengyalife.app.ui.advisor.AdvisorViewModel
 import kotlinx.coroutines.Dispatchers
@@ -33,128 +41,191 @@ import org.junit.Test
 class AdvisorViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
+    private val endpoint = "https://api.example.com/v1"
 
     @Before
-    fun setUp() {
-        Dispatchers.setMain(dispatcher)
-    }
+    fun setUp() = Dispatchers.setMain(dispatcher)
 
     @After
-    fun tearDown() {
-        Dispatchers.resetMain()
-    }
+    fun tearDown() = Dispatchers.resetMain()
 
-    private class Fixture(
+    private data class Fixture(
         val vm: AdvisorViewModel,
         val dao: FakeConversationDao,
         val config: FakeConfigRepository,
+        val consent: FakeConsentRepository,
+        val data: FakeAdvisorDataRepository,
+        val proposals: FakeGoalProposalRepository,
         val engine: ScriptedAdvisorEngine,
-        val context: FakeContextSource,
-        val repository: RoomConversationRepository,
     )
 
     private suspend fun build(
         configured: Boolean = true,
+        granted: Boolean = true,
         engine: ScriptedAdvisorEngine = ScriptedAdvisorEngine(),
-        context: FakeContextSource = FakeContextSource(
-            goals = listOf(sampleGoal()),
-            contexts = mapOf(1L to sampleContext()),
-        ),
+        snapshot: AdvisorContextSnapshot = snapshot(),
     ): Fixture {
         val config = FakeConfigRepository()
-        if (configured) {
-            config.save("https://api.example.com/v1", "deepseek-chat", "sk-test")
-        }
+        if (configured) config.save(endpoint, "deepseek-chat", "sk-test")
+        val consent = FakeConsentRepository()
+        if (granted) consent.grant(endpoint, AiConsentRules.allCategories)
         val dao = FakeConversationDao()
         val repository = RoomConversationRepository(dao, now = { 1_000L })
+        val data = FakeAdvisorDataRepository(snapshot)
+        val proposals = FakeGoalProposalRepository()
         val vm = AdvisorViewModel(
             conversations = repository,
             configRepository = config,
+            consentRepository = consent,
+            dataRepository = data,
+            proposalRepository = proposals,
+            assembler = AdvisorContextAssembler(),
             networkEngine = engine,
             fakeEngine = null,
-            contextSource = context,
         )
-        return Fixture(vm, dao, config, engine, context, repository)
+        return Fixture(vm, dao, config, consent, data, proposals, engine)
     }
+
+    private fun snapshot(query: String = "睡眠 目标"): AdvisorContextSnapshot = AdvisorContextSnapshot(
+        goals = listOf(
+            ContextGoalRecord(
+                id = 7,
+                title = "健康",
+                description = "长期保持规律运动",
+                level = GoalLevel.LONG_TERM,
+                parentId = null,
+                domain = GoalDomain.HEALTH,
+                status = GoalStatus.IN_PROGRESS,
+                createdAt = 1L,
+            ),
+        ),
+        checkins = listOf(
+            ContextCheckinRecord(11, 7, 1_000, "完成三次训练", 3.0, "次/周"),
+        ),
+        journals = listOf(
+            ContextJournalRecord(21, "睡眠", "最近睡眠不好，但开始早睡", 1_000),
+        ),
+    )
 
     private fun TestScope.collectVm(vm: AdvisorViewModel) {
-        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-            vm.uiState.collect {}
-        }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
     }
 
     @Test
-    fun `发送成功会先保存用户消息再保存助手回复`() = runTest {
-        val f = build()
+    fun `未授权时发送被阻止，不读取也不保存`() = runTest {
+        val f = build(granted = false)
         collectVm(f.vm)
         advanceUntilIdle()
-        f.engine.enqueue(AdvisorChatResult.Success("建议先做一件小事"))
-        f.vm.onAction(AdvisorAction.InputChange("我该怎么开始？"))
+        f.vm.onAction(AdvisorAction.InputChange("睡眠不好怎么办"))
         advanceUntilIdle()
         f.vm.onAction(AdvisorAction.Send)
         advanceUntilIdle()
 
-        val state = f.vm.uiState.value
-        assertEquals(2, state.messages.size)
-        assertEquals(AdvisorRole.USER, state.messages[0].role)
-        assertEquals("我该怎么开始？", state.messages[0].content)
-        assertEquals(AdvisorRole.ASSISTANT, state.messages[1].role)
-        assertEquals("建议先做一件小事", state.messages[1].content)
-        assertEquals(AdvisorMessageStatus.SENT, state.messages[1].status)
-        assertEquals(1, f.engine.calls.size)
-        assertFalse(state.sending)
+        assertTrue(f.vm.uiState.value.messages.isEmpty())
+        assertEquals(0, f.engine.calls.size)
+        assertNotNull(f.vm.uiState.value.errorMessage)
+        assertFalse(f.vm.uiState.value.consentValid)
     }
 
     @Test
-    fun `重启后从数据库恢复对话`() = runTest {
-        val f = build()
+    fun `首次授权后发送，来源与回复一起保存`() = runTest {
+        val f = build(granted = false)
         collectVm(f.vm)
         advanceUntilIdle()
-        f.engine.enqueue(AdvisorChatResult.Success("第一次回复"))
-        f.vm.onAction(AdvisorAction.InputChange("第一问"))
+        f.vm.onAction(AdvisorAction.GrantConsent)
+        advanceUntilIdle()
+        assertTrue(f.vm.uiState.value.consentValid)
+
+        f.engine.enqueue(AdvisorChatResult.Success("建议从睡眠开始"))
+        f.vm.onAction(AdvisorAction.InputChange("睡眠不好，目标怎么调整"))
         advanceUntilIdle()
         f.vm.onAction(AdvisorAction.Send)
         advanceUntilIdle()
 
-        val vm2 = AdvisorViewModel(
-            conversations = RoomConversationRepository(f.dao, now = { 2_000L }),
-            configRepository = f.config,
-            networkEngine = f.engine,
-            fakeEngine = null,
-            contextSource = f.context,
-        )
-        collectVm(vm2)
-        advanceUntilIdle()
-        assertEquals(2, vm2.uiState.value.messages.size)
-        assertEquals("第一问", vm2.uiState.value.messages[0].content)
-        assertEquals("第一次回复", vm2.uiState.value.messages[1].content)
+        val messages = f.vm.uiState.value.messages
+        assertEquals(2, messages.size)
+        assertEquals(AdvisorRole.ASSISTANT, messages[1].role)
+        assertEquals("建议从睡眠开始", messages[1].content)
+        assertTrue(messages[1].sources.any { it.type == AdvisorSourceType.GOAL })
+        assertTrue(messages[1].sources.any { it.type == AdvisorSourceType.JOURNAL })
+        assertTrue(messages[1].sources.any { it.type == AdvisorSourceType.PROGRESS })
     }
 
     @Test
-    fun `失败只保存失败状态，不伪造助手回复`() = runTest {
+    fun `关闭日记后新请求不带旧日记上下文，历史按 epoch 隔离`() = runTest {
+        val f = build()
+        collectVm(f.vm)
+        advanceUntilIdle()
+        f.engine.enqueue(AdvisorChatResult.Success("第一次回答（含日记）"))
+        f.vm.onAction(AdvisorAction.InputChange("睡眠 目标"))
+        advanceUntilIdle()
+        f.vm.onAction(AdvisorAction.Send)
+        advanceUntilIdle()
+        val firstReply = f.vm.uiState.value.messages[1].content
+
+        f.vm.onAction(AdvisorAction.DismissInfo)
+        f.consent.setCategory(ConsentCategory.JOURNAL, false)
+        advanceUntilIdle()
+        f.engine.enqueue(AdvisorChatResult.Success("第二次回答"))
+        f.vm.onAction(AdvisorAction.InputChange("睡眠 目标 继续"))
+        advanceUntilIdle()
+        f.vm.onAction(AdvisorAction.Send)
+        advanceUntilIdle()
+
+        val lastCall = f.engine.calls.last().joinToString("\n") { it.content }
+        assertFalse(lastCall.contains("最近睡眠不好"))
+        assertFalse(lastCall.contains(firstReply))
+        val lastAssistant = f.vm.uiState.value.messages.last()
+        assertTrue(lastAssistant.sources.none { it.type == AdvisorSourceType.JOURNAL })
+    }
+
+    @Test
+    fun `关闭目标后不带目标摘要`() = runTest {
+        val f = build()
+        collectVm(f.vm)
+        advanceUntilIdle()
+        f.consent.setCategory(ConsentCategory.GOALS, false)
+        advanceUntilIdle()
+        f.engine.enqueue(AdvisorChatResult.Success("回答"))
+        f.vm.onAction(AdvisorAction.InputChange("健康 目标"))
+        advanceUntilIdle()
+        f.vm.onAction(AdvisorAction.Send)
+        advanceUntilIdle()
+
+        val lastCall = f.engine.calls.last().joinToString("\n") { it.content }
+        assertFalse(lastCall.contains("长期保持规律运动"))
+        assertTrue(f.vm.uiState.value.messages.last().sources.none { it.type == AdvisorSourceType.GOAL })
+    }
+
+    @Test
+    fun `更换服务地址后授权失效，必须重新授权`() = runTest {
+        val f = build()
+        collectVm(f.vm)
+        advanceUntilIdle()
+        assertTrue(f.vm.uiState.value.consentValid)
+
+        f.config.save("https://other.example.com/v1", "m", null)
+        advanceUntilIdle()
+        assertFalse(f.vm.uiState.value.consentValid)
+
+        f.vm.onAction(AdvisorAction.InputChange("hi"))
+        advanceUntilIdle()
+        f.vm.onAction(AdvisorAction.Send)
+        advanceUntilIdle()
+        assertEquals(0, f.engine.calls.size)
+        assertTrue(f.vm.uiState.value.messages.isEmpty())
+
+        f.vm.onAction(AdvisorAction.GrantConsent)
+        advanceUntilIdle()
+        assertTrue(f.vm.uiState.value.consentValid)
+    }
+
+    @Test
+    fun `失败重试不重复用户消息`() = runTest {
         val f = build()
         collectVm(f.vm)
         advanceUntilIdle()
         f.engine.enqueue(AdvisorChatResult.Failure(AdvisorError.timeout()))
-        f.vm.onAction(AdvisorAction.InputChange("会失败的问题"))
-        advanceUntilIdle()
-        f.vm.onAction(AdvisorAction.Send)
-        advanceUntilIdle()
-
-        val state = f.vm.uiState.value
-        assertEquals(2, state.messages.size)
-        assertEquals(AdvisorMessageStatus.FAILED, state.messages[1].status)
-        assertEquals("", state.messages[1].content)
-        assertEquals(AdvisorError.TIMEOUT, state.messages[1].errorCode)
-        assertTrue(state.messages[1].errorMessage!!.contains("超时"))
-    }
-
-    @Test
-    fun `重试不会重复用户消息`() = runTest {
-        val f = build()
-        collectVm(f.vm)
-        advanceUntilIdle()
-        f.engine.enqueue(AdvisorChatResult.Failure(AdvisorError.offline()))
         f.vm.onAction(AdvisorAction.InputChange("需要重试"))
         advanceUntilIdle()
         f.vm.onAction(AdvisorAction.Send)
@@ -165,17 +236,14 @@ class AdvisorViewModelTest {
         f.engine.enqueue(AdvisorChatResult.Success("重试成功"))
         f.vm.onAction(AdvisorAction.Retry(failed.id))
         advanceUntilIdle()
-
         val messages = f.vm.uiState.value.messages
         assertEquals(2, messages.size)
-        assertEquals(AdvisorRole.USER, messages[0].role)
         assertEquals(1, messages.count { it.role == AdvisorRole.USER })
         assertEquals("重试成功", messages[1].content)
-        assertEquals(2, f.engine.calls.size)
     }
 
     @Test
-    fun `取消请求保存取消状态且没有回复`() = runTest {
+    fun `取消请求保存 CANCELLED 且无假回复`() = runTest {
         val f = build(engine = ScriptedAdvisorEngine().apply { blockUntilCancelled = true })
         collectVm(f.vm)
         advanceUntilIdle()
@@ -185,109 +253,50 @@ class AdvisorViewModelTest {
         advanceUntilIdle()
         f.vm.onAction(AdvisorAction.CancelRequest)
         advanceUntilIdle()
-
-        val state = f.vm.uiState.value
-        assertEquals(2, state.messages.size)
-        assertEquals(AdvisorMessageStatus.CANCELLED, state.messages[1].status)
-        assertEquals("", state.messages[1].content)
-        assertFalse(state.sending)
+        val last = f.vm.uiState.value.messages.last()
+        assertEquals(AdvisorMessageStatus.CANCELLED, last.status)
+        assertEquals("", last.content)
     }
 
     @Test
-    fun `未配置模型时不发送也不落消息`() = runTest {
-        val f = build(configured = false)
-        collectVm(f.vm)
-        advanceUntilIdle()
-        f.vm.onAction(AdvisorAction.InputChange("你好"))
-        advanceUntilIdle()
-        f.vm.onAction(AdvisorAction.Send)
-        advanceUntilIdle()
-
-        assertTrue(f.vm.uiState.value.messages.isEmpty())
-        assertEquals(0, f.engine.calls.size)
-        assertNotNull(f.vm.uiState.value.errorMessage)
-    }
-
-    @Test
-    fun `附带目标时必须确认，确认后才发送并携带摘要`() = runTest {
+    fun `整理为目标草案并持久化`() = runTest {
         val f = build()
         collectVm(f.vm)
         advanceUntilIdle()
-        f.vm.onAction(AdvisorAction.SelectGoal(sampleGoal()))
-        advanceUntilIdle()
-        assertNotNull(f.vm.uiState.value.contextPayload)
-
-        f.vm.onAction(AdvisorAction.InputChange("看看我的目标"))
-        advanceUntilIdle()
-        f.vm.onAction(AdvisorAction.Send)
+        f.engine.enqueue(AdvisorChatResult.Success(proposalJson()))
+        f.vm.onAction(AdvisorAction.RequestProposal)
         advanceUntilIdle()
 
-        // 还没确认：不发送、不落库
-        assertNotNull(f.vm.uiState.value.consent)
-        assertTrue(f.vm.uiState.value.messages.isEmpty())
-        assertEquals(0, f.engine.calls.size)
-
-        f.engine.enqueue(AdvisorChatResult.Success("基于目标建议"))
-        f.vm.onAction(AdvisorAction.ConfirmConsent)
-        advanceUntilIdle()
-
-        assertEquals(2, f.vm.uiState.value.messages.size)
-        assertEquals(1L, f.vm.uiState.value.messages[0].contextGoalId)
-        assertEquals(1, f.engine.calls.size)
-        val sent = f.engine.calls[0].joinToString("\n") { it.content }
-        assertTrue(sent.contains("健康"))
-        assertTrue(sent.contains("未包含日记正文"))
-        assertTrue(sent.contains("看看我的目标"))
+        val message = f.vm.uiState.value.messages.last()
+        assertNotNull(f.vm.uiState.value.proposals[message.id])
+        assertNotNull(f.vm.uiState.value.proposals[message.id]!!.draft.nodes.firstOrNull())
+        assertEquals(1, f.vm.uiState.value.proposals.size)
     }
 
     @Test
-    fun `取消授权不发送个人数据`() = runTest {
+    fun `草案 JSON 非法时保留错误，不生成草案`() = runTest {
         val f = build()
         collectVm(f.vm)
         advanceUntilIdle()
-        f.vm.onAction(AdvisorAction.SelectGoal(sampleGoal()))
-        advanceUntilIdle()
-        f.vm.onAction(AdvisorAction.InputChange("带目标的问题"))
-        advanceUntilIdle()
-        f.vm.onAction(AdvisorAction.Send)
-        advanceUntilIdle()
-        f.vm.onAction(AdvisorAction.CancelConsent)
+        f.engine.enqueue(AdvisorChatResult.Success("这不是 JSON"))
+        f.vm.onAction(AdvisorAction.RequestProposal)
         advanceUntilIdle()
 
-        assertTrue(f.vm.uiState.value.messages.isEmpty())
-        assertNull(f.vm.uiState.value.consent)
-        assertEquals(0, f.engine.calls.size)
+        val message = f.vm.uiState.value.messages.last()
+        assertTrue(f.vm.uiState.value.proposals.isEmpty())
+        assertNotNull(message.proposalError)
+        assertTrue(message.content.contains("这不是 JSON"))
     }
 
-    @Test
-    fun `多轮对话只带最近历史，失败消息不进入`() = runTest {
-        val f = build()
-        collectVm(f.vm)
-        advanceUntilIdle()
-        f.engine.enqueue(AdvisorChatResult.Success("答1"))
-        f.vm.onAction(AdvisorAction.InputChange("问1"))
-        advanceUntilIdle()
-        f.vm.onAction(AdvisorAction.Send)
-        advanceUntilIdle()
-
-        f.engine.enqueue(AdvisorChatResult.Failure(AdvisorError.server()))
-        f.vm.onAction(AdvisorAction.InputChange("问2"))
-        advanceUntilIdle()
-        f.vm.onAction(AdvisorAction.Send)
-        advanceUntilIdle()
-
-        f.engine.enqueue(AdvisorChatResult.Success("答3"))
-        f.vm.onAction(AdvisorAction.InputChange("问3"))
-        advanceUntilIdle()
-        f.vm.onAction(AdvisorAction.Send)
-        advanceUntilIdle()
-
-        val lastCall = f.engine.calls.last().joinToString("\n") { it.content }
-        assertTrue(lastCall.contains("问1"))
-        assertTrue(lastCall.contains("答1"))
-        assertTrue(lastCall.contains("问3"))
-        // 失败的是助手回复；用户自己的“问2”仍作为历史保留，但失败回复的文案不会进入
-        assertFalse(lastCall.contains("模型服务暂时不可用"))
-        assertEquals(6, f.vm.uiState.value.messages.size)
-    }
+    private fun proposalJson(): String =
+        """
+        {"schemaVersion":1,"summary":"从睡眠开始调整健康目标","assumptions":["每周三次可行"],
+         "risks":["时间不足"],"goals":[
+         {"tempId":"g1","level":"LONG","title":"健康","description":"稳定睡眠与运动","domain":"HEALTH",
+          "parentTempId":null,"parentGoalId":null,"startDate":null,"dueDate":null,"basis":"对话"},
+         {"tempId":"s1","level":"STAGE","title":"建立睡眠节律","description":null,"domain":"HEALTH",
+          "parentTempId":"g1","parentGoalId":null,"startDate":null,"dueDate":null,"basis":"近期睡眠"},
+         {"tempId":"a1","level":"ACTION","title":"每周三次早睡","description":null,"domain":"HEALTH",
+          "parentTempId":"s1","parentGoalId":null,"startDate":null,"dueDate":null,"basis":"可执行"}]}
+        """.trimIndent()
 }

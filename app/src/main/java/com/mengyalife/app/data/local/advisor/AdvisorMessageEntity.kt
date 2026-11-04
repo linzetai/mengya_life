@@ -45,4 +45,16 @@ data class AdvisorMessageEntity(
     /** 用户消息发送时附带的目标 id（仅用于回看，不保存目标快照）。 */
     @ColumnInfo(name = "context_goal_id")
     val contextGoalId: Long? = null,
+
+    /** 产生这条消息时的授权 epoch；状态变化后旧 epoch 不会进入新请求。 */
+    @ColumnInfo(name = "context_epoch")
+    val contextEpoch: Long = 0L,
+
+    /** 助手回复实际引用的来源（JSON 数组，不含正文/密钥）。 */
+    @ColumnInfo(name = "sources_json")
+    val sourcesJson: String? = null,
+
+    /** 草案解析失败时的错误（不伪造草案）。 */
+    @ColumnInfo(name = "proposal_error")
+    val proposalError: String? = null,
 )

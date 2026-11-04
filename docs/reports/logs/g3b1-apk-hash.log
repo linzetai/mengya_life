@@ -1,0 +1,12 @@
+# Gate 3B-1 设备安装 APK 哈希
+时间: 2026-11-04T10:40:24+08:00
+设备: Xiaomi 2509FPN0BC / Android 17
+
+== com.mengyalife.app
+sha256: d5eae3fada72ca532b58c218b2cddb991b9547ebb3cd6e745121edea057e638b
+bytes: 11416412
+
+== com.mengyalife.app.qa
+sha256: 2400e83b86870758e9176f625e6d41e23232dae5e8763808e2c9347169172e80
+bytes: 11416433
+

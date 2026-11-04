@@ -7,19 +7,24 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mengyalife.app.MengyaApplication
 import com.mengyalife.app.data.advisor.AdvisorConfigRepository
+import com.mengyalife.app.data.advisor.AdvisorDataRepository
 import com.mengyalife.app.data.advisor.AdvisorEngine
 import com.mengyalife.app.data.advisor.ConversationRepository
+import com.mengyalife.app.data.advisor.GoalProposalRepository
+import com.mengyalife.app.data.consent.AiConsentRepository
 import com.mengyalife.app.domain.advisor.AdvisorChatResult
-import com.mengyalife.app.domain.advisor.AdvisorConsentRequest
-import com.mengyalife.app.domain.advisor.AdvisorContextSource
+import com.mengyalife.app.domain.advisor.AdvisorContextAssembler
+import com.mengyalife.app.domain.advisor.AdvisorContextSnapshot
 import com.mengyalife.app.domain.advisor.AdvisorError
-import com.mengyalife.app.domain.advisor.AdvisorGoalChoice
-import com.mengyalife.app.domain.advisor.AdvisorGoalContext
 import com.mengyalife.app.domain.advisor.AdvisorMessage
 import com.mengyalife.app.domain.advisor.AdvisorMessageStatus
 import com.mengyalife.app.domain.advisor.AdvisorRole
 import com.mengyalife.app.domain.advisor.AdvisorRules
-import com.mengyalife.app.domain.advisor.AiConfigState
+import com.mengyalife.app.domain.advisor.AiConsentRules
+import com.mengyalife.app.domain.advisor.AiConsentState
+import com.mengyalife.app.domain.advisor.ConsentCategory
+import com.mengyalife.app.domain.advisor.GoalProposalParseResult
+import com.mengyalife.app.domain.advisor.GoalProposalParser
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -33,57 +38,60 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * 顾问对话 ViewModel。
+ * 顾问 ViewModel（Gate 3B-1）。
  *
- * 关键约束：
- * - 先持久化用户消息，再发请求；失败只写一条 FAILED 消息，不伪造 AI 回复；
- * - 重试复用原用户消息，不新增重复用户消息；
- * - 模型只能返回文本，本类不会因为模型输出而修改目标/日记/进展；
- * - 目标上下文由用户显式选择 + 每次发送前确认。
+ * - 首次一次性授权；未授权不读取/不发送个人数据；
+ * - 每轮由 AdvisorContextAssembler 自动检索授权类别；
+ * - 历史消息按 context epoch 隔离；
+ * - 授权状态在请求中变化时取消请求，避免用旧授权继续发送；
+ * - 模型只能产生文本/草案，不修改业务数据。
  */
 class AdvisorViewModel(
     private val conversations: ConversationRepository,
     private val configRepository: AdvisorConfigRepository,
+    private val consentRepository: AiConsentRepository,
+    private val dataRepository: AdvisorDataRepository,
+    private val proposalRepository: GoalProposalRepository,
+    private val assembler: AdvisorContextAssembler,
     private val networkEngine: AdvisorEngine,
     private val fakeEngine: AdvisorEngine?,
-    private val contextSource: AdvisorContextSource,
 ) : ViewModel() {
 
     private data class LocalState(
         val input: String = "",
         val sending: Boolean = false,
-        val contextGoal: AdvisorGoalChoice? = null,
-        val contextPayload: AdvisorGoalContext? = null,
-        val goalPickerOpen: Boolean = false,
-        val consent: AdvisorConsentRequest? = null,
         val errorMessage: String? = null,
         val infoMessage: String? = null,
     )
 
     private val local = MutableStateFlow(LocalState())
     private var requestJob: Job? = null
+    private var activeEpoch: Long? = null
+    private var latestConsent: AiConsentState = AiConsentState()
 
     private val messagesFlow = conversations.observeMessages()
     private val configFlow = configRepository.state
-    private val goalsFlow = contextSource.observeGoalChoices()
+    private val consentFlow = consentRepository.state
+    private val proposalsFlow = proposalRepository.observeAll()
+
+    private val configState = MutableStateFlow(com.mengyalife.app.domain.advisor.AiConfigState())
+    private val consentState = MutableStateFlow(AiConsentState())
 
     val uiState: StateFlow<AdvisorUiState> = combine(
         messagesFlow,
-        configFlow,
-        goalsFlow,
+        configState,
+        consentState,
+        proposalsFlow,
         local,
-    ) { messages, config, goals, localState ->
+    ) { messages, config, consent, proposals, localState ->
         AdvisorUiState(
             messages = messages,
             input = localState.input,
             sending = localState.sending,
             config = config,
-            configured = config.configured,
-            goalChoices = goals,
-            contextGoal = localState.contextGoal,
-            contextPayload = localState.contextPayload,
-            goalPickerOpen = localState.goalPickerOpen,
-            consent = localState.consent,
+            consent = consent,
+            consentValid = consent.isValidFor(config.endpoint) && config.configured,
+            proposals = proposals.associateBy { it.messageId },
             errorMessage = localState.errorMessage,
             infoMessage = localState.infoMessage,
         )
@@ -93,97 +101,114 @@ class AdvisorViewModel(
         initialValue = AdvisorUiState(),
     )
 
+    init {
+        viewModelScope.launch {
+            configFlow.collect { configState.value = it }
+        }
+        viewModelScope.launch {
+            consentFlow.collect { consent ->
+                latestConsent = consent
+                consentState.value = consent
+                val epoch = activeEpoch
+                // 授权/类别/接收方变化时，进行中的请求必须安全取消
+                if (local.value.sending && epoch != null && epoch != consent.epoch) {
+                    requestJob?.cancel()
+                }
+            }
+        }
+    }
+
     fun onAction(action: AdvisorAction) {
         when (action) {
             is AdvisorAction.InputChange -> local.update { it.copy(input = action.value) }
             AdvisorAction.Send -> send()
             is AdvisorAction.Retry -> retry(action.messageId)
             AdvisorAction.CancelRequest -> cancelRequest()
-            AdvisorAction.OpenGoalPicker -> local.update { it.copy(goalPickerOpen = true) }
-            AdvisorAction.DismissGoalPicker -> local.update { it.copy(goalPickerOpen = false) }
-            is AdvisorAction.SelectGoal -> selectGoal(action.goal)
-            AdvisorAction.ClearContext -> local.update {
-                it.copy(contextGoal = null, contextPayload = null)
+            AdvisorAction.GrantConsent -> grantConsent()
+            AdvisorAction.DeclineConsent -> local.update {
+                it.copy(
+                    infoMessage = "未授权：顾问不会读取或发送目标、进展、日记与历史对话。你仍可以在本机查看已有聊天。",
+                )
             }
-            AdvisorAction.ConfirmConsent -> confirmConsent()
-            AdvisorAction.CancelConsent -> local.update {
-                it.copy(consent = null, infoMessage = "已取消发送，个人数据没有发出。")
-            }
+            AdvisorAction.RequestProposal -> requestProposal()
             AdvisorAction.DismissError -> local.update { it.copy(errorMessage = null) }
             AdvisorAction.DismissInfo -> local.update { it.copy(infoMessage = null) }
         }
     }
 
     private fun send() {
-        val state = uiState.value
-        if (state.sending) return
-        // 以 local 的最新输入为准，避免「输入后立刻点发送」时 stateIn 尚未重组
         val text = local.value.input.trim()
-        if (text.isEmpty()) return
+        if (text.isEmpty() || local.value.sending) return
+        val state = uiState.value
         if (!state.configured) {
-            local.update {
-                it.copy(errorMessage = AdvisorError.notConfigured().userMessage)
-            }
+            local.update { it.copy(errorMessage = AdvisorError.notConfigured().userMessage) }
+            return
+        }
+        if (!state.consentValid) {
+            local.update { it.copy(errorMessage = "请先完成 AI 数据授权，再由顾问使用个人数据。") }
             return
         }
         AdvisorRules.validateInput(text)?.let { error ->
             local.update { it.copy(errorMessage = error) }
             return
         }
-        val payload = state.contextPayload
-        if (payload != null) {
-            // 带个人数据：先弹出授权摘要，确认后才真正发送。
-            local.update { it.copy(consent = AdvisorConsentRequest(text, payload)) }
+        startRequest(text, insertUser = true, excludeMessageId = null, proposalMode = false)
+    }
+
+    private fun grantConsent() {
+        val state = uiState.value
+        if (!state.configured) {
+            local.update { it.copy(errorMessage = "请先配置模型服务，再授权数据使用。") }
             return
         }
-        startSend(
-            input = text,
-            context = null,
-            insertUserMessage = true,
-            excludeMessageId = null,
-        )
+        viewModelScope.launch {
+            consentRepository.grant(
+                recipient = state.config.endpoint,
+                categories = AiConsentRules.allCategories,
+            )
+            local.update { it.copy(infoMessage = "已授权。顾问会按需使用你允许的数据类别。") }
+        }
     }
 
-    private fun confirmConsent() {
-        val consent = local.value.consent ?: return
-        local.update { it.copy(consent = null) }
-        startSend(
-            input = consent.input,
-            context = consent.context,
-            insertUserMessage = true,
-            excludeMessageId = null,
-        )
-    }
-
-    private fun startSend(
+    private fun startRequest(
         input: String,
-        context: AdvisorGoalContext?,
-        insertUserMessage: Boolean,
+        insertUser: Boolean,
         excludeMessageId: String?,
+        proposalMode: Boolean,
     ) {
         if (local.value.sending) return
-        if (!uiState.value.configured) {
+        val state = uiState.value
+        if (!state.configured) {
             local.update { it.copy(errorMessage = AdvisorError.notConfigured().userMessage) }
             return
         }
-        val engine = engineFor(uiState.value.config)
+        if (!state.consentValid) {
+            local.update { it.copy(errorMessage = "授权已失效，请重新授权后再发送。") }
+            return
+        }
+        val consent = state.consent
+        val epoch = consent.epoch
+        val engine = engineFor(state.config)
+        activeEpoch = epoch
 
         local.update {
             it.copy(
                 sending = true,
                 errorMessage = null,
                 infoMessage = null,
-                input = if (insertUserMessage) "" else it.input,
+                input = if (insertUser) "" else it.input,
             )
         }
 
         requestJob = viewModelScope.launch {
             try {
-                // 先读取历史，再落用户消息；当前问题单独放在最后。
-                val historyBefore = conversations.loadAll()
-                    .filter { it.id != excludeMessageId && it.status == AdvisorMessageStatus.SENT }
-                if (insertUserMessage) {
-                    conversations.appendUser(input, context?.goalId)
+                val history = conversations.loadAll()
+                    .filter { it.id != excludeMessageId }
+                val data = dataRepository.snapshot(consent).copy(history = history)
+                val assembled = assembler.assemble(input, consent, data)
+
+                if (insertUser) {
+                    conversations.appendUser(input, null, epoch)
                 }
 
                 val runtime = configRepository.runtimeConfig()
@@ -191,45 +216,145 @@ class AdvisorViewModel(
                     conversations.appendFailure(
                         AdvisorError(AdvisorError.NOT_CONFIGURED, "密钥不可用，请到设置页重新保存 API Key。"),
                         cancelled = false,
+                        contextEpoch = epoch,
+                    )
+                    local.update { it.copy(sending = false) }
+                    return@launch
+                }
+
+                val currentConsent = consentRepository.current()
+                if (!currentConsent.isValidFor(state.config.endpoint) || currentConsent.epoch != epoch) {
+                    conversations.appendFailure(
+                        AdvisorError(AdvisorError.CANCELLED, "授权状态已变化，本次请求未发送。"),
+                        cancelled = true,
+                        contextEpoch = epoch,
                     )
                     local.update { it.copy(sending = false) }
                     return@launch
                 }
 
                 val requestMessages = AdvisorRules.buildRequestMessages(
-                    history = historyBefore,
+                    history = assembled.history,
                     currentInput = input,
-                    goalContext = context,
+                    goalContext = null,
+                    extraSystemContext = assembled.systemContext,
+                    extraSystemPrompt = if (proposalMode) AdvisorRules.proposalSystemPrompt() else null,
                 )
-                when (val result = engine.chat(runtime, requestMessages)) {
+                when (val result = engine.chat(
+                    runtime,
+                    requestMessages,
+                    maxTokens = if (proposalMode) 3_000 else AdvisorRules.MAX_OUTPUT_TOKENS,
+                )) {
                     is AdvisorChatResult.Success -> {
-                        conversations.appendAssistant(result.content)
+                        val after = consentRepository.current()
+                        if (!after.isValidFor(state.config.endpoint) || after.epoch != epoch) {
+                            conversations.appendFailure(
+                                AdvisorError(AdvisorError.CANCELLED, "授权状态已变化，本次回复未保存。"),
+                                cancelled = true,
+                                contextEpoch = epoch,
+                            )
+                            local.update { it.copy(sending = false) }
+                            return@launch
+                        }
+                        if (proposalMode) {
+                            handleProposalResult(
+                                raw = result.content,
+                                epoch = epoch,
+                                sources = assembled.sources,
+                                existingGoals = data.goals.associate { it.id to it.level },
+                                contextChars = assembled.stats.chars,
+                            )
+                        } else {
+                            conversations.appendAssistant(
+                                content = result.content,
+                                contextEpoch = epoch,
+                                sources = assembled.sources,
+                            )
+                        }
                     }
-                    is AdvisorChatResult.Failure -> {
-                        conversations.appendFailure(result.error, cancelled = false)
-                    }
+                    is AdvisorChatResult.Failure -> conversations.appendFailure(
+                        error = result.error,
+                        cancelled = false,
+                        contextEpoch = epoch,
+                    )
                 }
                 local.update { it.copy(sending = false) }
             } catch (cancelled: CancellationException) {
                 withContext(NonCancellable) {
-                    conversations.appendFailure(AdvisorError.cancelled(), cancelled = true)
+                    conversations.appendFailure(
+                        AdvisorError.cancelled(),
+                        cancelled = true,
+                        contextEpoch = epoch,
+                    )
                 }
                 local.update { it.copy(sending = false, infoMessage = "已取消本次请求。") }
                 throw cancelled
             } catch (error: Throwable) {
                 withContext(NonCancellable) {
-                    conversations.appendFailure(AdvisorError.unknown(), cancelled = false)
+                    conversations.appendFailure(
+                        AdvisorError.unknown(),
+                        cancelled = false,
+                        contextEpoch = epoch,
+                    )
                 }
                 local.update { it.copy(sending = false) }
             } finally {
                 requestJob = null
+                activeEpoch = null
             }
         }
     }
 
+    private suspend fun handleProposalResult(
+        raw: String,
+        epoch: Long,
+        sources: List<com.mengyalife.app.domain.advisor.AdvisorSource>,
+        existingGoals: Map<Long, com.mengyalife.app.domain.goals.GoalLevel>,
+        contextChars: Int,
+    ) {
+        when (val parsed = GoalProposalParser.parse(raw, existingGoals)) {
+            is GoalProposalParseResult.Success -> {
+                val message = conversations.appendAssistant(
+                    content = "已根据本次讨论整理为目标草案：" + parsed.draft.summary.take(200) +
+                        "\n\n（草案，尚未保存；不会修改正式目标。）",
+                    contextEpoch = epoch,
+                    sources = sources,
+                )
+                proposalRepository.save(message.id, parsed.draft)
+            }
+            is GoalProposalParseResult.Failure -> {
+                conversations.appendAssistant(
+                    content = raw.trim().take(4_000),
+                    contextEpoch = epoch,
+                    sources = sources,
+                    proposalError = "草案解析失败：${parsed.message}",
+                )
+            }
+        }
+    }
+
+    private fun requestProposal() {
+        val state = uiState.value
+        if (!state.configured) {
+            local.update { it.copy(errorMessage = "请先配置模型服务。") }
+            return
+        }
+        if (!state.consentValid) {
+            local.update { it.copy(errorMessage = "请先完成 AI 数据授权。") }
+            return
+        }
+        if (local.value.sending) return
+        startRequest(
+            input = "请把我们的讨论整理为目标草案（只输出约定 JSON）。",
+            insertUser = true,
+            excludeMessageId = null,
+            proposalMode = true,
+        )
+    }
+
     private fun retry(messageId: String) {
         val state = uiState.value
-        if (state.sending) return
+        if (local.value.sending) return
         val failed = state.messages.firstOrNull { it.id == messageId } ?: return
         if (failed.status == AdvisorMessageStatus.SENT || failed.role != AdvisorRole.ASSISTANT) return
         val userMessage = state.messages
@@ -241,11 +366,11 @@ class AdvisorViewModel(
             }
         viewModelScope.launch {
             conversations.deleteMessage(failed.id)
-            startSend(
+            startRequest(
                 input = userMessage.content,
-                context = null,
-                insertUserMessage = false,
+                insertUser = false,
                 excludeMessageId = userMessage.id,
+                proposalMode = false,
             )
         }
         local.update {
@@ -259,25 +384,7 @@ class AdvisorViewModel(
         job.cancel()
     }
 
-    private fun selectGoal(goal: AdvisorGoalChoice) {
-        local.update { it.copy(goalPickerOpen = false) }
-        viewModelScope.launch {
-            val context = contextSource.buildContext(goal.id)
-            if (context == null) {
-                local.update { it.copy(errorMessage = "目标不存在或已被删除。") }
-                return@launch
-            }
-            local.update {
-                it.copy(
-                    contextGoal = goal,
-                    contextPayload = context,
-                    infoMessage = "已选择目标上下文；发送前会再次展示发送范围并等待你确认。",
-                )
-            }
-        }
-    }
-
-    private fun engineFor(config: AiConfigState): AdvisorEngine =
+    private fun engineFor(config: com.mengyalife.app.domain.advisor.AiConfigState): AdvisorEngine =
         if (config.useFakeEngine && fakeEngine != null) fakeEngine else networkEngine
 
     companion object {
@@ -287,9 +394,12 @@ class AdvisorViewModel(
                 AdvisorViewModel(
                     conversations = app.container.conversationRepository,
                     configRepository = app.container.advisorConfigRepository,
+                    consentRepository = app.container.aiConsentRepository,
+                    dataRepository = app.container.advisorDataRepository,
+                    proposalRepository = app.container.goalProposalRepository,
+                    assembler = AdvisorContextAssembler(),
                     networkEngine = app.container.networkAdvisorEngine,
                     fakeEngine = app.container.fakeAdvisorEngine,
-                    contextSource = app.container.goalRepository,
                 )
             }
         }

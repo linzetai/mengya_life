@@ -78,11 +78,9 @@ def fill_and_save(label, title, append=False):
     check(f"{label}：面板出现", wait_tag("goal_editor_title", 8))
     tap_tag("goal_editor_title")
     if append:
-        for n in nodes(dump()):
-            if n["rid"] == "goal_editor_title":
-                adb(f"shell input tap {n['center'][0] + 300} {n['center'][1]}")
-                break
-        time.sleep(0.4)
+        adb("shell input keyevent KEYCODE_MOVE_END")
+        for _ in range(40):
+            adb("shell input keyevent KEYCODE_DEL")
     adb("shell input text '%s'" % title)
     close_keyboard()
     tap_tag("goal_editor_save")
@@ -219,11 +217,11 @@ shot("06-status-done")
 check("打开行动菜单", open_menu(action_id))
 tap_text("编辑")
 time.sleep(0.8)
-fill_and_save("编辑行动", "B", append=True)
+fill_and_save("编辑行动", "ActionEdited", append=True)
 edited_title = None
 for _ in range(10):
     for n in texts(dump()):
-        if "B" in n and "ction" in n:
+        if "ActionEdited" in n:
             edited_title = n
             break
     if edited_title:
@@ -234,13 +232,13 @@ shot("07-edited")
 
 print("========== 4. 数据库校验 ==========")
 uv, goals, checkins, journals = db_dump()
-check("schema 版本为 3", uv == 3, f"user_version={uv}")
+check("schema 版本为 4", uv == 4, f"user_version={uv}")
 check("目标共 3 条", len(goals) == 3, str(goals))
 by_id = {g[0]: g for g in goals}
 check("阶段父级=长期", by_id[stage_id][3] == long_id, str(by_id.get(stage_id)))
 check("行动父级=阶段", by_id[action_id][3] == stage_id, str(by_id.get(action_id)))
 check("行动状态持久化为 DONE", by_id[action_id][4] == "DONE", by_id[action_id][4])
-check("行动标题已编辑并持久化", by_id[action_id][1] != ACTION and "B" in by_id[action_id][1], by_id[action_id][1])
+check("行动标题已编辑并持久化", by_id[action_id][1] == "ActionEdited", by_id[action_id][1])
 check("进展 1 条、来源 manual、绑定阶段",
       len(checkins) == 1 and checkins[0][5] == "manual" and checkins[0][1] == stage_id, str(checkins))
 check("进展数值与单位正确", abs(checkins[0][3] - 3.0) < 1e-6 and checkins[0][4] == "times", str(checkins[0]))
@@ -254,7 +252,7 @@ check("长期目标仍在", wait_text(LONG, 8))
 _EXPANDED.clear()
 expand_all()
 check("阶段仍在", has_text(STAGE))
-check("行动标题仍是编辑后的", any("B" in t and "ction" in t for t in texts(dump())))
+check("行动标题仍是编辑后的", has_text("ActionEdited"))
 check("进展计数仍在", has_text("1 次进展"))
 shot("08-after-restart")
 

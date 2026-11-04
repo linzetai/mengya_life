@@ -63,12 +63,14 @@ expected = [
     "API 服务地址（HTTPS）",
     "模型名称",
     "API Key",
+    "AI 与隐私",
+    "个人数据授权",
 ]
 for text in expected:
     check("包含文案：" + text, any(text in t for t in seen), text)
 
 check("QA 构建横幅", "QA 测试构建" in " ".join(seen) and "mengya-life-qa.db" in " ".join(seen))
-check("版本号来自安装包", "0.6.0-g3a-qa" in " ".join(seen), "应为 0.6.0-g3a-qa")
+check("版本号来自安装包", "0.7.0-g3b1-qa" in " ".join(seen), "应为 0.7.0-g3b1-qa")
 check("BYOK 状态胶囊准确", "自带密钥" in " ".join(seen))
 
 print("========== 3. 截图：数据区 ==========")
@@ -92,7 +94,7 @@ shot("02-settings-theme-note")
 print("========== 5. 截图：关于 ==========")
 adb("shell input swipe 600 1900 600 700 260")
 time.sleep(1.0)
-check("关于区显示版本", has_text("0.6.0-g3a-qa"))
+check("关于区显示版本", has_text("0.7.0-g3b1-qa"))
 check("数据存储说明", has_text("本机（无云端同步）"))
 shot("03-settings-about")
 
