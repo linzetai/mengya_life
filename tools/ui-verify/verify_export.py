@@ -161,8 +161,8 @@ print("========== 3. 拉取并解析导出文件 ==========")
 all_exports = adb("shell 'ls -t /sdcard/Download/mengya-life-export-*.json 2>/dev/null'").split()
 # 只认本次新生成的文件，避免误读上一轮遗留的导出
 new_exports = [p for p in all_exports if p not in existing_exports]
-remote = (new_exports[0] if new_exports else (all_exports[0] if all_exports else "")).strip()
-check("设备上出现本次导出文件", bool(remote), remote)
+remote = new_exports[0].strip() if new_exports else ""
+check("设备上出现本次新导出文件（不读取旧文件）", bool(remote), str(sorted(existing_exports)))
 if not remote:
     summary()
     sys.exit(1)
@@ -176,7 +176,8 @@ doc = json.loads(text)
 check("JSON 可解析", isinstance(doc, dict))
 check("format 正确", doc.get("format") == "mengyalife-backup", str(doc.get("format")))
 check("schemaVersion = 1", doc.get("schemaVersion") == 1, str(doc.get("schemaVersion")))
-check("database.schemaVersion = 11", doc.get("database", {}).get("schemaVersion") == 11)
+EXPECTED_SCHEMA = int(os.environ.get("MENGYA_EXPECTED_SCHEMA", "11"))
+check("database.schemaVersion = %d" % EXPECTED_SCHEMA, doc.get("database", {}).get("schemaVersion") == EXPECTED_SCHEMA)
 check("包含版本信息", bool(doc.get("app", {}).get("versionName")), str(doc.get("app")))
 check("包含导出时间", isinstance(doc.get("exportedAt"), int) and doc["exportedAt"] > 0)
 check("包含 ISO 时间", "T" in str(doc.get("exportedAtIso", "")))

@@ -51,3 +51,14 @@ docs/reports/evidence/G3D2-evidence/
 
 # Gate 3E-1 证据未压缩目录（只提交 zip）
 docs/reports/evidence/G3E1-evidence/
+
+# Gate 3F 测试调度器本地状态（安装哈希/上次基线，不进仓库）
+.verify/
+__pycache__/
+
+# 临时测试运行报告（验收报告另存 docs/reports/G3F-acceptance/）
+docs/reports/test-runs/
+
+# Gate 3F 验收日志（tracked；其他 *.log 仍忽略）
+!docs/reports/G3F-acceptance/**/*.log
+!docs/reports/G3F-acceptance/*.log

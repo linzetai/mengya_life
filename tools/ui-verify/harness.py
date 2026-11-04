@@ -27,13 +27,27 @@ def is_qa():
 
 
 def require_qa(script: str):
-    """破坏性脚本的硬闸门：不是 QA 包就拒绝运行，除非显式覆盖。"""
-    if not is_qa() and os.environ.get("MENGYA_ALLOW_PROD_DESTRUCTIVE") != "1":
+    """破坏性脚本的硬闸门：只允许 QA applicationId + QA_BUILD 元数据。
+
+    不再提供正式包覆盖开关：数据库/隐私安全不能靠环境变量绕过。
+    """
+    if not is_qa():
         raise SystemExit(
             f"{script} 会清空被测应用的数据，只允许跑 QA 包（{QA_PKG}）。\n"
-            f"当前 MENGYA_PKG={PKG}。如需在正式包上冒险执行，必须显式设置 "
-            "MENGYA_ALLOW_PROD_DESTRUCTIVE=1"
+            f"当前 MENGYA_PKG={PKG}。正式包禁止执行破坏性用例。"
         )
+    try:
+        out = adb(f"shell dumpsys package {PKG}", t=60)
+        ver = re.search(r"versionName=(\S+)", out)
+        flags = re.search(r"flags=\[([^\]]*)\]", out)
+        if not ver or not ver.group(1).endswith("-qa"):
+            raise SystemExit(f"{script}：{PKG} 的 versionName 不是 -qa（{ver.group(1) if ver else 'unknown'}），拒绝执行")
+        if not flags or "DEBUGGABLE" not in flags.group(1):
+            raise SystemExit(f"{script}：{PKG} 不是可调试 QA 构建，拒绝执行")
+    except SystemExit:
+        raise
+    except Exception as e:
+        raise SystemExit(f"{script}：无法校验 QA 包元数据：{e}")
 
 
 def require_prod(script: str):

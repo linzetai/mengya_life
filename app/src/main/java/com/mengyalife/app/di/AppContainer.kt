@@ -145,6 +145,7 @@ class AppContainer(context: Context) {
             consentRepository = aiConsentRepository,
             configRepository = advisorConfigRepository,
             networkEngine = networkAdvisorEngine,
+            fakeEngine = fakeAdvisorEngine,
             dao = database.weeklyAiDao(),
             autoEnabled = { weeklyReviewPreferences.enabled.first() && weeklyReviewPreferences.aiEnabled.first() },
         )
@@ -152,6 +153,12 @@ class AppContainer(context: Context) {
 
     /** Worker 使用；只在本地读写，不构造网络引擎。 */
     val databaseWeeklyReviewDao get() = database.weeklyReviewDao()
+
+    /** 仅 QA：清空本周 AI 结果行，便于状态机用例独立重跑（正式包 no-op）。 */
+    fun qaClearWeeklyAi() {
+        if (!BuildConfig.QA_BUILD) return
+        database.openHelper.writableDatabase.execSQL("DELETE FROM weekly_ai_reviews")
+    }
 
     val themePreferences: ThemePreferences by lazy {
         ThemePreferences(appContext)

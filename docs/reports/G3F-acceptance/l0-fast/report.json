@@ -1,0 +1,250 @@
+{
+  "schemaVersion": 1,
+  "runId": "20261105-041341",
+  "gate": "3F",
+  "startedAt": "2026-11-05T04:13:41+0800",
+  "finishedAt": "2026-11-05T04:13:56+0800",
+  "durationSec": 14.8,
+  "level": "fast",
+  "levelTitle": "L0 Fast",
+  "mode": "changed",
+  "git": {
+    "base": "(simulated)",
+    "baseReason": "--simulate-changed 测试样本",
+    "commit": "10c14d3b100b48a15fd7697ae36a4b3141020d56",
+    "branch": "master",
+    "dirty": true,
+    "files": [
+      {
+        "path": "app/src/main/java/com/mengyalife/app/util/MetricFormat.kt",
+        "status": "M",
+        "source": "simulated"
+      }
+    ]
+  },
+  "device": null,
+  "apk": {},
+  "selection": {
+    "level": "fast",
+    "mode": "changed",
+    "modules": [
+      {
+        "name": "trends",
+        "title": "趋势",
+        "risk": "medium",
+        "reasons": [
+          "源码路径命中（app/src/main/java/com/mengyalife/app/util/MetricFormat.kt）"
+        ],
+        "matchedFiles": [
+          "app/src/main/java/com/mengyalife/app/util/MetricFormat.kt"
+        ],
+        "propagatedFrom": [],
+        "jvmTests": [
+          "com.mengyalife.app.domain.GoalTrendsTest",
+          "com.mengyalife.app.util.MetricFormatTest",
+          "com.mengyalife.app.util.TimestampsTest"
+        ],
+        "device": []
+      },
+      {
+        "name": "weekly-ai",
+        "title": "每周 AI 增强",
+        "risk": "high",
+        "reasons": [
+          "依赖传播：trends 是 weekly-ai 的上游"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [
+          "com.mengyalife.app.advisor.WeeklyAiTest",
+          "com.mengyalife.app.advisor.AdvisorRequestBudgetTest",
+          "com.mengyalife.app.advisor.WeeklyAiFakeEngineTest"
+        ],
+        "device": []
+      }
+    ],
+    "jvmClasses": [
+      "com.mengyalife.app.advisor.AdvisorRequestBudgetTest",
+      "com.mengyalife.app.advisor.WeeklyAiFakeEngineTest",
+      "com.mengyalife.app.advisor.WeeklyAiTest",
+      "com.mengyalife.app.domain.GoalTrendsTest",
+      "com.mengyalife.app.util.MetricFormatTest",
+      "com.mengyalife.app.util.TimestampsTest"
+    ],
+    "fullJvm": false,
+    "deviceScripts": [],
+    "rulesHit": [],
+    "unknownFiles": [],
+    "docsOnly": false,
+    "notSelected": [
+      {
+        "module": "diary",
+        "title": "日记",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "goals",
+        "title": "目标",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "progress",
+        "title": "进展与打卡",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "advisor",
+        "title": "AI 顾问",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "ai-consent",
+        "title": "AI 授权与配置",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "growth-memory",
+        "title": "成长记忆与日记提取",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "insight",
+        "title": "成长洞察",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "weekly-review",
+        "title": "每周成长回顾（本地）",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "settings",
+        "title": "设置与主题",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "export",
+        "title": "数据导出",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "database-migration",
+        "title": "Room Schema / DAO / Migration",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "navigation",
+        "title": "导航与共享 UI",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "app-smoke",
+        "title": "应用启动与正式包冒烟",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "test-infra",
+        "title": "测试体系自身",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      }
+    ],
+    "notRun": [
+      {
+        "item": "真机测试",
+        "reason": "fast 级别不启动设备"
+      },
+      {
+        "item": "trends:verify_trends.py",
+        "reason": "该用例层级 feature 高于当前 fast 允许的 []"
+      },
+      {
+        "item": "weekly-ai:verify_weekly_ai.py",
+        "reason": "该用例层级 feature 高于当前 fast 允许的 []"
+      }
+    ],
+    "staticChecks": [
+      "validate-map"
+    ],
+    "deviceRequired": false,
+    "deviceRequiredOriginal": false,
+    "prodSmokeRequired": false,
+    "warnings": []
+  },
+  "steps": [
+    {
+      "name": "静态检查（validate-map）",
+      "status": "PASS",
+      "durationSec": 0.12,
+      "counts": {
+        "issues": 0
+      },
+      "detail": ""
+    },
+    {
+      "name": "JVM 测试（6 类）",
+      "status": "PASS",
+      "durationSec": 13.9,
+      "counts": {
+        "tests": 31,
+        "failures": 0
+      },
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-041341/logs/jvm-testDebugUnitTest.log",
+      "detail": ""
+    }
+  ],
+  "deviceSteps": [],
+  "modules": [
+    {
+      "name": "trends",
+      "title": "趋势",
+      "risk": "medium",
+      "status": "PASS",
+      "reasons": [
+        "源码路径命中（app/src/main/java/com/mengyalife/app/util/MetricFormat.kt）"
+      ],
+      "jvmStatuses": [
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "deviceStatuses": [],
+      "durationSec": 0.0,
+      "jvmClassCount": 3
+    },
+    {
+      "name": "weekly-ai",
+      "title": "每周 AI 增强",
+      "risk": "high",
+      "status": "PASS",
+      "reasons": [
+        "依赖传播：trends 是 weekly-ai 的上游"
+      ],
+      "jvmStatuses": [
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "deviceStatuses": [],
+      "durationSec": 1.0,
+      "jvmClassCount": 3
+    }
+  ],
+  "failures": [],
+  "notRun": [],
+  "summary": {
+    "verdict": "PASS",
+    "exitCode": 0,
+    "levelSatisfied": true,
+    "levelNotes": [],
+    "pass": 2,
+    "fail": 0,
+    "skipped": 0,
+    "notRun": 0
+  },
+  "artifacts": {
+    "dir": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-041341",
+    "json": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-041341/report.json",
+    "md": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-041341/summary.md",
+    "logs": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-041341/logs"
+  }
+}

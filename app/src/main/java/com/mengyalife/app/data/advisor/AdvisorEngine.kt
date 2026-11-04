@@ -229,6 +229,25 @@ class FakeAdvisorEngine(
             }
             return AdvisorChatResult.Success(json.toString())
         }
+        val weeklyPrompt = messages.firstOrNull { it.content.contains("你是长期成长顾问") }?.content
+        if (weeklyPrompt != null) {
+            // QA 专用：用模型名确定性模拟周回顾 AI 的成功/失败/超时；正式包不会创建本引擎。
+            when {
+                config.model.contains("timeout") -> return AdvisorChatResult.Failure(AdvisorError.timeout())
+                config.model.contains("401") -> return AdvisorChatResult.Failure(AdvisorError.unauthorized())
+                config.model.contains("429") -> return AdvisorChatResult.Failure(AdvisorError.rateLimited())
+                config.model.contains("offline") -> return AdvisorChatResult.Failure(AdvisorError.offline())
+                config.model.contains("invalid") -> return AdvisorChatResult.Success("这不是 JSON")
+                config.model.contains("slow") -> delay(12_000)
+            }
+            val factIds = Regex("- \\[([^\\]]+)]").findAll(weeklyPrompt)
+                .map { it.groupValues[1] }.take(2).toList()
+            val highlight = if (factIds.isEmpty()) "[]" else
+                """[{"type":"POSITIVE","title":"QA 周回顾","body":"基于本周事实的本地测试输出。","isInference":true,"factIds":["${factIds.first()}"]}]"""
+            return AdvisorChatResult.Success(
+                """{"schemaVersion":1,"summary":"（QA 离线测试引擎）本周保持了一个可核验的小节奏。","highlights":$highlight,"suggestion":"下周继续记录一次具体进展。"}""",
+            )
+        }
         if (messages.any { it.content.contains("整理为目标草案") }) {
             val all = messages.joinToString("\n") { it.content }
             val stageId = Regex("\\[阶段#(\\d+)]").find(all)?.groupValues?.get(1)?.toLongOrNull()

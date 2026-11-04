@@ -10,7 +10,7 @@
 | 正式包 | `com.mengyalife.app` | `mengya-life.db` | 只读冒烟，**不清数据** |
 | QA 包 | `com.mengyalife.app.qa` | `mengya-life-qa.db` | 全部写/删测试 |
 
-- 所有会写数据的脚本默认 `MENGYA_PKG=com.mengyalife.app.qa`，并通过 `require_qa()` 硬校验；
+- 所有会写数据的脚本默认 `MENGYA_PKG=com.mengyalife.app.qa`，并通过 `require_qa()` 做包名 + `-qa` + debuggable 硬校验（不再提供正式包覆盖开关）；
 - 正式包上只有 `verify_prod_smoke.py`，它不清数据、不新建日记/目标、不切主题；
 - 清空 QA 数据用 `pm clear com.mengyalife.app.qa`，只影响测试包。
 
@@ -30,6 +30,15 @@ adb -s "$DEV" install -r -t app/build/outputs/apk/qa/app-qa.apk
 `verify_prod_smoke.py` 会逐字段校验它们没有被改动。
 
 ## 运行
+
+推荐使用统一入口（Gate 3F）：
+
+```sh
+./scripts/verify.sh --changed          # 按 Git 影响选择
+./scripts/verify.sh --level gate       # 全量 QA + 正式包只读冒烟
+```
+
+兼容入口（等价于 `--all --level gate`）：
 
 ```sh
 ./tools/ui-verify/run_all.sh
@@ -60,6 +69,9 @@ MENGYA_PKG=com.mengyalife.app      python3 tools/ui-verify/verify_prod_smoke.py
 | `verify_dates` | 日期选择器保存 / 重启展示 / UTC 零点 | 清空 QA 数据 |
 | `verify_export` | 导出提醒 / SAF / JSON 完整性 / 与库逐项一致 | 清空 QA 数据 + 写 Downloads |
 | `verify_prod_smoke` | 正式包旧数据、冷启动、设置文案、只读导出 | **只读**（除导出外部文件） |
+| `verify_weekly_ai` | 周回顾 + AI 成功/失败/超时/中断/STALE/撤权/自动开关 | 清空 QA 数据 |
+| `verify_migration` | v10 夹具 → Room 10→11 迁移、数据保留、幂等 | 清空 QA 数据 |
+| `verify_qa_preflight` | QA 包名、`-qa` 版本、debuggable、QA_BUILD 界面标记 | 只读 |
 
 截图默认写到 `docs/reports/logs/g2c-shots/`，导出样本写到
 `docs/reports/logs/g2c-export/`，可用 `SHOT_DIR` / `EXPORT_OUT` 覆盖。

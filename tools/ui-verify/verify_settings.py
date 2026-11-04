@@ -9,6 +9,8 @@ from harness import *
 
 require_qa("verify_settings.py")
 
+VERSION = os.environ.get("MENGYA_EXPECTED_VERSION", "0.14.1-g3e2-1") + "-qa"
+
 # 从干净、确定的状态开始：清 QA 数据并确保应用在前台。
 clear_qa_data()
 
@@ -81,7 +83,7 @@ tap_tag("btn_settings")
 time.sleep(1.0)
 check("滚动到数据区", scroll_to_tag("settings_export_data", 12))
 check("QA 构建横幅", "QA 测试构建" in " ".join(seen) and "mengya-life-qa.db" in " ".join(seen))
-check("版本号来自安装包", "0.14.1-g3e2-1-qa" in " ".join(seen), "应为 0.14.1-g3e2-1-qa")
+check("版本号来自安装包", VERSION in " ".join(seen), "应为 " + VERSION)
 check("BYOK 状态胶囊准确", "自带密钥" in " ".join(seen))
 
 print("========== 3. 截图：数据区 ==========")
@@ -104,7 +106,7 @@ shot("02-settings-theme-note")
 print("========== 5. 截图：关于 ==========")
 adb("shell input swipe 600 1900 600 700 260")
 time.sleep(1.0)
-check("关于区显示版本", has_text("0.14.1-g3e2-1-qa"))
+check("关于区显示版本", has_text(VERSION))
 check("数据存储说明", has_text("本机（无云端同步）"))
 shot("03-settings-about")
 

@@ -11,7 +11,7 @@ from harness import *
 
 require_prod("verify_prod_smoke.py")
 
-VERSION = "0.14.1-g3e2-1"
+VERSION = os.environ.get("MENGYA_EXPECTED_VERSION", "0.14.1-g3e2-1")
 EXPORT_DIR = os.environ.get("EXPORT_OUT", os.path.join(OUT, "export-prod"))
 os.makedirs(EXPORT_DIR, exist_ok=True)
 
@@ -135,6 +135,9 @@ check("提醒含敏感信息", has_tag("export_sensitive_warning"))
 check("条数正确（日记 2 / 目标 0 / 进展 0）",
       has_text("日记 2 条") and has_text("目标 0 个") and has_text("进展记录 0 条"))
 shot("05-prod-export-warning")
+before_files = set(
+    x.strip() for x in adb("shell 'ls /sdcard/Download/mengya-life-export-*.json 2>/dev/null'").splitlines() if x.strip()
+)
 tap_tag("export_confirm")
 time.sleep(2.5)
 check("SAF 保存按钮", has_text("保存"))
@@ -147,9 +150,12 @@ for _ in range(30):
     time.sleep(0.5)
 check("导出成功提示", success)
 
-listing = adb("shell 'ls -t /sdcard/Download/mengya-life-export-*.json 2>/dev/null | head -n 1'").strip()
-check("生成导出文件", bool(listing), listing)
-remote = listing.splitlines()[-1].strip() if listing else ""
+after_files = set(
+    x.strip() for x in adb("shell 'ls /sdcard/Download/mengya-life-export-*.json 2>/dev/null'").splitlines() if x.strip()
+)
+new_files = sorted(after_files - before_files)
+check("生成新的导出文件（不碰已有文件）", bool(new_files), str(sorted(before_files)))
+remote = new_files[-1] if new_files else ""
 local = os.path.join(EXPORT_DIR, os.path.basename(remote)) if remote else ""
 if remote:
     adb(f"pull {remote} {local}")

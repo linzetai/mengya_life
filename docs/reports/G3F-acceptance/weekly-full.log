@@ -1,0 +1,107 @@
+========== 0. 准备隔离数据 / QA 假引擎 / 授权 ==========
+PASS  QA 包已启动
+PASS  建立目标
+PASS  写入进展数值
+PASS  建立日记
+PASS  AI 配置（QA 假引擎）
+PASS  首次授权
+PASS  每周回顾 + AI 开关开启
+PASS  打开每周回顾页
+PASS  本地回顾已生成
+========== 1. AI 成功（READY） ==========
+PASS  AI 入口可见
+PASS  点击 AI 增强
+PASS  状态 READY
+PASS  显示 QA 假引擎摘要
+PASS  恰好 1 条 AI 结果  [('2026-W45', 'READY', '（QA 离线测试引擎）本周保持了一个可核验的小节奏。', None, 'qa-fake', 'GOALS,PROGRESS,JOURNAL,CONVERSATION', 'week-counts', '[{"type":"POSITIVE","title":"QA 周回顾","body":"基于本周事实的本地测试输出。","factIds":["week-counts"],"sources":[{"type":"CHECKIN","id":"1","label":"WeeklyGoal"}],"isInference":true}]')]
+PASS  DB 状态 READY  READY
+PASS  模型记录为 qa-fake  qa-fake
+PASS  授权类别非空  GOALS,PROGRESS,JOURNAL,CONVERSATION
+PASS  factIds 非空  ['week-counts']
+PASS  来源由客户端 factIds 构造  [{'type': 'POSITIVE', 'title': 'QA 周回顾', 'body': '基于本周事实的本地测试输出。', 'factIds': ['week-counts'], 'sources': [{'type': 'CHECKIN', 'id': '1', 'label': 'WeeklyGoal'}], 'isInference': True}]
+PASS  来源类型合法  [{'type': 'CHECKIN', 'id': '1', 'label': 'WeeklyGoal'}]
+PASS  DataStore 不含明文 Key
+PASS  进程日志不含 Key
+========== 2. AI 失败（401） ==========
+PASS  重置 AI 结果
+PASS  切换失败模型
+PASS  重新打开周回顾
+PASS  AI 入口可见
+PASS  点击 AI
+PASS  状态 FAILED
+PASS  显示授权失败文案
+PASS  DB 记录 FAILED  [('2026-W45', 'FAILED', '', 'API Key 无效或已过期（HTTP 401），请到设置页检查密钥。', 'qa-fake-401', 'GOALS,PROGRESS,JOURNAL,CONVERSATION', '', '[]')]
+PASS  失败时 summary 为空  [('2026-W45', 'FAILED', '', 'API Key 无效或已过期（HTTP 401），请到设置页检查密钥。', 'qa-fake-401', 'GOALS,PROGRESS,JOURNAL,CONVERSATION', '', '[]')]
+PASS  失败保留错误信息  [('2026-W45', 'FAILED', '', 'API Key 无效或已过期（HTTP 401），请到设置页检查密钥。', 'qa-fake-401', 'GOALS,PROGRESS,JOURNAL,CONVERSATION', '', '[]')]
+PASS  本地回顾仍可见
+========== 3. AI 超时 ==========
+PASS  重置 AI 结果
+PASS  切换超时模型
+PASS  重新打开周回顾
+PASS  AI 入口可见
+PASS  点击 AI
+PASS  状态 FAILED（超时）
+PASS  显示超时文案
+PASS  DB 记录超时错误  [('2026-W45', 'FAILED', '', '请求超时，模型服务没有在限定时间内返回。', 'qa-fake-timeout', 'GOALS,PROGRESS,JOURNAL,CONVERSATION', '', '[]')]
+========== 4. 请求中断后的 generating 恢复 ==========
+PASS  重置 AI 结果
+PASS  切换慢速模型
+PASS  重新打开周回顾
+PASS  AI 入口可见
+PASS  点击慢速 AI
+PASS  中断后可重新进入周回顾
+PASS  没有残留 generating 文案
+PASS  未显示可重复请求的 AI 按钮
+PASS  显示额度已预留/处理中
+PASS  中断只占 1 次额度  [('2026-W45', 'SENT', '', None, None, 'GOALS,PROGRESS,JOURNAL,CONVERSATION', '[]', '[]')]
+PASS  中断后状态为 SENT/FAILED（不伪造 READY）  [('2026-W45', 'SENT', '', None, None, 'GOALS,PROGRESS,JOURNAL,CONVERSATION', '[]', '[]')]
+PASS  中断不删除本地回顾
+========== 5. READY -> STALE（数据变化） ==========
+PASS  重置 AI 结果
+PASS  切回成功模型
+PASS  重新打开周回顾
+PASS  AI 入口可见
+PASS  再次生成 READY
+PASS  数据变化（新增日记）
+PASS  重新打开周回顾
+PASS  状态变为 STALE
+PASS  显示缓存失效原因
+PASS  STALE 不删除原 READY 行  [('2026-W45', 'READY', '（QA 离线测试引擎）本周保持了一个可核验的小节奏。', None, 'qa-fake', 'GOALS,PROGRESS,JOURNAL,CONVERSATION', 'week-counts', '[{"type":"POSITIVE","title":"QA 周回顾","body":"基于本周事实的本地测试输出。","factIds":["week-counts"],"sources":[{"type":"CHECKIN","id":"1","label":"WeeklyGoal"}],"isInference":true}]')]
+========== 6. 修改类别后失效 ==========
+PASS  重置 AI 结果
+PASS  重新打开周回顾
+PASS  AI 入口可见
+PASS  生成 READY
+PASS  进入设置
+PASS  找到 JOURNAL 类别开关
+PASS  关闭 JOURNAL 类别
+PASS  类别已关闭
+PASS  重新打开周回顾
+PASS  改类别后 STALE
+========== 7. 撤回授权后不再发送 ==========
+PASS  重置 AI 结果
+PASS  进入设置
+PASS  找到撤回入口
+PASS  点击撤回
+PASS  撤回确认框
+PASS  确认撤回
+PASS  授权状态变为未授权
+PASS  撤回后可打开周回顾
+PASS  本地回顾仍可用
+PASS  AI 入口存在但不会发送
+PASS  点击 AI（应被拒绝）
+PASS  撤回后 DB 无 AI 行  []
+========== 8. 自动开关关闭后停止后台发送 ==========
+PASS  重新授权
+PASS  AI 自动开关已开
+PASS  重置 AI 结果
+PASS  自动路径确实会发送（正对照）  [('2026-W45', 'READY', '（QA 离线测试引擎）本周保持了一个可核验的小节奏。', None, 'qa-fake', 'GOALS,PROGRESS,JOURNAL,CONVERSATION', 'week-counts', '[{"type":"POSITIVE","title":"QA 周回顾","body":"基于本周事实的本地测试输出。","factIds":["week-counts"],"sources":[{"type":"CHECKIN","id":"1","label":"WeeklyGoal"}],"isInference":true}]')]
+PASS  自动结果 READY  [('2026-W45', 'READY', '（QA 离线测试引擎）本周保持了一个可核验的小节奏。', None, 'qa-fake', 'GOALS,PROGRESS,JOURNAL,CONVERSATION', 'week-counts', '[{"type":"POSITIVE","title":"QA 周回顾","body":"基于本周事实的本地测试输出。","factIds":["week-counts"],"sources":[{"type":"CHECKIN","id":"1","label":"WeeklyGoal"}],"isInference":true}]')]
+PASS  重置 AI 结果
+PASS  关闭 AI 自动开关
+PASS  AI 自动开关已关
+PASS  自动关闭后不再发送（负对照）  []
+PASS  无应用崩溃记录
+
+==== SUMMARY: 95/95 passed ====
+EXIT=0 DURATION=1160s

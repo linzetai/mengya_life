@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "runId": "20261105-032406",
+  "gate": "3F",
+  "startedAt": "2026-11-05T03:24:06+0800",
+  "finishedAt": "2026-11-05T03:24:06+0800",
+  "durationSec": 0.2,
+  "level": "fast",
+  "levelTitle": "L0 Fast",
+  "mode": "changed",
+  "git": {
+    "base": "(simulated)",
+    "baseReason": "--simulate-changed 测试样本",
+    "commit": "10c14d3b100b48a15fd7697ae36a4b3141020d56",
+    "branch": "master",
+    "dirty": true,
+    "files": [
+      {
+        "path": "README.md",
+        "status": "M",
+        "source": "simulated"
+      }
+    ]
+  },
+  "device": null,
+  "apk": {},
+  "selection": {
+    "level": "fast",
+    "mode": "changed",
+    "modules": [],
+    "jvmClasses": [],
+    "fullJvm": false,
+    "deviceScripts": [],
+    "rulesHit": [],
+    "unknownFiles": [],
+    "docsOnly": true,
+    "notSelected": [],
+    "notRun": [
+      {
+        "item": "Android 构建/安装/真机",
+        "reason": "仅文档变化；不改变 APK，按映射规则 G 不安装 APK。"
+      }
+    ],
+    "staticChecks": [
+      "validate-map"
+    ],
+    "deviceRequired": false,
+    "deviceRequiredOriginal": false,
+    "prodSmokeRequired": false,
+    "warnings": []
+  },
+  "steps": [
+    {
+      "name": "静态检查（validate-map）",
+      "status": "PASS",
+      "durationSec": 0.01,
+      "counts": {
+        "issues": 0
+      },
+      "detail": ""
+    },
+    {
+      "name": "JVM 测试",
+      "status": "SKIPPED",
+      "durationSec": 0.0,
+      "counts": {},
+      "detail": "所选模块没有 JVM 测试"
+    }
+  ],
+  "deviceSteps": [],
+  "modules": [],
+  "failures": [],
+  "notRun": [],
+  "summary": {
+    "verdict": "PASS (docs-only)",
+    "exitCode": 0,
+    "levelSatisfied": true,
+    "levelNotes": [
+      "仅文档变化：没有需要执行的 Android 测试，符合规则 G。"
+    ],
+    "pass": 1,
+    "fail": 0,
+    "skipped": 1,
+    "notRun": 0
+  },
+  "artifacts": {
+    "dir": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-032406",
+    "json": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-032406/report.json",
+    "md": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-032406/summary.md",
+    "logs": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-032406/logs"
+  }
+}

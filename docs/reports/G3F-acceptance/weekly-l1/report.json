@@ -1,0 +1,581 @@
+{
+  "schemaVersion": 1,
+  "runId": "20261105-041941",
+  "gate": "3F",
+  "startedAt": "2026-11-05T04:19:41+0800",
+  "finishedAt": "2026-11-05T04:30:25+0800",
+  "durationSec": 644.2,
+  "level": "feature",
+  "levelTitle": "L1 Feature",
+  "mode": "changed",
+  "git": {
+    "base": "(simulated)",
+    "baseReason": "--simulate-changed 测试样本",
+    "commit": "10c14d3b100b48a15fd7697ae36a4b3141020d56",
+    "branch": "master",
+    "dirty": true,
+    "files": [
+      {
+        "path": "app/src/main/java/com/mengyalife/app/domain/weekly/WeeklyAiParser.kt",
+        "status": "M",
+        "source": "simulated"
+      }
+    ]
+  },
+  "device": {
+    "serial": "192.168.10.183:33537",
+    "model": "2509FPN0BC",
+    "android": "17",
+    "sdk": "37",
+    "fetchedAt": "2026-11-05T04:19:42+0800"
+  },
+  "apk": {
+    "qa": {
+      "path": "/root/workspace/mengya-life/app/build/outputs/apk/qa/app-qa.apk",
+      "sha256": "055da4efd2f6042fd80400943f08924f2d8e09a1fe341aa6c3eba56bf39c2e70",
+      "size": 12393063,
+      "versionName": "0.14.1-g3e2-1",
+      "built": false,
+      "reused": true
+    }
+  },
+  "selection": {
+    "level": "feature",
+    "mode": "changed",
+    "modules": [
+      {
+        "name": "advisor",
+        "title": "AI 顾问",
+        "risk": "high",
+        "reasons": [
+          "依赖传播：ai-consent 是 advisor 的上游"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [
+          "com.mengyalife.app.advisor.AdvisorContextAssemblerTest",
+          "com.mengyalife.app.advisor.AdvisorRulesTest",
+          "com.mengyalife.app.advisor.AdvisorViewModelTest",
+          "com.mengyalife.app.advisor.AdvisorRequestBudgetTest",
+          "com.mengyalife.app.advisor.NetworkAdvisorEngineTest",
+          "com.mengyalife.app.advisor.GoalProposalApplyRulesTest",
+          "com.mengyalife.app.advisor.GoalProposalIdsTest",
+          "com.mengyalife.app.advisor.GoalProposalParserTest",
+          "com.mengyalife.app.advisor.QaFaultInjectorTest"
+        ],
+        "device": []
+      },
+      {
+        "name": "ai-consent",
+        "title": "AI 授权与配置",
+        "risk": "high",
+        "reasons": [
+          "规则 A-weekly：周回顾 / 周 AI 源码变化"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [
+          "com.mengyalife.app.advisor.AiConsentRulesTest",
+          "com.mengyalife.app.advisor.AdvisorConfigTest",
+          "com.mengyalife.app.advisor.InsightServiceTest"
+        ],
+        "device": [
+          {
+            "script": "verify_settings.py",
+            "package": "qa",
+            "tier": "feature"
+          }
+        ]
+      },
+      {
+        "name": "insight",
+        "title": "成长洞察",
+        "risk": "medium",
+        "reasons": [
+          "依赖传播：ai-consent 是 insight 的上游"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [
+          "com.mengyalife.app.advisor.InsightParserTest",
+          "com.mengyalife.app.advisor.InsightRulesTest",
+          "com.mengyalife.app.advisor.InsightServiceTest"
+        ],
+        "device": []
+      },
+      {
+        "name": "navigation",
+        "title": "导航与共享 UI",
+        "risk": "medium",
+        "reasons": [
+          "L1+ 必要导航冒烟（跨页面回归）"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [],
+        "device": []
+      },
+      {
+        "name": "weekly-ai",
+        "title": "每周 AI 增强",
+        "risk": "high",
+        "reasons": [
+          "源码路径命中（app/src/main/java/com/mengyalife/app/domain/weekly/WeeklyAiParser.kt）",
+          "规则 A-weekly：周回顾 / 周 AI 源码变化"
+        ],
+        "matchedFiles": [
+          "app/src/main/java/com/mengyalife/app/domain/weekly/WeeklyAiParser.kt"
+        ],
+        "propagatedFrom": [],
+        "jvmTests": [
+          "com.mengyalife.app.advisor.WeeklyAiTest",
+          "com.mengyalife.app.advisor.AdvisorRequestBudgetTest",
+          "com.mengyalife.app.advisor.WeeklyAiFakeEngineTest"
+        ],
+        "device": [
+          {
+            "script": "verify_weekly_ai.py",
+            "package": "qa",
+            "tier": "feature"
+          }
+        ]
+      },
+      {
+        "name": "weekly-review",
+        "title": "每周成长回顾（本地）",
+        "risk": "high",
+        "reasons": [
+          "规则 A-weekly：周回顾 / 周 AI 源码变化"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [
+          "com.mengyalife.app.advisor.WeeklyReviewRulesTest",
+          "com.mengyalife.app.advisor.WeeklyReviewServiceTest",
+          "com.mengyalife.app.util.TimestampsTest"
+        ],
+        "device": [
+          {
+            "script": "verify_weekly_ai.py",
+            "package": "qa",
+            "tier": "feature"
+          }
+        ]
+      }
+    ],
+    "jvmClasses": [
+      "com.mengyalife.app.advisor.AdvisorConfigTest",
+      "com.mengyalife.app.advisor.AdvisorContextAssemblerTest",
+      "com.mengyalife.app.advisor.AdvisorRequestBudgetTest",
+      "com.mengyalife.app.advisor.AdvisorRulesTest",
+      "com.mengyalife.app.advisor.AdvisorViewModelTest",
+      "com.mengyalife.app.advisor.AiConsentRulesTest",
+      "com.mengyalife.app.advisor.GoalProposalApplyRulesTest",
+      "com.mengyalife.app.advisor.GoalProposalIdsTest",
+      "com.mengyalife.app.advisor.GoalProposalParserTest",
+      "com.mengyalife.app.advisor.InsightParserTest",
+      "com.mengyalife.app.advisor.InsightRulesTest",
+      "com.mengyalife.app.advisor.InsightServiceTest",
+      "com.mengyalife.app.advisor.NetworkAdvisorEngineTest",
+      "com.mengyalife.app.advisor.QaFaultInjectorTest",
+      "com.mengyalife.app.advisor.WeeklyAiFakeEngineTest",
+      "com.mengyalife.app.advisor.WeeklyAiTest",
+      "com.mengyalife.app.advisor.WeeklyReviewRulesTest",
+      "com.mengyalife.app.advisor.WeeklyReviewServiceTest",
+      "com.mengyalife.app.util.TimestampsTest"
+    ],
+    "fullJvm": false,
+    "deviceScripts": [
+      {
+        "script": "verify_navigation.py",
+        "package": "qa",
+        "tier": "feature",
+        "assertions": 28,
+        "destructive": false,
+        "resetsQaData": false,
+        "measuredSec": null,
+        "modules": [
+          "navigation"
+        ],
+        "reason": "L1+ 必要导航冒烟"
+      },
+      {
+        "script": "verify_settings.py",
+        "package": "qa",
+        "tier": "feature",
+        "assertions": 38,
+        "destructive": true,
+        "resetsQaData": true,
+        "measuredSec": null,
+        "modules": [
+          "ai-consent"
+        ]
+      },
+      {
+        "script": "verify_weekly_ai.py",
+        "package": "qa",
+        "tier": "feature",
+        "assertions": 0,
+        "destructive": true,
+        "resetsQaData": true,
+        "measuredSec": null,
+        "smokeEnvVar": "MENGYA_WEEKLY_SMOKE",
+        "modules": [
+          "weekly-ai",
+          "weekly-review"
+        ]
+      }
+    ],
+    "rulesHit": [
+      {
+        "id": "A-weekly",
+        "description": "周回顾 / 周 AI 源码变化",
+        "reason": "周回顾/AI 变化必须同时验证本地回顾、AI 状态机与授权边界，并跑周回顾 QA UI 冒烟。",
+        "files": [
+          "app/src/main/java/com/mengyalife/app/domain/weekly/WeeklyAiParser.kt"
+        ],
+        "minLevel": "feature",
+        "modules": [
+          "weekly-review",
+          "weekly-ai",
+          "ai-consent"
+        ]
+      }
+    ],
+    "unknownFiles": [],
+    "docsOnly": false,
+    "notSelected": [
+      {
+        "module": "diary",
+        "title": "日记",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "goals",
+        "title": "目标",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "progress",
+        "title": "进展与打卡",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "trends",
+        "title": "趋势",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "growth-memory",
+        "title": "成长记忆与日记提取",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "settings",
+        "title": "设置与主题",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "export",
+        "title": "数据导出",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "database-migration",
+        "title": "Room Schema / DAO / Migration",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "app-smoke",
+        "title": "应用启动与正式包冒烟",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "test-infra",
+        "title": "测试体系自身",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      }
+    ],
+    "notRun": [
+      {
+        "item": "advisor:verify_g3b1.py",
+        "reason": "该用例层级 integration 高于当前 feature 允许的 ['feature']"
+      },
+      {
+        "item": "advisor:verify_advisor_network.py",
+        "reason": "该用例层级 integration 高于当前 feature 允许的 ['feature']"
+      },
+      {
+        "item": "ai-consent:verify_g3b1.py",
+        "reason": "该用例层级 integration 高于当前 feature 允许的 ['feature']"
+      }
+    ],
+    "staticChecks": [
+      "validate-map"
+    ],
+    "deviceRequired": true,
+    "deviceRequiredOriginal": true,
+    "prodSmokeRequired": false,
+    "warnings": []
+  },
+  "steps": [
+    {
+      "name": "静态检查（validate-map）",
+      "status": "PASS",
+      "durationSec": 0.11,
+      "counts": {
+        "issues": 0
+      },
+      "detail": ""
+    },
+    {
+      "name": "安装 qa APK",
+      "status": "SKIPPED",
+      "durationSec": 0.0,
+      "counts": {},
+      "detail": "已安装包哈希与本地 APK 一致，复用安装"
+    },
+    {
+      "name": "QA 安全前置校验（包名 / QA_BUILD 标记）",
+      "status": "PASS",
+      "durationSec": 28.6,
+      "counts": {
+        "assertions": "10/10"
+      },
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-041941/logs/qa-verify_qa_preflight.log",
+      "detail": ""
+    },
+    {
+      "name": "JVM 测试（19 类）",
+      "status": "PASS",
+      "durationSec": 9.8,
+      "counts": {
+        "tests": 132,
+        "failures": 0
+      },
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-041941/logs/jvm-testDebugUnitTest.log",
+      "detail": ""
+    },
+    {
+      "name": "真机 verify_navigation.py",
+      "status": "PASS",
+      "durationSec": 124.8,
+      "counts": {
+        "assertions": "28/28"
+      },
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-041941/logs/qa-verify_navigation.log",
+      "detail": ""
+    },
+    {
+      "name": "真机 verify_settings.py",
+      "status": "PASS",
+      "durationSec": 170.0,
+      "counts": {
+        "assertions": "38/38"
+      },
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-041941/logs/qa-verify_settings.log",
+      "detail": ""
+    },
+    {
+      "name": "真机 verify_weekly_ai.py",
+      "status": "PASS",
+      "durationSec": 308.3,
+      "counts": {
+        "assertions": "22/22"
+      },
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-041941/logs/qa-verify_weekly_ai.log",
+      "detail": ""
+    },
+    {
+      "name": "清理 QA 数据（pm clear）",
+      "status": "PASS",
+      "durationSec": 0.0,
+      "counts": {},
+      "detail": "仅清理 QA 包；正式包未触碰"
+    }
+  ],
+  "deviceSteps": [
+    {
+      "script": "verify_navigation.py",
+      "package": "com.mengyalife.app.qa",
+      "status": "PASS",
+      "exitCode": 0,
+      "durationSec": 124.8,
+      "assertionsPassed": 28,
+      "assertionsTotal": 28,
+      "failures": [],
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-041941/logs/qa-verify_navigation.log",
+      "tail": "PASS  tab_trends 可进入设置\nPASS  tab_trends 设置页已就位\nPASS  tab_trends 设置页隐藏底栏\nPASS  tab_trends 返回后底栏恢复\nPASS  tab_diary 可进入设置\nPASS  tab_diary 设置页已就位\nPASS  tab_diary 设置页隐藏底栏\nPASS  tab_diary 返回后底栏恢复\nPASS  日记页仍可打开\nPASS  无崩溃日志\n\n==== SUMMARY: 28/28 passed ====",
+      "modules": [
+        "navigation"
+      ],
+      "tier": "feature"
+    },
+    {
+      "script": "verify_settings.py",
+      "package": "com.mengyalife.app.qa",
+      "status": "PASS",
+      "exitCode": 0,
+      "durationSec": 170.0,
+      "assertionsPassed": 38,
+      "assertionsTotal": 38,
+      "failures": [],
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-041941/logs/qa-verify_settings.log",
+      "tail": "PASS  导出入口可点击\n========== 4. 截图：主题说明 ==========\nPASS  主题区可见\nPASS  主题选项齐全\nPASS  主题说明包含持久化\nPASS  主题说明包含重启保持\nPASS  主题说明包含跟随系统\n========== 5. 截图：关于 ==========\nPASS  关于区显示版本\nPASS  数据存储说明\n\n==== SUMMARY: 38/38 passed ====",
+      "modules": [
+        "ai-consent"
+      ],
+      "tier": "feature"
+    },
+    {
+      "script": "verify_weekly_ai.py",
+      "package": "com.mengyalife.app.qa",
+      "status": "PASS",
+      "exitCode": 0,
+      "durationSec": 308.3,
+      "assertionsPassed": 22,
+      "assertionsTotal": 22,
+      "failures": [],
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-041941/logs/qa-verify_weekly_ai.log",
+      "tail": "PASS  DB 状态 READY  READY\nPASS  模型记录为 qa-fake  qa-fake\nPASS  授权类别非空  GOALS,PROGRESS,JOURNAL,CONVERSATION\nPASS  factIds 非空  ['week-counts']\nPASS  来源由客户端 factIds 构造  [{'type': 'POSITIVE', 'title': 'QA 周回顾', 'body': '基于本周事实的本地测试输出。', 'factIds': ['week-counts'], 'sources': [{'type': 'CHECKIN', 'id': '1', 'label': 'WeeklyGoal'}], 'isInference': True}]\nPASS  来源类型合法  [{'type': 'CHECKIN', 'id': '1', 'label': 'WeeklyGoal'}]\nPASS  DataStore 不含明文 Key\nPASS  进程日志不含 Key\n\n[SMOKE] L1 只跑成功路径；完整状态机在 L2/Gate 执行。\n\n==== SUMMARY: 22/22 passed ====",
+      "modules": [
+        "weekly-ai",
+        "weekly-review"
+      ],
+      "tier": "feature"
+    }
+  ],
+  "modules": [
+    {
+      "name": "advisor",
+      "title": "AI 顾问",
+      "risk": "high",
+      "status": "PASS",
+      "reasons": [
+        "依赖传播：ai-consent 是 advisor 的上游"
+      ],
+      "jvmStatuses": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "deviceStatuses": [],
+      "durationSec": 0.9,
+      "jvmClassCount": 9
+    },
+    {
+      "name": "ai-consent",
+      "title": "AI 授权与配置",
+      "risk": "high",
+      "status": "PASS",
+      "reasons": [
+        "规则 A-weekly：周回顾 / 周 AI 源码变化"
+      ],
+      "jvmStatuses": [
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "deviceStatuses": [
+        "PASS"
+      ],
+      "durationSec": 170.5,
+      "jvmClassCount": 3
+    },
+    {
+      "name": "insight",
+      "title": "成长洞察",
+      "risk": "medium",
+      "status": "PASS",
+      "reasons": [
+        "依赖传播：ai-consent 是 insight 的上游"
+      ],
+      "jvmStatuses": [
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "deviceStatuses": [],
+      "durationSec": 0.1,
+      "jvmClassCount": 3
+    },
+    {
+      "name": "navigation",
+      "title": "导航与共享 UI",
+      "risk": "medium",
+      "status": "PASS",
+      "reasons": [
+        "L1+ 必要导航冒烟（跨页面回归）"
+      ],
+      "jvmStatuses": [],
+      "deviceStatuses": [
+        "PASS"
+      ],
+      "durationSec": 124.8,
+      "jvmClassCount": 0
+    },
+    {
+      "name": "weekly-ai",
+      "title": "每周 AI 增强",
+      "risk": "high",
+      "status": "PASS",
+      "reasons": [
+        "源码路径命中（app/src/main/java/com/mengyalife/app/domain/weekly/WeeklyAiParser.kt）",
+        "规则 A-weekly：周回顾 / 周 AI 源码变化"
+      ],
+      "jvmStatuses": [
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "deviceStatuses": [
+        "PASS"
+      ],
+      "durationSec": 308.4,
+      "jvmClassCount": 3
+    },
+    {
+      "name": "weekly-review",
+      "title": "每周成长回顾（本地）",
+      "risk": "high",
+      "status": "PASS",
+      "reasons": [
+        "规则 A-weekly：周回顾 / 周 AI 源码变化"
+      ],
+      "jvmStatuses": [
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "deviceStatuses": [
+        "PASS"
+      ],
+      "durationSec": 308.3,
+      "jvmClassCount": 3
+    }
+  ],
+  "failures": [],
+  "notRun": [],
+  "summary": {
+    "verdict": "PASS",
+    "exitCode": 0,
+    "levelSatisfied": true,
+    "levelNotes": [],
+    "pass": 7,
+    "fail": 0,
+    "skipped": 1,
+    "notRun": 0
+  },
+  "artifacts": {
+    "dir": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-041941",
+    "json": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-041941/report.json",
+    "md": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-041941/summary.md",
+    "logs": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-041941/logs"
+  }
+}

@@ -1,0 +1,811 @@
+{
+  "schemaVersion": 1,
+  "runId": "20261105-044524",
+  "gate": "3F",
+  "startedAt": "2026-11-05T04:45:24+0800",
+  "finishedAt": "2026-11-05T04:58:34+0800",
+  "durationSec": 790.5,
+  "level": "integration",
+  "levelTitle": "L2 Integration",
+  "mode": "module",
+  "git": {
+    "base": "10c14d3b100b48a15fd7697ae36a4b3141020d56",
+    "baseReason": "上一次 verify 运行记录",
+    "commit": "10c14d3b100b48a15fd7697ae36a4b3141020d56",
+    "branch": "master",
+    "dirty": true,
+    "files": [
+      {
+        "path": ".gitignore",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "README.md",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "app/src/main/java/com/mengyalife/app/MainActivity.kt",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "app/src/main/java/com/mengyalife/app/data/advisor/AdvisorEngine.kt",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "app/src/main/java/com/mengyalife/app/data/weekly/WeeklyAiService.kt",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "app/src/main/java/com/mengyalife/app/di/AppContainer.kt",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "app/src/test/java/com/mengyalife/app/advisor/WeeklyAiFakeEngineTest.kt",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/TEST-ACCEPTANCE.md",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/TEST-ARCHITECTURE-AUDIT.md",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/TEST-MODULE-MAP.md",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/TEST-PERFORMANCE-BEFORE-AFTER.md",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/TEST-RUNNER-DESIGN.md",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G3F-acceptance/advisor-feature.log",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G3F-acceptance/diary-l1/logs/gradle-assemble.log",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G3F-acceptance/diary-l1/logs/jvm-testDebugUnitTest.log",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G3F-acceptance/diary-l1/logs/qa-verify_diary.log",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G3F-acceptance/diary-l1/logs/qa-verify_navigation.log",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G3F-acceptance/diary-l1/logs/qa-verify_qa_preflight.log",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G3F-acceptance/diary-l1/report.json",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G3F-acceptance/diary-l1/summary.md",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G3F-acceptance/docs-only/report.json",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G3F-acceptance/docs-only/summary.md",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G3F-acceptance/failure-probe/logs/jvm-testDebugUnitTest.log",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G3F-acceptance/failure-probe/report.json",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G3F-acceptance/failure-probe/summary.md",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G3F-acceptance/l0-fast/logs/jvm-testDebugUnitTest.log",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G3F-acceptance/l0-fast/report.json",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G3F-acceptance/l0-fast/summary.md",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G3F-acceptance/weekly-l1/logs/jvm-testDebugUnitTest.log",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G3F-acceptance/weekly-l1/logs/qa-verify_navigation.log",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G3F-acceptance/weekly-l1/logs/qa-verify_qa_preflight.log",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G3F-acceptance/weekly-l1/logs/qa-verify_settings.log",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G3F-acceptance/weekly-l1/logs/qa-verify_weekly_ai.log",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G3F-acceptance/weekly-l1/report.json",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G3F-acceptance/weekly-l1/summary.md",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/logs/verify-shots/g3a-chat-401.png",
+        "status": "D",
+        "source": "unstaged"
+      },
+      {
+        "path": "docs/reports/logs/verify-shots/g3a-chat-cancelled.png",
+        "status": "D",
+        "source": "unstaged"
+      },
+      {
+        "path": "docs/reports/logs/verify-shots/g3a-chat-errors.png",
+        "status": "D",
+        "source": "unstaged"
+      },
+      {
+        "path": "docs/reports/logs/verify-shots/g3a-chat-first.png",
+        "status": "D",
+        "source": "unstaged"
+      },
+      {
+        "path": "docs/reports/logs/verify-shots/g3a-chat-retry.png",
+        "status": "D",
+        "source": "unstaged"
+      },
+      {
+        "path": "docs/reports/logs/verify-shots/g3a-context-consent.png",
+        "status": "D",
+        "source": "unstaged"
+      },
+      {
+        "path": "docs/reports/logs/verify-shots/g3a-context-sent.png",
+        "status": "D",
+        "source": "unstaged"
+      },
+      {
+        "path": "docs/reports/logs/verify-shots/g3a-export-with-key.png",
+        "status": "D",
+        "source": "unstaged"
+      },
+      {
+        "path": "docs/reports/logs/verify-shots/g3a-key-deleted.png",
+        "status": "D",
+        "source": "unstaged"
+      },
+      {
+        "path": "docs/reports/logs/verify-shots/g3a-real-network-401.png",
+        "status": "D",
+        "source": "unstaged"
+      },
+      {
+        "path": "docs/reports/logs/verify-shots/g3a-settings-saved.png",
+        "status": "D",
+        "source": "unstaged"
+      },
+      {
+        "path": "scripts/verify.sh",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "tests/__init__.py",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "tests/test-map.json",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "tests/verify/__init__.py",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "tests/verify/changes.py",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "tests/verify/cli.py",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "tests/verify/device.py",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "tests/verify/gradle.py",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "tests/verify/report.py",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "tests/verify/selection.py",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "tests/verify/util.py",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "tests/verify/validate.py",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "tools/ui-verify/harness.py",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "tools/ui-verify/run_all.sh",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "tools/ui-verify/verify_advisor.py",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "tools/ui-verify/verify_export.py",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "tools/ui-verify/verify_g3b1.py",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "tools/ui-verify/verify_goals.py",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "tools/ui-verify/verify_migration.py",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "tools/ui-verify/verify_prod_smoke.py",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "tools/ui-verify/verify_qa_preflight.py",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "tools/ui-verify/verify_settings.py",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "tools/ui-verify/verify_weekly_ai.py",
+        "status": "A",
+        "source": "untracked"
+      }
+    ]
+  },
+  "device": {
+    "serial": "192.168.10.183:33537",
+    "model": "2509FPN0BC",
+    "android": "17",
+    "sdk": "37",
+    "fetchedAt": "2026-11-05T04:45:26+0800"
+  },
+  "apk": {
+    "qa": {
+      "path": "/root/workspace/mengya-life/app/build/outputs/apk/qa/app-qa.apk",
+      "sha256": "055da4efd2f6042fd80400943f08924f2d8e09a1fe341aa6c3eba56bf39c2e70",
+      "size": 12393063,
+      "versionName": "0.14.1-g3e2-1",
+      "built": false,
+      "reused": true
+    }
+  },
+  "selection": {
+    "level": "integration",
+    "mode": "module",
+    "modules": [
+      {
+        "name": "ai-consent",
+        "title": "AI 授权与配置",
+        "risk": "high",
+        "reasons": [
+          "integration 级别强制包含高风险模块"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [
+          "com.mengyalife.app.advisor.AiConsentRulesTest",
+          "com.mengyalife.app.advisor.AdvisorConfigTest",
+          "com.mengyalife.app.advisor.InsightServiceTest"
+        ],
+        "device": [
+          {
+            "script": "verify_g3b1.py",
+            "package": "qa",
+            "tier": "integration"
+          },
+          {
+            "script": "verify_settings.py",
+            "package": "qa",
+            "tier": "feature"
+          }
+        ]
+      },
+      {
+        "name": "database-migration",
+        "title": "Room Schema / DAO / Migration",
+        "risk": "critical",
+        "reasons": [
+          "显式指定 --module database-migration"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [],
+        "device": [
+          {
+            "script": "verify_migration.py",
+            "package": "qa",
+            "tier": "integration"
+          }
+        ]
+      },
+      {
+        "name": "navigation",
+        "title": "导航与共享 UI",
+        "risk": "medium",
+        "reasons": [
+          "L1+ 必要导航冒烟（跨页面回归）"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [],
+        "device": []
+      }
+    ],
+    "jvmClasses": [
+      "com.mengyalife.app.advisor.AdvisorConfigTest",
+      "com.mengyalife.app.advisor.AiConsentRulesTest",
+      "com.mengyalife.app.advisor.InsightServiceTest"
+    ],
+    "fullJvm": false,
+    "deviceScripts": [
+      {
+        "script": "verify_g3b1.py",
+        "package": "qa",
+        "tier": "integration",
+        "assertions": 47,
+        "destructive": true,
+        "resetsQaData": true,
+        "measuredSec": 427,
+        "estimatedSec": 427,
+        "modules": [
+          "ai-consent"
+        ]
+      },
+      {
+        "script": "verify_migration.py",
+        "package": "qa",
+        "tier": "integration",
+        "assertions": 17,
+        "destructive": true,
+        "resetsQaData": true,
+        "measuredSec": 28,
+        "estimatedSec": 28,
+        "modules": [
+          "database-migration"
+        ]
+      },
+      {
+        "script": "verify_navigation.py",
+        "package": "qa",
+        "tier": "feature",
+        "assertions": 28,
+        "destructive": false,
+        "resetsQaData": false,
+        "measuredSec": null,
+        "modules": [
+          "navigation"
+        ],
+        "reason": "L1+ 必要导航冒烟"
+      },
+      {
+        "script": "verify_settings.py",
+        "package": "qa",
+        "tier": "feature",
+        "assertions": 38,
+        "destructive": true,
+        "resetsQaData": true,
+        "measuredSec": 171,
+        "estimatedSec": 171,
+        "modules": [
+          "ai-consent"
+        ]
+      }
+    ],
+    "rulesHit": [
+      {
+        "id": "explicit-module",
+        "reason": "用户显式指定模块"
+      }
+    ],
+    "unknownFiles": [],
+    "docsOnly": false,
+    "notSelected": [
+      {
+        "module": "diary",
+        "title": "日记",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "goals",
+        "title": "目标",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "progress",
+        "title": "进展与打卡",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "trends",
+        "title": "趋势",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "advisor",
+        "title": "AI 顾问",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "growth-memory",
+        "title": "成长记忆与日记提取",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "insight",
+        "title": "成长洞察",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "weekly-review",
+        "title": "每周成长回顾（本地）",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "weekly-ai",
+        "title": "每周 AI 增强",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "settings",
+        "title": "设置与主题",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "export",
+        "title": "数据导出",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "app-smoke",
+        "title": "应用启动与正式包冒烟",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "test-infra",
+        "title": "测试体系自身",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      }
+    ],
+    "notRun": [],
+    "staticChecks": [
+      "schema-contract",
+      "validate-map"
+    ],
+    "deviceRequired": true,
+    "deviceRequiredOriginal": true,
+    "prodSmokeRequired": false,
+    "warnings": []
+  },
+  "steps": [
+    {
+      "name": "静态检查（schema-contract, validate-map）",
+      "status": "PASS",
+      "durationSec": 0.11,
+      "counts": {
+        "issues": 0
+      },
+      "detail": ""
+    },
+    {
+      "name": "安装 qa APK",
+      "status": "SKIPPED",
+      "durationSec": 0.0,
+      "counts": {},
+      "detail": "已安装包哈希与本地 APK 一致，复用安装"
+    },
+    {
+      "name": "QA 安全前置校验（包名 / QA_BUILD 标记）",
+      "status": "PASS",
+      "durationSec": 30.1,
+      "counts": {
+        "assertions": "10/10"
+      },
+      "log": "docs/reports/G3F-acceptance/db-l2/logs/qa-verify_qa_preflight.log",
+      "detail": ""
+    },
+    {
+      "name": "JVM 测试（3 类）",
+      "status": "PASS",
+      "durationSec": 6.9,
+      "counts": {
+        "tests": 20,
+        "failures": 0
+      },
+      "log": "docs/reports/G3F-acceptance/db-l2/logs/jvm-testDebugUnitTest.log",
+      "detail": ""
+    },
+    {
+      "name": "真机 verify_g3b1.py",
+      "status": "PASS",
+      "durationSec": 426.4,
+      "counts": {
+        "assertions": "47/47"
+      },
+      "log": "docs/reports/G3F-acceptance/db-l2/logs/qa-verify_g3b1.log",
+      "detail": ""
+    },
+    {
+      "name": "真机 verify_migration.py",
+      "status": "PASS",
+      "durationSec": 29.2,
+      "counts": {
+        "assertions": "17/17"
+      },
+      "log": "docs/reports/G3F-acceptance/db-l2/logs/qa-verify_migration.log",
+      "detail": ""
+    },
+    {
+      "name": "真机 verify_navigation.py",
+      "status": "PASS",
+      "durationSec": 124.0,
+      "counts": {
+        "assertions": "28/28"
+      },
+      "log": "docs/reports/G3F-acceptance/db-l2/logs/qa-verify_navigation.log",
+      "detail": ""
+    },
+    {
+      "name": "真机 verify_settings.py",
+      "status": "PASS",
+      "durationSec": 170.3,
+      "counts": {
+        "assertions": "38/38"
+      },
+      "log": "docs/reports/G3F-acceptance/db-l2/logs/qa-verify_settings.log",
+      "detail": ""
+    },
+    {
+      "name": "清理 QA 数据（pm clear）",
+      "status": "PASS",
+      "durationSec": 0.0,
+      "counts": {},
+      "detail": "仅清理 QA 包；正式包未触碰"
+    }
+  ],
+  "deviceSteps": [
+    {
+      "script": "verify_g3b1.py",
+      "package": "com.mengyalife.app.qa",
+      "status": "PASS",
+      "exitCode": 0,
+      "durationSec": 426.4,
+      "assertionsPassed": 47,
+      "assertionsTotal": 47,
+      "failures": [],
+      "log": "docs/reports/G3F-acceptance/db-l2/logs/qa-verify_g3b1.log",
+      "tail": "PASS  没有写入正式目标  [(1, 'G3B1Health')]\nPASS  没有写入进展  1\nPASS  草案消息存在\n========== 9. 重启后草案与对话保留 ==========\nPASS  重启后对话仍在\nPASS  重启后草案入口仍在\nPASS  重启后草案可查看\n========== 10. 稳定性 ==========\nPASS  无应用崩溃\nPASS  进程存活\n\n==== SUMMARY: 47/47 passed ====",
+      "modules": [
+        "ai-consent"
+      ],
+      "tier": "integration"
+    },
+    {
+      "script": "verify_migration.py",
+      "package": "com.mengyalife.app.qa",
+      "status": "PASS",
+      "exitCode": 0,
+      "durationSec": 29.2,
+      "assertionsPassed": 17,
+      "assertionsTotal": 17,
+      "failures": [],
+      "log": "docs/reports/G3F-acceptance/db-l2/logs/qa-verify_migration.log",
+      "tail": "PASS  日记 2 条完整保留  [(1, 'MigA', 'alpha v10 body'), (2, 'MigB', 'beta v10 body')]\nPASS  目标保留  [(1, 'MigGoal', 'LONG_TERM', 'IN_PROGRESS')]\nPASS  进展保留  [(1, 1, 3.0, 'min')]\nPASS  迁移前的每周回顾行保留  [('3f9a6c91-092d-470f-a2aa-d002987ee736', '2026-W45'), ('r1', '2026-W44')]\nPASS  迁移数据在 UI 可读（重启后）\nPASS  无迁移崩溃\n========== 2. 再次启动（幂等） ==========\nPASS  再次启动 user_version 仍为 11  user_version=11\nPASS  数据库包含 weekly_ai_reviews  ['advisor_messages', 'android_metadata', 'goal_checkins', 'goal_proposals', 'goals', 'growth_memories', 'growth_signals', 'insight_reports', 'journal_entries', 'room_master_table', 'sqlite_sequence', 'weekly_ai_reviews', 'weekly_reviews']\nPASS  迁移新增 config_hash 列  ['period_key', 'local_data_version', 'ai_consent_version', 'status', 'generated_at', 'summary', 'highlights_json', 'suggestion', 'fact_ids_json', 'categories', 'error', 'model', 'config_hash']\n\n==== SUMMARY: 17/17 passed ====",
+      "modules": [
+        "database-migration"
+      ],
+      "tier": "integration"
+    },
+    {
+      "script": "verify_navigation.py",
+      "package": "com.mengyalife.app.qa",
+      "status": "PASS",
+      "exitCode": 0,
+      "durationSec": 124.0,
+      "assertionsPassed": 28,
+      "assertionsTotal": 28,
+      "failures": [],
+      "log": "docs/reports/G3F-acceptance/db-l2/logs/qa-verify_navigation.log",
+      "tail": "PASS  tab_trends 可进入设置\nPASS  tab_trends 设置页已就位\nPASS  tab_trends 设置页隐藏底栏\nPASS  tab_trends 返回后底栏恢复\nPASS  tab_diary 可进入设置\nPASS  tab_diary 设置页已就位\nPASS  tab_diary 设置页隐藏底栏\nPASS  tab_diary 返回后底栏恢复\nPASS  日记页仍可打开\nPASS  无崩溃日志\n\n==== SUMMARY: 28/28 passed ====",
+      "modules": [
+        "navigation"
+      ],
+      "tier": "feature"
+    },
+    {
+      "script": "verify_settings.py",
+      "package": "com.mengyalife.app.qa",
+      "status": "PASS",
+      "exitCode": 0,
+      "durationSec": 170.3,
+      "assertionsPassed": 38,
+      "assertionsTotal": 38,
+      "failures": [],
+      "log": "docs/reports/G3F-acceptance/db-l2/logs/qa-verify_settings.log",
+      "tail": "PASS  导出入口可点击\n========== 4. 截图：主题说明 ==========\nPASS  主题区可见\nPASS  主题选项齐全\nPASS  主题说明包含持久化\nPASS  主题说明包含重启保持\nPASS  主题说明包含跟随系统\n========== 5. 截图：关于 ==========\nPASS  关于区显示版本\nPASS  数据存储说明\n\n==== SUMMARY: 38/38 passed ====",
+      "modules": [
+        "ai-consent"
+      ],
+      "tier": "feature"
+    }
+  ],
+  "modules": [
+    {
+      "name": "ai-consent",
+      "title": "AI 授权与配置",
+      "risk": "high",
+      "status": "PASS",
+      "reasons": [
+        "integration 级别强制包含高风险模块"
+      ],
+      "jvmStatuses": [
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "deviceStatuses": [
+        "PASS",
+        "PASS"
+      ],
+      "durationSec": 597.1,
+      "jvmClassCount": 3
+    },
+    {
+      "name": "database-migration",
+      "title": "Room Schema / DAO / Migration",
+      "risk": "critical",
+      "status": "PASS",
+      "reasons": [
+        "显式指定 --module database-migration"
+      ],
+      "jvmStatuses": [],
+      "deviceStatuses": [
+        "PASS"
+      ],
+      "durationSec": 29.2,
+      "jvmClassCount": 0
+    },
+    {
+      "name": "navigation",
+      "title": "导航与共享 UI",
+      "risk": "medium",
+      "status": "PASS",
+      "reasons": [
+        "L1+ 必要导航冒烟（跨页面回归）"
+      ],
+      "jvmStatuses": [],
+      "deviceStatuses": [
+        "PASS"
+      ],
+      "durationSec": 124.0,
+      "jvmClassCount": 0
+    }
+  ],
+  "failures": [],
+  "notRun": [],
+  "summary": {
+    "verdict": "PASS",
+    "exitCode": 0,
+    "levelSatisfied": true,
+    "levelNotes": [],
+    "pass": 8,
+    "fail": 0,
+    "skipped": 1,
+    "notRun": 0
+  },
+  "artifacts": {
+    "dir": "docs/reports/G3F-acceptance/db-l2",
+    "json": "docs/reports/G3F-acceptance/db-l2/report.json",
+    "md": "docs/reports/G3F-acceptance/db-l2/summary.md",
+    "logs": "docs/reports/G3F-acceptance/db-l2/logs"
+  }
+}

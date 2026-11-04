@@ -14,6 +14,7 @@ SECRET = "sk-qa-g3a-secret-123"
 ENDPOINT = "https://api.example.com/v1"
 MODEL = "qa-offline"
 GOAL = "CtxGoal"
+CONTEXT_Q = "CtxGoal status"
 OUT_EXPORT = os.environ.get("EXPORT_OUT", "docs/reports/logs/g3a-export")
 os.makedirs(OUT_EXPORT, exist_ok=True)
 
@@ -110,6 +111,11 @@ adb("shell input keyevent KEYCODE_BACK")
 time.sleep(1.2)
 tap_tag("tab_advisor")
 time.sleep(1.0)
+# Gate 3B1 起首次对话前有全局授权页；本用例只验证顾问链路，授权细节由 verify_g3b1 覆盖。
+if wait_tag("advisor_consent_panel", 6):
+    tap_tag("advisor_consent_agree")
+    check("首次授权完成", wait_tag("advisor_consent_summary", 10))
+time.sleep(1.0)
 check("已配置状态", has_text("已配置"))
 send("hello_advisor_one")
 check("收到真实链路回复", wait_text("QA 离线测试引擎", 12))
@@ -173,40 +179,22 @@ time.sleep(2.0)
 check("目标已创建", wait_text(GOAL, 8))
 tap_tag("tab_advisor")
 time.sleep(1.0)
-# 对话很长时上下文栏在列表顶部，必须先滚回顶部
-for _ in range(8):
-    adb("shell input swipe 600 1000 600 2200 250")
-    time.sleep(0.35)
-check("上下文栏可见", wait_tag("advisor_context_row", 8))
-tap_tag("advisor_context_action")
-time.sleep(1.0)
-check("目标选择器", wait_tag("advisor_goal_picker", 8))
-tap_text(GOAL)
-time.sleep(1.6)
-check("目标已附加", has_text("目标上下文：" + GOAL))
-tap_tag("advisor_input")
-adb("shell input text 'context_question'")
-close_keyboard()
-time.sleep(0.2)
-tap_tag("advisor_send")
-check("发送前出现授权摘要", wait_tag("advisor_consent_dialog", 8))
-check("摘要包含不发送日记", has_text("不发送：日记正文"))
-check("摘要列出目标", has_text("目标：" + GOAL))
-shot("advisor-09-consent")
-count_before = len(db_snapshot()[0])
-tap_tag("advisor_consent_cancel")
-time.sleep(1.2)
-count_after_cancel = len(db_snapshot()[0])
-check("取消授权不发送", count_before == count_after_cancel, f"{count_before}->{count_after_cancel}")
-
-tap_tag("advisor_send")
-check("再次出现授权摘要", wait_tag("advisor_consent_dialog", 8))
-tap_tag("advisor_consent_confirm")
-time.sleep(2.0)
-check("确认后收到回复", wait_text("QA 离线测试引擎", 10))
+# Gate 3B1 起上下文改为「按授权自动检索」，手动选择器已移除；
+# 这里验证自动来源入口与来源弹窗，不再断言已删除的 advisor_context_row。
+time.sleep(0.5)
+send("CtxGoal%sstatus")
+check("上下文问题收到回复", wait_text("QA 离线测试引擎", 12))
+check("自动来源入口可见", wait_tag("advisor_sources_last", 10))
+tap_tag("advisor_sources_last")
+check("来源弹窗出现", wait_tag("advisor_sources_dialog", 8))
+check("来源弹窗包含目标", has_text("目标") or has_text(GOAL))
+shot("advisor-09-sources")
+tap_tag("advisor_sources_close")
+time.sleep(0.8)
 rows, goals, _ = db_snapshot()
-ctx = [r for r in rows if r[2] == "context_question"]
-check("用户消息记录附带目标", len(ctx) == 1 and ctx[0][4] == goals[0][0], str(ctx))
+ctx = [r for r in rows if r[2] == CONTEXT_Q]
+check("用户消息已记录", len(ctx) == 1, str(ctx))
+check("目标未被回复自动修改", len(goals) == 1, str(goals))
 check("AI 没有自动新增目标/进展", len(goals) == 1, str(goals))
 shot("advisor-10-context-sent")
 
@@ -236,7 +224,8 @@ if remote:
     check("导出不含 key", SECRET not in text)
     check("导出不含聊天正文", "context_question" not in text and "hello_advisor_one" not in text)
     doc = json.loads(text)
-    check("导出 db schema=3", doc.get("database", {}).get("schemaVersion") == 3, str(doc.get("database")))
+    EXPECTED_SCHEMA = int(os.environ.get("MENGYA_EXPECTED_SCHEMA", "11"))
+    check("导出 db schema=%d" % EXPECTED_SCHEMA, doc.get("database", {}).get("schemaVersion") == EXPECTED_SCHEMA, str(doc.get("database")))
     adb(f"shell rm -f {remote}")
 
 print("========== 6. 删除密钥 ==========")

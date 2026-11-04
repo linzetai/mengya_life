@@ -23,6 +23,8 @@ class WeeklyAiService(
     private val configRepository: AdvisorConfigRepository,
     private val networkEngine: AdvisorEngine,
     private val dao: WeeklyAiDao,
+    /** QA 构建专用假引擎；正式包为 null，行为与之前完全一致。 */
+    private val fakeEngine: AdvisorEngine? = null,
     private val now: () -> Long = System::currentTimeMillis,
     private val autoEnabled: suspend () -> Boolean = { true },
     private val beforeRequest: suspend () -> Unit = {},
@@ -110,7 +112,8 @@ class WeeklyAiService(
         return try {
             val facts = review.facts.take(20).map { it.copy(text = it.text.take(300)) }
             val prompt = WeeklyAiParser.prompt(facts, reserved.categories)
-            val result = networkEngine.chat(
+            val engine = if (initialConfig.useFakeEngine && fakeEngine != null) fakeEngine else networkEngine
+            val result = engine.chat(
                 config = initialRuntime,
                 messages = listOf(
                     AdvisorChatMessage("system", "只输出严格 JSON；只解释给定 factIds；不编造。"),

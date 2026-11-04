@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import kotlinx.coroutines.launch
 
 /**
  * 唯一 Activity。页面结构、导航与主题状态都在 [MengyaLifeApp] 里，
@@ -37,6 +38,13 @@ class MainActivity : ComponentActivity() {
             }
             if (intent?.hasExtra("qa_run_weekly_review") == true) {
                 (application as MengyaApplication).container.weeklyReviewScheduler.runNowForQa()
+            }
+            // 仅 QA：清空本周 AI 结果行，供状态机用例独立重跑；不触碰日记/目标/授权/配置。
+            if (intent?.hasExtra("qa_clear_weekly_ai") == true) {
+                val container = (application as MengyaApplication).container
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    container.qaClearWeeklyAi()
+                }
             }
         }
         if (intent?.getBooleanExtra(com.mengyalife.app.data.weekly.WeeklyReviewNotifier.EXTRA_WEEKLY_REVIEW, false) == true) {

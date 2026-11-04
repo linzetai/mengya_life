@@ -188,6 +188,20 @@ CREATE TABLE advisor_messages (
   `6fcae914…a0efaf`），与已安装应用一致，可覆盖安装；
   该密钥口令公开，**仅用于开发/测试，发布必须换发布签名**。
 
+### 统一测试入口（Gate 3F）
+
+```sh
+./scripts/verify.sh --changed --dry-run --explain   # 只看会跑什么、为什么
+./scripts/verify.sh --changed                       # 按影响选择；小改动默认 L0
+./scripts/verify.sh --level feature --module diary  # 单模块功能回归
+./scripts/verify.sh --level gate                    # 全量 JVM + QA 真机 + 正式包只读冒烟
+```
+
+- `tests/test-map.json`：模块/源码路径/JVM 类/真机脚本/风险/级别的唯一注册表；
+- 真机脚本仍在 `tools/ui-verify/`，旧 `run_all.sh` 继续可用（转发到 `--all --level gate`）；
+- 报告写入 `docs/reports/test-runs/<runId>/`（`report.json` + `summary.md` + 日志）；
+- 设计见 `TEST-RUNNER-DESIGN.md`，模块见 `TEST-MODULE-MAP.md`，审计/性能/验收见同名文档。
+
 ---
 
 ## 8. 构建与安装

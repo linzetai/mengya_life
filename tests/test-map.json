@@ -1,0 +1,975 @@
+{
+  "schemaVersion": 1,
+  "gate": "3F",
+  "description": "萌芽人生逻辑测试模块注册表：源码影响映射 + JVM/真机入口 + 风险与隔离要求。由 scripts/verify.sh 读取。",
+  "repo": {
+    "appSourceRoot": "app/src/main/java/com/mengyalife/app",
+    "jvmTestRoot": "app/src/test/java",
+    "deviceScriptRoot": "tools/ui-verify",
+    "apkQa": "app/build/outputs/apk/qa/app-qa.apk",
+    "apkProd": "app/build/outputs/apk/debug/app-debug.apk",
+    "gradleTestTask": ":app:testDebugUnitTest",
+    "gradleQaAssemble": ":app:assembleQa",
+    "gradleProdAssemble": ":app:assembleDebug"
+  },
+  "packages": {
+    "qa": {
+      "applicationId": "com.mengyalife.app.qa",
+      "database": "mengya-life-qa.db",
+      "versionSuffix": "-qa",
+      "debuggable": true,
+      "destructiveAllowed": true
+    },
+    "prod": {
+      "applicationId": "com.mengyalife.app",
+      "database": "mengya-life.db",
+      "destructiveAllowed": false
+    }
+  },
+  "levels": {
+    "fast": {
+      "id": "L0",
+      "title": "Fast",
+      "deviceTiers": [],
+      "allModules": false,
+      "description": "编译 + 受影响 JVM；不启动设备、不安装 APK。"
+    },
+    "feature": {
+      "id": "L1",
+      "title": "Feature",
+      "deviceTiers": [
+        "feature"
+      ],
+      "allModules": false,
+      "description": "受影响 JVM + 对应模块 QA 真机功能测试 + 导航冒烟（若被映射）。"
+    },
+    "integration": {
+      "id": "L2",
+      "title": "Integration",
+      "deviceTiers": [
+        "feature",
+        "integration"
+      ],
+      "allModules": false,
+      "alwaysModules": [
+        "database-migration",
+        "ai-consent"
+      ],
+      "description": "跨模块依赖 + 数据库/迁移 + AI 隐私/授权 + 后台 Worker 高风险路径。"
+    },
+    "gate": {
+      "id": "L3",
+      "title": "Gate",
+      "deviceTiers": [
+        "feature",
+        "integration",
+        "gate"
+      ],
+      "allModules": true,
+      "fullJvm": true,
+      "requiresProdSmoke": true,
+      "description": "全量 JVM + 全量 QA 真机 + 正式包只读冒烟 + 迁移/持久化 + 隐私用例。"
+    },
+    "release": {
+      "id": "L4",
+      "title": "Release",
+      "deviceTiers": [
+        "feature",
+        "integration",
+        "gate"
+      ],
+      "allModules": true,
+      "fullJvm": true,
+      "requiresProdSmoke": true,
+      "requiresDevice": true,
+      "forbidOptionalSkips": true,
+      "description": "Gate 全部内容 + 严格要求设备/APK 哈希校验，不允许环境性跳过。"
+    }
+  },
+  "levelOrder": [
+    "fast",
+    "feature",
+    "integration",
+    "gate",
+    "release"
+  ],
+  "propagation": {
+    "enabled": true,
+    "maxDepth": 1,
+    "description": "上游模块变化时，沿 dependsOn 反向扩展一层；规则可显式扩大。"
+  },
+  "unknownChangePolicy": {
+    "level": "gate",
+    "modules": "all",
+    "exitCode": 0,
+    "reason": "无法判定影响范围的源码变化必须保守升级到 L3 全量，并在报告中列出未知路径。"
+  },
+  "safety": {
+    "requireQaPackageForDestructive": true,
+    "requireQaBuildMarker": true,
+    "prodReadOnly": true,
+    "forbidUninstallProd": true,
+    "forbidPmClearProd": true,
+    "secretPatterns": [
+      "sk-",
+      "api_key",
+      "Authorization: Bearer"
+    ],
+    "notes": "破坏性脚本仅允许 com.mengyalife.app.qa；正式包脚本必须 require_prod 且不清数据。"
+  },
+  "modules": {
+    "diary": {
+      "title": "日记",
+      "sourcePaths": [
+        "app/src/main/java/com/mengyalife/app/data/local/JournalEntryEntity.kt",
+        "app/src/main/java/com/mengyalife/app/data/local/JournalEntryDao.kt",
+        "app/src/main/java/com/mengyalife/app/data/repository/JournalRepository.kt",
+        "app/src/main/java/com/mengyalife/app/domain/JournalRules.kt",
+        "app/src/main/java/com/mengyalife/app/ui/journal/**",
+        "app/src/main/java/com/mengyalife/app/ui/screens/DiaryScreen.kt"
+      ],
+      "dependsOn": [
+        "database-migration"
+      ],
+      "jvmTests": [
+        "com.mengyalife.app.domain.JournalRulesTest",
+        "com.mengyalife.app.data.JournalRepositoryTest",
+        "com.mengyalife.app.ui.JournalViewModelTest",
+        "com.mengyalife.app.util.TimestampsTest"
+      ],
+      "device": [
+        {
+          "script": "verify_diary.py",
+          "package": "qa",
+          "tier": "feature",
+          "assertions": 25,
+          "destructive": true,
+          "resetsQaData": true,
+          "measuredSec": 161,
+          "estimatedSec": 161
+        }
+      ],
+      "risk": "medium",
+      "defaultLevel": "feature",
+      "needsQaBuild": true,
+      "needsQaReset": true,
+      "requiresProdReadonlySmoke": false,
+      "notes": "QA 包清库后走新建/编辑/重启/删除全流程。",
+      "estimatedSec": 161,
+      "measuredSec": 161
+    },
+    "goals": {
+      "title": "目标",
+      "sourcePaths": [
+        "app/src/main/java/com/mengyalife/app/data/local/goal/**",
+        "app/src/main/java/com/mengyalife/app/data/repository/GoalRepository.kt",
+        "app/src/main/java/com/mengyalife/app/domain/goals/**",
+        "app/src/main/java/com/mengyalife/app/ui/goals/**",
+        "app/src/main/java/com/mengyalife/app/ui/screens/GoalsScreen.kt",
+        "app/src/main/java/com/mengyalife/app/ui/screens/GoalSheets.kt",
+        "app/src/main/java/com/mengyalife/app/data/DemoData.kt"
+      ],
+      "dependsOn": [
+        "database-migration"
+      ],
+      "jvmTests": [
+        "com.mengyalife.app.domain.GoalRulesTest",
+        "com.mengyalife.app.data.GoalRepositoryTest",
+        "com.mengyalife.app.util.TimestampsTest"
+      ],
+      "device": [
+        {
+          "script": "verify_goals.py",
+          "package": "qa",
+          "tier": "feature",
+          "assertions": 64,
+          "destructive": true,
+          "resetsQaData": true,
+          "measuredSec": 470,
+          "estimatedSec": 470
+        },
+        {
+          "script": "verify_dates.py",
+          "package": "qa",
+          "tier": "feature",
+          "assertions": 17,
+          "destructive": true,
+          "resetsQaData": true,
+          "measuredSec": 93,
+          "estimatedSec": 93
+        }
+      ],
+      "risk": "high",
+      "defaultLevel": "feature",
+      "needsQaBuild": true,
+      "needsQaReset": true,
+      "requiresProdReadonlySmoke": false,
+      "notes": "verify_goals 含三层目标/禁止跳级/进展/状态/编辑/删除/统计；verify_dates 覆盖截止日期与 UTC 零点。",
+      "estimatedSec": 563,
+      "measuredSec": 563
+    },
+    "progress": {
+      "title": "进展与打卡",
+      "sourcePaths": [
+        "app/src/main/java/com/mengyalife/app/data/local/goal/GoalCheckinEntity.kt",
+        "app/src/main/java/com/mengyalife/app/domain/goals/GoalModels.kt",
+        "app/src/main/java/com/mengyalife/app/ui/screens/GoalSheets.kt"
+      ],
+      "dependsOn": [
+        "goals"
+      ],
+      "jvmTests": [
+        "com.mengyalife.app.data.GoalRepositoryTest",
+        "com.mengyalife.app.domain.GoalTrendsTest",
+        "com.mengyalife.app.util.TimestampsTest"
+      ],
+      "device": [
+        {
+          "script": "verify_goals.py",
+          "package": "qa",
+          "tier": "feature",
+          "assertions": 64,
+          "destructive": true,
+          "resetsQaData": true,
+          "measuredSec": 470,
+          "estimatedSec": 470
+        }
+      ],
+      "risk": "high",
+      "defaultLevel": "feature",
+      "needsQaBuild": true,
+      "needsQaReset": true,
+      "requiresProdReadonlySmoke": false,
+      "notes": "无独立脚本；进展面板与计数由 verify_goals 覆盖，图表由 verify_trends 覆盖。",
+      "estimatedSec": 470,
+      "measuredSec": 470
+    },
+    "trends": {
+      "title": "趋势",
+      "sourcePaths": [
+        "app/src/main/java/com/mengyalife/app/ui/screens/TrendsScreen.kt",
+        "app/src/main/java/com/mengyalife/app/ui/components/Charts.kt",
+        "app/src/main/java/com/mengyalife/app/domain/goals/GoalTrends.kt",
+        "app/src/main/java/com/mengyalife/app/util/MetricFormat.kt"
+      ],
+      "dependsOn": [
+        "goals",
+        "progress",
+        "diary"
+      ],
+      "jvmTests": [
+        "com.mengyalife.app.domain.GoalTrendsTest",
+        "com.mengyalife.app.util.MetricFormatTest",
+        "com.mengyalife.app.util.TimestampsTest"
+      ],
+      "device": [
+        {
+          "script": "verify_trends.py",
+          "package": "qa",
+          "tier": "feature",
+          "assertions": 73,
+          "destructive": true,
+          "resetsQaData": true,
+          "measuredSec": 475,
+          "estimatedSec": 475
+        }
+      ],
+      "risk": "medium",
+      "defaultLevel": "feature",
+      "needsQaBuild": true,
+      "needsQaReset": true,
+      "requiresProdReadonlySmoke": false,
+      "notes": "依赖目标进展数据；空/单点/多点/多单位/非法数值。",
+      "estimatedSec": 475,
+      "measuredSec": 475
+    },
+    "advisor": {
+      "title": "AI 顾问",
+      "sourcePaths": [
+        "app/src/main/java/com/mengyalife/app/data/advisor/**",
+        "app/src/main/java/com/mengyalife/app/domain/advisor/**",
+        "app/src/main/java/com/mengyalife/app/ui/advisor/**",
+        "app/src/main/java/com/mengyalife/app/ui/screens/AdvisorScreen.kt"
+      ],
+      "dependsOn": [
+        "ai-consent"
+      ],
+      "jvmTests": [
+        "com.mengyalife.app.advisor.AdvisorContextAssemblerTest",
+        "com.mengyalife.app.advisor.AdvisorRulesTest",
+        "com.mengyalife.app.advisor.AdvisorViewModelTest",
+        "com.mengyalife.app.advisor.AdvisorRequestBudgetTest",
+        "com.mengyalife.app.advisor.NetworkAdvisorEngineTest",
+        "com.mengyalife.app.advisor.GoalProposalApplyRulesTest",
+        "com.mengyalife.app.advisor.GoalProposalIdsTest",
+        "com.mengyalife.app.advisor.GoalProposalParserTest",
+        "com.mengyalife.app.advisor.QaFaultInjectorTest"
+      ],
+      "device": [
+        {
+          "script": "verify_advisor.py",
+          "package": "qa",
+          "tier": "feature",
+          "assertions": 59,
+          "destructive": true,
+          "resetsQaData": true,
+          "measuredSec": 368,
+          "estimatedSec": 368
+        },
+        {
+          "script": "verify_g3b1.py",
+          "package": "qa",
+          "tier": "integration",
+          "assertions": 47,
+          "destructive": true,
+          "resetsQaData": true,
+          "measuredSec": 427,
+          "estimatedSec": 427
+        },
+        {
+          "script": "verify_advisor_network.py",
+          "package": "qa",
+          "tier": "integration",
+          "assertions": 10,
+          "destructive": true,
+          "resetsQaData": true,
+          "measuredSec": 102,
+          "requiresNetwork": true,
+          "estimatedSec": 102
+        }
+      ],
+      "risk": "high",
+      "defaultLevel": "feature",
+      "needsQaBuild": true,
+      "needsQaReset": true,
+      "requiresProdReadonlySmoke": false,
+      "notes": "verify_advisor 用 QA 假引擎（不联网）；verify_advisor_network 用无效测试 Key 验证真实 401，需外网。",
+      "estimatedSec": 897,
+      "measuredSec": 897
+    },
+    "ai-consent": {
+      "title": "AI 授权与配置",
+      "sourcePaths": [
+        "app/src/main/java/com/mengyalife/app/data/consent/**",
+        "app/src/main/java/com/mengyalife/app/data/advisor/AdvisorConfigRepository.kt",
+        "app/src/main/java/com/mengyalife/app/data/advisor/AiConfigStorage.kt",
+        "app/src/main/java/com/mengyalife/app/data/advisor/SecretCipher.kt",
+        "app/src/main/java/com/mengyalife/app/domain/advisor/AiConsent.kt",
+        "app/src/main/java/com/mengyalife/app/ui/settings/AiPrivacySection.kt",
+        "app/src/main/java/com/mengyalife/app/ui/settings/AiSettingsSection.kt",
+        "app/src/main/java/com/mengyalife/app/ui/settings/AiSettingsViewModel.kt"
+      ],
+      "dependsOn": [
+        "database-migration"
+      ],
+      "jvmTests": [
+        "com.mengyalife.app.advisor.AiConsentRulesTest",
+        "com.mengyalife.app.advisor.AdvisorConfigTest",
+        "com.mengyalife.app.advisor.InsightServiceTest"
+      ],
+      "device": [
+        {
+          "script": "verify_g3b1.py",
+          "package": "qa",
+          "tier": "integration",
+          "assertions": 47,
+          "destructive": true,
+          "resetsQaData": true,
+          "measuredSec": 427,
+          "estimatedSec": 427
+        },
+        {
+          "script": "verify_settings.py",
+          "package": "qa",
+          "tier": "feature",
+          "assertions": 38,
+          "destructive": true,
+          "resetsQaData": true,
+          "measuredSec": 171,
+          "estimatedSec": 171
+        }
+      ],
+      "risk": "high",
+      "defaultLevel": "integration",
+      "needsQaBuild": true,
+      "needsQaReset": true,
+      "requiresProdReadonlySmoke": false,
+      "notes": "授权、类别、撤回、密钥不回显/不入库/不进日志由 verify_g3b1 与 verify_settings 覆盖。",
+      "estimatedSec": 598,
+      "measuredSec": 598
+    },
+    "growth-memory": {
+      "title": "成长记忆与日记提取",
+      "sourcePaths": [
+        "app/src/main/java/com/mengyalife/app/data/growth/**",
+        "app/src/main/java/com/mengyalife/app/domain/growth/**",
+        "app/src/main/java/com/mengyalife/app/ui/growth/**"
+      ],
+      "dependsOn": [
+        "diary",
+        "database-migration"
+      ],
+      "jvmTests": [
+        "com.mengyalife.app.advisor.GrowthMemoryTest",
+        "com.mengyalife.app.advisor.GrowthMemoryValidityTest",
+        "com.mengyalife.app.advisor.DiaryExtractionTest",
+        "com.mengyalife.app.advisor.DiaryExtractionProtocolTest"
+      ],
+      "device": [],
+      "risk": "high",
+      "defaultLevel": "feature",
+      "needsQaBuild": true,
+      "needsQaReset": false,
+      "requiresProdReadonlySmoke": false,
+      "notes": "覆盖缺口：目前没有成长记忆/日记提取的真机脚本，只有 JVM；本轮不新增，记录为后续项。",
+      "estimatedSec": 0,
+      "measuredSec": 0
+    },
+    "insight": {
+      "title": "成长洞察",
+      "sourcePaths": [
+        "app/src/main/java/com/mengyalife/app/data/insight/**",
+        "app/src/main/java/com/mengyalife/app/domain/insight/**",
+        "app/src/main/java/com/mengyalife/app/ui/insight/**",
+        "app/src/main/java/com/mengyalife/app/ui/screens/OverviewScreen.kt"
+      ],
+      "dependsOn": [
+        "advisor",
+        "ai-consent",
+        "growth-memory",
+        "diary",
+        "goals"
+      ],
+      "jvmTests": [
+        "com.mengyalife.app.advisor.InsightParserTest",
+        "com.mengyalife.app.advisor.InsightRulesTest",
+        "com.mengyalife.app.advisor.InsightServiceTest"
+      ],
+      "device": [],
+      "risk": "medium",
+      "defaultLevel": "feature",
+      "needsQaBuild": true,
+      "needsQaReset": false,
+      "requiresProdReadonlySmoke": false,
+      "notes": "覆盖缺口：没有洞察真机脚本；仅 JVM。",
+      "estimatedSec": 0,
+      "measuredSec": 0
+    },
+    "weekly-review": {
+      "title": "每周成长回顾（本地）",
+      "sourcePaths": [
+        "app/src/main/java/com/mengyalife/app/data/weekly/WeeklyReviewService.kt",
+        "app/src/main/java/com/mengyalife/app/data/weekly/WeeklyReviewDataRepository.kt",
+        "app/src/main/java/com/mengyalife/app/data/weekly/WeeklyReviewNotification.kt",
+        "app/src/main/java/com/mengyalife/app/data/weekly/WeeklyReviewPreferences.kt",
+        "app/src/main/java/com/mengyalife/app/data/weekly/WeeklyReviewScheduler.kt",
+        "app/src/main/java/com/mengyalife/app/data/weekly/WeeklyReviewWorker.kt",
+        "app/src/main/java/com/mengyalife/app/data/local/weekly/WeeklyReviewEntity.kt",
+        "app/src/main/java/com/mengyalife/app/data/local/weekly/WeeklyReviewDao.kt",
+        "app/src/main/java/com/mengyalife/app/ui/weekly/WeeklyReviewScreen.kt",
+        "app/src/main/java/com/mengyalife/app/ui/weekly/WeeklyReviewViewModel.kt"
+      ],
+      "dependsOn": [
+        "goals",
+        "diary",
+        "growth-memory"
+      ],
+      "jvmTests": [
+        "com.mengyalife.app.advisor.WeeklyReviewRulesTest",
+        "com.mengyalife.app.advisor.WeeklyReviewServiceTest",
+        "com.mengyalife.app.util.TimestampsTest"
+      ],
+      "device": [
+        {
+          "script": "verify_weekly_ai.py",
+          "package": "qa",
+          "tier": "feature",
+          "assertions": 95,
+          "destructive": true,
+          "resetsQaData": true,
+          "measuredSec": 308,
+          "smokeEnvVar": "MENGYA_WEEKLY_SMOKE",
+          "estimatedSec": 308,
+          "smokeAssertions": 22,
+          "measuredFullSec": 1160,
+          "timeoutSec": 2100
+        }
+      ],
+      "risk": "high",
+      "defaultLevel": "feature",
+      "needsQaBuild": true,
+      "needsQaReset": true,
+      "requiresProdReadonlySmoke": false,
+      "notes": "本轮新增 verify_weekly_ai.py，覆盖本地回顾 + AI 状态机。",
+      "estimatedSec": 308,
+      "measuredSec": 308
+    },
+    "weekly-ai": {
+      "title": "每周 AI 增强",
+      "sourcePaths": [
+        "app/src/main/java/com/mengyalife/app/data/weekly/WeeklyAiService.kt",
+        "app/src/main/java/com/mengyalife/app/data/local/weekly/WeeklyAiEntity.kt",
+        "app/src/main/java/com/mengyalife/app/data/local/weekly/WeeklyAiDao.kt",
+        "app/src/main/java/com/mengyalife/app/domain/weekly/**"
+      ],
+      "dependsOn": [
+        "weekly-review",
+        "ai-consent",
+        "advisor",
+        "goals",
+        "diary",
+        "trends"
+      ],
+      "jvmTests": [
+        "com.mengyalife.app.advisor.WeeklyAiTest",
+        "com.mengyalife.app.advisor.AdvisorRequestBudgetTest",
+        "com.mengyalife.app.advisor.WeeklyAiFakeEngineTest"
+      ],
+      "device": [
+        {
+          "script": "verify_weekly_ai.py",
+          "package": "qa",
+          "tier": "feature",
+          "assertions": 95,
+          "destructive": true,
+          "resetsQaData": true,
+          "measuredSec": 308,
+          "smokeEnvVar": "MENGYA_WEEKLY_SMOKE",
+          "estimatedSec": 308,
+          "smokeAssertions": 22,
+          "measuredFullSec": 1160,
+          "timeoutSec": 2100
+        }
+      ],
+      "risk": "high",
+      "defaultLevel": "feature",
+      "needsQaBuild": true,
+      "needsQaReset": true,
+      "requiresProdReadonlySmoke": false,
+      "notes": "本轮新增真机用例：成功/失败/超时/中断/STALE/撤权/自动开关；仅 QA 假引擎。",
+      "estimatedSec": 308,
+      "measuredSec": 308
+    },
+    "settings": {
+      "title": "设置与主题",
+      "sourcePaths": [
+        "app/src/main/java/com/mengyalife/app/ui/screens/SettingsScreen.kt",
+        "app/src/main/java/com/mengyalife/app/ui/settings/**",
+        "app/src/main/java/com/mengyalife/app/data/preferences/ThemePreferences.kt",
+        "app/src/main/java/com/mengyalife/app/ui/theme/**"
+      ],
+      "dependsOn": [],
+      "jvmTests": [],
+      "device": [
+        {
+          "script": "verify_settings.py",
+          "package": "qa",
+          "tier": "feature",
+          "assertions": 38,
+          "destructive": true,
+          "resetsQaData": true,
+          "measuredSec": 171,
+          "estimatedSec": 171
+        },
+        {
+          "script": "verify_theme.py",
+          "package": "qa",
+          "tier": "feature",
+          "assertions": 11,
+          "destructive": false,
+          "resetsQaData": false,
+          "measuredSec": 178,
+          "estimatedSec": 178
+        }
+      ],
+      "risk": "medium",
+      "defaultLevel": "feature",
+      "needsQaBuild": true,
+      "needsQaReset": true,
+      "requiresProdReadonlySmoke": false,
+      "notes": "文案漂移与主题持久化；不涉及数据库内容。",
+      "estimatedSec": 349,
+      "measuredSec": 349
+    },
+    "export": {
+      "title": "数据导出",
+      "sourcePaths": [
+        "app/src/main/java/com/mengyalife/app/data/export/**",
+        "app/src/main/java/com/mengyalife/app/ui/settings/ExportViewModel.kt"
+      ],
+      "dependsOn": [
+        "diary",
+        "goals",
+        "database-migration"
+      ],
+      "jvmTests": [
+        "com.mengyalife.app.data.ExportTest"
+      ],
+      "device": [
+        {
+          "script": "verify_export.py",
+          "package": "qa",
+          "tier": "feature",
+          "assertions": 49,
+          "destructive": true,
+          "resetsQaData": true,
+          "measuredSec": 195,
+          "estimatedSec": 195
+        }
+      ],
+      "risk": "high",
+      "defaultLevel": "feature",
+      "needsQaBuild": true,
+      "needsQaReset": true,
+      "requiresProdReadonlySmoke": false,
+      "notes": "导出 JSON 与库逐项一致；写设备 Downloads（测试文件名带时间戳）。",
+      "estimatedSec": 195,
+      "measuredSec": 195
+    },
+    "database-migration": {
+      "title": "Room Schema / DAO / Migration",
+      "sourcePaths": [
+        "app/src/main/java/com/mengyalife/app/data/local/**",
+        "app/schemas/**"
+      ],
+      "dependsOn": [],
+      "jvmTests": [],
+      "device": [
+        {
+          "script": "verify_migration.py",
+          "package": "qa",
+          "tier": "integration",
+          "assertions": 17,
+          "destructive": true,
+          "resetsQaData": true,
+          "measuredSec": 28,
+          "estimatedSec": 28
+        }
+      ],
+      "risk": "critical",
+      "defaultLevel": "integration",
+      "needsQaBuild": true,
+      "needsQaReset": true,
+      "requiresProdReadonlySmoke": false,
+      "notes": "JVM 无 Room 仪器测试；本轮新增 verify_migration.py 用 v10 夹具在 QA 包上升级到 v11。",
+      "estimatedSec": 28,
+      "measuredSec": 28
+    },
+    "navigation": {
+      "title": "导航与共享 UI",
+      "sourcePaths": [
+        "app/src/main/java/com/mengyalife/app/navigation/**",
+        "app/src/main/java/com/mengyalife/app/MengyaLifeApp.kt",
+        "app/src/main/java/com/mengyalife/app/ui/components/Common.kt"
+      ],
+      "dependsOn": [],
+      "jvmTests": [],
+      "device": [
+        {
+          "script": "verify_navigation.py",
+          "package": "qa",
+          "tier": "feature",
+          "assertions": 28,
+          "destructive": false,
+          "resetsQaData": false,
+          "measuredSec": 124,
+          "estimatedSec": 124
+        }
+      ],
+      "risk": "medium",
+      "defaultLevel": "feature",
+      "needsQaBuild": true,
+      "needsQaReset": false,
+      "requiresProdReadonlySmoke": false,
+      "notes": "五页切换/设置进出/返回；只读。",
+      "estimatedSec": 124,
+      "measuredSec": 124
+    },
+    "app-smoke": {
+      "title": "应用启动与正式包冒烟",
+      "sourcePaths": [
+        "app/src/main/java/com/mengyalife/app/MengyaApplication.kt",
+        "app/src/main/java/com/mengyalife/app/MainActivity.kt",
+        "app/src/main/java/com/mengyalife/app/di/AppContainer.kt",
+        "app/src/main/AndroidManifest.xml",
+        "app/build.gradle",
+        "build.gradle",
+        "settings.gradle",
+        "gradle.properties"
+      ],
+      "dependsOn": [
+        "database-migration"
+      ],
+      "jvmTests": [],
+      "device": [
+        {
+          "script": "verify_prod_smoke.py",
+          "package": "prod",
+          "tier": "gate",
+          "assertions": 50,
+          "destructive": false,
+          "resetsQaData": false,
+          "measuredSec": 181,
+          "requiresProdFixture": true,
+          "writesExternal": true,
+          "estimatedSec": 181
+        }
+      ],
+      "risk": "high",
+      "defaultLevel": "integration",
+      "needsQaBuild": true,
+      "needsQaReset": false,
+      "requiresProdReadonlySmoke": true,
+      "notes": "正式包只读冒烟；要求正式库保留 2 条迁移日记且目标/进展为空。",
+      "estimatedSec": 181,
+      "measuredSec": 181
+    },
+    "test-infra": {
+      "title": "测试体系自身",
+      "sourcePaths": [
+        "tests/**",
+        "scripts/**",
+        "tools/ui-verify/**"
+      ],
+      "dependsOn": [],
+      "jvmTests": [],
+      "device": [],
+      "risk": "low",
+      "defaultLevel": "fast",
+      "needsQaBuild": false,
+      "needsQaReset": false,
+      "requiresProdReadonlySmoke": false,
+      "notes": "改动测试脚本/注册表只做注册表校验与脚本静态检查，不跑无关 Android 真机。",
+      "estimatedSec": 0,
+      "measuredSec": 0
+    }
+  },
+  "impactRules": [
+    {
+      "id": "A-weekly",
+      "description": "周回顾 / 周 AI 源码变化",
+      "patterns": [
+        "app/src/main/java/com/mengyalife/app/data/weekly/WeeklyAiService.kt",
+        "app/src/main/java/com/mengyalife/app/data/local/weekly/WeeklyAi*.kt",
+        "app/src/main/java/com/mengyalife/app/domain/weekly/WeeklyAi*.kt",
+        "app/src/main/java/com/mengyalife/app/ui/weekly/**",
+        "app/src/main/java/com/mengyalife/app/data/weekly/WeeklyReview*.kt",
+        "app/src/main/java/com/mengyalife/app/data/local/weekly/WeeklyReview*.kt"
+      ],
+      "modules": [
+        "weekly-review",
+        "weekly-ai",
+        "ai-consent"
+      ],
+      "minLevel": "feature",
+      "testLevel": "feature",
+      "reason": "周回顾/AI 变化必须同时验证本地回顾、AI 状态机与授权边界，并跑周回顾 QA UI 冒烟。",
+      "deviceModules": [
+        "weekly-review",
+        "weekly-ai",
+        "ai-consent"
+      ]
+    },
+    {
+      "id": "B-goals-progress",
+      "description": "目标 / 进展 / 打卡变化",
+      "patterns": [
+        "app/src/main/java/com/mengyalife/app/data/local/goal/**",
+        "app/src/main/java/com/mengyalife/app/data/repository/GoalRepository.kt",
+        "app/src/main/java/com/mengyalife/app/domain/goals/**",
+        "app/src/main/java/com/mengyalife/app/ui/goals/**",
+        "app/src/main/java/com/mengyalife/app/ui/screens/GoalsScreen.kt",
+        "app/src/main/java/com/mengyalife/app/ui/screens/GoalSheets.kt"
+      ],
+      "modules": [
+        "goals",
+        "progress",
+        "trends",
+        "weekly-review",
+        "weekly-ai"
+      ],
+      "minLevel": "feature",
+      "testLevel": "feature",
+      "reason": "目标/进展是趋势与周回顾的上游数据源，需连带验证依赖进展数据的趋势和持久化。",
+      "deviceModules": [
+        "goals",
+        "progress",
+        "trends"
+      ]
+    },
+    {
+      "id": "C-ai-consent",
+      "description": "AI 授权 / 配置 / 密钥变化",
+      "patterns": [
+        "app/src/main/java/com/mengyalife/app/data/consent/**",
+        "app/src/main/java/com/mengyalife/app/data/advisor/AdvisorConfigRepository.kt",
+        "app/src/main/java/com/mengyalife/app/data/advisor/AiConfigStorage.kt",
+        "app/src/main/java/com/mengyalife/app/data/advisor/SecretCipher.kt",
+        "app/src/main/java/com/mengyalife/app/domain/advisor/AiConsent.kt",
+        "app/src/main/java/com/mengyalife/app/ui/settings/AiPrivacySection.kt",
+        "app/src/main/java/com/mengyalife/app/ui/settings/AiSettingsSection.kt",
+        "app/src/main/java/com/mengyalife/app/ui/settings/AiSettingsViewModel.kt"
+      ],
+      "modules": [
+        "advisor",
+        "ai-consent",
+        "weekly-ai",
+        "insight",
+        "settings"
+      ],
+      "minLevel": "feature",
+      "testLevel": "integration",
+      "reason": "授权/配置影响所有 AI 出口（顾问、周 AI、洞察），必须验证授权、撤回、类别过滤与设置页冒烟。",
+      "deviceModules": [
+        "advisor",
+        "ai-consent",
+        "settings"
+      ]
+    },
+    {
+      "id": "D-room-migration",
+      "description": "Room Schema / DAO / Migration 变化",
+      "patterns": [
+        "app/src/main/java/com/mengyalife/app/data/local/**",
+        "app/schemas/**"
+      ],
+      "modules": [
+        "database-migration",
+        "diary",
+        "goals",
+        "progress",
+        "trends",
+        "advisor",
+        "growth-memory",
+        "insight",
+        "weekly-review",
+        "weekly-ai",
+        "export"
+      ],
+      "minLevel": "integration",
+      "testLevel": "integration",
+      "reason": "数据库结构/迁移影响全部持久化数据；必须跑迁移、数据保留、导出与跨模块读取，禁止只跑单模块。",
+      "deviceModules": [
+        "database-migration",
+        "export"
+      ]
+    },
+    {
+      "id": "I-ui-screen",
+      "description": "页面 UI 源码变化",
+      "patterns": [
+        "app/src/main/java/com/mengyalife/app/ui/**"
+      ],
+      "modules": [],
+      "deviceModules": [],
+      "deviceFromMatched": true,
+      "minLevel": "feature",
+      "testLevel": "feature",
+      "reason": "页面 UI 变化需要对应模块的 QA UI 冒烟；具体模块由命中的源码路径决定，不靠 Agent 猜测。"
+    },
+    {
+      "id": "E-navigation-shared-ui",
+      "description": "导航 / 共享 UI 组件变化",
+      "patterns": [
+        "app/src/main/java/com/mengyalife/app/MengyaLifeApp.kt",
+        "app/src/main/java/com/mengyalife/app/navigation/**",
+        "app/src/main/java/com/mengyalife/app/ui/components/**",
+        "app/src/main/java/com/mengyalife/app/ui/theme/**"
+      ],
+      "modules": [
+        "navigation",
+        "diary",
+        "goals",
+        "trends",
+        "advisor",
+        "settings"
+      ],
+      "minLevel": "feature",
+      "testLevel": "feature",
+      "reason": "导航/共享组件被五个一级页面复用，按实际依赖选择页面冒烟，避免只跑一个页面。",
+      "deviceModules": [
+        "navigation",
+        "diary",
+        "goals",
+        "trends",
+        "advisor",
+        "settings"
+      ]
+    },
+    {
+      "id": "F-build-manifest-di",
+      "description": "Gradle / Manifest / Application / DI 变化",
+      "patterns": [
+        "app/build.gradle",
+        "app/build.gradle.kts",
+        "build.gradle",
+        "build.gradle.kts",
+        "settings.gradle",
+        "settings.gradle.kts",
+        "gradle.properties",
+        "gradle/**",
+        "app/src/main/AndroidManifest.xml",
+        "app/src/main/java/com/mengyalife/app/MengyaApplication.kt",
+        "app/src/main/java/com/mengyalife/app/MainActivity.kt",
+        "app/src/main/java/com/mengyalife/app/di/AppContainer.kt"
+      ],
+      "modules": [
+        "app-smoke",
+        "navigation"
+      ],
+      "minLevel": "integration",
+      "testLevel": "integration",
+      "fullJvm": true,
+      "reason": "构建/入口/依赖注入变化可能影响所有页面启动；全量 JVM + 启动冒烟，Gate 时强制完整回归。",
+      "deviceModules": [
+        "app-smoke",
+        "navigation"
+      ]
+    },
+    {
+      "id": "G-docs-only",
+      "description": "仅文档/证据变化",
+      "patterns": [
+        "docs/**",
+        "**/*.md",
+        "artifacts/**",
+        ".gitignore"
+      ],
+      "modules": [],
+      "minLevel": "fast",
+      "testLevel": "fast",
+      "docsOnly": true,
+      "reason": "文档不改变 APK；不安装 APK、不跑 Android 真机。",
+      "deviceModules": []
+    },
+    {
+      "id": "J-jvm-test-source",
+      "description": "JVM 测试源码变化",
+      "patterns": [
+        "app/src/test/**"
+      ],
+      "modules": [],
+      "deviceModules": [],
+      "minLevel": "fast",
+      "testLevel": "fast",
+      "fullJvm": true,
+      "reason": "测试源码变化无法从路径推断对应模块；保守跑全量 JVM（不启动设备），避免漏跑或把测试改动误判为未知源码。"
+    },
+    {
+      "id": "H-test-infra",
+      "description": "测试体系自身变化",
+      "patterns": [
+        "tests/**",
+        "scripts/**",
+        "tools/ui-verify/**"
+      ],
+      "modules": [
+        "test-infra"
+      ],
+      "minLevel": "fast",
+      "testLevel": "fast",
+      "reason": "只做注册表/脚本静态校验；除非同时改了 app 源码。",
+      "deviceModules": []
+    }
+  ]
+}

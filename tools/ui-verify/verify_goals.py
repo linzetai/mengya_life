@@ -232,7 +232,8 @@ shot("07-edited")
 
 print("========== 4. 数据库校验 ==========")
 uv, goals, checkins, journals = db_dump()
-check("schema 版本为 11", uv == 11, f"user_version={uv}")
+EXPECTED_SCHEMA = int(os.environ.get("MENGYA_EXPECTED_SCHEMA", "11"))
+check("schema 版本为 %d" % EXPECTED_SCHEMA, uv == EXPECTED_SCHEMA, f"user_version={uv}")
 check("目标共 3 条", len(goals) == 3, str(goals))
 by_id = {g[0]: g for g in goals}
 check("阶段父级=长期", by_id[stage_id][3] == long_id, str(by_id.get(stage_id)))

@@ -1,0 +1,28 @@
+========== 0. 准备隔离数据 / QA 假引擎 / 授权 ==========
+PASS  QA 包已启动
+PASS  建立目标
+PASS  写入进展数值
+PASS  建立日记
+PASS  AI 配置（QA 假引擎）
+PASS  首次授权
+PASS  每周回顾 + AI 开关开启
+PASS  打开每周回顾页
+PASS  本地回顾已生成
+========== 1. AI 成功（READY） ==========
+PASS  AI 入口可见
+PASS  点击 AI 增强
+PASS  状态 READY
+PASS  显示 QA 假引擎摘要
+PASS  恰好 1 条 AI 结果  [('2026-W45', 'READY', '（QA 离线测试引擎）本周保持了一个可核验的小节奏。', None, 'qa-fake', 'GOALS,PROGRESS,JOURNAL,CONVERSATION', 'week-counts', '[{"type":"POSITIVE","title":"QA 周回顾","body":"基于本周事实的本地测试输出。","factIds":["week-counts"],"sources":[{"type":"CHECKIN","id":"1","label":"WeeklyGoal"}],"isInference":true}]')]
+PASS  DB 状态 READY  READY
+PASS  模型记录为 qa-fake  qa-fake
+PASS  授权类别非空  GOALS,PROGRESS,JOURNAL,CONVERSATION
+PASS  factIds 非空  ['week-counts']
+PASS  来源由客户端 factIds 构造  [{'type': 'POSITIVE', 'title': 'QA 周回顾', 'body': '基于本周事实的本地测试输出。', 'factIds': ['week-counts'], 'sources': [{'type': 'CHECKIN', 'id': '1', 'label': 'WeeklyGoal'}], 'isInference': True}]
+PASS  来源类型合法  [{'type': 'CHECKIN', 'id': '1', 'label': 'WeeklyGoal'}]
+PASS  DataStore 不含明文 Key
+PASS  进程日志不含 Key
+
+[SMOKE] L1 只跑成功路径；完整状态机在 L2/Gate 执行。
+
+==== SUMMARY: 22/22 passed ====
