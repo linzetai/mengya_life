@@ -15,6 +15,7 @@ Room：v11；QA / 正式包均 `install -r` 覆盖安装，未卸载、未清正
 | `failure-probe/` | 注入失败测试的 `--all --level fast` | FAIL，rc=1（预期） |
 | `advisor-feature.log` | 修复后的 `verify_advisor.py` 直接运行 | 56/56 PASS，368s |
 | `weekly-full.log` | 完整周回顾状态机（95 条）原始输出 | 95/95 PASS，1160s |
+| `g4a0-recheck/` | G4A-0 前置复跑（`--all --level fast`） | PASS，244/244，9.6s |
 
 说明：
 

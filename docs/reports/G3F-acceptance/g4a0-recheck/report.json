@@ -1,0 +1,704 @@
+{
+  "schemaVersion": 1,
+  "runId": "20261105-082121",
+  "gate": "3F",
+  "startedAt": "2026-11-05T08:21:21+0800",
+  "finishedAt": "2026-11-05T08:21:31+0800",
+  "durationSec": 9.6,
+  "level": "fast",
+  "levelTitle": "L0 Fast",
+  "mode": "all",
+  "git": {
+    "base": "29d1e8095e6d2edc57e158e08e73f44611b8cc80",
+    "baseReason": "master 的 merge-base",
+    "commit": "29d1e8095e6d2edc57e158e08e73f44611b8cc80",
+    "branch": "master",
+    "dirty": false,
+    "files": []
+  },
+  "device": null,
+  "apk": {},
+  "selection": {
+    "level": "fast",
+    "mode": "all",
+    "modules": [
+      {
+        "name": "advisor",
+        "title": "AI 顾问",
+        "risk": "high",
+        "reasons": [
+          "--all 强制全量回归"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [
+          "com.mengyalife.app.advisor.AdvisorContextAssemblerTest",
+          "com.mengyalife.app.advisor.AdvisorRulesTest",
+          "com.mengyalife.app.advisor.AdvisorViewModelTest",
+          "com.mengyalife.app.advisor.AdvisorRequestBudgetTest",
+          "com.mengyalife.app.advisor.NetworkAdvisorEngineTest",
+          "com.mengyalife.app.advisor.GoalProposalApplyRulesTest",
+          "com.mengyalife.app.advisor.GoalProposalIdsTest",
+          "com.mengyalife.app.advisor.GoalProposalParserTest",
+          "com.mengyalife.app.advisor.QaFaultInjectorTest"
+        ],
+        "device": []
+      },
+      {
+        "name": "ai-consent",
+        "title": "AI 授权与配置",
+        "risk": "high",
+        "reasons": [
+          "--all 强制全量回归"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [
+          "com.mengyalife.app.advisor.AiConsentRulesTest",
+          "com.mengyalife.app.advisor.AdvisorConfigTest",
+          "com.mengyalife.app.advisor.InsightServiceTest"
+        ],
+        "device": []
+      },
+      {
+        "name": "app-smoke",
+        "title": "应用启动与正式包冒烟",
+        "risk": "high",
+        "reasons": [
+          "--all 强制全量回归"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [],
+        "device": []
+      },
+      {
+        "name": "database-migration",
+        "title": "Room Schema / DAO / Migration",
+        "risk": "critical",
+        "reasons": [
+          "--all 强制全量回归"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [],
+        "device": []
+      },
+      {
+        "name": "diary",
+        "title": "日记",
+        "risk": "medium",
+        "reasons": [
+          "--all 强制全量回归"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [
+          "com.mengyalife.app.domain.JournalRulesTest",
+          "com.mengyalife.app.data.JournalRepositoryTest",
+          "com.mengyalife.app.ui.JournalViewModelTest",
+          "com.mengyalife.app.util.TimestampsTest"
+        ],
+        "device": []
+      },
+      {
+        "name": "export",
+        "title": "数据导出",
+        "risk": "high",
+        "reasons": [
+          "--all 强制全量回归"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [
+          "com.mengyalife.app.data.ExportTest"
+        ],
+        "device": []
+      },
+      {
+        "name": "goals",
+        "title": "目标",
+        "risk": "high",
+        "reasons": [
+          "--all 强制全量回归"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [
+          "com.mengyalife.app.domain.GoalRulesTest",
+          "com.mengyalife.app.data.GoalRepositoryTest",
+          "com.mengyalife.app.util.TimestampsTest"
+        ],
+        "device": []
+      },
+      {
+        "name": "growth-memory",
+        "title": "成长记忆与日记提取",
+        "risk": "high",
+        "reasons": [
+          "--all 强制全量回归"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [
+          "com.mengyalife.app.advisor.GrowthMemoryTest",
+          "com.mengyalife.app.advisor.GrowthMemoryValidityTest",
+          "com.mengyalife.app.advisor.DiaryExtractionTest",
+          "com.mengyalife.app.advisor.DiaryExtractionProtocolTest"
+        ],
+        "device": []
+      },
+      {
+        "name": "insight",
+        "title": "成长洞察",
+        "risk": "medium",
+        "reasons": [
+          "--all 强制全量回归"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [
+          "com.mengyalife.app.advisor.InsightParserTest",
+          "com.mengyalife.app.advisor.InsightRulesTest",
+          "com.mengyalife.app.advisor.InsightServiceTest"
+        ],
+        "device": []
+      },
+      {
+        "name": "navigation",
+        "title": "导航与共享 UI",
+        "risk": "medium",
+        "reasons": [
+          "--all 强制全量回归"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [],
+        "device": []
+      },
+      {
+        "name": "progress",
+        "title": "进展与打卡",
+        "risk": "high",
+        "reasons": [
+          "--all 强制全量回归"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [
+          "com.mengyalife.app.data.GoalRepositoryTest",
+          "com.mengyalife.app.domain.GoalTrendsTest",
+          "com.mengyalife.app.util.TimestampsTest"
+        ],
+        "device": []
+      },
+      {
+        "name": "settings",
+        "title": "设置与主题",
+        "risk": "medium",
+        "reasons": [
+          "--all 强制全量回归"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [],
+        "device": []
+      },
+      {
+        "name": "test-infra",
+        "title": "测试体系自身",
+        "risk": "low",
+        "reasons": [
+          "--all 强制全量回归"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [],
+        "device": []
+      },
+      {
+        "name": "trends",
+        "title": "趋势",
+        "risk": "medium",
+        "reasons": [
+          "--all 强制全量回归"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [
+          "com.mengyalife.app.domain.GoalTrendsTest",
+          "com.mengyalife.app.util.MetricFormatTest",
+          "com.mengyalife.app.util.TimestampsTest"
+        ],
+        "device": []
+      },
+      {
+        "name": "weekly-ai",
+        "title": "每周 AI 增强",
+        "risk": "high",
+        "reasons": [
+          "--all 强制全量回归"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [
+          "com.mengyalife.app.advisor.WeeklyAiTest",
+          "com.mengyalife.app.advisor.AdvisorRequestBudgetTest",
+          "com.mengyalife.app.advisor.WeeklyAiFakeEngineTest"
+        ],
+        "device": []
+      },
+      {
+        "name": "weekly-review",
+        "title": "每周成长回顾（本地）",
+        "risk": "high",
+        "reasons": [
+          "--all 强制全量回归"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [
+          "com.mengyalife.app.advisor.WeeklyReviewRulesTest",
+          "com.mengyalife.app.advisor.WeeklyReviewServiceTest",
+          "com.mengyalife.app.util.TimestampsTest"
+        ],
+        "device": []
+      }
+    ],
+    "jvmClasses": [
+      "com.mengyalife.app.advisor.AdvisorConfigTest",
+      "com.mengyalife.app.advisor.AdvisorContextAssemblerTest",
+      "com.mengyalife.app.advisor.AdvisorRequestBudgetTest",
+      "com.mengyalife.app.advisor.AdvisorRulesTest",
+      "com.mengyalife.app.advisor.AdvisorViewModelTest",
+      "com.mengyalife.app.advisor.AiConsentRulesTest",
+      "com.mengyalife.app.advisor.DiaryExtractionProtocolTest",
+      "com.mengyalife.app.advisor.DiaryExtractionTest",
+      "com.mengyalife.app.advisor.GoalProposalApplyRulesTest",
+      "com.mengyalife.app.advisor.GoalProposalIdsTest",
+      "com.mengyalife.app.advisor.GoalProposalParserTest",
+      "com.mengyalife.app.advisor.GrowthMemoryTest",
+      "com.mengyalife.app.advisor.GrowthMemoryValidityTest",
+      "com.mengyalife.app.advisor.InsightParserTest",
+      "com.mengyalife.app.advisor.InsightRulesTest",
+      "com.mengyalife.app.advisor.InsightServiceTest",
+      "com.mengyalife.app.advisor.NetworkAdvisorEngineTest",
+      "com.mengyalife.app.advisor.QaFaultInjectorTest",
+      "com.mengyalife.app.advisor.WeeklyAiFakeEngineTest",
+      "com.mengyalife.app.advisor.WeeklyAiTest",
+      "com.mengyalife.app.advisor.WeeklyReviewRulesTest",
+      "com.mengyalife.app.advisor.WeeklyReviewServiceTest",
+      "com.mengyalife.app.data.ExportTest",
+      "com.mengyalife.app.data.GoalRepositoryTest",
+      "com.mengyalife.app.data.JournalRepositoryTest",
+      "com.mengyalife.app.domain.GoalRulesTest",
+      "com.mengyalife.app.domain.GoalTrendsTest",
+      "com.mengyalife.app.domain.JournalRulesTest",
+      "com.mengyalife.app.ui.JournalViewModelTest",
+      "com.mengyalife.app.util.MetricFormatTest",
+      "com.mengyalife.app.util.TimestampsTest"
+    ],
+    "fullJvm": true,
+    "deviceScripts": [],
+    "rulesHit": [
+      {
+        "id": "force-full",
+        "reason": "--all 强制全量回归",
+        "files": []
+      }
+    ],
+    "unknownFiles": [],
+    "docsOnly": false,
+    "notSelected": [],
+    "notRun": [
+      {
+        "item": "真机测试",
+        "reason": "fast 级别不启动设备"
+      },
+      {
+        "item": "advisor:verify_advisor.py",
+        "reason": "该用例层级 feature 高于当前 fast 允许的 []"
+      },
+      {
+        "item": "advisor:verify_g3b1.py",
+        "reason": "该用例层级 integration 高于当前 fast 允许的 []"
+      },
+      {
+        "item": "advisor:verify_advisor_network.py",
+        "reason": "该用例层级 integration 高于当前 fast 允许的 []"
+      },
+      {
+        "item": "ai-consent:verify_g3b1.py",
+        "reason": "该用例层级 integration 高于当前 fast 允许的 []"
+      },
+      {
+        "item": "ai-consent:verify_settings.py",
+        "reason": "该用例层级 feature 高于当前 fast 允许的 []"
+      },
+      {
+        "item": "app-smoke:verify_prod_smoke.py",
+        "reason": "该用例层级 gate 高于当前 fast 允许的 []"
+      },
+      {
+        "item": "database-migration:verify_migration.py",
+        "reason": "该用例层级 integration 高于当前 fast 允许的 []"
+      },
+      {
+        "item": "diary:verify_diary.py",
+        "reason": "该用例层级 feature 高于当前 fast 允许的 []"
+      },
+      {
+        "item": "export:verify_export.py",
+        "reason": "该用例层级 feature 高于当前 fast 允许的 []"
+      },
+      {
+        "item": "goals:verify_goals.py",
+        "reason": "该用例层级 feature 高于当前 fast 允许的 []"
+      },
+      {
+        "item": "goals:verify_dates.py",
+        "reason": "该用例层级 feature 高于当前 fast 允许的 []"
+      },
+      {
+        "item": "navigation:verify_navigation.py",
+        "reason": "该用例层级 feature 高于当前 fast 允许的 []"
+      },
+      {
+        "item": "progress:verify_goals.py",
+        "reason": "该用例层级 feature 高于当前 fast 允许的 []"
+      },
+      {
+        "item": "settings:verify_settings.py",
+        "reason": "该用例层级 feature 高于当前 fast 允许的 []"
+      },
+      {
+        "item": "settings:verify_theme.py",
+        "reason": "该用例层级 feature 高于当前 fast 允许的 []"
+      },
+      {
+        "item": "trends:verify_trends.py",
+        "reason": "该用例层级 feature 高于当前 fast 允许的 []"
+      },
+      {
+        "item": "weekly-ai:verify_weekly_ai.py",
+        "reason": "该用例层级 feature 高于当前 fast 允许的 []"
+      },
+      {
+        "item": "weekly-review:verify_weekly_ai.py",
+        "reason": "该用例层级 feature 高于当前 fast 允许的 []"
+      }
+    ],
+    "staticChecks": [
+      "schema-contract",
+      "script-syntax",
+      "validate-map"
+    ],
+    "deviceRequired": false,
+    "deviceRequiredOriginal": false,
+    "prodSmokeRequired": false,
+    "warnings": []
+  },
+  "steps": [
+    {
+      "name": "静态检查（schema-contract, script-syntax, validate-map）",
+      "status": "PASS",
+      "durationSec": 2.7,
+      "counts": {
+        "issues": 0
+      },
+      "detail": ""
+    },
+    {
+      "name": "JVM 测试（全量）",
+      "status": "PASS",
+      "durationSec": 6.2,
+      "counts": {
+        "tests": 244,
+        "failures": 0
+      },
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-082121/logs/jvm-testDebugUnitTest.log",
+      "detail": ""
+    }
+  ],
+  "deviceSteps": [],
+  "modules": [
+    {
+      "name": "advisor",
+      "title": "AI 顾问",
+      "risk": "high",
+      "status": "PASS",
+      "reasons": [
+        "--all 强制全量回归"
+      ],
+      "jvmStatuses": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "deviceStatuses": [],
+      "durationSec": 0.8,
+      "jvmClassCount": 9
+    },
+    {
+      "name": "ai-consent",
+      "title": "AI 授权与配置",
+      "risk": "high",
+      "status": "PASS",
+      "reasons": [
+        "--all 强制全量回归"
+      ],
+      "jvmStatuses": [
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "deviceStatuses": [],
+      "durationSec": 0.5,
+      "jvmClassCount": 3
+    },
+    {
+      "name": "app-smoke",
+      "title": "应用启动与正式包冒烟",
+      "risk": "high",
+      "status": "SKIPPED",
+      "reasons": [
+        "--all 强制全量回归"
+      ],
+      "jvmStatuses": [],
+      "deviceStatuses": [],
+      "durationSec": 0.0,
+      "jvmClassCount": 0
+    },
+    {
+      "name": "database-migration",
+      "title": "Room Schema / DAO / Migration",
+      "risk": "critical",
+      "status": "SKIPPED",
+      "reasons": [
+        "--all 强制全量回归"
+      ],
+      "jvmStatuses": [],
+      "deviceStatuses": [],
+      "durationSec": 0.0,
+      "jvmClassCount": 0
+    },
+    {
+      "name": "diary",
+      "title": "日记",
+      "risk": "medium",
+      "status": "PASS",
+      "reasons": [
+        "--all 强制全量回归"
+      ],
+      "jvmStatuses": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "deviceStatuses": [],
+      "durationSec": 0.1,
+      "jvmClassCount": 4
+    },
+    {
+      "name": "export",
+      "title": "数据导出",
+      "risk": "high",
+      "status": "PASS",
+      "reasons": [
+        "--all 强制全量回归"
+      ],
+      "jvmStatuses": [
+        "PASS"
+      ],
+      "deviceStatuses": [],
+      "durationSec": 0.1,
+      "jvmClassCount": 1
+    },
+    {
+      "name": "goals",
+      "title": "目标",
+      "risk": "high",
+      "status": "PASS",
+      "reasons": [
+        "--all 强制全量回归"
+      ],
+      "jvmStatuses": [
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "deviceStatuses": [],
+      "durationSec": 0.3,
+      "jvmClassCount": 3
+    },
+    {
+      "name": "growth-memory",
+      "title": "成长记忆与日记提取",
+      "risk": "high",
+      "status": "PASS",
+      "reasons": [
+        "--all 强制全量回归"
+      ],
+      "jvmStatuses": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "deviceStatuses": [],
+      "durationSec": 0.4,
+      "jvmClassCount": 4
+    },
+    {
+      "name": "insight",
+      "title": "成长洞察",
+      "risk": "medium",
+      "status": "PASS",
+      "reasons": [
+        "--all 强制全量回归"
+      ],
+      "jvmStatuses": [
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "deviceStatuses": [],
+      "durationSec": 0.1,
+      "jvmClassCount": 3
+    },
+    {
+      "name": "navigation",
+      "title": "导航与共享 UI",
+      "risk": "medium",
+      "status": "SKIPPED",
+      "reasons": [
+        "--all 强制全量回归"
+      ],
+      "jvmStatuses": [],
+      "deviceStatuses": [],
+      "durationSec": 0.0,
+      "jvmClassCount": 0
+    },
+    {
+      "name": "progress",
+      "title": "进展与打卡",
+      "risk": "high",
+      "status": "PASS",
+      "reasons": [
+        "--all 强制全量回归"
+      ],
+      "jvmStatuses": [
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "deviceStatuses": [],
+      "durationSec": 0.3,
+      "jvmClassCount": 3
+    },
+    {
+      "name": "settings",
+      "title": "设置与主题",
+      "risk": "medium",
+      "status": "SKIPPED",
+      "reasons": [
+        "--all 强制全量回归"
+      ],
+      "jvmStatuses": [],
+      "deviceStatuses": [],
+      "durationSec": 0.0,
+      "jvmClassCount": 0
+    },
+    {
+      "name": "test-infra",
+      "title": "测试体系自身",
+      "risk": "low",
+      "status": "PASS",
+      "reasons": [
+        "--all 强制全量回归"
+      ],
+      "jvmStatuses": [],
+      "deviceStatuses": [],
+      "durationSec": 0.0,
+      "jvmClassCount": 0
+    },
+    {
+      "name": "trends",
+      "title": "趋势",
+      "risk": "medium",
+      "status": "PASS",
+      "reasons": [
+        "--all 强制全量回归"
+      ],
+      "jvmStatuses": [
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "deviceStatuses": [],
+      "durationSec": 0.0,
+      "jvmClassCount": 3
+    },
+    {
+      "name": "weekly-ai",
+      "title": "每周 AI 增强",
+      "risk": "high",
+      "status": "PASS",
+      "reasons": [
+        "--all 强制全量回归"
+      ],
+      "jvmStatuses": [
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "deviceStatuses": [],
+      "durationSec": 0.2,
+      "jvmClassCount": 3
+    },
+    {
+      "name": "weekly-review",
+      "title": "每周成长回顾（本地）",
+      "risk": "high",
+      "status": "PASS",
+      "reasons": [
+        "--all 强制全量回归"
+      ],
+      "jvmStatuses": [
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "deviceStatuses": [],
+      "durationSec": 0.0,
+      "jvmClassCount": 3
+    }
+  ],
+  "failures": [],
+  "notRun": [],
+  "summary": {
+    "verdict": "PASS",
+    "exitCode": 0,
+    "levelSatisfied": true,
+    "levelNotes": [
+      "fast 级别未覆盖以下模块（需 L1+）：app-smoke, database-migration, navigation, settings"
+    ],
+    "pass": 2,
+    "fail": 0,
+    "skipped": 0,
+    "notRun": 0
+  },
+  "artifacts": {
+    "dir": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-082121",
+    "json": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-082121/report.json",
+    "md": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-082121/summary.md",
+    "logs": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-082121/logs"
+  }
+}
