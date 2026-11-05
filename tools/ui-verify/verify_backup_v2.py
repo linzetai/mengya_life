@@ -83,19 +83,25 @@ check("设置页", wait_tag("settings_back", 10))
 check("完整备份入口", scroll_to_tag("settings_backup_v2", 20))
 before_files = set(remote_files())
 tap_tag("settings_backup_v2")
-check("口令对话框", wait_tag("backup_password_dialog", 8))
-tap_tag("backup_password_input")
+check("口令对话框", wait_text("设置备份口令", 8))
+# Compose AlertDialog 是独立窗口，testTag 在部分 ROM 上不映射为 resource-id；
+# 用标签文字定位输入框，避免依赖窗口内 testTag。
+tap_text("备份口令（至少 10 个字符）")
 adb("shell input text '%s'" % PASS)
 close_keyboard()
-tap_tag("backup_password_confirm_input")
+tap_text("再次输入口令")
 adb("shell input text '%s'" % PASS)
 close_keyboard()
-tap_tag("backup_password_confirm")
+backup_start = time.time()
+check("口令已确认", tap_text("开始备份"))
+check("口令对话框已关闭", wait_gone_text("设置备份口令", 8))
 
 print("========== 2. SAF 保存 ==========")
 check("系统保存按钮出现", wait_text("保存", 15))
 tap_text("保存")
 check("备份写入并校验成功", wait_text("完整备份已写入并校验", 30))
+qa_backup_seconds = time.time() - backup_start
+print(f"QA_BACKUP_SECONDS={qa_backup_seconds:.2f}")
 
 print("========== 3. 拉取并用独立探针解密 ==========")
 files = remote_files()
@@ -112,11 +118,11 @@ probe = subprocess.run(
     capture_output=True, text=True,
 )
 check("独立探针解密/哈希/表校验", probe.returncode == 0, (probe.stdout + probe.stderr)[-500:])
-summary = {}
+probe_summary = {}
 if probe.returncode == 0:
-    summary = json.loads(probe.stdout)
-check("QA 构建标记", summary.get("qaBuild") is True, str(summary.get("qaBuild")))
-check("备份包含 10 表计数", len(summary.get("counts", {})) == 10, str(summary.get("counts")))
+    probe_summary = json.loads(probe.stdout)
+check("QA 构建标记", probe_summary.get("qaBuild") is True, str(probe_summary.get("qaBuild")))
+check("备份包含 10 表计数", len(probe_summary.get("counts", {})) == 10, str(probe_summary.get("counts")))
 mapping = {
     "journalEntries": "journal_entries", "goals": "goals", "goalCheckins": "goal_checkins",
     "advisorMessages": "advisor_messages", "goalProposals": "goal_proposals",
@@ -125,10 +131,17 @@ mapping = {
     "weeklyAiReviews": "weekly_ai_reviews",
 }
 for key, table in mapping.items():
-    check("计数一致：" + key, summary.get("counts", {}).get(key) == before_counts.get(table),
-          f"{summary.get('counts', {}).get(key)} vs {before_counts.get(table)}")
+    check("计数一致：" + key, probe_summary.get("counts", {}).get(key) == before_counts.get(table),
+          f"{probe_summary.get('counts', {}).get(key)} vs {before_counts.get(table)}")
 
 check("文件不是明文（无敏感字段）", "encrypted_api_key" not in open(local, "rb").read().decode("utf-8", "replace"))
+
+# 归档假数据样本与独立探针结果，供审计复验；样本不含真实用户数据/Key/consent。
+evidence = os.path.join(ROOT, "docs/reports/G4A1-acceptance/qa")
+os.makedirs(evidence, exist_ok=True)
+if os.path.exists(local):
+    shutil.copyfile(local, os.path.join(evidence, "sample-v2.mengyalife"))
+    open(os.path.join(evidence, "probe.json"), "w").write(probe.stdout)
 
 print("========== 4. 清理测试文件 ==========")
 if remote:
@@ -142,4 +155,5 @@ except OSError:
 # 不恢复：备份是只读快照，数据库计数不变
 check("导出未改变 QA 数据库", db_counts() == before_counts)
 restore_chrome()
+print(f"QA_BACKUP_SECONDS={qa_backup_seconds:.2f}")
 sys.exit(0 if summary() else 1)

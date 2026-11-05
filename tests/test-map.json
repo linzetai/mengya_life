@@ -813,10 +813,10 @@
           "script": "verify_backup_v2.py",
           "package": "qa",
           "tier": "feature",
-          "assertions": 0,
+          "assertions": 28,
           "destructive": true,
           "resetsQaData": true,
-          "measuredSec": null,
+          "measuredSec": 18.06,
           "timeoutSec": 600
         }
       ],
@@ -825,7 +825,7 @@
       "needsQaBuild": true,
       "needsQaReset": true,
       "requiresProdReadonlySmoke": false,
-      "notes": "v2 导出/SAF/回读；JVM 10.0s，QA 真机脚本本轮 NOT RUN（设备离线）。",
+      "notes": "v2 导出/SAF/回读；JVM 10.0s；QA 真机 28/28 PASS，端到端 18.06s（假数据 5,445B）。",
       "estimatedSec": 10.0,
       "measuredSec": 10.0
     },
