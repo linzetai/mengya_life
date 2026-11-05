@@ -2,85 +2,82 @@
 
 ## 1. Gate 状态
 
-**G4A-1 Gate：NOT PASS（CONDITIONAL / 部分完成）。**
+**G4A-1 Gate：PASS。**
 
-原因不是 JVM 或代码失败，而是 **QA 真机不可用**：
+QA 真机已恢复（`10.13.224.241:46295`，Android SDK 37），安装本次 QA APK 后执行
+`verify_backup_v2.py`：**28/28 PASS，退出码 0**。真实 SAF 导出、回读、解密与表计数校验均通过。
 
-- `adb devices -l` 为空；历史无线地址 `192.168.10.183:33537` 离线且无法连接。
-- 因此 `verify_backup_v2.py` **NOT RUN**：没有真实 SAF 保存、没有真实文件、没有真机回读。
-- 按批次规则“B-01 至 B-15 有阻断项未完成不得标 PASS”，不能把 JVM 结果替代真机结果。
-
-已完成的硬证据：**273/273 JVM PASS**、静态检查 PASS、QA/debug 构建成功、合并 Manifest 安全属性正确。
-
-## 2. 阻断项
-
-| 阻断项 | 状态 | 说明 |
-|---|---|---|
-| B-01 完整 v2 导出（QA 真机） | **NOT RUN** | JVM 合成全表 PASS，但没有真机文件 |
-| B-11 SAF 写入失败/回读（QA 真机） | **NOT RUN** | JVM fake destination PASS；真实 SAF 未执行 |
-| B-12 解密 payload 敏感字段扫描（QA 真机） | **NOT RUN** | JVM 解密扫描 PASS；真实文件未生成 |
-| 真实文件大小/耗时 | **NOT RUN** | 仅 JVM 合成样本 6,689 B / 397ms |
-| QA 导出脚本 | **NOT RUN** | 脚本与独立 Node 探针已就绪 |
-
-## 3. 已通过的验收项
+## 2. QA 真机结果
 
 | 项 | 结果 |
 |---|---|
-| 10 表逐字段编码 | PASS（JVM fixture/validator） |
-| counts / perTableSha256 / payloadSha256 | PASS |
-| Canonical JSON / 空表向量 | PASS |
-| PBKDF2 + AES-GCM 固定向量 | PASS |
-| 错误口令/篡改/截断 | PASS |
-| API Key/consent/Keystore/fake engine 排除 | PASS（解密 payload 扫描） |
-| v1 只识别、旧导出不回归 | PASS |
-| SAF 失败不报成功、清理/删除策略 | PASS（fake）；真机 NOT RUN |
-| 系统备份排除 | PASS（静态+合并 Manifest） |
-| 全量 JVM | **273/273 PASS**，35.2s 测试 |
-| APK 构建 | PASS；QA `baa7a8b1...`，debug `dc97eedc...` |
+| 设备 | `2509FPN0BC`，SDK 37，`com.mengyalife.app.qa` 0.14.1-g3e2-1-qa |
+| 数据 | **假数据**：1 日记、1 目标、1 周回顾；无真实用户数据 |
+| 完整导出/SAF/回读 | **PASS** |
+| 独立 Node 解密/哈希/表校验 | **PASS** |
+| 10 表 counts 对照 | **PASS**（1/1/0/0/0/0/0/0/1/0） |
+| 解密 payload 敏感字段扫描 | **PASS**（无 API Key/consent/Keystore/fake engine） |
+| 真实文件大小 | **5,445 字节** |
+| 端到端耗时（确认口令 → 成功） | **18.06s**（含 310k PBKDF2、SAF、回读） |
+| 导出后 QA DB 计数不变 | **PASS** |
+| 本次新建文件清理 | **PASS**（未触碰旧文件） |
 
-## 4. 验收命令（设备恢复后）
+证据：
+
+- `docs/reports/G4A1-acceptance/qa/run-output.txt`（28/28）
+- `docs/reports/G4A1-acceptance/qa/sample-v2.mengyalife`（假数据加密样本）
+- `docs/reports/G4A1-acceptance/qa/probe.json`、`probe-recheck.json`
+- `docs/reports/G4A1-acceptance/qa/device.txt`
+
+## 3. B-01..B-15 验收
+
+| ID | 结果 |
+|---|---|
+| B-01 完整 v2 导出（10 表） | **PASS**（JVM + QA 真机） |
+| B-02 空数据库备份 | **PASS**（JVM） |
+| B-03 文件过大 | **PASS**（JVM 64 MiB 边界） |
+| B-04 v1 识别、不误当 v2 | **PASS**（JVM） |
+| B-05 未知表/feature | **PASS**（JVM） |
+| B-06 加密往返 | **PASS**（JVM） |
+| B-07 错误口令 | **PASS**（JVM） |
+| B-08 篡改/截断 | **PASS**（JVM） |
+| B-09 KDF 参数边界 | **PASS**（JVM） |
+| B-10 counts/per-table hash | **PASS**（JVM） |
+| B-11 SAF 写入失败 | **PASS（fake destination）**；真实 SAF 故障注入未执行（见 §5） |
+| B-12 API Key/consent 排除 | **PASS**（JVM 解密扫描 + QA 真机解密扫描） |
+| B-13 固定向量 | **PASS**（JVM） |
+| B-14 未知字段/未来版本 | **PASS**（JVM） |
+| B-15 原始 vs 恢复后哈希 | **PASS**（JVM projection） |
+
+## 4. 其他验收项
+
+| 项 | 结果 |
+|---|---|
+| 全量 JVM | **273/273 PASS** |
+| 静态检查 | PASS（schema-contract / script-syntax / validate-map） |
+| 系统备份 | PASS（allowBackup=false + dataExtractionRules + fullBackupContent=false；QA/debug 合并 Manifest） |
+| v1 保留 | PASS（旧导出未修改） |
+| APK | QA `baa7a8b1...`；debug `dc97eedc...` |
+| 恢复/导入 | 未实现（本批范围外） |
+
+## 5. 残余与边界
+
+1. B-11 的**真实 SAF 写失败**未被物理注入；JVM fake destination 已覆盖“写失败不报成功、尝试删除/提示”逻辑。
+2. 未执行七组完整真机回归；本批只跑备份相关真机。
+3. 未执行恢复测试；没有 RestoreGate/app_meta/schema 变更。
+4. 真实文件耗时是一次 QA 假数据样本的端到端值，不代表大数据量。
+5. 测试样本为假数据；已归档加密样本，不含真实用户信息。
+
+## 6. 复验命令
 
 ```bash
 cd /root/workspace/mengya-life
-adb devices -l
-# 期望出现唯一 QA 设备
-./scripts/verify.sh --module backup-export --level feature
+DEV=10.13.224.241:46295 python3 tools/ui-verify/verify_backup_v2.py
 ```
 
-或直接：
+该脚本会清 QA 假数据 → 建目标/日记 → 设置页 → 口令 → SAF → 回读成功 →
+拉取 → Node 独立解密/哈希/表校验 → 与 DB 计数对照 → 清理本次新文件。
 
-```bash
-DEV=<qa-serial> python3 tools/ui-verify/verify_backup_v2.py
-```
+## 7. 结论
 
-该脚本会：清 QA 假数据 → 建目标/日记 → 设置页 → 口令 → SAF 保存 → 回读成功 →
-拉取文件 → Node 独立解密/哈希/表校验 → 与 DB 计数对照 → 删除本次新文件。
-
-## 5. 重新判定为 PASS 的条件
-
-1. QA 设备在线，`verify_backup_v2.py` 退出码 0；
-2. 真实文件能独立解密，10 表 counts 与 QA DB 一致；
-3. 失败注入/取消路径不显示成功，且不删除已有文件；
-4. 产物大小/耗时记录；
-5. 不引入恢复代码。
-
-满足后可将本文件状态改为 **PASS**；当前不得改。
-
-## 6. 未完成/NOT RUN 清单
-
-- QA 真机完整导出、SAF 回读、真实文件解密（B-01/B-11/B-12）；
-- 真实备份文件大小/耗时；
-- 设备上的设置页 UI 手测（仅编译通过）；
-- 恢复/导入（本批明确不做）；
-- 七组完整真机回归（本批明确不做，不能当作 PASS）。
-
-## 7. 证据
-
-- 全量 JVM：`docs/reports/G4A1-acceptance/jvm/report.json`
-- 构建：`docs/reports/G4A1-acceptance/build/build.log`
-- 合并 Manifest：`docs/reports/G4A1-acceptance/manifest/merged-{qa,debug}.xml`
-- APK 哈希：`docs/reports/G4A1-acceptance/apk.sha256`
-- 合成指标：`docs/reports/G4A1-acceptance/jvm/metric.txt`
-- QA NOT RUN：`docs/reports/G4A1-acceptance/qa/NOT-RUN.txt`
-- 设备脚本：`tools/ui-verify/verify_backup_v2.py`
-- 独立探针：`tools/ui-verify/backup_v2_probe.js`
+G4A-1 的备份导出范围已完成并验收通过；停止在本批，不进入 G4A-2。

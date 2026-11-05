@@ -3,7 +3,7 @@
 > 批次：G4A-1（只导出，不恢复）。
 > 产品决策：**A1** 默认口令加密；**B1** 核心 7 表 + 洞察/本地周回顾，weekly AI 仅归档；**C1** v1 只识别；**D1** 备份 endpoint/model、不备份 API Key。
 > 时间：2026-11-05（Asia/Shanghai）。
-> 状态：**实现与 JVM 通过；QA 真机 NOT RUN，因此 Gate NOT PASS（部分完成）。**
+> 状态：**PASS（JVM + QA 真机均通过；B-11 真实 SAF 故障注入为残余项）。**
 
 ## 1. 执行摘要
 
@@ -16,7 +16,7 @@
 7. v1 旧导出未修改；设置页同时显示“旧版数据导出（不完整）”与“完整加密备份 v2”。
 8. `fact_ids_json` 技术债独立修正：新写入 JSON 数组，读取兼容旧 U+001F，历史行不改。
 9. **JVM 273/273 PASS**；QA/debug APK 构建成功。
-10. **QA 真机不可用**（`adb devices` 为空，历史无线地址离线），B-01/B-11/B-12 真机部分与真实文件验证 NOT RUN；按规则 Gate 不标 PASS。
+10. **QA 真机 28/28 PASS**：真实 SAF 导出/回读、独立 Node 解密、10 表计数、敏感字段扫描均通过；假数据文件 **5,445 字节**，端到端 **18.06s**。
 
 ## 2. 关键代码路径
 
@@ -65,15 +65,15 @@
 | `--module backup-security --level fast` | 0 | PASS，1 类，9.3s |
 | `--all --level fast` | 0 | PASS，**273/273 JVM**，38.1s |
 | `assembleQa + assembleDebug` | 0 | BUILD SUCCESSFUL，25s |
-| QA `verify_backup_v2.py` | — | **NOT RUN**（无设备） |
+| `verify_backup_v2.py`（QA 真机） | 0 | **PASS，28/28**；端到端 18.06s |
 
-B-01..B-15 的 JVM/静态覆盖与 NOT RUN 逐项见 `G4A1-TEST-RESULTS.md`；Gate 结论见 `G4A1-ACCEPTANCE.md`。
+B-01..B-15 的 JVM/静态与 QA 真机覆盖逐项见 `G4A1-TEST-RESULTS.md`；Gate 结论见 `G4A1-ACCEPTANCE.md`。
 固定 KDF/AES-GCM 向量、Canonical JSON 向量已实际通过（key `a69b...`、ciphertext `67c5...`、tag `73b3...`）。
 
 ## 5. 大小与耗时
 
-- QA 真机真实文件：**NOT RUN**。
-- JVM 合成样本（12 条假记录、310k 迭代）：**6,689 字节 / 397ms**；仅链路与量级，不代表真机。
+- QA 真机真实文件：**5,445 字节**（假数据：1 日记、1 目标、1 周回顾），端到端 **18.06s**。
+- JVM 合成样本（12 条假记录、310k 迭代）：**6,689 字节 / 397ms**；仅链路/量级。
 - 模块耗时：见上表；全量 JVM 测试 35.2s（总 38.1s）。
 
 ## 6. APK
@@ -91,18 +91,18 @@ B-01..B-15 的 JVM/静态覆盖与 NOT RUN 逐项见 `G4A1-TEST-RESULTS.md`；Ga
 | `2d3dcf1` | `4A-1b` v2 格式/加密/导出/快照核心 |
 | `1232dbc` | `4A-1c` 设置页 UI + 系统备份排除 |
 | `69cecde` | `4A-1d` 测试、注册表、QA 探针 |
+| `780091b` | `4A-1e` QA 真机脚本选择器与 28/28 结果 |
 | 本报告提交 | 见最终 `git log -1` |
 
 工作区最终状态：见交付时 `git status --short`（目标 clean）。
 
 ## 8. 未完成 / NOT RUN
 
-1. QA 真机完整导出、SAF 真实写入/回读、真实文件独立解密（B-01/B-11/B-12）。
-2. 真实备份文件大小/耗时。
-3. 真机设置页 UI 手测（仅编译/静态）。
-4. 恢复/导入、RestoreGate、app_meta、schema v12（本批明确不做，未开始 G4A-2）。
-5. 七组完整真机回归（本批不做，不报 PASS）。
+1. B-11 的**真实 SAF 写失败注入**未执行；JVM fake destination 覆盖失败逻辑（残余项）。
+2. 七组完整真机回归（本批不做）。
+3. 恢复/导入、RestoreGate、app_meta、schema v12（本批明确不做，未开始 G4A-2）。
+4. 大数据量真机性能未测；当前仅 1/1/1 假数据样本 5,445B / 18.06s。
 
 ## 9. 结论
 
-**代码与 JVM 层完成；Gate 4A-1 尚未通过。** 设备恢复后执行 `verify_backup_v2.py`，通过才可改状态为 PASS；不得用 JVM/静态结果替代真机证据。完成后停止，不进入 G4A-2。
+**Gate 4A-1 PASS。** 实现、JVM 273/273、QA 真机 28/28、系统备份规则与 APK 构建均已验收。B-11 真实 SAF 故障注入仍为残余项，但不阻塞导出正向链路；完成后停止，不进入 G4A-2。

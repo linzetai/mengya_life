@@ -108,12 +108,12 @@ android:fullBackupContent="false"
 
 | 级别 | 风险 | 状态 |
 |---|---|---|
-| **阻断** | 本轮设备离线，QA 真机 SAF/回读/真实文件未执行 | **NOT RUN**；B-01/B-11/B-12 无真机证据 |
+| P1 | 真实 SAF 写失败未物理注入 | JVM fake destination 覆盖失败路径；QA 正向链路 28/28 PASS |
 | P1 | 设置快照非跨存储原子；变化检测后失败，极端窗口仍可能 | 已两次读取+加密后核对；G4A-2 若加恢复门禁再收紧 |
 | P1 | 生产 310k 迭代未在目标机基准锁定 | 当前实现固定 310k；G4A-1 收口前可基准 |
-| P1 | 缺少 Android instrumentation/SAF 自动化 | QA 脚本已写，未执行 |
+| P1 | 无 Android instrumentation；SAF 由 UIAutomator 脚本覆盖 | QA 真机脚本 28/28 PASS；失败注入仍为 fake |
 | P2 | `BackupPostRestoreProjection` 只是哈希投影，不是恢复 | 明确不用于写 DB |
 
 ## 9. 结论
 
-加密、哈希、秘密排除、系统备份规则在 JVM/静态层已实现并通过测试；**真机 SAF 与真实文件验证未完成**，因此不能把 G4A-1 标为 Gate PASS。
+加密、哈希、秘密排除、系统备份规则在 JVM/静态层已实现并通过测试；**QA 真机 SAF、回读与真实文件独立解密 28/28 PASS**。B-11 真实 SAF 故障注入仍为残余项，不阻塞本批 Gate PASS。

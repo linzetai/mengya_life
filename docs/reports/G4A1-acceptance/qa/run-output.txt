@@ -1,0 +1,38 @@
+========== 0. 准备 QA 假数据 ==========
+PASS  目标已建立
+PASS  日记已建立
+PASS  准备数据非空  {'journal_entries': 1, 'goals': 1, 'goal_checkins': 0, 'advisor_messages': 0, 'goal_proposals': 0, 'growth_signals': 0, 'growth_memories': 0, 'insight_reports': 0, 'weekly_reviews': 1, 'weekly_ai_reviews': 0}
+========== 1. 完整备份 v2 入口与口令 ==========
+PASS  设置页
+PASS  完整备份入口
+PASS  口令对话框
+PASS  口令已确认
+PASS  口令对话框已关闭
+========== 2. SAF 保存 ==========
+PASS  系统保存按钮出现
+PASS  备份写入并校验成功
+QA_BACKUP_SECONDS=18.06
+========== 3. 拉取并用独立探针解密 ==========
+PASS  生成新的 v2 备份文件（不碰旧文件）  []
+PASS  文件已拉取  /tmp/g4a1-backup.mengyalife 5445
+PASS  独立探针解密/哈希/表校验  {"ok":true,"fileBytes":5445,"backupId":"eafcc054-be64-48f3-815d-1b772e7bb245","createdAt":1793845884597,"counts":{"advisorMessages":0,"goalCheckins":0,"goalProposals":0,"goals":1,"growthMemories":0,"growthSignals":0,"insightReports":0,"journalEntries":1,"weeklyAiReviews":0,"weeklyReviews":1},"qaBuild":true,"versionName":"0.14.1-g3e2-1-qa"}
+
+PASS  QA 构建标记  True
+PASS  备份包含 10 表计数  {'advisorMessages': 0, 'goalCheckins': 0, 'goalProposals': 0, 'goals': 1, 'growthMemories': 0, 'growthSignals': 0, 'insightReports': 0, 'journalEntries': 1, 'weeklyAiReviews': 0, 'weeklyReviews': 1}
+PASS  计数一致：journalEntries  1 vs 1
+PASS  计数一致：goals  1 vs 1
+PASS  计数一致：goalCheckins  0 vs 0
+PASS  计数一致：advisorMessages  0 vs 0
+PASS  计数一致：goalProposals  0 vs 0
+PASS  计数一致：growthSignals  0 vs 0
+PASS  计数一致：growthMemories  0 vs 0
+PASS  计数一致：insightReports  0 vs 0
+PASS  计数一致：weeklyReviews  1 vs 1
+PASS  计数一致：weeklyAiReviews  0 vs 0
+PASS  文件不是明文（无敏感字段）
+========== 4. 清理测试文件 ==========
+PASS  QA 导出文件已清理  /sdcard/Download/mengya-life-backup-v2-20261105-103124.mengyalife
+PASS  导出未改变 QA 数据库
+QA_BACKUP_SECONDS=18.06
+
+==== SUMMARY: 28/28 passed ====

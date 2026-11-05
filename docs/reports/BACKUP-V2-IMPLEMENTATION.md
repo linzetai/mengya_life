@@ -94,6 +94,6 @@ Room 只读事务 + DataStore 设置快照
 
 - **没有恢复/导入**；`BackupPostRestoreProjection` 仅做哈希投影，不写 DB。
 - 没有 RestoreGate、恢复状态机、app_meta 表或 schema 变更。
-- 没有真实设备上的导出验证（本轮设备离线，见测试结果）。
+- QA 真机已执行导出验证（28/28 PASS）；真实 SAF 写失败注入仍为残余项。
 - 没有云同步/上传。
 - 未修改正式用户数据。

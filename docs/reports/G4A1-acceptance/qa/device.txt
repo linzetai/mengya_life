@@ -1,0 +1,7 @@
+serial=10.13.224.241:46295
+model=2509FPN0BC
+sdk=37
+package=com.mengyalife.app.qa
+versionName=0.14.1-g3e2-1-qa
+versionCode=15
+qaBuild=true
