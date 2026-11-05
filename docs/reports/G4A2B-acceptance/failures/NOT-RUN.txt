@@ -1,0 +1,4 @@
+R2/R3/R4/R5/R6/R7: NOT RUN
+Reason: QA device disconnected after normal E2E; adb devices empty at wrap-up.
+Script: tools/ui-verify/verify_restore_failures.py (written, not executed).
+This is a Gate blocker; no PASS is claimed for these paths.

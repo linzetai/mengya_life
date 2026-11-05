@@ -1,0 +1,13 @@
+[
+  [
+    1,
+    "8b5b4c20-1931-4c6d-bd04-dbdf226f9f00",
+    "2c1a5dd3-1f1f-417d-ae2f-21e60c2ee9d9",
+    1,
+    "{\"ai\":{\"endpoint\":\"https://api.example.com/v1\",\"model\":\"qa-fake\"},\"themeMode\":\"SYSTEM\",\"weeklyReview\":{\"aiEnabled\":false,\"enabled\":false,\"notificationAsked\":false}}",
+    1793874435037,
+    "42f735b87a656e014c508472c357b2739ebd2527f468a440dff3386f906acfea",
+    "3f1d5ae71690ebc293f0c9281d11dac6b091b8ee7a02ed688c16a39cff694ce2",
+    1793874435084
+  ]
+]

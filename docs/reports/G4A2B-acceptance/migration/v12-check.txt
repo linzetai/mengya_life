@@ -1,0 +1,3 @@
+PRAGMA user_version = 12 (QA device, manual check)
+app_meta columns: id, restore_attempt_id, restore_backup_id, restore_generation, restore_settings_json, restore_completed_at, restore_expected_sha256, restore_payload_sha256, restore_converged_at
+E2E AFTER2 app_meta row persists across restart; see app_meta-AFTER2.json.
