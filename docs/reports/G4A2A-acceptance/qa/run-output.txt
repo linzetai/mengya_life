@@ -1,0 +1,24 @@
+PASS  10 表 QA 夹具就绪
+PASS  样本已推到 Download
+PASS  设置页
+PASS  恢复入口
+PASS  系统文件选择器
+PASS  选择样本文件
+PASS  确定选择
+PASS  恢复口令对话框
+PASS  校验并预览
+PASS  预览出现
+PASS  显示 10 表计数
+PASS  记录不恢复内容
+PASS  明确尚未执行
+PASS  执行按钮不可点击  False
+PASS  没有成功/执行提示
+PASS  预览后 DB 完全不变
+PASS  预览后 10 表 counts 不变
+PASS  预览后仍无写入路径
+PASS  重启后不保留预览/口令
+PASS  重启后应用日志无口令
+PASS  测试文件已清理
+QA_RESTORE_PREVIEW_SECONDS=142.93
+
+==== SUMMARY: 21/21 passed ====

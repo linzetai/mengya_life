@@ -1,0 +1,15 @@
+{
+  "seconds": 142.92701959609985,
+  "dbCounts": {
+    "journal_entries": 2,
+    "goals": 3,
+    "goal_checkins": 2,
+    "advisor_messages": 3,
+    "goal_proposals": 2,
+    "growth_signals": 3,
+    "growth_memories": 2,
+    "insight_reports": 2,
+    "weekly_reviews": 2,
+    "weekly_ai_reviews": 2
+  }
+}
