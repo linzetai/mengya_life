@@ -35,6 +35,12 @@ import com.mengyalife.app.data.insight.InsightService
 import com.mengyalife.app.data.local.DB_SCHEMA_VERSION
 import com.mengyalife.app.data.local.MengyaDatabase
 import com.mengyalife.app.data.preferences.ThemePreferences
+import com.mengyalife.app.data.restore.BackupRestoreReader
+import com.mengyalife.app.data.restore.RestoreCurrentStateSource
+import com.mengyalife.app.data.restore.RestorePlanner
+import com.mengyalife.app.data.restore.RestoreValidator
+import com.mengyalife.app.data.restore.RoomRestoreCurrentStateSource
+import com.mengyalife.app.data.restore.SafRestoreFileSource
 import com.mengyalife.app.data.repository.GoalRepository
 import com.mengyalife.app.data.repository.JournalRepository
 import com.mengyalife.app.data.weekly.WeeklyReviewDataRepository
@@ -250,6 +256,27 @@ class AppContainer(context: Context) {
             destination = SafBackupDestination(appContext),
             verifier = backupExporter::verify,
         )
+    }
+
+    /** G4A-2A：只读 SAF 文件源 + 解密/校验/预览，不提供写入入口。 */
+    val restoreFileSource by lazy { SafRestoreFileSource(appContext) }
+
+    val restoreReader by lazy { BackupRestoreReader() }
+
+    val restoreValidator by lazy {
+        RestoreValidator(
+            expectedApp = BackupAppInfo(
+                appPackage = BuildConfig.APPLICATION_ID,
+                qaBuild = BuildConfig.QA_BUILD,
+                versionName = BuildConfig.VERSION_NAME,
+                versionCode = BuildConfig.VERSION_CODE.toLong(),
+                androidSdk = android.os.Build.VERSION.SDK_INT,
+            ),
+        )
+    }
+
+    val restorePlanner by lazy {
+        RestorePlanner(RoomRestoreCurrentStateSource(database))
     }
 
     /**

@@ -57,6 +57,7 @@ import com.mengyalife.app.ui.advisor.AiSettingsUiState
 import com.mengyalife.app.ui.settings.AiPrivacySection
 import com.mengyalife.app.ui.settings.AiSettingsSection
 import com.mengyalife.app.ui.settings.BackupSection
+import com.mengyalife.app.ui.settings.RestoreSection
 import com.mengyalife.app.ui.settings.ExportUiState
 import com.mengyalife.app.ui.theme.ThemeMode
 import kotlinx.coroutines.launch
@@ -239,7 +240,12 @@ fun SettingsScreen(
                 BackupSection()
             }
 
-            // ---------------- C. 数据与隐私 ----------------
+            // ---------------- C. 恢复只读预览 ----------------
+            item {
+                RestoreSection()
+            }
+
+            // ---------------- D. 数据与隐私 ----------------
             item {
                 SettingsGroup(title = "数据与隐私") {
                     SettingsRow(

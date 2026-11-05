@@ -799,7 +799,8 @@
         "app/src/main/java/com/mengyalife/app/ui/settings/BackupViewModel.kt",
         "app/src/main/java/com/mengyalife/app/ui/settings/BackupSection.kt",
         "app/src/main/java/com/mengyalife/app/data/qa/QaBackupFixtureSeeder.kt",
-        "app/src/main/java/com/mengyalife/app/data/backup/QaBackupFaultInjector.kt"
+        "app/src/main/java/com/mengyalife/app/data/backup/QaBackupFaultInjector.kt",
+        "app/src/main/java/com/mengyalife/app/data/backup/FileBackupTempStore.kt"
       ],
       "dependsOn": [
         "backup-format",
@@ -808,7 +809,8 @@
       "jvmTests": [
         "com.mengyalife.app.backup.BackupExporterTest",
         "com.mengyalife.app.backup.BackupFileWriterTest",
-        "com.mengyalife.app.backup.BackupArtifactMetricsTest"
+        "com.mengyalife.app.backup.BackupArtifactMetricsTest",
+        "com.mengyalife.app.backup.FileBackupTempStoreTest"
       ],
       "device": [
         {
@@ -870,6 +872,48 @@
       "notes": "系统备份排除策略；Manifest/规则变更升级 L2。",
       "estimatedSec": 9.3,
       "measuredSec": 9.3
+    },
+    "restore-validate": {
+      "title": "恢复只读校验/预览",
+      "sourcePaths": [
+        "app/src/main/java/com/mengyalife/app/data/restore/BackupRestoreReader.kt",
+        "app/src/main/java/com/mengyalife/app/data/restore/RestoreModels.kt",
+        "app/src/main/java/com/mengyalife/app/data/restore/RestoreValidator.kt",
+        "app/src/main/java/com/mengyalife/app/data/restore/RestorePlanner.kt",
+        "app/src/main/java/com/mengyalife/app/data/restore/RestoreCurrentStateSource.kt",
+        "app/src/main/java/com/mengyalife/app/data/restore/SafRestoreFileSource.kt",
+        "app/src/main/java/com/mengyalife/app/ui/settings/RestoreViewModel.kt",
+        "app/src/main/java/com/mengyalife/app/ui/settings/RestoreSection.kt"
+      ],
+      "dependsOn": [
+        "backup-format",
+        "backup-crypto"
+      ],
+      "jvmTests": [
+        "com.mengyalife.app.restore.BackupRestoreReaderTest",
+        "com.mengyalife.app.restore.RestoreValidatorTest",
+        "com.mengyalife.app.restore.RestorePlannerTest"
+      ],
+      "device": [
+        {
+          "script": "verify_restore_preview.py",
+          "package": "qa",
+          "tier": "feature",
+          "assertions": 21,
+          "destructive": true,
+          "resetsQaData": true,
+          "measuredSec": 142.93,
+          "timeoutSec": 600
+        }
+      ],
+      "risk": "high",
+      "defaultLevel": "fast",
+      "needsQaBuild": true,
+      "needsQaReset": true,
+      "requiresProdReadonlySmoke": false,
+      "notes": "只读解密/校验/预览；无写入路径。L0 JVM，L1 QA SAF/预览。",
+      "estimatedSec": 30.0,
+      "measuredSec": 6.4
     }
   },
   "impactRules": [
@@ -1167,6 +1211,23 @@
       "minLevel": "integration",
       "testLevel": "integration",
       "reason": "系统备份排除属安全高风险，升级 L2；不跑七组回归。"
+    },
+    {
+      "id": "K-restore-preview",
+      "description": "恢复只读校验/预览变化",
+      "patterns": [
+        "app/src/main/java/com/mengyalife/app/data/restore/**",
+        "app/src/main/java/com/mengyalife/app/ui/settings/Restore*.kt"
+      ],
+      "modules": [
+        "restore-validate"
+      ],
+      "deviceModules": [
+        "restore-validate"
+      ],
+      "minLevel": "fast",
+      "testLevel": "fast",
+      "reason": "编辑循环 L0；功能完成显式跑 L1 SAF 预览。"
     }
   ]
 }
