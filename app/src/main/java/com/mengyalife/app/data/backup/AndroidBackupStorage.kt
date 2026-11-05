@@ -1,38 +1,20 @@
 package com.mengyalife.app.data.backup
 
 import android.content.Context
-import com.mengyalife.app.BuildConfig
 import android.net.Uri
 import android.provider.DocumentsContract
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
-import java.util.UUID
+import java.io.IOException
 
-/** 真实临时文件：noBackupFilesDir/backup-tmp，fsync 后返回绝对路径。 */
-class AndroidBackupTempStore(private val context: Context) : BackupTempStore {
-    private val dir: File by lazy {
-        File(context.noBackupFilesDir, "backup-tmp").apply { mkdirs() }
-    }
+/** 真实临时文件：noBackupFilesDir/backup-tmp；删除失败必须向上抛。 */
+class AndroidBackupTempStore(context: Context) : BackupTempStore {
+    private val delegate = FileBackupTempStore(File(context.noBackupFilesDir, "backup-tmp"))
 
-    override fun write(bytes: ByteArray): String {
-        dir.mkdirs()
-        val file = File(dir, "backup-${UUID.randomUUID()}.tmp")
-        FileOutputStream(file).use { out ->
-            out.write(bytes)
-            out.flush()
-            runCatching { out.fd.sync() }
-        }
-        return file.absolutePath
-    }
-
-    override fun read(ref: String): ByteArray = File(ref).readBytes()
-
-    override fun delete(ref: String) {
-        if (BuildConfig.QA_BUILD && QaBackupFaultInjector.failTempCleanup) {
-            throw java.io.IOException("QA temp cleanup failure")
-        }
-        runCatching { File(ref).delete() }
-    }
+    override fun write(bytes: ByteArray): String = delegate.write(bytes)
+    override fun read(ref: String): ByteArray = delegate.read(ref)
+    override fun delete(ref: String) = delegate.delete(ref)
 }
 
 /** SAF 目标；只在用户通过 CreateDocument 新建的文件上调用 delete。 */
@@ -45,8 +27,10 @@ class SafBackupDestination(private val context: Context) : BackupDestination {
             ?: throw BackupException("SAF_OPEN", "无法打开所选保存位置")
         stream.use { out ->
             val payload = when {
-                BuildConfig.QA_BUILD && QaBackupFaultInjector.failTargetWrite -> bytes.copyOf(minOf(8, bytes.size))
-                BuildConfig.QA_BUILD && QaBackupFaultInjector.truncateTargetWrite -> bytes.copyOf(maxOf(0, bytes.size - 1))
+                com.mengyalife.app.BuildConfig.QA_BUILD && QaBackupFaultInjector.failTargetWrite ->
+                    bytes.copyOf(minOf(8, bytes.size))
+                com.mengyalife.app.BuildConfig.QA_BUILD && QaBackupFaultInjector.truncateTargetWrite ->
+                    bytes.copyOf(maxOf(0, bytes.size - 1))
                 else -> bytes
             }
             out.write(payload)
@@ -54,22 +38,22 @@ class SafBackupDestination(private val context: Context) : BackupDestination {
             runCatching {
                 (out as? FileOutputStream)?.fd?.sync()
             }
-            if (BuildConfig.QA_BUILD && QaBackupFaultInjector.failTargetWrite) {
-                throw java.io.IOException("QA target write failure")
+            if (com.mengyalife.app.BuildConfig.QA_BUILD && QaBackupFaultInjector.failTargetWrite) {
+                throw IOException("QA target write failure")
             }
         }
     }
 
     override fun read(ref: String): ByteArray {
-        if (BuildConfig.QA_BUILD && QaBackupFaultInjector.failTargetRead) {
-            throw java.io.IOException("QA target read failure")
+        if (com.mengyalife.app.BuildConfig.QA_BUILD && QaBackupFaultInjector.failTargetRead) {
+            throw IOException("QA target read failure")
         }
         val uri = Uri.parse(ref)
         val input = resolver.openInputStream(uri)
             ?: throw BackupException("SAF_READ", "无法回读备份文件")
         return input.use { stream ->
             val buffer = ByteArray(64 * 1024)
-            val output = java.io.ByteArrayOutputStream()
+            val output = ByteArrayOutputStream()
             var total = 0
             while (true) {
                 val n = stream.read(buffer)
@@ -85,13 +69,13 @@ class SafBackupDestination(private val context: Context) : BackupDestination {
     }
 
     override fun delete(ref: String): Boolean {
-        if (BuildConfig.QA_BUILD && QaBackupFaultInjector.failTargetDelete) return false
+        if (com.mengyalife.app.BuildConfig.QA_BUILD && QaBackupFaultInjector.failTargetDelete) return false
         return runCatching {
             val uri = Uri.parse(ref)
-        if (DocumentsContract.isDocumentUri(context, uri)) {
-            DocumentsContract.deleteDocument(resolver, uri)
-        } else {
-            false
+            if (DocumentsContract.isDocumentUri(context, uri)) {
+                DocumentsContract.deleteDocument(resolver, uri)
+            } else {
+                false
             }
         }.getOrDefault(false)
     }

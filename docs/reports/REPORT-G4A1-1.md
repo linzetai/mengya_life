@@ -97,7 +97,7 @@ L1/L2 包含 G3F 入口按级别要求的相关脚本；没有执行七组完整
 
 ## 7. 证据包
 
-`G4A1-1-evidence.zip` 包含：实现/测试源码、test-map/CLI 选择规则、QA 脚本、全部 L1/L2/JVM/模块报告、10 表夹具与 DB before/after、加密样本、独立探针、Manifest/XML、Git 清单/HEAD。
+`G4A1-1-evidence.zip`（本机 `/sdcard/Download/DSH-Go/G4A1-1/`，仓库外副本 `/root/workspace/G4A1-1-evidence.zip`）包含：实现/测试源码、test-map/CLI 选择规则、QA 脚本、全部 L1/L2/JVM/模块报告、10 表夹具与 DB before/after、加密样本、独立探针、Manifest/XML、Git 清单/HEAD。
 
 ## 8. 未做
 
