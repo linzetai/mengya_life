@@ -21,6 +21,7 @@ class MengyaApplication : Application() {
         container = AppContainer(this)
         // WorkManager 自身持久化；这里只保证「已开启但任务被系统清理」时恢复唯一任务。
         CoroutineScope(Dispatchers.IO).launch {
+            runCatching { container.restoreCoordinator.reconcileOnStartup() }
             runCatching { container.weeklyReviewScheduler.sync(container.weeklyReviewPreferences) }
         }
     }

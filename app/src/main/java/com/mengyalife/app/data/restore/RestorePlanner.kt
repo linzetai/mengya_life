@@ -46,7 +46,7 @@ class RestorePlanner(private val currentStateSource: RestoreCurrentStateSource) 
             warnings = validation.warnings,
             repairs = validation.repairs,
             notRestored = NOT_RESTORED,
-            canExecute = false,
+            canExecute = true,
             executed = false,
         )
     }

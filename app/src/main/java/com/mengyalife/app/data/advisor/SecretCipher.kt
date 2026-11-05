@@ -24,6 +24,12 @@ interface SecretCipher {
 
     /** 删除 Keystore 中的密钥，使旧密文永久不可解。 */
     fun deleteKey()
+
+    /** 删除后重新加载 Keystore 确认 alias 不存在；默认实现供测试 fake 使用。 */
+    fun deleteKeyConfirmed(): Boolean {
+        deleteKey()
+        return true
+    }
 }
 
 /**
@@ -82,6 +88,12 @@ class AndroidKeystoreCipher(
             if (store.containsAlias(alias)) store.deleteEntry(alias)
         }
     }
+
+    override fun deleteKeyConfirmed(): Boolean = runCatching {
+        val store = keyStore()
+        if (store.containsAlias(alias)) store.deleteEntry(alias)
+        !keyStore().containsAlias(alias)
+    }.getOrDefault(false)
 
     private companion object {
         const val ANDROID_KEYSTORE = "AndroidKeyStore"

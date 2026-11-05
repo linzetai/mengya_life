@@ -10,6 +10,7 @@ import com.mengyalife.app.MengyaApplication
 import com.mengyalife.app.data.restore.RestoreException
 import com.mengyalife.app.data.restore.RestoreFileInfo
 import com.mengyalife.app.data.restore.RestorePreview
+import com.mengyalife.app.data.restore.RestoreRunStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,6 +26,8 @@ data class RestoreUiState(
     val busy: Boolean = false,
     val preview: RestorePreview? = null,
     val error: String? = null,
+    val executing: Boolean = false,
+    val successMessage: String? = null,
 )
 
 /**
@@ -45,9 +48,11 @@ class RestoreViewModel(application: Application) : AndroidViewModel(application)
 
     private var selectedUri: String? = null
     private var passphrase: CharArray? = null
+    private var backupBytes: ByteArray? = null
 
     fun onFileChosen(uri: String) {
         if (_state.value.busy) return
+        clearSecrets()
         selectedUri = uri
         _state.update { it.copy(busy = true, error = null, preview = null, fileName = null) }
         viewModelScope.launch {
@@ -70,7 +75,7 @@ class RestoreViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun cancelPassword() {
-        clearPassphrase()
+        clearSecrets()
         _state.update { it.copy(showPassword = false, fileName = null, fileSize = 0, error = null) }
     }
 
@@ -80,7 +85,7 @@ class RestoreViewModel(application: Application) : AndroidViewModel(application)
         val uri = selectedUri ?: return "请先选择备份文件"
         if (_state.value.busy) return "正在校验，请稍候"
         val chars = password.toCharArray()
-        clearPassphrase()
+        clearSecrets()
         passphrase = chars
         _state.update { it.copy(showPassword = false, busy = true, error = null, preview = null) }
         viewModelScope.launch {
@@ -91,15 +96,15 @@ class RestoreViewModel(application: Application) : AndroidViewModel(application)
                     reader.validateFileSize(bytes.size.toLong())
                     val opened = reader.open(bytes, chars)
                     val validation = validator.validate(opened.payload)
+                    backupBytes = bytes
                     planner.preview(opened, validation, RestoreFileInfo(info.name, bytes.size.toLong()))
                 }
-                clearPassphrase()
                 _state.update { it.copy(busy = false, preview = result, fileName = result.let { p -> state.value.fileName }) }
             } catch (e: RestoreException) {
-                clearPassphrase()
+                clearSecrets()
                 _state.update { it.copy(busy = false, error = userMessage(e)) }
             } catch (e: Exception) {
-                clearPassphrase()
+                clearSecrets()
                 _state.update { it.copy(busy = false, error = "备份校验失败：${e.message ?: "未知错误"}") }
             }
         }
@@ -107,21 +112,47 @@ class RestoreViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun dismissPreview() {
-        clearPassphrase()
+        clearSecrets()
         selectedUri = null
-        _state.update { it.copy(preview = null, fileName = null, fileSize = 0, error = null) }
+        _state.update { it.copy(preview = null, fileName = null, fileSize = 0, error = null, successMessage = null) }
+    }
+
+    /** 用户已勾选确认后由 UI 调用；没有第二套隐藏入口。 */
+    fun executeConfirmed() {
+        val preview = _state.value.preview ?: return
+        val bytes = backupBytes ?: return
+        val pass = passphrase ?: return
+        if (!preview.canExecute || _state.value.executing) return
+        _state.update { it.copy(executing = true, error = null) }
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                container.restoreCoordinator.execute(bytes, pass, preview.payloadSha256, preview.backupId)
+            }
+            clearSecrets()
+            _state.update {
+                if (result.status == RestoreRunStatus.SUCCESS) {
+                    RestoreResultBus.success(result.message)
+                    it.copy(executing = false, preview = null, successMessage = result.message)
+                } else {
+                    it.copy(executing = false, error = result.message)
+                }
+            }
+        }
     }
 
     fun consumeError() { _state.update { it.copy(error = null) } }
 
+    fun consumeSuccess() { _state.update { it.copy(successMessage = null) } }
+
     override fun onCleared() {
-        clearPassphrase()
+        clearSecrets()
         super.onCleared()
     }
 
-    private fun clearPassphrase() {
+    private fun clearSecrets() {
         passphrase?.fill('\u0000')
         passphrase = null
+        backupBytes = null
     }
 
     private fun userMessage(e: RestoreException): String = when (e.code) {

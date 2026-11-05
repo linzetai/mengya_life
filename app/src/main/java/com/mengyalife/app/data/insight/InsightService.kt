@@ -43,6 +43,7 @@ class InsightService(
     private val now: () -> Long = System::currentTimeMillis,
     private val newId: () -> String = { UUID.randomUUID().toString() },
     private val beforeRequest: suspend () -> Unit = {},
+    private val beforeWrite: suspend () -> Unit = {},
 ) {
     suspend fun currentInput(): InsightInput {
         val consent = consentRepository.current()
@@ -120,6 +121,7 @@ class InsightService(
                         error = null,
                         model = null,
                     )
+                    beforeWrite()
                     dao.insert(report.toEntity())
                     InsightGenerationResult.Ready(report)
                 }
@@ -166,6 +168,7 @@ class InsightService(
             error = message.take(300),
             model = model,
         )
+        beforeWrite()
         dao.insert(report.toEntity())
         return InsightGenerationResult.Failed(message, report)
     }

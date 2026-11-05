@@ -19,12 +19,17 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.io.IOException
 
+enum class ConsentResetResult { RESET, ALREADY_RESET }
+
 interface AiConsentRepository {
     val state: Flow<AiConsentState>
     suspend fun current(): AiConsentState
     suspend fun grant(recipient: String, categories: Set<ConsentCategory>)
     suspend fun setCategory(category: ConsentCategory, enabled: Boolean)
     suspend fun withdraw()
+
+    /** 恢复后重置；幂等，epoch 不回退，不 grant。 */
+    suspend fun resetAfterRestore(generation: Long): ConsentResetResult
 }
 
 private val Context.consentDataStore: DataStore<Preferences> by preferencesDataStore(
@@ -50,6 +55,7 @@ class DataStoreAiConsentRepository(
     private val recipientKey = stringPreferencesKey("recipient")
     private val categoriesKey = stringPreferencesKey("categories")
     private val epochKey = longPreferencesKey("epoch")
+    private val lastResetGenerationKey = longPreferencesKey("last_reset_generation")
 
     override val state: Flow<AiConsentState> = appContext.consentDataStore.data
         .catch { throwable ->
@@ -91,6 +97,30 @@ class DataStoreAiConsentRepository(
             prefs[categoriesKey] = encodeCategories(current)
             prefs[epochKey] = (prefs[epochKey] ?: 0L) + 1
         }
+    }
+
+    override suspend fun resetAfterRestore(generation: Long): ConsentResetResult {
+        var result = ConsentResetResult.RESET
+        appContext.consentDataStore.edit { prefs ->
+            val last = prefs[lastResetGenerationKey] ?: 0L
+            val alreadyReset = last >= generation &&
+                (prefs[grantedKey] ?: 0) == 0 &&
+                prefs[recipientKey].orEmpty().isEmpty() &&
+                prefs[categoriesKey].orEmpty().isEmpty()
+            if (alreadyReset) {
+                result = ConsentResetResult.ALREADY_RESET
+                return@edit
+            }
+            prefs[grantedKey] = 0
+            prefs[textVersionKey] = 0
+            prefs[categoriesVersionKey] = 0
+            prefs[grantedAtKey] = 0L
+            prefs[recipientKey] = ""
+            prefs[categoriesKey] = ""
+            prefs[epochKey] = maxOf((prefs[epochKey] ?: 0L) + 1, generation, last + 1)
+            prefs[lastResetGenerationKey] = generation
+        }
+        return result
     }
 
     override suspend fun withdraw() {

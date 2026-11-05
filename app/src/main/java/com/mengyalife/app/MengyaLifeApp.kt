@@ -70,6 +70,8 @@ import com.mengyalife.app.ui.weekly.WeeklyReviewViewModel
 import com.mengyalife.app.data.weekly.WeeklyReviewRouter
 import com.mengyalife.app.ui.settings.AiSettingsViewModel
 import com.mengyalife.app.ui.settings.ExportViewModel
+import com.mengyalife.app.ui.settings.RestoreMaintenanceScreen
+import com.mengyalife.app.ui.settings.RestoreResultHost
 import com.mengyalife.app.ui.settings.ThemeViewModel
 import com.mengyalife.app.ui.theme.MengyaLifeTheme
 import com.mengyalife.app.ui.theme.ThemeMode
@@ -152,6 +154,13 @@ fun MengyaLifeApp() {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
+    }
+
+    val appContext = LocalContext.current.applicationContext as MengyaApplication
+    val restoreGateActive by appContext.container.restoreCoordinator.gateActive.collectAsStateWithLifecycle()
+    if (restoreGateActive) {
+        MengyaLifeTheme(darkTheme = darkTheme) { RestoreMaintenanceScreen() }
+        return
     }
 
     val context = LocalContext.current
@@ -372,6 +381,7 @@ private fun MainShell(
             }
         }
     }
+    RestoreResultHost()
 }
 
 /**

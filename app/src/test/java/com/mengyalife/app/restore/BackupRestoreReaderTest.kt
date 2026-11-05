@@ -33,7 +33,7 @@ class BackupRestoreReaderTest {
         val preview = RestorePlanner(RestoreTestSupport.Current()).preview(
             opened, validation, RestoreFileInfo("full.mengyalife", artifact.bytes.size.toLong()),
         )
-        assertFalse(preview.canExecute)
+        assertTrue(preview.canExecute)
         assertFalse(preview.executed)
         assertEquals(10, preview.counts.size)
         assertEquals("com.mengyalife.app.qa", preview.sourcePackage)

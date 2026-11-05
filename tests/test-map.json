@@ -883,7 +883,18 @@
         "app/src/main/java/com/mengyalife/app/data/restore/RestoreCurrentStateSource.kt",
         "app/src/main/java/com/mengyalife/app/data/restore/SafRestoreFileSource.kt",
         "app/src/main/java/com/mengyalife/app/ui/settings/RestoreViewModel.kt",
-        "app/src/main/java/com/mengyalife/app/ui/settings/RestoreSection.kt"
+        "app/src/main/java/com/mengyalife/app/ui/settings/RestoreSection.kt",
+        "app/src/main/java/com/mengyalife/app/data/local/AppMetaEntity.kt",
+        "app/src/main/java/com/mengyalife/app/data/local/AppMetaDao.kt",
+        "app/src/main/java/com/mengyalife/app/data/restore/RestoreCoordinator.kt",
+        "app/src/main/java/com/mengyalife/app/data/restore/RestoreGate.kt",
+        "app/src/main/java/com/mengyalife/app/data/restore/RestoreJournal.kt",
+        "app/src/main/java/com/mengyalife/app/data/restore/RestorePlan.kt",
+        "app/src/main/java/com/mengyalife/app/data/restore/RestoreTransaction.kt",
+        "app/src/main/java/com/mengyalife/app/data/restore/RestoreSettingsApplier.kt",
+        "app/src/main/java/com/mengyalife/app/data/restore/RestoreSnapshotStore.kt",
+        "app/src/main/java/com/mengyalife/app/ui/settings/RestoreMaintenanceScreen.kt",
+        "app/src/main/java/com/mengyalife/app/ui/settings/RestoreResultBus.kt"
       ],
       "dependsOn": [
         "backup-format",
@@ -904,6 +915,26 @@
           "resetsQaData": true,
           "measuredSec": 142.93,
           "timeoutSec": 600
+        },
+        {
+          "script": "verify_restore_e2e.py",
+          "package": "qa",
+          "tier": "feature",
+          "assertions": 35,
+          "destructive": true,
+          "resetsQaData": true,
+          "measuredSec": 346.84,
+          "timeoutSec": 900
+        },
+        {
+          "script": "verify_restore_failures.py",
+          "package": "qa",
+          "tier": "feature",
+          "assertions": 0,
+          "destructive": true,
+          "resetsQaData": true,
+          "measuredSec": null,
+          "timeoutSec": 1200
         }
       ],
       "risk": "high",
@@ -911,7 +942,7 @@
       "needsQaBuild": true,
       "needsQaReset": true,
       "requiresProdReadonlySmoke": false,
-      "notes": "只读解密/校验/预览；无写入路径。L0 JVM，L1 QA SAF/预览。",
+      "notes": "只读预览+完整恢复E2E；E2E 35/35 PASS；R2-R7失败/崩溃脚本已写但本轮 NOT RUN（设备断开）。",
       "estimatedSec": 30.0,
       "measuredSec": 6.4
     }

@@ -243,4 +243,15 @@ object QaBackupFixtureSeeder {
             )
         }
     }
+
+    /** B 变体：与 A 同为 10 表非空，但日记/目标内容不同，用于恢复后比对。 */
+    suspend fun seedVariantB(database: MengyaDatabase) {
+        seed(database)
+        database.withTransaction {
+            val db = database.openHelper.writableDatabase
+            db.execSQL("UPDATE journal_entries SET title='B 变体日记', body='B body after export' WHERE id=(SELECT MIN(id) FROM journal_entries)")
+            db.execSQL("UPDATE goals SET title='B 变体目标' WHERE level='LONG_TERM'")
+            db.execSQL("UPDATE growth_memories SET content='B 变体记忆' WHERE status='ACTIVE'")
+        }
+    }
 }

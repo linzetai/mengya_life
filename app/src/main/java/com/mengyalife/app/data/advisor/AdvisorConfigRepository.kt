@@ -12,10 +12,22 @@ data class AiConfigSaveResult(
     val error: String? = null,
 )
 
+enum class KeyDeleteResult { DELETED, ALREADY_ABSENT, FAILED }
+
 interface AdvisorConfigRepository {
     val state: Flow<AiConfigState>
     suspend fun save(endpoint: String, model: String, apiKey: String?): AiConfigSaveResult
     suspend fun deleteKey()
+
+    /** 删除并确认 alias 不存在；默认 fake 走旧实现，生产覆盖。 */
+    suspend fun deleteKeyConfirmed(): KeyDeleteResult {
+        deleteKey()
+        return KeyDeleteResult.DELETED
+    }
+
+    /** 恢复非秘密 endpoint/model，不写 Key；默认 no-op。 */
+    suspend fun restoreEndpointAndModel(endpoint: String, model: String) = Unit
+
     suspend fun runtimeConfig(): AdvisorRuntimeConfig?
     suspend fun setUseFakeEngine(enabled: Boolean)
 }
@@ -77,6 +89,19 @@ class DataStoreAdvisorConfigRepository(
         storage.save(existing.copy(encryptedKey = null))
         // 同时删除 Keystore 条目：旧密文即使被恢复也无法再解。
         cipher.deleteKey()
+    }
+
+    override suspend fun deleteKeyConfirmed(): KeyDeleteResult {
+        val existing = storage.load()
+        val confirmed = cipher.deleteKeyConfirmed()
+        if (!confirmed) return KeyDeleteResult.FAILED
+        storage.save(existing.copy(encryptedKey = null))
+        return if (existing.encryptedKey.isNullOrBlank()) KeyDeleteResult.ALREADY_ABSENT else KeyDeleteResult.DELETED
+    }
+
+    override suspend fun restoreEndpointAndModel(endpoint: String, model: String) {
+        val existing = storage.load()
+        storage.save(existing.copy(endpoint = endpoint.trim(), model = model.trim(), encryptedKey = null))
     }
 
     override suspend fun runtimeConfig(): AdvisorRuntimeConfig? {

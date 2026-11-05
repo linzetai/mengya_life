@@ -85,6 +85,7 @@ class RestoreValidator(
         "weeklyAiReviews" to mapOf("status" to setOf("PENDING", "READY", "FAILED", "STALE")),
     )
 
+    @Synchronized
     fun validate(payload: JsonObject): Result {
         warnings.clear(); repairs.clear(); goalById.clear(); journalIds.clear(); goalIds.clear(); messageIds.clear()
         val generator = payload["generator"] as? JsonObject ?: fail("SOURCE_MISSING", "缺少 generator")

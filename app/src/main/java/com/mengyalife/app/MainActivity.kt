@@ -16,6 +16,24 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         if (BuildConfig.QA_BUILD) {
             com.mengyalife.app.data.backup.QaBackupFaultInjector.reset()
+            com.mengyalife.app.data.restore.QaRestoreFaultInjector.reset()
+            if (intent?.getBooleanExtra("qa_restore_fail_transaction", false) == true) {
+                com.mengyalife.app.data.restore.QaRestoreFaultInjector.failTransaction = true
+            }
+            if (intent?.getBooleanExtra("qa_restore_fail_key_delete", false) == true) {
+                com.mengyalife.app.data.restore.QaRestoreFaultInjector.failKeyDelete = true
+            }
+            if (intent?.getBooleanExtra("qa_restore_fail_settings", false) == true) {
+                com.mengyalife.app.data.restore.QaRestoreFaultInjector.failSettings = true
+            }
+            if (intent?.hasExtra("qa_restore_pause_after_commit_ms") == true) {
+                com.mengyalife.app.data.restore.QaRestoreFaultInjector.pauseAfterCommitMs =
+                    intent.getLongExtra("qa_restore_pause_after_commit_ms", 0L)
+            }
+            if (intent?.hasExtra("qa_restore_pause_after_consent_ms") == true) {
+                com.mengyalife.app.data.restore.QaRestoreFaultInjector.pauseAfterConsentMs =
+                    intent.getLongExtra("qa_restore_pause_after_consent_ms", 0L)
+            }
             if (intent?.getBooleanExtra("qa_backup_fail_write", false) == true) {
                 com.mengyalife.app.data.backup.QaBackupFaultInjector.failTargetWrite = true
             }
@@ -56,6 +74,18 @@ class MainActivity : ComponentActivity() {
                 val container = (application as MengyaApplication).container
                 kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
                     container.qaSeedBackupFixture()
+                }
+            }
+            if (intent?.getBooleanExtra("qa_seed_backup_fixture_b", false) == true) {
+                val container = (application as MengyaApplication).container
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    container.qaSeedBackupFixtureB()
+                }
+            }
+            if (intent?.getBooleanExtra("qa_seed_restore_security", false) == true) {
+                val container = (application as MengyaApplication).container
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    com.mengyalife.app.data.qa.QaRestoreSecuritySeeder.seed(container)
                 }
             }
             if (intent?.hasExtra("qa_run_weekly_review") == true) {

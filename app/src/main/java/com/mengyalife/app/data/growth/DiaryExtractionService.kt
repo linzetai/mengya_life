@@ -59,6 +59,7 @@ class DiaryExtractionService(
     private val now: () -> Long = System::currentTimeMillis,
     private val newId: () -> String = { UUID.randomUUID().toString() },
     private val minIntervalMs: Long = 30_000,
+    private val beforeWrite: suspend () -> Unit = {},
     private val transaction: suspend (suspend () -> Unit) -> Unit = { it() },
     private val onSignalsChanged: suspend () -> Unit = {},
     private val preRequestHook: suspend () -> Unit = {},
@@ -193,6 +194,7 @@ class DiaryExtractionService(
                                             contentHash = signalHash(signal.category.name, signal.content),
                                             updatedAt = now(),
                                         )
+                                        beforeWrite()
                                         if (growthSignalDao.insertIgnore(entity) > 0) inserted++
                                     }
                                     if (journalRepository.markAnalysisCompleted(diaryId, hash).not()) {

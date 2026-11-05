@@ -38,6 +38,12 @@ import com.mengyalife.app.data.preferences.ThemePreferences
 import com.mengyalife.app.data.restore.BackupRestoreReader
 import com.mengyalife.app.data.restore.RestoreCurrentStateSource
 import com.mengyalife.app.data.restore.RestorePlanner
+import com.mengyalife.app.data.restore.RestoreCoordinator
+import com.mengyalife.app.data.restore.RestoreGate
+import com.mengyalife.app.data.restore.RestoreJournal
+import com.mengyalife.app.data.restore.RestoreSettingsApplier
+import com.mengyalife.app.data.restore.RestoreSnapshotStore
+import com.mengyalife.app.data.restore.RestoreTransaction
 import com.mengyalife.app.data.restore.RestoreValidator
 import com.mengyalife.app.data.restore.RoomRestoreCurrentStateSource
 import com.mengyalife.app.data.restore.SafRestoreFileSource
@@ -95,6 +101,7 @@ class AppContainer(context: Context) {
             networkEngine = networkAdvisorEngine,
             fakeEngine = fakeAdvisorEngine,
             dao = database.insightReportDao(),
+            beforeWrite = { if (restoreCoordinator.isGateActive()) throw IllegalStateException("恢复维护中") },
         )
     }
 
@@ -116,6 +123,7 @@ class AppContainer(context: Context) {
             fakeEngine = fakeAdvisorEngine,
             transaction = { block -> database.withTransaction { block() } },
             onSignalsChanged = { growthMemoryService.rebuildAll() },
+            beforeWrite = { if (restoreCoordinator.isGateActive()) throw IllegalStateException("恢复维护中") },
         )
     }
 
@@ -161,6 +169,7 @@ class AppContainer(context: Context) {
             fakeEngine = fakeAdvisorEngine,
             dao = database.weeklyAiDao(),
             autoEnabled = { weeklyReviewPreferences.enabled.first() && weeklyReviewPreferences.aiEnabled.first() },
+            beforeComplete = { if (restoreCoordinator.isGateActive()) throw IllegalStateException("恢复维护中") },
         )
     }
 
@@ -179,6 +188,11 @@ class AppContainer(context: Context) {
         com.mengyalife.app.data.qa.QaBackupFixtureSeeder.seed(database)
     }
 
+    suspend fun qaSeedBackupFixtureB() {
+        if (!BuildConfig.QA_BUILD) return
+        com.mengyalife.app.data.qa.QaBackupFixtureSeeder.seedVariantB(database)
+    }
+
     val themePreferences: ThemePreferences by lazy {
         ThemePreferences(appContext)
     }
@@ -195,7 +209,7 @@ class AppContainer(context: Context) {
     }
 
     val conversationRepository: ConversationRepository by lazy {
-        RoomConversationRepository(database.advisorMessageDao())
+        RoomConversationRepository(database.advisorMessageDao(), canWrite = { !restoreCoordinator.isGateActive() })
     }
 
     val aiConsentRepository: AiConsentRepository by lazy {
@@ -277,6 +291,41 @@ class AppContainer(context: Context) {
 
     val restorePlanner by lazy {
         RestorePlanner(RoomRestoreCurrentStateSource(database))
+    }
+
+    private val restoreDir get() = java.io.File(appContext.noBackupFilesDir, "restore")
+    private val restoreGate by lazy { RestoreGate(restoreDir) }
+    private val restoreJournal by lazy { RestoreJournal(restoreDir) }
+    private val restoreSnapshotStore by lazy {
+        RestoreSnapshotStore(
+            dir = restoreDir,
+            exporter = backupExporter,
+            keyCipher = AndroidKeystoreCipher("mengya_restore_snapshot"),
+        )
+    }
+    private val restoreSettingsApplier by lazy {
+        RestoreSettingsApplier(themePreferences, weeklyReviewPreferences, advisorConfigRepository)
+    }
+    val restoreCoordinator by lazy {
+        RestoreCoordinator(
+            database = database,
+            gate = restoreGate,
+            journal = restoreJournal,
+            snapshotStore = restoreSnapshotStore,
+            transaction = RestoreTransaction(database),
+            consentRepository = aiConsentRepository,
+            configRepository = advisorConfigRepository,
+            weeklyPreferences = weeklyReviewPreferences,
+            settingsApplier = restoreSettingsApplier,
+            reader = restoreReader,
+            validator = restoreValidator,
+            evidenceDir = if (BuildConfig.QA_BUILD) restoreDir else null,
+            onSuccess = { message ->
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    android.widget.Toast.makeText(appContext, message, android.widget.Toast.LENGTH_LONG).show()
+                }
+            },
+        )
     }
 
     /**

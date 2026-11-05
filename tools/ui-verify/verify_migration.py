@@ -2,7 +2,7 @@
 
 用仓库里的 Room schema 10.json 生成一个真实的 v10 数据库，写入样例数据，
 推到 QA 包数据库位置后启动应用，让 Room 自己执行 10→11 迁移，再检查：
-- user_version = 11；
+- user_version = 12；
 - 日记/目标/进展/每周回顾行逐项保留；
 - 新表/新列存在；
 - 迁移后再次启动不崩溃、不重复迁移。
@@ -128,7 +128,7 @@ check("应用在前台", ensure_foreground())
 time.sleep(1.5)
 
 uv, tables, journals, goals, checkins, weekly, cols = snapshot(pull_db())
-check("user_version 升级为 11", uv == 11, f"user_version={uv}")
+check("user_version 升级为 12", uv == 12, f"user_version={uv}")
 check("日记 2 条完整保留", journals == [(1, "MigA", "alpha v10 body"), (2, "MigB", "beta v10 body")], str(journals))
 check("目标保留", goals == [(1, "MigGoal", "LONG_TERM", "IN_PROGRESS")], str(goals))
 check("进展保留", checkins == [(1, 1, 3.0, "min")], str(checkins))
@@ -141,8 +141,9 @@ check("无迁移崩溃", "com.mengyalife.app" not in adb("shell logcat -b crash 
 
 print("========== 2. 再次启动（幂等） ==========")
 uv2, *_ = snapshot(pull_db())
-check("再次启动 user_version 仍为 11", uv2 == 11, f"user_version={uv2}")
+check("再次启动 user_version 仍为 12", uv2 == 12, f"user_version={uv2}")
 check("数据库包含 weekly_ai_reviews", "weekly_ai_reviews" in tables, str(sorted(tables)))
+check("数据库包含 app_meta", "app_meta" in tables, str(sorted(tables)))
 check("迁移新增 config_hash 列", "config_hash" in cols, str(cols))
 
 # 清理本脚本产生的夹具；QA 数据由调度器/后续用例处理

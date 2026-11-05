@@ -25,7 +25,7 @@ class RestorePlannerTest {
         assertEquals(2, preview.counts.first { it.key == "goals" }.backupCount)
         assertTrue(preview.counts.filter { it.key != "weeklyAiReviews" }.all { it.willRestore })
         assertFalse(preview.counts.first { it.key == "weeklyAiReviews" }.willRestore)
-        assertFalse(preview.canExecute)
+        assertTrue(preview.canExecute)
         assertFalse(preview.executed)
         assertTrue(preview.backupTimeLabel.isNotBlank())
         assertTrue(preview.notRestored.any { it.contains("通知权限") })

@@ -12,6 +12,7 @@ class WeeklyReviewWorker(
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
         val app = applicationContext as? MengyaApplication ?: return Result.success()
+        if (app.container.restoreCoordinator.isGateActive()) return Result.success()
         val preferences = app.container.weeklyReviewPreferences
         if (!preferences.current()) return Result.success()
         return try {

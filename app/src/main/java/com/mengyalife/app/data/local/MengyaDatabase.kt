@@ -52,7 +52,7 @@ import com.mengyalife.app.data.local.proposal.GoalProposalEntity
  * 4. 迁移必须在真机升级安装上验证（本轮已做 v1→v2 实测，见报告）。
  */
 /** 数据库结构版本。导出文件里的 `databaseVersion` 与它保持一致。 */
-const val DB_SCHEMA_VERSION = 11
+const val DB_SCHEMA_VERSION = 12
 
 @Database(
     entities = [
@@ -66,6 +66,7 @@ const val DB_SCHEMA_VERSION = 11
         InsightReportEntity::class,
         WeeklyReviewEntity::class,
         WeeklyAiEntity::class,
+        AppMetaEntity::class,
     ],
     version = DB_SCHEMA_VERSION,
     exportSchema = true,
@@ -90,6 +91,8 @@ abstract class MengyaDatabase : RoomDatabase() {
     abstract fun weeklyReviewDao(): WeeklyReviewDao
 
     abstract fun weeklyAiDao(): WeeklyAiDao
+
+    abstract fun appMetaDao(): AppMetaDao
 
     companion object {
         // 正式版与 QA 测试构建使用不同的物理库文件（见 app/build.gradle 的 buildConfigField）。
@@ -367,6 +370,28 @@ abstract class MengyaDatabase : RoomDatabase() {
             }
         }
 
+        /** v11 → v12：恢复单行元数据；不触碰业务表。 */
+        val MIGRATION_11_12: Migration = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `app_meta` (
+                        `id` INTEGER PRIMARY KEY NOT NULL,
+                        `restore_attempt_id` TEXT,
+                        `restore_backup_id` TEXT,
+                        `restore_generation` INTEGER NOT NULL DEFAULT 0,
+                        `restore_settings_json` TEXT,
+                        `restore_completed_at` INTEGER,
+                        `restore_expected_sha256` TEXT,
+                        `restore_payload_sha256` TEXT,
+                        `restore_converged_at` INTEGER
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("INSERT OR IGNORE INTO `app_meta` (`id`, `restore_generation`) VALUES (1, 0)")
+            }
+        }
+
         @Volatile
         private var instance: MengyaDatabase? = null
 
@@ -380,7 +405,7 @@ abstract class MengyaDatabase : RoomDatabase() {
                     MengyaDatabase::class.java,
                     DATABASE_NAME,
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
                     .build()
                     .also { instance = it }
             }

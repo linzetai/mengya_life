@@ -46,6 +46,7 @@ class RoomConversationRepository(
     private val dao: AdvisorMessageDao,
     private val now: () -> Long = System::currentTimeMillis,
     private val newId: () -> String = { UUID.randomUUID().toString() },
+    private val canWrite: () -> Boolean = { true },
 ) : ConversationRepository {
 
     override fun observeMessages(): Flow<List<AdvisorMessage>> =
@@ -123,6 +124,7 @@ class RoomConversationRepository(
     }
 
     private suspend fun insert(entity: AdvisorMessageEntity): AdvisorMessage {
+        if (!canWrite()) throw IllegalStateException("恢复维护中，禁止写入对话")
         dao.insert(entity)
         return toDomain(entity)
     }

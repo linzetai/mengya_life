@@ -191,6 +191,10 @@ class FakeConsentRepository(
         if (enabled) current.add(category) else current.remove(category)
         flow.value = flow.value.copy(categories = current, epoch = flow.value.epoch + 1)
     }
+    override suspend fun resetAfterRestore(generation: Long): com.mengyalife.app.data.consent.ConsentResetResult {
+        return com.mengyalife.app.data.consent.ConsentResetResult.RESET
+    }
+
     override suspend fun withdraw() {
         flow.value = AiConsentState(epoch = flow.value.epoch + 1)
     }

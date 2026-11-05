@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -37,8 +38,11 @@ fun RestoreSection() {
     val vm: RestoreViewModel = viewModel(factory = RestoreViewModel.Factory)
     val state by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val app = context.applicationContext as com.mengyalife.app.MengyaApplication
+    val completion by app.container.restoreCoordinator.completionMessage.collectAsStateWithLifecycle()
     var password by remember { mutableStateOf("") }
     var passwordError by remember { mutableStateOf<String?>(null) }
+    var riskAccepted by remember(state.preview?.backupId) { mutableStateOf(false) }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) vm.onFileChosen(uri.toString())
@@ -48,6 +52,19 @@ fun RestoreSection() {
         val error = state.error ?: return@LaunchedEffect
         Toast.makeText(context, error, Toast.LENGTH_LONG).show()
         vm.consumeError()
+    }
+
+    completion?.let { message ->
+        androidx.compose.material3.Card(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp).testTag("restore_success_banner"),
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text("恢复完成", style = MaterialTheme.typography.titleMedium)
+                Text(message, style = MaterialTheme.typography.bodySmall)
+                Text("API Key 与 AI 授权不会恢复；旧自动发送已关闭。", style = MaterialTheme.typography.bodySmall)
+                TextButton(onClick = { app.container.restoreCoordinator.clearCompletionMessage() }) { Text("关闭提示") }
+            }
+        }
     }
 
     SettingsGroup(title = "恢复备份（只读预览）") {
@@ -145,16 +162,30 @@ fun RestoreSection() {
                     Text("不会恢复", style = MaterialTheme.typography.labelLarge)
                     preview.notRestored.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
                     Spacer(Modifier.height(8.dp))
+                    Text("恢复会替换本机全部用户数据。建议先关闭预览，用上方“完整加密备份”导出当前数据。",
+                        color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = riskAccepted,
+                            onCheckedChange = { riskAccepted = it },
+                            modifier = Modifier.testTag("restore_risk_checkbox"),
+                        )
+                        Text("我理解会替换本机数据，且恢复后需要重新配置 API Key/授权",
+                            style = MaterialTheme.typography.bodySmall)
+                    }
                     Text("尚未执行恢复；没有写入任何数据。", color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodyMedium)
+                    if (state.executing) {
+                        Text("正在恢复数据并完成安全重置…", modifier = Modifier.testTag("restore_executing"))
+                    }
                 }
             },
             confirmButton = {
                 TextButton(
-                    enabled = false,
-                    onClick = {},
-                    modifier = Modifier.testTag("restore_execute_disabled"),
-                ) { Text("执行恢复（G4A-2B 开放）") }
+                    enabled = riskAccepted && !state.executing,
+                    onClick = { vm.executeConfirmed() },
+                    modifier = Modifier.testTag("restore_execute"),
+                ) { Text("确认恢复（替换本机数据）") }
             },
             dismissButton = {
                 TextButton(
@@ -164,4 +195,5 @@ fun RestoreSection() {
             },
         )
     }
+
 }
