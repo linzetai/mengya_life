@@ -12,6 +12,7 @@ class FakeGrowthSignalDao : GrowthSignalDao {
         rows.map { list -> list.filter { it.sourceId == diaryId && it.status in setOf("ACTIVE", "CORRECTED") } }
     override suspend fun loadForDiary(diaryId: Long): List<GrowthSignalEntity> =
         rows.value.filter { it.sourceId == diaryId && it.status in setOf("ACTIVE", "CORRECTED") }
+    override suspend fun loadAll(): List<GrowthSignalEntity> = rows.value
     override suspend fun loadActive(limit: Int): List<GrowthSignalEntity> =
         rows.value.filter { it.status in setOf("ACTIVE", "CORRECTED") }.take(limit)
     override suspend fun findById(id: String): GrowthSignalEntity? = rows.value.firstOrNull { it.id == id }

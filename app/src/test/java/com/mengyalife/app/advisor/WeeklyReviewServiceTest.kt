@@ -29,6 +29,7 @@ private class FakeWeeklyDao : WeeklyReviewDao {
     override fun observeLatest(): Flow<WeeklyReviewEntity?> = rows.map { it.lastOrNull() }
     override suspend fun latest(): WeeklyReviewEntity? = rows.value.lastOrNull()
     override suspend fun findByPeriod(key: String): WeeklyReviewEntity? = rows.value.firstOrNull { it.periodKey == key }
+    override suspend fun loadAll(): List<WeeklyReviewEntity> = rows.value
     override suspend fun upsert(review: WeeklyReviewEntity) {
         rows.value = rows.value.filterNot { it.periodKey == review.periodKey } + review
     }

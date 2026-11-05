@@ -8,6 +8,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface WeeklyAiDao {
+    @Query("SELECT * FROM weekly_ai_reviews ORDER BY period_key ASC")
+    suspend fun loadAll(): List<WeeklyAiEntity>
+
     @Query("SELECT * FROM weekly_ai_reviews ORDER BY generated_at DESC LIMIT 1")
     fun observeLatest(): Flow<WeeklyAiEntity?>
 

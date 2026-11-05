@@ -33,6 +33,7 @@ private class FakeInsightDao : InsightReportDao {
     override suspend fun latest(): InsightReportEntity? = rows.value.lastOrNull()
     override suspend fun findByDataVersion(version: String): InsightReportEntity? =
         rows.value.lastOrNull { it.dataVersion == version }
+    override suspend fun loadAll(): List<InsightReportEntity> = rows.value
     override suspend fun insert(report: InsightReportEntity) { rows.value = rows.value + report }
 }
 

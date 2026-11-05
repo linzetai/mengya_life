@@ -33,6 +33,7 @@ private class FakeAiDao : WeeklyAiDao {
     val rows = MutableStateFlow<List<WeeklyAiEntity>>(emptyList())
     override fun observeLatest(): Flow<WeeklyAiEntity?> = rows.map { it.lastOrNull() }
     override suspend fun findByPeriod(key: String): WeeklyAiEntity? = rows.value.firstOrNull { it.periodKey == key }
+    override suspend fun loadAll(): List<WeeklyAiEntity> = rows.value
     override suspend fun insertIfAbsent(row: WeeklyAiEntity): Long {
         if (rows.value.any { it.periodKey == row.periodKey }) return -1
         rows.value = rows.value + row; return 1

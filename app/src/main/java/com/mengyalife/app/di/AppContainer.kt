@@ -4,6 +4,13 @@ import android.content.Context
 import androidx.room.withTransaction
 import com.mengyalife.app.BuildConfig
 import com.mengyalife.app.data.advisor.AdvisorConfigRepository
+import com.mengyalife.app.data.backup.AndroidBackupTempStore
+import com.mengyalife.app.data.backup.AppBackupSettingsSource
+import com.mengyalife.app.data.backup.BackupAppInfo
+import com.mengyalife.app.data.backup.BackupExporter
+import com.mengyalife.app.data.backup.BackupFileWriter
+import com.mengyalife.app.data.backup.RoomBackupSnapshotSource
+import com.mengyalife.app.data.backup.SafBackupDestination
 import com.mengyalife.app.data.advisor.AdvisorDataRepository
 import com.mengyalife.app.data.advisor.AndroidKeystoreCipher
 import com.mengyalife.app.data.advisor.ConversationRepository
@@ -209,6 +216,34 @@ class AppContainer(context: Context) {
     /** 仅 QA 构建提供；正式包永远为 null，避免假回复出现在真实产品里。 */
     val fakeAdvisorEngine: FakeAdvisorEngine? by lazy {
         if (BuildConfig.QA_BUILD) FakeAdvisorEngine() else null
+    }
+
+    /** v2 完整加密备份：只读快照 + 设置快照 + 格式/加密。 */
+    val backupExporter: BackupExporter by lazy {
+        BackupExporter(
+            snapshotSource = RoomBackupSnapshotSource(database),
+            settingsSource = AppBackupSettingsSource(
+                themePreferences = themePreferences,
+                weeklyPreferences = weeklyReviewPreferences,
+                configRepository = advisorConfigRepository,
+            ),
+            appInfo = BackupAppInfo(
+                appPackage = BuildConfig.APPLICATION_ID,
+                qaBuild = BuildConfig.QA_BUILD,
+                versionName = BuildConfig.VERSION_NAME,
+                versionCode = BuildConfig.VERSION_CODE.toLong(),
+                androidSdk = android.os.Build.VERSION.SDK_INT,
+            ),
+        )
+    }
+
+    /** v2 写入：私有临时文件 + SAF + 回读解密校验。 */
+    val backupFileWriter: BackupFileWriter by lazy {
+        BackupFileWriter(
+            tempStore = AndroidBackupTempStore(appContext),
+            destination = SafBackupDestination(appContext),
+            verifier = backupExporter::verify,
+        )
     }
 
     /**

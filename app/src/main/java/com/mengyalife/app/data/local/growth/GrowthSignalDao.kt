@@ -9,6 +9,10 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface GrowthSignalDao {
 
+    /** 完整备份用：读取全部线索（含 DELETED/STALE）。 */
+    @Query("SELECT * FROM growth_signals ORDER BY extracted_at ASC, id ASC")
+    suspend fun loadAll(): List<GrowthSignalEntity>
+
     @Query(
         """
         SELECT * FROM growth_signals

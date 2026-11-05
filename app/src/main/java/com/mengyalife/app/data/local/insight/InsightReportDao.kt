@@ -21,6 +21,9 @@ interface InsightReportDao {
     )
     suspend fun findByDataVersion(version: String): InsightReportEntity?
 
+    @Query("SELECT * FROM insight_reports ORDER BY generated_at ASC, id ASC")
+    suspend fun loadAll(): List<InsightReportEntity>
+
     @Insert
     suspend fun insert(report: InsightReportEntity)
 }

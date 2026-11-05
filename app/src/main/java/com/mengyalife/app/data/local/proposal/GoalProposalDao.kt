@@ -8,6 +8,9 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface GoalProposalDao {
     @Query("SELECT * FROM goal_proposals ORDER BY created_at ASC, id ASC")
+    suspend fun loadAll(): List<GoalProposalEntity>
+
+    @Query("SELECT * FROM goal_proposals ORDER BY created_at ASC, id ASC")
     fun observeAll(): Flow<List<GoalProposalEntity>>
 
     @Query("SELECT * FROM goal_proposals WHERE id = :id LIMIT 1")

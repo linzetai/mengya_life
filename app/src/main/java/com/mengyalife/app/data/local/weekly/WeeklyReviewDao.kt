@@ -11,6 +11,9 @@ interface WeeklyReviewDao {
     @Query("SELECT * FROM weekly_reviews ORDER BY period_start DESC, generated_at DESC LIMIT 1")
     fun observeLatest(): Flow<WeeklyReviewEntity?>
 
+    @Query("SELECT * FROM weekly_reviews ORDER BY period_start ASC, id ASC")
+    suspend fun loadAll(): List<WeeklyReviewEntity>
+
     @Query("SELECT * FROM weekly_reviews ORDER BY period_start DESC, generated_at DESC LIMIT 1")
     suspend fun latest(): WeeklyReviewEntity?
 
