@@ -15,6 +15,22 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (BuildConfig.QA_BUILD) {
+            com.mengyalife.app.data.backup.QaBackupFaultInjector.reset()
+            if (intent?.getBooleanExtra("qa_backup_fail_write", false) == true) {
+                com.mengyalife.app.data.backup.QaBackupFaultInjector.failTargetWrite = true
+            }
+            if (intent?.getBooleanExtra("qa_backup_truncate_write", false) == true) {
+                com.mengyalife.app.data.backup.QaBackupFaultInjector.truncateTargetWrite = true
+            }
+            if (intent?.getBooleanExtra("qa_backup_fail_read", false) == true) {
+                com.mengyalife.app.data.backup.QaBackupFaultInjector.failTargetRead = true
+            }
+            if (intent?.getBooleanExtra("qa_backup_fail_delete", false) == true) {
+                com.mengyalife.app.data.backup.QaBackupFaultInjector.failTargetDelete = true
+            }
+            if (intent?.getBooleanExtra("qa_backup_fail_temp_cleanup", false) == true) {
+                com.mengyalife.app.data.backup.QaBackupFaultInjector.failTempCleanup = true
+            }
             com.mengyalife.app.data.advisor.QaFaultInjector.reset()
             if (intent?.hasExtra("qa_fail_create_at") == true) {
                 com.mengyalife.app.data.advisor.QaFaultInjector.failCreateAt =
@@ -35,6 +51,12 @@ class MainActivity : ComponentActivity() {
             if (intent?.hasExtra("qa_extract_delay_ms") == true) {
                 com.mengyalife.app.data.growth.QaExtractionGate.delayBeforeRequestMs =
                     intent.getIntExtra("qa_extract_delay_ms", 0).toLong().coerceAtLeast(0)
+            }
+            if (intent?.getBooleanExtra("qa_seed_backup_fixture", false) == true) {
+                val container = (application as MengyaApplication).container
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    container.qaSeedBackupFixture()
+                }
             }
             if (intent?.hasExtra("qa_run_weekly_review") == true) {
                 (application as MengyaApplication).container.weeklyReviewScheduler.runNowForQa()

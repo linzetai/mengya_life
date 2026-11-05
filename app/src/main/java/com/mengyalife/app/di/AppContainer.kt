@@ -167,6 +167,12 @@ class AppContainer(context: Context) {
         database.openHelper.writableDatabase.execSQL("DELETE FROM weekly_ai_reviews")
     }
 
+    /** G4A-1.1 QA-only：10 表全字段非空夹具；正式包忽略。 */
+    suspend fun qaSeedBackupFixture() {
+        if (!BuildConfig.QA_BUILD) return
+        com.mengyalife.app.data.qa.QaBackupFixtureSeeder.seed(database)
+    }
+
     val themePreferences: ThemePreferences by lazy {
         ThemePreferences(appContext)
     }

@@ -19,6 +19,7 @@ interface BackupDestination {
 data class BackupWriteResult(
     val ok: Boolean,
     val fileMayBeInvalid: Boolean = false,
+    val tempCleanupFailed: Boolean = false,
     val errorCode: String? = null,
     val message: String? = null,
 )
@@ -37,29 +38,42 @@ class BackupFileWriter(
     fun commit(ref: String, artifact: BackupArtifact, passphrase: CharArray): BackupWriteResult {
         var tempRef: String? = null
         var wroteDestination = false
-        return try {
-            tempRef = tempStore.write(artifact.bytes)
-            val tempBytes = tempStore.read(tempRef)
+        var result = BackupWriteResult(false, errorCode = "INTERNAL", message = "备份写入未完成")
+        try {
+            val temp = tempStore.write(artifact.bytes)
+            tempRef = temp
+            val tempBytes = tempStore.read(temp)
             if (!tempBytes.contentEquals(artifact.bytes)) {
-                return BackupWriteResult(false, errorCode = "TEMP_VERIFY", message = "临时文件校验失败")
+                result = BackupWriteResult(false, errorCode = "TEMP_VERIFY", message = "临时文件校验失败")
+            } else {
+                verifier(tempBytes, passphrase)
+                wroteDestination = true
+                destination.write(ref, artifact.bytes)
+                val readBack = destination.read(ref)
+                result = if (!readBack.contentEquals(artifact.bytes)) {
+                    failure(ref, "READBACK_MISMATCH", "回读内容与写入不一致")
+                } else {
+                    verifier(readBack, passphrase)
+                    BackupWriteResult(true)
+                }
             }
-            verifier(tempBytes, passphrase)
-
-            wroteDestination = true
-            destination.write(ref, artifact.bytes)
-            val readBack = destination.read(ref)
-            if (!readBack.contentEquals(artifact.bytes)) {
-                return failure(ref, "READBACK_MISMATCH", "回读内容与写入不一致")
-            }
-            verifier(readBack, passphrase)
-            BackupWriteResult(true)
         } catch (e: BackupException) {
-            failure(ref, e.code, e.message ?: "备份校验失败", wroteDestination)
+            result = failure(ref, e.code, e.message ?: "备份校验失败", wroteDestination)
         } catch (e: Exception) {
-            failure(ref, "WRITE_FAILED", e.message ?: "无法写入所选位置", wroteDestination)
+            result = failure(ref, "WRITE_FAILED", e.message ?: "无法写入所选位置", wroteDestination)
         } finally {
-            tempRef?.let { runCatching { tempStore.delete(it) } }
+            val temp = tempRef
+            if (temp != null && runCatching { tempStore.delete(temp) }.isFailure) {
+                result = result.copy(
+                    tempCleanupFailed = true,
+                    message = listOfNotNull(
+                        result.message,
+                        "临时文件清理失败（内容已加密，请稍后重试清理）",
+                    ).joinToString("；"),
+                )
+            }
         }
+        return result
     }
 
     private fun failure(ref: String, code: String, message: String, attemptedWrite: Boolean = true): BackupWriteResult {

@@ -1,6 +1,7 @@
 package com.mengyalife.app.data.backup
 
 import android.content.Context
+import com.mengyalife.app.BuildConfig
 import android.net.Uri
 import android.provider.DocumentsContract
 import java.io.File
@@ -27,6 +28,9 @@ class AndroidBackupTempStore(private val context: Context) : BackupTempStore {
     override fun read(ref: String): ByteArray = File(ref).readBytes()
 
     override fun delete(ref: String) {
+        if (BuildConfig.QA_BUILD && QaBackupFaultInjector.failTempCleanup) {
+            throw java.io.IOException("QA temp cleanup failure")
+        }
         runCatching { File(ref).delete() }
     }
 }
@@ -40,15 +44,26 @@ class SafBackupDestination(private val context: Context) : BackupDestination {
         val stream = resolver.openOutputStream(uri, "wt")
             ?: throw BackupException("SAF_OPEN", "无法打开所选保存位置")
         stream.use { out ->
-            out.write(bytes)
+            val payload = when {
+                BuildConfig.QA_BUILD && QaBackupFaultInjector.failTargetWrite -> bytes.copyOf(minOf(8, bytes.size))
+                BuildConfig.QA_BUILD && QaBackupFaultInjector.truncateTargetWrite -> bytes.copyOf(maxOf(0, bytes.size - 1))
+                else -> bytes
+            }
+            out.write(payload)
             out.flush()
             runCatching {
                 (out as? FileOutputStream)?.fd?.sync()
+            }
+            if (BuildConfig.QA_BUILD && QaBackupFaultInjector.failTargetWrite) {
+                throw java.io.IOException("QA target write failure")
             }
         }
     }
 
     override fun read(ref: String): ByteArray {
+        if (BuildConfig.QA_BUILD && QaBackupFaultInjector.failTargetRead) {
+            throw java.io.IOException("QA target read failure")
+        }
         val uri = Uri.parse(ref)
         val input = resolver.openInputStream(uri)
             ?: throw BackupException("SAF_READ", "无法回读备份文件")
@@ -69,12 +84,15 @@ class SafBackupDestination(private val context: Context) : BackupDestination {
         }
     }
 
-    override fun delete(ref: String): Boolean = runCatching {
-        val uri = Uri.parse(ref)
+    override fun delete(ref: String): Boolean {
+        if (BuildConfig.QA_BUILD && QaBackupFaultInjector.failTargetDelete) return false
+        return runCatching {
+            val uri = Uri.parse(ref)
         if (DocumentsContract.isDocumentUri(context, uri)) {
             DocumentsContract.deleteDocument(resolver, uri)
         } else {
             false
-        }
-    }.getOrDefault(false)
+            }
+        }.getOrDefault(false)
+    }
 }

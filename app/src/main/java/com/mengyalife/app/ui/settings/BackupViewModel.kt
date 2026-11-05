@@ -109,21 +109,15 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
                 writer.commit(uriString, artifact, passphrase)
             }
             clearSecrets()
+            val success = "完整备份已写入并校验：${artifact.counts.total()} 条记录（${artifact.sizeBytes} 字节）"
+            val text = when {
+                result.ok && result.tempCleanupFailed ->
+                    "$success；但临时文件清理失败（内容已加密），请稍后在系统存储中清理"
+                result.ok -> success
+                else -> "备份失败：${result.message ?: result.errorCode ?: "未知错误"}"
+            }
             _state.update {
-                it.copy(
-                    writing = false,
-                    message = if (result.ok) {
-                        "完整备份已写入并校验：${artifact.counts.total()} 条记录（${artifact.sizeBytes} 字节）"
-                    } else {
-                        "备份失败：${result.message ?: result.errorCode ?: "未知错误"}"
-                    },
-                    lastResult = if (result.ok) {
-                        "完整备份已写入并校验：${artifact.counts.total()} 条记录（${artifact.sizeBytes} 字节）"
-                    } else {
-                        "备份失败：${result.message ?: result.errorCode ?: "未知错误"}"
-                    },
-                    counts = null,
-                )
+                it.copy(writing = false, message = text, lastResult = text, counts = null)
             }
         }
     }

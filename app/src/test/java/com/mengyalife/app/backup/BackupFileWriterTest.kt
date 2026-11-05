@@ -12,7 +12,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BackupFileWriterTest {
-    private class Temp : BackupTempStore {
+    private class Temp(var failDelete: Boolean = false) : BackupTempStore {
         val files = mutableMapOf<String, ByteArray>()
         override fun write(bytes: ByteArray): String {
             val ref = "/tmp/${files.size}"
@@ -20,7 +20,10 @@ class BackupFileWriterTest {
             return ref
         }
         override fun read(ref: String): ByteArray = files[ref] ?: error("missing temp")
-        override fun delete(ref: String) { files.remove(ref) }
+        override fun delete(ref: String) {
+            if (failDelete) error("temp delete failed")
+            files.remove(ref)
+        }
     }
 
     private class Dest(
@@ -80,6 +83,15 @@ class BackupFileWriterTest {
         assertFalse(result.ok)
         assertEquals("READBACK_MISMATCH", result.errorCode)
         assertTrue(temp.files.isEmpty())
+    }
+
+    @Test
+    fun `temp cleanup failure is reported even when file is valid`() {
+        val temp = Temp(failDelete = true); val dest = Dest()
+        val result = BackupFileWriter(temp, dest, verifier).commit("content://new/file", artifact, pass)
+        assertTrue(result.ok)
+        assertTrue(result.tempCleanupFailed)
+        assertTrue(result.message.orEmpty().contains("临时文件清理失败"))
     }
 
     @Test
