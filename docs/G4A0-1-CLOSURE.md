@@ -119,8 +119,9 @@
 |---|---|
 | 分支 | `master` |
 | 批次起点 HEAD | `f580a69`（G4A-0 文档提交） |
-| 批次提交 | 见 `git log -1`（`Gate 4A-0.1: close design review findings`） |
-| 交付时 status | 见最终 `git status --short`；目标 clean |
+| 批次提交 | `dcd7dc1`（`Gate 4A-0.1: close design review findings`） |
+| 交付时 HEAD | 本记录提交（父 `dcd7dc1`；`git log -1`） |
+| 交付时 status | clean（`git status --short` 无输出） |
 | 本批变更 | 修改 5 个 G4A0 文档 + 新增本收口文档；无代码/数据库/迁移/Manifest 改动 |
 | 用户既有修改 | 未删除/覆盖 |
 

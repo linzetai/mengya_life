@@ -157,10 +157,11 @@
 | 分支 | `master` |
 | G4A-0 审计起点 | `f2ba1b295f1ba7111c19dbcfbd3695088a7a220a` |
 | G4A-0.1 收口起点 | `f580a69`（G4A-0 文档提交） |
-| 交付时 HEAD | 本批 G4A-0.1 文档提交（父提交 `f580a69`；`git log -1`） |
+| 批次提交 | `dcd7dc1`（`Gate 4A-0.1: close design review findings`） |
+| 交付时 HEAD | 本记录提交（父 `dcd7dc1`；`git log -1`） |
 | 交付时 status | clean |
 | 本批变更 | 修订 5 个 G4A0 文档 + 新增 `G4A0-1-CLOSURE.md`；无业务/数据库/恢复代码改动 |
-| 本批提交 | 见 `git log -1`（提交信息 `Gate 4A-0.1: close design review findings`） |
+| 本批提交 | `dcd7dc1` |
 | 用户既有修改 | 未删除/覆盖；G3F 证据与历史截图保留 |
 
 ## 8. 是否满足进入 G4A-1
