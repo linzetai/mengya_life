@@ -1,0 +1,48 @@
+PASS  夹具 10 表非空
+PASS  失败前无临时备份文件  []
+PASS  取消场景启动
+PASS  取消场景打开备份
+PASS  取消场景 SAF 出现
+PASS  取消后明确未写入
+PASS  取消 SAF：不显示成功/不生成文件  set()
+PASS  取消 SAF：DB 不变
+PASS  取消 SAF：无临时明文
+PASS  写失败场景启动
+PASS  写失败场景打开备份
+PASS  写失败场景 SAF 出现
+PASS  写失败提示
+PASS  写入失败：不显示成功
+PASS  写入失败：DB 不变
+PASS  写入失败：无明文临时文件
+PASS  截断场景启动
+PASS  截断场景打开备份
+PASS  截断场景 SAF 出现
+PASS  截断提示
+PASS  截断：不显示成功
+PASS  截断：DB 不变
+PASS  截断：无明文临时文件
+PASS  回读失败场景启动
+PASS  回读失败场景打开备份
+PASS  回读失败场景 SAF 出现
+PASS  回读失败提示
+PASS  回读失败：不显示成功
+PASS  回读失败：DB 不变
+PASS  回读失败：无明文临时文件
+PASS  清理失败场景启动
+PASS  清理失败场景打开备份
+PASS  清理失败场景 SAF 出现
+PASS  清理失败提示
+PASS  清理失败：不当作完全成功
+PASS  清理失败：DB 不变
+PASS  清理失败：临时文件是密文（无明文）
+PASS  删除失败场景启动
+PASS  删除失败场景打开备份
+PASS  删除失败场景 SAF 出现
+PASS  删除失败提示
+PASS  删除失败：明确提示可能无效  {'/sdcard/Download/mengya-life-backup-v2-20261105-160852.mengyalife'}
+PASS  删除失败：不显示成功
+PASS  删除失败：DB 不变
+PASS  所有场景后 DB 仍不变
+QA_FAILURE_SECONDS=327.21
+
+==== SUMMARY: 45/45 passed ====

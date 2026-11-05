@@ -1,0 +1,29 @@
+========== 0. 清 QA + 注入 10 表夹具 ==========
+PASS  10 表均非空  {'journal_entries': 2, 'goals': 3, 'goal_checkins': 2, 'advisor_messages': 3, 'goal_proposals': 2, 'growth_signals': 3, 'growth_memories': 2, 'insight_reports': 2, 'weekly_reviews': 2, 'weekly_ai_reviews': 2}
+PASS  原始列数 120  120
+========== 1. 设置页完整备份 ==========
+PASS  设置页
+PASS  完整备份入口
+PASS  口令对话框
+PASS  开始备份
+PASS  口令对话框关闭
+PASS  SAF 保存按钮
+PASS  备份写入并校验成功
+QA_BACKUP_SECONDS=17.96
+========== 2. 拉取文件并独立解密 ==========
+PASS  生成新文件  ['/sdcard/Download/mengya-life-backup-v2-20261105-160309.mengyalife']
+PASS  文件拉取成功  15373
+PASS  独立解密/哈希/表校验  ssages":"a6c09dbec12ec180f817612529fbee17a76951bc14f31ef796266352d0354eed","goalProposals":"2663f0f052fd803d486aad7723c48a76c70db944fed1c8915257c634b093a9f1","growthSignals":"b3507eaae0b1eb82a33e44d44e23014ab57ce18ff930f16936647181c6ae75ec","growthMemories":"1815718547ddca30cc6c7e94100794d6d10bb5fbc58af3cf143fb1199b0519f0","insightReports":"29bb9605ba51e8aa2b57840069a75b888da029442a4fd962a064deb4bdcb6ccc","weeklyReviews":"811edce718a84bd82811572430893218b7adc5c474cd768ad2804abe62f06d57","weeklyAiReviews":"10d8550f8c77b05d4a42a63603994d0250ceb3b81e36c3242db9027767d54821"},"sensitiveScan":true}
+
+========== 3. 逐表逐字段比较 ==========
+PASS  原始列映射 120/120  120/120
+PASS  逐字段无损（10/10 表）  0 differences
+PASS  payloadSha256 由独立探针验证
+PASS  10 表 counts 一致  {'advisorMessages': 3, 'goalCheckins': 2, 'goalProposals': 2, 'goals': 3, 'growthMemories': 2, 'growthSignals': 3, 'insightReports': 2, 'journalEntries': 2, 'weeklyAiReviews': 2, 'weeklyReviews': 2} vs {'journalEntries': 2, 'goals': 3, 'goalCheckins': 2, 'advisorMessages': 3, 'goalProposals': 2, 'growthSignals': 3, 'growthMemories': 2, 'insightReports': 2, 'weeklyReviews': 2, 'weeklyAiReviews': 2}
+========== 4. 导出后 DB 不变 / 清理 ==========
+PASS  导出后原 DB 完全不变
+PASS  导出后 counts 不变
+PASS  本次新文件已清理
+QA_BACKUP_SECONDS=17.96
+
+==== SUMMARY: 19/19 passed ====

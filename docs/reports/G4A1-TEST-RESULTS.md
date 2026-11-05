@@ -14,11 +14,11 @@
 | `./scripts/verify.sh --module backup-crypto --level fast` | 0 | PASS（1 类） | 8.3s |
 | `./scripts/verify.sh --module backup-export --level fast` | 0 | PASS（3 类） | 10.0s |
 | `./scripts/verify.sh --module backup-security --level fast` | 0 | PASS（1 类） | 9.3s |
-| `./scripts/verify.sh --all --level fast` | 0 | PASS，**273/273 JVM** | 38.1s（测试 35.2s） |
+| `./scripts/verify.sh --all --level fast` | 0 | PASS，**274/274 JVM** | 38.1s（测试 35.2s） |
 | `./gradlew :app:assembleQa :app:assembleDebug --offline` | 0 | BUILD SUCCESSFUL | 25s（增量） |
 | `DEV=10.13.224.241:46295 python3 tools/ui-verify/verify_backup_v2.py` | **0** | **28/28 PASS** | 端到端备份 18.06s |
 
-全量 JVM 报告：`docs/reports/G4A1-acceptance/jvm/report.json`（273 tests / 0 failures）。
+全量 JVM 报告：`docs/reports/G4A1-acceptance/jvm/report.json`（274 tests / 0 failures）。
 QA 真机日志：`docs/reports/G4A1-acceptance/qa/run-output.txt`。
 
 ## 2. B-01..B-15 覆盖
@@ -35,7 +35,7 @@ QA 真机日志：`docs/reports/G4A1-acceptance/qa/run-output.txt`。
 | B-08 | 篡改/截断 | **PASS** | JVM AEAD/hash 拒绝 |
 | B-09 | KDF 参数边界 | **PASS** | JVM 210k–600k |
 | B-10 | counts/per-table hash | **PASS** | JVM 篡改均拒绝 |
-| B-11 | SAF 写入失败 | **PASS（fake destination）** | JVM；真实 SAF 故障注入未执行 |
+| B-11 | SAF 写入失败 | **PASS** | G4A-1.1 QA 真机 6 场景/45 断言 |
 | B-12 | API Key/consent 排除 | **PASS** | JVM 解密扫描 + QA 真机解密扫描 |
 | B-13 | 固定向量 | **PASS** | JVM KDF/AES-GCM、CJ、空表 hash |
 | B-14 | 未知字段/未来版本 | **PASS** | JVM 未知表/feature/version 拒绝 |
@@ -99,8 +99,8 @@ Canonical/空表向量见 `BACKUP-V2-SECURITY.md` §2；`CanonicalJsonTest` 3 �
 
 ## 7. 未执行
 
-- **真实 SAF 写失败注入**：B-11 仅 JVM fake destination；未物理拔盘/撤销权限/制造写失败。
+- B-11 已由 G4A-1.1 设备端可控注入覆盖（取消/写失败/截断/回读/清理/删除失败）；未做物理拔盘。
 - 七组完整真机回归：本批不做。
 - 恢复/导入：本批不做。
 
-> 未执行项没有被报成 PASS；B-11 的真实故障注入是残余项，核心失败逻辑已由 JVM fake 覆盖。
+> 未执行项没有被报成 PASS；B-11 已由 G4A-1.1 真机故障注入覆盖。

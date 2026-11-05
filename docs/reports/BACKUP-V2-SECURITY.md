@@ -108,7 +108,7 @@ android:fullBackupContent="false"
 
 | 级别 | 风险 | 状态 |
 |---|---|---|
-| P1 | 真实 SAF 写失败未物理注入 | JVM fake destination 覆盖失败路径；QA 正向链路 28/28 PASS |
+| — | 真实 SAF 写失败 | G4A-1.1 设备端可控注入 6 场景/45 断言 PASS（未物理拔盘） |
 | P1 | 设置快照非跨存储原子；变化检测后失败，极端窗口仍可能 | 已两次读取+加密后核对；G4A-2 若加恢复门禁再收紧 |
 | P1 | 生产 310k 迭代未在目标机基准锁定 | 当前实现固定 310k；G4A-1 收口前可基准 |
 | P1 | 无 Android instrumentation；SAF 由 UIAutomator 脚本覆盖 | QA 真机脚本 28/28 PASS；失败注入仍为 fake |
@@ -116,4 +116,4 @@ android:fullBackupContent="false"
 
 ## 9. 结论
 
-加密、哈希、秘密排除、系统备份规则在 JVM/静态层已实现并通过测试；**QA 真机 SAF、回读与真实文件独立解密 28/28 PASS**。B-11 真实 SAF 故障注入仍为残余项，不阻塞本批 Gate PASS。
+加密、哈希、秘密排除、系统备份规则在 JVM/静态层已实现并通过测试；**QA 真机 SAF、回读与真实文件独立解密 28/28 PASS**。B-11 已在 G4A-1.1 由设备端可控注入覆盖（6 场景/45 断言）。

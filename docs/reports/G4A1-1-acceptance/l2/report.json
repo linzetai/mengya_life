@@ -1,0 +1,789 @@
+{
+  "schemaVersion": 1,
+  "runId": "20261105-153944",
+  "gate": "3F",
+  "startedAt": "2026-11-05T15:39:44+0800",
+  "finishedAt": "2026-11-05T16:00:32+0800",
+  "durationSec": 1248.4,
+  "level": "integration",
+  "levelTitle": "L2 Integration",
+  "mode": "module",
+  "git": {
+    "base": "fb46f29cab86368e695d10544788cd382b40124a",
+    "baseReason": "上一次 verify 运行记录",
+    "commit": "fb46f29cab86368e695d10544788cd382b40124a",
+    "branch": "master",
+    "dirty": true,
+    "files": [
+      {
+        "path": "app/src/main/java/com/mengyalife/app/MainActivity.kt",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "app/src/main/java/com/mengyalife/app/data/backup/AndroidBackupStorage.kt",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "app/src/main/java/com/mengyalife/app/data/backup/BackupFileWriter.kt",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "app/src/main/java/com/mengyalife/app/data/backup/QaBackupFaultInjector.kt",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "app/src/main/java/com/mengyalife/app/data/qa/QaBackupFixtureSeeder.kt",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "app/src/main/java/com/mengyalife/app/di/AppContainer.kt",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "app/src/main/java/com/mengyalife/app/ui/settings/BackupViewModel.kt",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "app/src/test/java/com/mengyalife/app/backup/BackupFileWriterTest.kt",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "docs/reports/G4A1-1-acceptance/failures/run-output.txt",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G4A1-1-acceptance/failures/scenarios-final.json",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G4A1-1-acceptance/failures/scenarios.json",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G4A1-1-acceptance/l1/report.json",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G4A1-1-acceptance/l1/summary.md",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G4A1-1-acceptance/qa/db-after.json",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G4A1-1-acceptance/qa/db-before.json",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G4A1-1-acceptance/qa/field-diff.json",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G4A1-1-acceptance/qa/payload-full.json",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G4A1-1-acceptance/qa/probe-full.json",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G4A1-1-acceptance/qa/probe-recheck.json",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G4A1-1-acceptance/qa/run-output.txt",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G4A1-1-acceptance/qa/sample-v2-full.mengyalife",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G4A1-acceptance/qa/probe.json",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "docs/reports/G4A1-acceptance/qa/sample-v2.mengyalife",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "tests/test-map.json",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "tools/ui-verify/backup_v2_probe.js",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "tools/ui-verify/verify_backup_v2_failures.py",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "tools/ui-verify/verify_backup_v2_full.py",
+        "status": "A",
+        "source": "untracked"
+      }
+    ]
+  },
+  "device": {
+    "serial": "10.13.224.241:46519",
+    "model": "2509FPN0BC",
+    "android": "17",
+    "sdk": "37",
+    "fetchedAt": "2026-11-05T15:39:46+0800"
+  },
+  "apk": {
+    "qa": {
+      "path": "/root/workspace/mengya-life/app/build/outputs/apk/qa/app-qa.apk",
+      "sha256": "7968cc662a703558f9a955b2e79ae5ab0e054834a361be97223a8a0be44a2474",
+      "size": 12517274,
+      "versionName": "0.14.1-g3e2-1",
+      "built": false,
+      "reused": true
+    }
+  },
+  "selection": {
+    "level": "integration",
+    "mode": "module",
+    "modules": [
+      {
+        "name": "ai-consent",
+        "title": "AI 授权与配置",
+        "risk": "high",
+        "reasons": [
+          "integration 级别强制包含高风险模块"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [
+          "com.mengyalife.app.advisor.AiConsentRulesTest",
+          "com.mengyalife.app.advisor.AdvisorConfigTest",
+          "com.mengyalife.app.advisor.InsightServiceTest"
+        ],
+        "device": [
+          {
+            "script": "verify_g3b1.py",
+            "package": "qa",
+            "tier": "integration"
+          },
+          {
+            "script": "verify_settings.py",
+            "package": "qa",
+            "tier": "feature"
+          }
+        ]
+      },
+      {
+        "name": "backup-export",
+        "title": "完整备份导出",
+        "risk": "high",
+        "reasons": [
+          "显式指定 --module backup-export"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [
+          "com.mengyalife.app.backup.BackupExporterTest",
+          "com.mengyalife.app.backup.BackupFileWriterTest",
+          "com.mengyalife.app.backup.BackupArtifactMetricsTest"
+        ],
+        "device": [
+          {
+            "script": "verify_backup_v2.py",
+            "package": "qa",
+            "tier": "feature"
+          },
+          {
+            "script": "verify_backup_v2_full.py",
+            "package": "qa",
+            "tier": "feature"
+          },
+          {
+            "script": "verify_backup_v2_failures.py",
+            "package": "qa",
+            "tier": "feature"
+          }
+        ]
+      },
+      {
+        "name": "database-migration",
+        "title": "Room Schema / DAO / Migration",
+        "risk": "critical",
+        "reasons": [
+          "integration 级别强制包含高风险模块"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [],
+        "device": [
+          {
+            "script": "verify_migration.py",
+            "package": "qa",
+            "tier": "integration"
+          }
+        ]
+      },
+      {
+        "name": "navigation",
+        "title": "导航与共享 UI",
+        "risk": "medium",
+        "reasons": [
+          "L1+ 必要导航冒烟（跨页面回归）"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [],
+        "device": []
+      }
+    ],
+    "jvmClasses": [
+      "com.mengyalife.app.advisor.AdvisorConfigTest",
+      "com.mengyalife.app.advisor.AiConsentRulesTest",
+      "com.mengyalife.app.advisor.InsightServiceTest",
+      "com.mengyalife.app.backup.BackupArtifactMetricsTest",
+      "com.mengyalife.app.backup.BackupExporterTest",
+      "com.mengyalife.app.backup.BackupFileWriterTest"
+    ],
+    "fullJvm": false,
+    "deviceScripts": [
+      {
+        "script": "verify_backup_v2.py",
+        "package": "qa",
+        "tier": "feature",
+        "assertions": 28,
+        "destructive": true,
+        "resetsQaData": true,
+        "measuredSec": 18.06,
+        "timeoutSec": 600,
+        "modules": [
+          "backup-export"
+        ]
+      },
+      {
+        "script": "verify_backup_v2_failures.py",
+        "package": "qa",
+        "tier": "feature",
+        "assertions": 45,
+        "destructive": true,
+        "resetsQaData": true,
+        "measuredSec": 328.34,
+        "timeoutSec": 900,
+        "modules": [
+          "backup-export"
+        ]
+      },
+      {
+        "script": "verify_backup_v2_full.py",
+        "package": "qa",
+        "tier": "feature",
+        "assertions": 19,
+        "destructive": true,
+        "resetsQaData": true,
+        "measuredSec": 17.82,
+        "timeoutSec": 600,
+        "modules": [
+          "backup-export"
+        ]
+      },
+      {
+        "script": "verify_g3b1.py",
+        "package": "qa",
+        "tier": "integration",
+        "assertions": 47,
+        "destructive": true,
+        "resetsQaData": true,
+        "measuredSec": 427,
+        "estimatedSec": 427,
+        "modules": [
+          "ai-consent"
+        ]
+      },
+      {
+        "script": "verify_migration.py",
+        "package": "qa",
+        "tier": "integration",
+        "assertions": 17,
+        "destructive": true,
+        "resetsQaData": true,
+        "measuredSec": 28,
+        "estimatedSec": 28,
+        "modules": [
+          "database-migration"
+        ]
+      },
+      {
+        "script": "verify_navigation.py",
+        "package": "qa",
+        "tier": "feature",
+        "assertions": 28,
+        "destructive": false,
+        "resetsQaData": false,
+        "measuredSec": null,
+        "modules": [
+          "navigation"
+        ],
+        "reason": "L1+ 必要导航冒烟"
+      },
+      {
+        "script": "verify_settings.py",
+        "package": "qa",
+        "tier": "feature",
+        "assertions": 38,
+        "destructive": true,
+        "resetsQaData": true,
+        "measuredSec": 171,
+        "estimatedSec": 171,
+        "modules": [
+          "ai-consent"
+        ]
+      }
+    ],
+    "rulesHit": [
+      {
+        "id": "explicit-module",
+        "reason": "用户显式指定模块"
+      }
+    ],
+    "unknownFiles": [],
+    "docsOnly": false,
+    "notSelected": [
+      {
+        "module": "diary",
+        "title": "日记",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "goals",
+        "title": "目标",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "progress",
+        "title": "进展与打卡",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "trends",
+        "title": "趋势",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "advisor",
+        "title": "AI 顾问",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "growth-memory",
+        "title": "成长记忆与日记提取",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "insight",
+        "title": "成长洞察",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "weekly-review",
+        "title": "每周成长回顾（本地）",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "weekly-ai",
+        "title": "每周 AI 增强",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "settings",
+        "title": "设置与主题",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "export",
+        "title": "数据导出",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "app-smoke",
+        "title": "应用启动与正式包冒烟",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "test-infra",
+        "title": "测试体系自身",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "backup-format",
+        "title": "备份格式/校验",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "backup-crypto",
+        "title": "备份加密",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "backup-security",
+        "title": "备份安全",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      }
+    ],
+    "notRun": [],
+    "staticChecks": [
+      "schema-contract",
+      "validate-map"
+    ],
+    "deviceRequired": true,
+    "deviceRequiredOriginal": true,
+    "prodSmokeRequired": false,
+    "warnings": []
+  },
+  "steps": [
+    {
+      "name": "静态检查（schema-contract, validate-map）",
+      "status": "PASS",
+      "durationSec": 0.07,
+      "counts": {
+        "issues": 0
+      },
+      "detail": ""
+    },
+    {
+      "name": "安装 qa APK",
+      "status": "SKIPPED",
+      "durationSec": 0.0,
+      "counts": {},
+      "detail": "已安装包哈希与本地 APK 一致，复用安装"
+    },
+    {
+      "name": "QA 安全前置校验（包名 / QA_BUILD 标记）",
+      "status": "PASS",
+      "durationSec": 26.9,
+      "counts": {
+        "assertions": "10/10"
+      },
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-153944/logs/qa-verify_qa_preflight.log",
+      "detail": ""
+    },
+    {
+      "name": "JVM 测试（6 类）",
+      "status": "PASS",
+      "durationSec": 4.5,
+      "counts": {
+        "tests": 31,
+        "failures": 0
+      },
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-153944/logs/jvm-testDebugUnitTest.log",
+      "detail": ""
+    },
+    {
+      "name": "真机 verify_backup_v2.py",
+      "status": "PASS",
+      "durationSec": 109.2,
+      "counts": {
+        "assertions": "28/28"
+      },
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-153944/logs/qa-verify_backup_v2.log",
+      "detail": ""
+    },
+    {
+      "name": "真机 verify_backup_v2_failures.py",
+      "status": "PASS",
+      "durationSec": 327.0,
+      "counts": {
+        "assertions": "45/45"
+      },
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-153944/logs/qa-verify_backup_v2_failures.log",
+      "detail": ""
+    },
+    {
+      "name": "真机 verify_backup_v2_full.py",
+      "status": "PASS",
+      "durationSec": 55.3,
+      "counts": {
+        "assertions": "19/19"
+      },
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-153944/logs/qa-verify_backup_v2_full.log",
+      "detail": ""
+    },
+    {
+      "name": "真机 verify_g3b1.py",
+      "status": "PASS",
+      "durationSec": 405.9,
+      "counts": {
+        "assertions": "47/47"
+      },
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-153944/logs/qa-verify_g3b1.log",
+      "detail": ""
+    },
+    {
+      "name": "真机 verify_migration.py",
+      "status": "PASS",
+      "durationSec": 24.7,
+      "counts": {
+        "assertions": "17/17"
+      },
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-153944/logs/qa-verify_migration.log",
+      "detail": ""
+    },
+    {
+      "name": "真机 verify_navigation.py",
+      "status": "PASS",
+      "durationSec": 122.5,
+      "counts": {
+        "assertions": "28/28"
+      },
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-153944/logs/qa-verify_navigation.log",
+      "detail": ""
+    },
+    {
+      "name": "真机 verify_settings.py",
+      "status": "PASS",
+      "durationSec": 169.1,
+      "counts": {
+        "assertions": "38/38"
+      },
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-153944/logs/qa-verify_settings.log",
+      "detail": ""
+    },
+    {
+      "name": "清理 QA 数据（pm clear）",
+      "status": "PASS",
+      "durationSec": 0.0,
+      "counts": {},
+      "detail": "仅清理 QA 包；正式包未触碰"
+    }
+  ],
+  "deviceSteps": [
+    {
+      "script": "verify_backup_v2.py",
+      "package": "com.mengyalife.app.qa",
+      "status": "PASS",
+      "exitCode": 0,
+      "durationSec": 109.2,
+      "assertionsPassed": 28,
+      "assertionsTotal": 28,
+      "failures": [],
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-153944/logs/qa-verify_backup_v2.log",
+      "tail": "PASS  计数一致：growthSignals  0 vs 0\nPASS  计数一致：growthMemories  0 vs 0\nPASS  计数一致：insightReports  0 vs 0\nPASS  计数一致：weeklyReviews  1 vs 1\nPASS  计数一致：weeklyAiReviews  0 vs 0\nPASS  文件不是明文（无敏感字段）\n========== 4. 清理测试文件 ==========\nPASS  QA 导出文件已清理  /sdcard/Download/mengya-life-backup-v2-20261105-154152.mengyalife\nPASS  导出未改变 QA 数据库\nQA_BACKUP_SECONDS=18.08\n\n==== SUMMARY: 28/28 passed ====",
+      "modules": [
+        "backup-export"
+      ],
+      "tier": "feature"
+    },
+    {
+      "script": "verify_backup_v2_failures.py",
+      "package": "com.mengyalife.app.qa",
+      "status": "PASS",
+      "exitCode": 0,
+      "durationSec": 327.0,
+      "assertionsPassed": 45,
+      "assertionsTotal": 45,
+      "failures": [],
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-153944/logs/qa-verify_backup_v2_failures.log",
+      "tail": "PASS  清理失败：临时文件是密文（无明文）\nPASS  删除失败场景启动\nPASS  删除失败场景打开备份\nPASS  删除失败场景 SAF 出现\nPASS  删除失败提示\nPASS  删除失败：明确提示可能无效  {'/sdcard/Download/mengya-life-backup-v2-20261105-154720.mengyalife'}\nPASS  删除失败：不显示成功\nPASS  删除失败：DB 不变\nPASS  所有场景后 DB 仍不变\nQA_FAILURE_SECONDS=326.72\n\n==== SUMMARY: 45/45 passed ====",
+      "modules": [
+        "backup-export"
+      ],
+      "tier": "feature"
+    },
+    {
+      "script": "verify_backup_v2_full.py",
+      "package": "com.mengyalife.app.qa",
+      "status": "PASS",
+      "exitCode": 0,
+      "durationSec": 55.3,
+      "assertionsPassed": 19,
+      "assertionsTotal": 19,
+      "failures": [],
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-153944/logs/qa-verify_backup_v2_full.log",
+      "tail": "========== 3. 逐表逐字段比较 ==========\nPASS  原始列映射 120/120  120/120\nPASS  逐字段无损（10/10 表）  0 differences\nPASS  payloadSha256 由独立探针验证\nPASS  10 表 counts 一致  {'advisorMessages': 3, 'goalCheckins': 2, 'goalProposals': 2, 'goals': 3, 'growthMemories': 2, 'growthSignals': 3, 'insightReports': 2, 'journalEntries': 2, 'weeklyAiReviews': 2, 'weeklyReviews': 2} vs {'journalEntries': 2, 'goals': 3, 'goalCheckins': 2, 'advisorMessages': 3, 'goalProposals': 2, 'growthSignals': 3, 'growthMemories': 2, 'insightReports': 2, 'weeklyReviews': 2, 'weeklyAiReviews': 2}\n========== 4. 导出后 DB 不变 / 清理 ==========\nPASS  导出后原 DB 完全不变\nPASS  导出后 counts 不变\nPASS  本次新文件已清理\nQA_BACKUP_SECONDS=18.07\n\n==== SUMMARY: 19/19 passed ====",
+      "modules": [
+        "backup-export"
+      ],
+      "tier": "feature"
+    },
+    {
+      "script": "verify_g3b1.py",
+      "package": "com.mengyalife.app.qa",
+      "status": "PASS",
+      "exitCode": 0,
+      "durationSec": 405.9,
+      "assertionsPassed": 47,
+      "assertionsTotal": 47,
+      "failures": [],
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-153944/logs/qa-verify_g3b1.log",
+      "tail": "PASS  没有写入正式目标  [(1, 'G3B1Health')]\nPASS  没有写入进展  1\nPASS  草案消息存在\n========== 9. 重启后草案与对话保留 ==========\nPASS  重启后对话仍在\nPASS  重启后草案入口仍在\nPASS  重启后草案可查看\n========== 10. 稳定性 ==========\nPASS  无应用崩溃\nPASS  进程存活\n\n==== SUMMARY: 47/47 passed ====",
+      "modules": [
+        "ai-consent"
+      ],
+      "tier": "integration"
+    },
+    {
+      "script": "verify_migration.py",
+      "package": "com.mengyalife.app.qa",
+      "status": "PASS",
+      "exitCode": 0,
+      "durationSec": 24.7,
+      "assertionsPassed": 17,
+      "assertionsTotal": 17,
+      "failures": [],
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-153944/logs/qa-verify_migration.log",
+      "tail": "PASS  日记 2 条完整保留  [(1, 'MigA', 'alpha v10 body'), (2, 'MigB', 'beta v10 body')]\nPASS  目标保留  [(1, 'MigGoal', 'LONG_TERM', 'IN_PROGRESS')]\nPASS  进展保留  [(1, 1, 3.0, 'min')]\nPASS  迁移前的每周回顾行保留  [('ac1f5b03-2a93-4c9f-9f56-1e094c9a15d7', '2026-W45'), ('r1', '2026-W44')]\nPASS  迁移数据在 UI 可读（重启后）\nPASS  无迁移崩溃\n========== 2. 再次启动（幂等） ==========\nPASS  再次启动 user_version 仍为 11  user_version=11\nPASS  数据库包含 weekly_ai_reviews  ['advisor_messages', 'android_metadata', 'goal_checkins', 'goal_proposals', 'goals', 'growth_memories', 'growth_signals', 'insight_reports', 'journal_entries', 'room_master_table', 'sqlite_sequence', 'weekly_ai_reviews', 'weekly_reviews']\nPASS  迁移新增 config_hash 列  ['period_key', 'local_data_version', 'ai_consent_version', 'status', 'generated_at', 'summary', 'highlights_json', 'suggestion', 'fact_ids_json', 'categories', 'error', 'model', 'config_hash']\n\n==== SUMMARY: 17/17 passed ====",
+      "modules": [
+        "database-migration"
+      ],
+      "tier": "integration"
+    },
+    {
+      "script": "verify_navigation.py",
+      "package": "com.mengyalife.app.qa",
+      "status": "PASS",
+      "exitCode": 0,
+      "durationSec": 122.5,
+      "assertionsPassed": 28,
+      "assertionsTotal": 28,
+      "failures": [],
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-153944/logs/qa-verify_navigation.log",
+      "tail": "PASS  tab_trends 可进入设置\nPASS  tab_trends 设置页已就位\nPASS  tab_trends 设置页隐藏底栏\nPASS  tab_trends 返回后底栏恢复\nPASS  tab_diary 可进入设置\nPASS  tab_diary 设置页已就位\nPASS  tab_diary 设置页隐藏底栏\nPASS  tab_diary 返回后底栏恢复\nPASS  日记页仍可打开\nPASS  无崩溃日志\n\n==== SUMMARY: 28/28 passed ====",
+      "modules": [
+        "navigation"
+      ],
+      "tier": "feature"
+    },
+    {
+      "script": "verify_settings.py",
+      "package": "com.mengyalife.app.qa",
+      "status": "PASS",
+      "exitCode": 0,
+      "durationSec": 169.1,
+      "assertionsPassed": 38,
+      "assertionsTotal": 38,
+      "failures": [],
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-153944/logs/qa-verify_settings.log",
+      "tail": "PASS  导出入口可点击\n========== 4. 截图：主题说明 ==========\nPASS  主题区可见\nPASS  主题选项齐全\nPASS  主题说明包含持久化\nPASS  主题说明包含重启保持\nPASS  主题说明包含跟随系统\n========== 5. 截图：关于 ==========\nPASS  关于区显示版本\nPASS  数据存储说明\n\n==== SUMMARY: 38/38 passed ====",
+      "modules": [
+        "ai-consent"
+      ],
+      "tier": "feature"
+    }
+  ],
+  "modules": [
+    {
+      "name": "ai-consent",
+      "title": "AI 授权与配置",
+      "risk": "high",
+      "status": "PASS",
+      "reasons": [
+        "integration 级别强制包含高风险模块"
+      ],
+      "jvmStatuses": [
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "deviceStatuses": [
+        "PASS",
+        "PASS"
+      ],
+      "durationSec": 575.4,
+      "jvmClassCount": 3
+    },
+    {
+      "name": "backup-export",
+      "title": "完整备份导出",
+      "risk": "high",
+      "status": "PASS",
+      "reasons": [
+        "显式指定 --module backup-export"
+      ],
+      "jvmStatuses": [
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "deviceStatuses": [
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "durationSec": 491.9,
+      "jvmClassCount": 3
+    },
+    {
+      "name": "database-migration",
+      "title": "Room Schema / DAO / Migration",
+      "risk": "critical",
+      "status": "PASS",
+      "reasons": [
+        "integration 级别强制包含高风险模块"
+      ],
+      "jvmStatuses": [],
+      "deviceStatuses": [
+        "PASS"
+      ],
+      "durationSec": 24.7,
+      "jvmClassCount": 0
+    },
+    {
+      "name": "navigation",
+      "title": "导航与共享 UI",
+      "risk": "medium",
+      "status": "PASS",
+      "reasons": [
+        "L1+ 必要导航冒烟（跨页面回归）"
+      ],
+      "jvmStatuses": [],
+      "deviceStatuses": [
+        "PASS"
+      ],
+      "durationSec": 122.5,
+      "jvmClassCount": 0
+    }
+  ],
+  "failures": [],
+  "notRun": [],
+  "summary": {
+    "verdict": "PASS",
+    "exitCode": 0,
+    "levelSatisfied": true,
+    "levelNotes": [],
+    "pass": 11,
+    "fail": 0,
+    "skipped": 1,
+    "notRun": 0
+  },
+  "artifacts": {
+    "dir": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-153944",
+    "json": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-153944/report.json",
+    "md": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-153944/summary.md",
+    "logs": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-153944/logs"
+  }
+}

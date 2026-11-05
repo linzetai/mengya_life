@@ -43,7 +43,7 @@ QA 真机已恢复（`10.13.224.241:46295`，Android SDK 37），安装本次 QA
 | B-08 篡改/截断 | **PASS**（JVM） |
 | B-09 KDF 参数边界 | **PASS**（JVM） |
 | B-10 counts/per-table hash | **PASS**（JVM） |
-| B-11 SAF 写入失败 | **PASS（fake destination）**；真实 SAF 故障注入未执行（见 §5） |
+| B-11 SAF 写入失败 | **PASS**（G4A-1.1 QA 真机 6 场景/45 断言） |
 | B-12 API Key/consent 排除 | **PASS**（JVM 解密扫描 + QA 真机解密扫描） |
 | B-13 固定向量 | **PASS**（JVM） |
 | B-14 未知字段/未来版本 | **PASS**（JVM） |
@@ -53,7 +53,7 @@ QA 真机已恢复（`10.13.224.241:46295`，Android SDK 37），安装本次 QA
 
 | 项 | 结果 |
 |---|---|
-| 全量 JVM | **273/273 PASS** |
+| 全量 JVM | **274/274 PASS** |
 | 静态检查 | PASS（schema-contract / script-syntax / validate-map） |
 | 系统备份 | PASS（allowBackup=false + dataExtractionRules + fullBackupContent=false；QA/debug 合并 Manifest） |
 | v1 保留 | PASS（旧导出未修改） |
@@ -62,7 +62,7 @@ QA 真机已恢复（`10.13.224.241:46295`，Android SDK 37），安装本次 QA
 
 ## 5. 残余与边界
 
-1. B-11 的**真实 SAF 写失败**未被物理注入；JVM fake destination 已覆盖“写失败不报成功、尝试删除/提示”逻辑。
+1. B-11 已由 G4A-1.1 的设备端可控故障注入覆盖；物理拔盘未执行，不需要。
 2. 未执行七组完整真机回归；本批只跑备份相关真机。
 3. 未执行恢复测试；没有 RestoreGate/app_meta/schema 变更。
 4. 真实文件耗时是一次 QA 假数据样本的端到端值，不代表大数据量。

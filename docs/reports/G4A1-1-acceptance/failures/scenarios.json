@@ -1,0 +1,102 @@
+[
+  {
+    "name": "失败前无临时备份文件",
+    "pass": true,
+    "detail": "[]"
+  },
+  {
+    "name": "取消 SAF：不显示成功/不生成文件",
+    "pass": true,
+    "detail": "set()"
+  },
+  {
+    "name": "取消 SAF：DB 不变",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "取消 SAF：无临时明文",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "写入失败：不显示成功",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "写入失败：DB 不变",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "写入失败：无明文临时文件",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "截断：不显示成功",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "截断：DB 不变",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "截断：无明文临时文件",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "回读失败：不显示成功",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "回读失败：DB 不变",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "回读失败：无明文临时文件",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "清理失败：不当作完全成功",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "清理失败：DB 不变",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "清理失败：临时文件是密文（无明文）",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "删除失败：明确提示可能无效",
+    "pass": true,
+    "detail": "{'/sdcard/Download/mengya-life-backup-v2-20261105-160852.mengyalife'}"
+  },
+  {
+    "name": "删除失败：不显示成功",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "删除失败：DB 不变",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "所有场景后 DB 仍不变",
+    "pass": true,
+    "detail": ""
+  }
+]

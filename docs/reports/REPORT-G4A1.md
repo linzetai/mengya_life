@@ -3,7 +3,7 @@
 > 批次：G4A-1（只导出，不恢复）。
 > 产品决策：**A1** 默认口令加密；**B1** 核心 7 表 + 洞察/本地周回顾，weekly AI 仅归档；**C1** v1 只识别；**D1** 备份 endpoint/model、不备份 API Key。
 > 时间：2026-11-05（Asia/Shanghai）。
-> 状态：**PASS（JVM + QA 真机均通过；B-11 真实 SAF 故障注入为残余项）。**
+> 状态：**PASS（JVM + QA 真机均通过；B-11 由 G4A-1.1 真机故障注入覆盖）。**
 
 ## 1. 执行摘要
 
@@ -15,7 +15,7 @@
 6. 系统备份：`allowBackup=false` 保持；新增 `dataExtractionRules` 与 `fullBackupContent=false`；QA/debug 合并 Manifest 核验通过。
 7. v1 旧导出未修改；设置页同时显示“旧版数据导出（不完整）”与“完整加密备份 v2”。
 8. `fact_ids_json` 技术债独立修正：新写入 JSON 数组，读取兼容旧 U+001F，历史行不改。
-9. **JVM 273/273 PASS**；QA/debug APK 构建成功。
+9. **JVM 274/274 PASS**；QA/debug APK 构建成功。
 10. **QA 真机 28/28 PASS**：真实 SAF 导出/回读、独立 Node 解密、10 表计数、敏感字段扫描均通过；假数据文件 **5,445 字节**，端到端 **18.06s**。
 
 ## 2. 关键代码路径
@@ -63,7 +63,7 @@
 | `--module backup-crypto --level fast` | 0 | PASS，1 类，8.3s |
 | `--module backup-export --level fast` | 0 | PASS，3 类，10.0s |
 | `--module backup-security --level fast` | 0 | PASS，1 类，9.3s |
-| `--all --level fast` | 0 | PASS，**273/273 JVM**，38.1s |
+| `--all --level fast` | 0 | PASS，**274/274 JVM**，38.1s |
 | `assembleQa + assembleDebug` | 0 | BUILD SUCCESSFUL，25s |
 | `verify_backup_v2.py`（QA 真机） | 0 | **PASS，28/28**；端到端 18.06s |
 
@@ -98,11 +98,11 @@ B-01..B-15 的 JVM/静态与 QA 真机覆盖逐项见 `G4A1-TEST-RESULTS.md`；G
 
 ## 8. 未完成 / NOT RUN
 
-1. B-11 的**真实 SAF 写失败注入**未执行；JVM fake destination 覆盖失败逻辑（残余项）。
+1. B-11 已由 G4A-1.1 设备端 6 场景/45 断言覆盖（可控注入，非物理拔盘）。
 2. 七组完整真机回归（本批不做）。
 3. 恢复/导入、RestoreGate、app_meta、schema v12（本批明确不做，未开始 G4A-2）。
 4. 大数据量真机性能未测；当前仅 1/1/1 假数据样本 5,445B / 18.06s。
 
 ## 9. 结论
 
-**Gate 4A-1 PASS。** 实现、JVM 273/273、QA 真机 28/28、系统备份规则与 APK 构建均已验收。B-11 真实 SAF 故障注入仍为残余项，但不阻塞导出正向链路；完成后停止，不进入 G4A-2。
+**Gate 4A-1 PASS。** 实现、JVM 274/274、QA 真机 28/28、系统备份规则与 APK 构建均已验收。B-11 已在 G4A-1.1 由设备端故障注入覆盖；完成后停止，不进入 G4A-2。
