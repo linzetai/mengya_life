@@ -523,7 +523,8 @@
       "jvmTests": [
         "com.mengyalife.app.advisor.WeeklyAiTest",
         "com.mengyalife.app.advisor.AdvisorRequestBudgetTest",
-        "com.mengyalife.app.advisor.WeeklyAiFakeEngineTest"
+        "com.mengyalife.app.advisor.WeeklyAiFakeEngineTest",
+        "com.mengyalife.app.advisor.WeeklyAiFactIdsTest"
       ],
       "device": [
         {

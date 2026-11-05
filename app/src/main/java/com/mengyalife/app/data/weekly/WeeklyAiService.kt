@@ -181,11 +181,12 @@ class WeeklyAiService(
         factIds: List<String> = emptyList(),
     ) {
         dao.complete(base.periodKey, status, now(), summary, WeeklyAiParser.highlightsJson(highlights),
-            suggestion, factIds.joinToString("\u001f"), error, model, configHash)
+            suggestion, WeeklyAiParser.encodeFactIds(factIds), error, model, configHash)
     }
 
     private fun WeeklyAiEntity.toDomain() = WeeklyAiReview(
         periodKey, localDataVersion, aiConsentVersion, status, generatedAt, summary,
-        WeeklyAiParser.highlightsFrom(highlightsJson), suggestion, emptyList(), categories, error, model,
+        WeeklyAiParser.highlightsFrom(highlightsJson), suggestion,
+        WeeklyAiParser.decodeFactIds(factIdsJson), categories, error, model,
     )
 }

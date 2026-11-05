@@ -58,6 +58,27 @@ object WeeklyAiParser {
         return WeeklyAiParseResult.Success(summary, highlights, suggestion, highlights.flatMap { it.factIds }.distinct())
     }
 
+
+    /**
+     * 旧版 `weekly_ai_reviews.fact_ids_json` 实际是 U+001F 分隔串；
+     * 新版写入真正 JSON 数组。读取必须兼容两种格式，且不丢历史 id。
+     */
+    fun encodeFactIds(ids: List<String>): String = buildJsonArray {
+        ids.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) }
+    }.toString()
+
+    fun decodeFactIds(raw: String?): List<String> {
+        val text = raw.orEmpty().trim()
+        if (text.isEmpty()) return emptyList()
+        if (text.startsWith("[")) {
+            val parsed = runCatching {
+                json.parseToJsonElement(text).jsonArray.mapNotNull { it.jsonPrimitive.contentOrNull }
+            }.getOrNull()
+            if (parsed != null) return parsed
+        }
+        return text.split('\u001f').filter { it.isNotBlank() }
+    }
+
     fun highlightsJson(highlights: List<WeeklyAiHighlight>): String = buildJsonArray {
         highlights.forEach { h ->
             add(buildJsonObject {
