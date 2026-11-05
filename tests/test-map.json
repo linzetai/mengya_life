@@ -743,6 +743,111 @@
       "notes": "改动测试脚本/注册表只做注册表校验与脚本静态检查，不跑无关 Android 真机。",
       "estimatedSec": 0,
       "measuredSec": 0
+    },
+    "backup-format": {
+      "title": "备份格式/校验",
+      "sourcePaths": [
+        "app/src/main/java/com/mengyalife/app/data/backup/BackupFormatV2.kt",
+        "app/src/main/java/com/mengyalife/app/data/backup/CanonicalJson.kt",
+        "app/src/main/java/com/mengyalife/app/data/backup/BackupValidator.kt",
+        "app/src/main/java/com/mengyalife/app/data/backup/BackupModels.kt"
+      ],
+      "dependsOn": [
+        "database-migration"
+      ],
+      "jvmTests": [
+        "com.mengyalife.app.backup.CanonicalJsonTest",
+        "com.mengyalife.app.backup.BackupFormatV2Test"
+      ],
+      "device": [],
+      "risk": "high",
+      "defaultLevel": "fast",
+      "needsQaBuild": false,
+      "needsQaReset": false,
+      "requiresProdReadonlySmoke": false,
+      "notes": "格式/校验 JVM；编辑循环 L0，不启动设备。",
+      "estimatedSec": null,
+      "measuredSec": null
+    },
+    "backup-crypto": {
+      "title": "备份加密",
+      "sourcePaths": [
+        "app/src/main/java/com/mengyalife/app/data/backup/BackupCrypto.kt"
+      ],
+      "dependsOn": [],
+      "jvmTests": [
+        "com.mengyalife.app.backup.BackupCryptoTest"
+      ],
+      "device": [],
+      "risk": "critical",
+      "defaultLevel": "fast",
+      "needsQaBuild": false,
+      "needsQaReset": false,
+      "requiresProdReadonlySmoke": false,
+      "notes": "KDF/AEAD 向量与参数边界；参数变更由规则升级到 integration。",
+      "estimatedSec": null,
+      "measuredSec": null
+    },
+    "backup-export": {
+      "title": "完整备份导出",
+      "sourcePaths": [
+        "app/src/main/java/com/mengyalife/app/data/backup/BackupExporter.kt",
+        "app/src/main/java/com/mengyalife/app/data/backup/BackupSnapshotSource.kt",
+        "app/src/main/java/com/mengyalife/app/data/backup/BackupFileWriter.kt",
+        "app/src/main/java/com/mengyalife/app/data/backup/AndroidBackupStorage.kt",
+        "app/src/main/java/com/mengyalife/app/data/backup/BackupPostRestoreProjection.kt",
+        "app/src/main/java/com/mengyalife/app/ui/settings/BackupViewModel.kt",
+        "app/src/main/java/com/mengyalife/app/ui/settings/BackupSection.kt"
+      ],
+      "dependsOn": [
+        "backup-format",
+        "backup-crypto"
+      ],
+      "jvmTests": [
+        "com.mengyalife.app.backup.BackupExporterTest",
+        "com.mengyalife.app.backup.BackupFileWriterTest",
+        "com.mengyalife.app.backup.BackupArtifactMetricsTest"
+      ],
+      "device": [
+        {
+          "script": "verify_backup_v2.py",
+          "package": "qa",
+          "tier": "feature",
+          "assertions": 0,
+          "destructive": true,
+          "resetsQaData": true,
+          "measuredSec": null,
+          "timeoutSec": 600
+        }
+      ],
+      "risk": "high",
+      "defaultLevel": "feature",
+      "needsQaBuild": true,
+      "needsQaReset": true,
+      "requiresProdReadonlySmoke": false,
+      "notes": "v2 导出/SAF/回读；QA 真机脚本验证实际文件。",
+      "estimatedSec": null,
+      "measuredSec": null
+    },
+    "backup-security": {
+      "title": "备份安全",
+      "sourcePaths": [
+        "app/src/main/AndroidManifest.xml",
+        "app/src/main/res/xml/data_extraction_rules.xml"
+      ],
+      "dependsOn": [],
+      "jvmTests": [
+        "com.mengyalife.app.backup.BackupManifestSecurityTest"
+      ],
+      "device": [],
+      "risk": "critical",
+      "defaultLevel": "integration",
+      "needsQaBuild": false,
+      "needsQaReset": false,
+      "requiresProdReadonlySmoke": false,
+      "notes": "系统备份排除策略；Manifest/规则变更升级 L2。",
+      "estimatedSec": null,
+      "measuredSec": null
     }
   },
   "impactRules": [
@@ -971,6 +1076,73 @@
       "testLevel": "fast",
       "reason": "只做注册表/脚本静态校验；除非同时改了 app 源码。",
       "deviceModules": []
+    },
+    {
+      "id": "K-backup-format",
+      "description": "备份格式/校验变化",
+      "patterns": [
+        "app/src/main/java/com/mengyalife/app/data/backup/BackupFormatV2.kt",
+        "app/src/main/java/com/mengyalife/app/data/backup/CanonicalJson.kt",
+        "app/src/main/java/com/mengyalife/app/data/backup/BackupValidator.kt",
+        "app/src/main/java/com/mengyalife/app/data/backup/BackupModels.kt"
+      ],
+      "modules": [
+        "backup-format"
+      ],
+      "deviceModules": [],
+      "minLevel": "fast",
+      "testLevel": "fast",
+      "reason": "格式/校验器编辑循环保持 L0；不启动设备。"
+    },
+    {
+      "id": "K-backup-crypto",
+      "description": "备份加密参数/实现变化",
+      "patterns": [
+        "app/src/main/java/com/mengyalife/app/data/backup/BackupCrypto.kt"
+      ],
+      "modules": [
+        "backup-crypto"
+      ],
+      "deviceModules": [],
+      "minLevel": "integration",
+      "testLevel": "integration",
+      "reason": "KDF/AEAD 属安全高风险，升级到 L2（JVM 向量+边界），不跑全量真机。"
+    },
+    {
+      "id": "K-backup-export",
+      "description": "备份导出/SAF/UI 变化",
+      "patterns": [
+        "app/src/main/java/com/mengyalife/app/data/backup/BackupExporter.kt",
+        "app/src/main/java/com/mengyalife/app/data/backup/BackupSnapshotSource.kt",
+        "app/src/main/java/com/mengyalife/app/data/backup/BackupFileWriter.kt",
+        "app/src/main/java/com/mengyalife/app/data/backup/AndroidBackupStorage.kt",
+        "app/src/main/java/com/mengyalife/app/ui/settings/BackupViewModel.kt",
+        "app/src/main/java/com/mengyalife/app/ui/settings/BackupSection.kt"
+      ],
+      "modules": [
+        "backup-export"
+      ],
+      "deviceModules": [
+        "backup-export"
+      ],
+      "minLevel": "feature",
+      "testLevel": "feature",
+      "reason": "功能完成跑 L1 导出；QA 真机验证 SAF/回读。"
+    },
+    {
+      "id": "K-backup-security",
+      "description": "系统备份/Manifest 变化",
+      "patterns": [
+        "app/src/main/AndroidManifest.xml",
+        "app/src/main/res/xml/data_extraction_rules.xml"
+      ],
+      "modules": [
+        "backup-security"
+      ],
+      "deviceModules": [],
+      "minLevel": "integration",
+      "testLevel": "integration",
+      "reason": "系统备份排除属安全高风险，升级 L2；不跑七组回归。"
     }
   ]
 }
