@@ -45,9 +45,11 @@
 1. **任何备份（v2 明文/密文）都不得包含** `encrypted_api_key`、Keystore alias、Key 明文、Key 哈希。
 2. 备份文件不得包含可用于重建 Key 的设备信息（ANDROID_ID、序列号、Keystore blob）。
 3. 恢复时：
-   - 推荐删除本机 API Key + Keystore alias（fail-closed）；用户重新输入；
+   - **DB 提交前不得删除/破坏 Key**（否则恢复失败会连旧配置一起丢）；
+   - DB 提交后推荐删除本机 API Key + Keystore alias（fail-closed）；用户重新输入；
    - 或保留本机 Key（若存在），但必须重新授权后才可用；不得自动发送；
    - 绝不从备份恢复 Key。
+   - 删除必须**确认**（见 §3.4），不能把“调用了 deleteKey()”当作已删除。
 4. 日志/崩溃/错误消息/导出预览不得出现 Key；现有测试已断言 DataStore/日志不含 Key（G3F `verify_weekly_ai`、`verify_advisor`）。
 5. QA 假引擎开关 `use_fake_engine` 不属于用户数据，不进入正式备份；正式构建也不创建假引擎。
 
@@ -56,6 +58,30 @@
 - 密文绑定设备 Keystore；换设备/恢复出厂后不可解，备份会变成“有 Key 但永远用不了”的坏状态。
 - 若把 Keystore 密钥导出，等于破坏 Android Keystore 的安全模型。
 - 正确做法：**Key 不备份，恢复后重输**。
+
+### 3.4 密钥删除必须“确认”，不能“调用即成功”
+
+现状：`SecretCipher.deleteKey()` 返回 `Unit`，内部 `runCatching` 吞掉异常（`SecretCipher.kt:79-84`）。即使 alias 仍存在，调用也静默返回。
+
+G4A-2 恢复路径必须使用确认 API：
+
+```kotlin
+sealed interface KeyDeleteResult {
+  data object DELETED : KeyDeleteResult
+  data object ALREADY_ABSENT : KeyDeleteResult
+  data class FAILED(val reason: String) : KeyDeleteResult
+}
+
+fun deleteKeyConfirmed(): KeyDeleteResult
+```
+
+要求：
+
+1. 删除后重新加载 `AndroidKeyStore`，确认 `containsAlias(alias) == false`；
+2. 只有确认不存在才返回 `DELETED`；原本不存在返回 `ALREADY_ABSENT`；
+3. 异常/仍存在 → `FAILED`；
+4. 再清 DataStore `encrypted_api_key` 并回读确认；
+5. 任何一步失败 → Gate 保持 `RESET_PENDING`，AI/UI 禁止，重试；不得写“已完成”。
 
 ## 4. 授权同意：永不恢复
 
@@ -66,6 +92,21 @@
 - 旧 epoch 不得复用；新同意产生新 epoch，旧 AI 结果不得进入新请求。
 - 备份预览明确写“授权不会恢复，需要重新同意”。
 - 即使恢复旧备份，也不能把旧 recipient/categories 自动写回。
+
+### 4.1 恢复专用 `resetAfterRestore(generation)`
+
+现有 `withdraw()`（`AiConsentRepository.kt:96-106`）每次 `epoch++` 且**保留 recipient**，不适合恢复。恢复必须使用：
+
+```kotlin
+suspend fun resetAfterRestore(generation: Long): ResetResult
+```
+
+- 清空：`granted=0`、`textVersion=0`、`categoriesVersion=0`、`grantedAt=0`、`recipient=""`、`categories=""`；
+- `epoch = max(currentEpoch + 1, generation)`；generation 来自 app_meta，单调递增；epoch 永不回退；
+- 幂等：已未授权 + recipient/categories 空 + epoch >= generation → `ALREADY_RESET`；
+- 只撤销、不 grant；恢复后 UI 必须重新同意；
+- 单次 `DataStore.edit` 原子完成；只在 Gate 维护态调用（此时 UI 不可用，不会并发重新授权）；
+- 不用 `withdraw()` 代替，避免 recipient 残留与 epoch 无意义增长。
 
 ## 5. 加密方案比较
 
@@ -81,8 +122,8 @@
 
 - KDF：PBKDF2-HMAC-SHA256；salt 16B 随机；输出 256-bit；
 - 迭代：初始候选 310k–600k，目标解锁 ≤1.5s；不低于 210k；
-- AEAD：AES-256-GCM，nonce 12B 随机，tag 128-bit；
-- AAD：外层头（format/version/KDF 参数/salt）规范化 JSON；
+- AEAD：AES-256-GCM，nonce 12B 随机，tag 128-bit；test vector 见格式文档；
+- AAD：外层头（format/backupFormatVersion/payloadSha256/cipher/kdf/iterations/salt/nonce/tagBits）的 Canonical JSON UTF-8 字节；排除 `aad`/`ciphertext`/`payloadBase64`，精确定义见 `G4A0-BACKUP-FORMAT-V2.md` §5.2.1；固定测试向量见 §5.2.2；
 - 每次导出新 salt/nonce；同一口令不产生相同密文；
 - 不做压缩，避免 zip bomb 与额外解析面。
 
@@ -138,8 +179,8 @@
 3. **路径安全**：只用 SAF URI；不根据文件名拼路径；不扫描目录。
 4. **资源上限**：文件/载荷/行/字段限制；先 stat 再读；拒绝超大/深嵌套。
 5. **完整性**：AEAD tag + SHA-256 + counts + 引用；任何不一致拒绝。
-6. **原子性**：DB 事务 + app_meta + journal；失败回滚。
-7. **fail-closed**：恢复前撤权/关 AI 自动/清 Key（推荐）；失败后不自动重发。
+6. **原子性**：DB 事务 + app_meta（attempt/generation/settings）+ Gate；journal 只辅助；失败回滚。
+7. **顺序 fail-closed**：先持久化 Gate → 预快照 → DB 事务提交（含 app_meta）→ **之后**撤权/清 Key/关 AI 自动；任何 reset 失败保持 Gate，禁止 UI/AI，重试收敛。
 8. **保密**：不记录正文/Key/口令/完整备份路径到日志；错误信息只含错误码/表名/行号。
 9. **临时文件**：`noBackupFilesDir`、0600、完成后删除；不在公共目录留明文。
 10. **用户确认**：预览 + 高风险确认；不默认勾选。

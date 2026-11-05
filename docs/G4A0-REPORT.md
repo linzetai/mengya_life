@@ -2,8 +2,9 @@
 
 > 批次性质：只读审计 + 方案设计 + 测试规划；**未实现恢复、未修改业务逻辑/数据库/迁移**。
 > 审计时间：2026-11-05（Asia/Shanghai）。
-> 审计基线：`master` / `f2ba1b2`（Gate 3F 已提交，工作区干净）。
-> 本轮交付：`G4A0-DATA-INVENTORY.md`、`G4A0-BACKUP-FORMAT-V2.md`、`G4A0-RESTORE-TRANSACTION.md`、`G4A0-SECURITY-PRIVACY.md`、`G4A0-TEST-MATRIX.md`、本报告。
+> G4A-0 审计基线：`master` / `f2ba1b2`（Gate 3F 已提交，工作区干净）。
+> G4A-0.1 收口基线：`master` / `f580a69`（G4A-0 文档提交）。
+> 本轮交付：G4A-0 六份文档 + `G4A0-1-CLOSURE.md` 收口记录（修订 5 份文档）。
 
 ## 1. 执行摘要
 
@@ -14,6 +15,7 @@
 5. **秘密/授权策略必须 fail-closed**：API Key、Keystore、consent 永不进入备份；恢复后强制重新同意、重输 Key、关闭 AI 自动发送。
 6. **推荐 v2**：逻辑行级、版本化、默认口令加密（PBKDF2 + AES-256-GCM）、核心 7 表 + 派生缓存、`weekly_ai_reviews` 只归档不恢复；全量替换 + 预快照 + app_meta/journal + 启动 reconciliation。
 7. **结论：G3F 验收 PASS，具备进入 G4A-1 的技术前置；但需用户先确认 4 个 A/B 决策（加密默认、派生缓存、v1 策略、AI 配置范围）。**
+8. **G4A-0.1 已关闭评审的 6 个问题**：崩溃窗口、跨存储一致性、格式规范、周 AI 历史、引用校验、测试门禁；详见 §4.1 与 `G4A0-1-CLOSURE.md`。设计已关闭，**代码未实现**。
 
 ## 2. 真实源码路径与关键证据
 
@@ -97,6 +99,19 @@
 | P1-8 | 大文件性能/内存 | 上限 + 解析预算；不压缩；G4A-1 基准 |
 | P1-9 | `fact_ids_json` 非 JSON | G4A-1 修 writer/reader（接受旧 U+001F/新 JSON）；历史不直接改 |
 
+### 4.1 G4A-0.1 评审问题收口（设计状态）
+
+| # | 问题 | 修正位置 | 状态 |
+|---|---|---|---|
+| 1 | journal/app_meta 崩溃窗口 | RESTORE §2/§6.4/§7/§9 | **设计关闭**：app_meta.attempt 是唯一提交依据；12 行状态转移表；Gate 先于 DB |
+| 2 | 跨存储一致性 | RESTORE §3.5/§4.2/§7/§8；SECURITY §3.4/§4.1/§7 | **设计关闭**：提交前不碰 Key/consent；提交后 reset；resetAfterRestore 幂等；deleteKeyConfirmed |
+| 3 | 格式规范 | FORMAT §4.5/§5.1/§5.2.1/§5.2.2/§6.4/§6.5 | **设计关闭**：payload/hash 分层；CJ/AAD 精确；固定向量；原始 vs 恢复后哈希；SAF 中断 |
+| 4 | 周 AI 历史 | FORMAT §10 | **推荐 E2**（归档不恢复）；E1 另立项 |
+| 5 | 引用校验 | RESTORE §4.3/§5/§9 | **设计关闭**：强约束/历史允许/显式修复三层 |
+| 6 | G3F 测试门禁 | TEST §1/§4/§5/§8 | **已修订**：移除 backup/** 一律 L2；新增崩溃/幂等/密钥/历史/哈希用例 |
+
+> “设计关闭”不等于“代码完成”。G4A-1/2/3 仍需实施与测试。
+
 ## 5. 推荐方案与备选
 
 ### 5.1 推荐
@@ -140,12 +155,12 @@
 | 项 | 值 |
 |---|---|
 | 分支 | `master` |
-| 审计起点 HEAD | `f2ba1b295f1ba7111c19dbcfbd3695088a7a220a` |
-| 起点 status | clean |
-| 交付时 HEAD | 本批文档提交（父提交 `f2ba1b2`；`git log -1`） |
-| 交付时 status | clean（仅本批 6 个文档） |
-| 本批变更 | **新增** 6 个 `docs/G4A0-*.md` + G3F 前置复跑证据（`docs/reports/G3F-acceptance/g4a0-recheck/`）；无业务/数据库/恢复代码改动 |
-| 本批提交 | 见 `git log -1`（提交信息 `Gate 4A-0: backup/restore audit and design`） |
+| G4A-0 审计起点 | `f2ba1b295f1ba7111c19dbcfbd3695088a7a220a` |
+| G4A-0.1 收口起点 | `f580a69`（G4A-0 文档提交） |
+| 交付时 HEAD | 本批 G4A-0.1 文档提交（父提交 `f580a69`；`git log -1`） |
+| 交付时 status | clean |
+| 本批变更 | 修订 5 个 G4A0 文档 + 新增 `G4A0-1-CLOSURE.md`；无业务/数据库/恢复代码改动 |
+| 本批提交 | 见 `git log -1`（提交信息 `Gate 4A-0.1: close design review findings`） |
 | 用户既有修改 | 未删除/覆盖；G3F 证据与历史截图保留 |
 
 ## 8. 是否满足进入 G4A-1
@@ -162,6 +177,8 @@
 | B. 派生缓存 | B1 核心 7 + 派生 2（weekly AI 只归档）；B2 仅核心 7 | **B1** |
 | C. v1 处理 | C1 只识别不恢复；C2 有界兼容三表 | **C1** |
 | D. AI endpoint/model | D1 备份但不含 Key、不自动启用；D2 完全不备份 | **D1** |
+| E. 周 AI 历史 | E1 只读历史；E2 归档不恢复 | **E2**（G4A-2 推荐） |
+| F. API Key 恢复 | 删除（fail-closed）；保留本机 Key（仍不自动用） | **删除** |
 
 ## 9. G4A-1 / G4A-2 / G4A-3 实施边界
 
@@ -177,20 +194,20 @@
 - UI：设置页“导出完整备份（v2）”；v1 说明。
 - Manifest：`dataExtractionRules` + `fullBackupContent=false`。
 - `WeeklyAiService` fact_ids writer/reader 修正（标准化 JSON；历史不改）。
-- `tests/test-map.json` 注册新模块 + L0/L1 测试 + QA 导出脚本。
+- `tests/test-map.json` 注册新模块 + 按行为面分级（不把所有 `backup/**` 升到 L2）+ L0/L1 测试 + QA 导出脚本。
 
 **范围外（Out）：** 恢复/导入、数据库 schema 变更、自动合并、云同步。
 
-**退出：** B-01..B-12 通过；v1 不被伪装；无 Key/consent；manifest 规则有测试；G3F 回归不退化。
+**退出：** B-01..B-15 通过；v1 不被伪装；无 Key/consent；manifest 规则有测试；G3F 回归不退化。
 
 ### G4A-2：全量替换恢复核心
 
 **范围（In）：**
 
-- DB schema v12：新增 `app_meta`（restore_id/generation）迁移 + G3F 迁移测试更新。
+- DB schema v12：新增 `app_meta`（restore_attempt_id/restore_generation/restore_settings_json）迁移 + G3F 迁移测试更新。
 - `data/restore/BackupReader/Decryptor/RestoreValidator/RestorePlanner`。
 - `data/restore/RestoreTransaction`：DELETE/INSERT/校验/回滚。
-- `data/restore/RestoreJournal/Coordinator`：phase/app_meta；启动 reconciliation。
+- `data/restore/RestoreGate/Journal/Coordinator`：Gate 文件、app_meta、启动 reconciliation、resetAfterRestore/deleteKeyConfirmed。
 - `data/restore/RestoreGate`：UI + Worker + AI/服务门禁；cancel WorkManager。
 - `data/restore/SettingsRestorePolicy`：consent/Key/AI auto/weekly/theme。
 - 预恢复快照（noBackupFilesDir，设备本地加密/沙箱）。
@@ -199,7 +216,7 @@
 
 **范围外（Out）：** 合并/去重、跨设备云同步、自动回滚覆盖当前数据、正式包破坏性恢复。
 
-**退出：** R-01..R-10、R-13、R-14、R-17、R-19 通过；失败旧数据不变；恢复后 AI/consent 重置；L2 真机 PASS。
+**退出：** R-01..R-10、R-13、R-14、R-17、R-19、R-23..R-29、R-31 通过；失败旧数据/Key 不变；恢复后 AI/consent 重置；L2 真机 PASS。
 
 ### G4A-3：硬化与 Gate 收口
 
@@ -225,6 +242,7 @@
 4. `docs/G4A0-SECURITY-PRIVACY.md`
 5. `docs/G4A0-TEST-MATRIX.md`
 6. `docs/G4A0-REPORT.md`
+7. `docs/G4A0-1-CLOSURE.md`
 
 附加证据：`docs/reports/G3F-acceptance/g4a0-recheck/`（前置复跑 244/244 PASS），G3F 证据索引新增 1 行。
 

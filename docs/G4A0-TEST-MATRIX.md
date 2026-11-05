@@ -14,21 +14,30 @@
 | **L3 gate** | 阶段收口/发布 | 全量 JVM + 全部恢复 E2E + 进程死亡/空间/跨版本/跨包 + 安全用例 | QA + 正式只读冒烟 |
 | **Release** | 发布前 | L3 + 严格不跳过 + APK 哈希/版本 | 真机 |
 
-**自动升级规则（写入 `test-map.json`）：**
+**自动升级规则（写入 `test-map.json`；按“行为面”而非整个 `backup/**` 目录）：**
 
-- `app/src/main/java/**/backup/**`、`restore/**`、`crypto/**`、`data/local/MengyaDatabase.kt`、`app/schemas/**`、`app/src/main/AndroidManifest.xml` 中的备份规则 → 至少 **L2**；
-- 恢复总控、加密、schema/migration、正式包恢复入口 → **L3**；
-- 仅改文档/格式说明 → L0（不启动设备）；
-- 不允许为了省时间把安全关键用例降级或标 SKIPPED 当通过。
+| 变更面 | 默认级别 | 升级条件 |
+|---|---|---|
+| `backup/format`、`backup/model`、`backup/validator`、README/设计文档 | **L0** | 不改写盘/恢复行为 |
+| `backup/crypto` 的纯算法/向量 | **L0**（JVM 向量） | 改 KDF/AEAD 参数、文件格式、生产迭代 → **L2/L3** |
+| `backup/export`、导出 UI、SAF 写入 | **L1** | 改原子写/限额/临时文件 → **L2** |
+| `restore/validator`、`restore/planner` | **L1** | 引用/历史修复规则变化 → **L2** |
+| `restore/transaction`、`app_meta`、`RestoreGate`、journal、`resetAfterRestore`、`deleteKeyConfirmed` | **L2** | 恢复总控或 schema 变化 → **L3** |
+| `data/local/MengyaDatabase.kt`、`app/schemas/**`、Manifest 备份规则 | **L2** | schema/migration/发布 → **L3** |
+| 文档 `docs/G4A0-*.md` | **L0（仅静态校验）** | 不启动设备 |
+
+- **不设**“所有 `backup/**` 一律 L2”的规则；编辑格式/校验器应保持 L0 循环。
+- 安全关键用例（加密向量、秘密排除、恢复事务）不得因级别低而跳过；L0 仍必须执行对应 JVM 安全测试。
+- `SKIPPED`/`NOT RUN` 不得报 PASS；高风险变更若用户指定低级别，调度器提示并升级。
 
 ## 2. 新增测试模块（建议注册表条目）
 
 | 模块 | 源码 | JVM | 真机 | 风险 | 默认级别 |
 |---|---|---|---|---|---|
-| `backup-format` | `data/backup/**`（格式/编码/校验） | BackupFormatTest、BackupValidatorTest | — | high | feature |
-| `backup-crypto` | `data/backup/crypto/**` | BackupCryptoTest（KDF/AEAD/篡改） | `verify_backup_crypto.py`（可选） | critical | integration |
+| `backup-format` | `data/backup/{format,model,validator}/**` | BackupFormatTest、BackupValidatorTest | — | high | fast |
+| `backup-crypto` | `data/backup/crypto/**` | BackupCryptoTest（向量/篡改） | `verify_backup_crypto.py`（可选） | critical | fast（参数变更升 L2） |
 | `backup-export` | `data/backup/BackupExporter.kt`、UI | BackupExporterTest、ExportV2Test | `verify_backup_export.py` | high | feature |
-| `restore-validate` | `data/restore/BackupReader.kt` | RestoreValidatorTest | — | critical | integration |
+| `restore-validate` | `data/restore/BackupReader.kt` | RestoreValidatorTest | — | critical | feature |
 | `restore-transaction` | `data/restore/RestoreTransaction.kt` | RestoreTransactionTest（fake DB） | `verify_restore.py` | critical | integration |
 | `restore-coordinator` | `data/restore/RestoreCoordinator.kt`、journal、app_meta | RestoreCoordinatorTest | `verify_restore_recovery.py` | critical | gate |
 | `backup-migration` | 旧 schema → v11 映射 | BackupCompatibilityTest | `verify_restore_migration.py` | critical | gate |
@@ -50,7 +59,8 @@
 | `fixtures/backup-v2-corrupt.mengyalife` | 截断/字节翻转 | 完整性失败 |
 | `fixtures/backup-v2-huge.mengyalife` | 超 64 MiB/行数 | 限额 |
 | `fixtures/backup-v1-legacy.json` | 现有 v1 三表 | 只识别不恢复 |
-| `fixtures/backup-v2-dangling.mengyalife` | 悬挂 proposal/signal | 引用校验 |
+| `fixtures/backup-v2-historical-dangling.mengyalife` | 删消息/删目标/删日记/软删记忆后的合法历史 | 允许 + stale/null |
+| `fixtures/backup-v2-strong-dangling.mengyalife` | 删父目标/删 goal_id | 强约束拒绝 |
 | `fixtures/backup-v2-duplicate-ids.mengyalife` | 重复 id/period | 唯一键/校验 |
 
 - 所有夹具用测试数据，不含真实用户信息/Key。
@@ -86,6 +96,9 @@
 | B-10 | 计数/摘要 | L0 | JVM | 改 counts/hash | 校验失败 |
 | B-11 | 导出中断 | L2 | 真机 QA | SAF 写入中断/回读失败 | 不显示成功；临时文件清理；旧文件不覆盖 |
 | B-12 | 无敏感字段 | L0/L3 | JVM+证据扫描 | 扫描备份文本/日志 | 无 Key/consent/Keystore |
+| B-13 | payload/AAD 规范 | L0 | JVM | 固定 CJ/空表/AAD 向量 | 哈希/AAD 字节逐字节匹配；无自引用 |
+| B-14 | 未知字段/未来版本 | L0 | JVM | 注入未知表/字段/feature | 未知表/feature 拒绝；未知可选字段警告 |
+| B-15 | 原始 vs 恢复后哈希 | L0/L2 | JVM | ANALYZING/notified_at/weeklyAI 转换 | `restoredSha256 == expectedRestoredSha256 != payloadSha256` |
 
 ### 4.2 恢复（G4A-2）
 
@@ -94,7 +107,8 @@
 | R-01 | 完整恢复 | L2 | 真机 QA | 造 A 数据 → 备份 → 改成 B → 恢复 | A 逐表逐字段一致；B 被替换 |
 | R-02 | v1 拒绝 | L0 | JVM+真机 | 选 v1 | 明确拒绝；DB 不变 |
 | R-03 | 缺字段 | L0 | JVM | 删除必填字段 | 拒绝，列出字段 |
-| R-04 | 悬挂引用 | L0/L2 | JVM+真机 | 删父/消息/日记 | 拒绝；DB 不变 |
+| R-04a | 强引用缺失 | L0/L2 | JVM+真机 | 删父目标/删 goal_id | **拒绝**；DB 不变 |
+| R-04b | 历史悬挂引用 | L0/L2 | JVM+真机 | 删消息/删目标/删日记/软删记忆 | **允许**；warning/stale；强引用仍拒绝 |
 | R-05 | 非法枚举/状态 | L0 | JVM | 注入未知 level/status | 拒绝；不用默认值静默替换 |
 | R-06 | 重复 id/period | L0 | JVM | 重复行 | 拒绝 |
 | R-07 | 旧 schema（<11） | L2 | JVM+真机 | v10 备份 | 字段映射+显式默认；预览说明 |
@@ -113,6 +127,15 @@
 | R-20 | 缓存失效 | L2/L3 | 真机 QA | 恢复旧数据后看洞察/周回顾 | dataVersion 不匹配不显示旧 AI；weekly AI 不锁预算 |
 | R-21 | 重启/重建 | L2 | 真机 QA | 恢复后杀进程/重启 | 数据/设置保持；无半状态 |
 | R-22 | 恢复前快照 | L3 | 真机 QA | 恢复后选择回滚 | 快照可解；回滚走确认 |
+| R-23 | journal PREPARED + DB 已提交 | L3 | 真机 QA | 在 DB 提交后、journal 更新前 force-stop | 以 app_meta 判定提交；补 reset/settings；不丢新数据 |
+| R-24 | journal 损坏/缺失 + marker | L3 | 真机 QA | 删/破坏 journal，保留 app_meta | 用 app_meta.settings 收敛；不依赖 phase |
+| R-25 | resetAfterRestore 幂等 | L0/L2 | JVM+真机 | 同 generation 连续调用 | 第二次 ALREADY_RESET；epoch 不回退；recipient/categories 空 |
+| R-26 | 提交前失败不破坏旧数据/Key | L2 | 真机 QA | 在 Gate 后、DB 前注入失败 | 旧 DB/Key/consent 不变；Gate 清理 |
+| R-27 | 合法历史悬挂 | L2 | 真机 QA | 删目标/日记/软删/纠正后备份 | 校验通过；stale/null 按规则；强引用拒绝 |
+| R-28 | 恢复后哈希 | L2 | 真机 QA | 转换后再读 DB | `restoredSha256 == expectedRestoredSha256`；!= payload |
+| R-29 | Gate 写失败 | L2 | JVM/真机 | 注入写失败 | 中止于 DB 前；旧数据不变 |
+| R-30 | Worker 早于 reconciliation | L3 | 真机 QA | Gate ARMED 时触发 Worker | 不写表/不联网；retry |
+| R-31 | Key 删除未确认 | L2/L3 | JVM+真机 | 注入 deleteKey 失败/alias 残留 | 返回 FAILED；Gate 保持；不显示成功 |
 
 ### 4.3 跨版本/迁移（G4A-2/3）
 
@@ -149,10 +172,10 @@
 ## 5. 执行顺序与门禁
 
 ```text
-L0: backup-format/crypto/validator + 受影响 JVM
-L1: QA 导出 v2 + 回读；不恢复
-L2: QA 恢复典型/失败/回滚/并发/DataStore
-L3: 全量 JVM + 全部 R/S/M + 七组真机 + 正式只读
+L0: backup-format/crypto/validator/文档 + 受影响 JVM（含安全向量）
+L1: QA 导出 v2 + 回读；恢复校验器；不恢复
+L2: QA 恢复典型/失败/回滚/并发/DataStore/resetAfterRestore
+L3: 全量 JVM + 全部 R/S/M + 七组真机 + 正式只读 + 崩溃窗口
 ```
 
 - **不允许**在 L2 用 L1 的“导出成功”替代恢复事务测试。
@@ -184,6 +207,6 @@ L3: 全量 JVM + 全部 R/S/M + 七组真机 + 正式只读
 
 | 阶段 | 必须通过 |
 |---|---|
-| G4A-1 | B-01..B-12（JVM + QA 导出）；v1 不恢复；manifest 安全规则测试 |
-| G4A-2 | R-01..R-10、R-13、R-14、R-17、R-19；L2 真机；回滚 |
-| G4A-3 | 全部 R/S/M/G；L3 全量；进程死亡/并发/跨版本；正式只读 |
+| G4A-1 | B-01..B-15（JVM + QA 导出）；v1 不恢复；manifest 安全规则测试 |
+| G4A-2 | R-01..R-10、R-13、R-14、R-17、R-19、R-23..R-31；L2 真机；回滚 |
+| G4A-3 | 全部 R/S/M/G；L3 全量；R-23/R-24/R-30 崩溃窗口；并发/跨版本；正式只读 |
