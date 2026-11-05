@@ -59,8 +59,8 @@
 | 命令 | 结果 | 耗时 |
 |---|---|---|
 | `--module restore-validate --level fast` | PASS（15 restore 测试） | 7.8s |
-| 全量 JVM | **291/291 PASS** | 8.8s |
-| `--module restore-validate --level feature` | **L1 PASS**（预览 21/21） | 295.1s |
+| 全量 JVM | **291/291 PASS** | 6.6s |
+| `--module restore-validate --level feature` | **L1 PASS**（预览 21/21） | 292.3s |
 | `verify_restore_preview.py` 最终 APK | **21/21 PASS** | 142.93s |
 | APK 构建 | BUILD SUCCESSFUL | 13s |
 

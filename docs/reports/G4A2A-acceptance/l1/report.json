@@ -1,143 +1,27 @@
 {
   "schemaVersion": 1,
-  "runId": "20261105-164200",
+  "runId": "20261105-165632",
   "gate": "3F",
-  "startedAt": "2026-11-05T16:42:00+0800",
-  "finishedAt": "2026-11-05T16:46:55+0800",
-  "durationSec": 295.1,
+  "startedAt": "2026-11-05T16:56:32+0800",
+  "finishedAt": "2026-11-05T17:01:24+0800",
+  "durationSec": 292.3,
   "level": "feature",
   "levelTitle": "L1 Feature",
   "mode": "module",
   "git": {
-    "base": "72e2a551512cfed1080122a455ad175819d6c43c",
+    "base": "9df2b22c3aaa831913a22f4b65fd8071f5e4ec64",
     "baseReason": "上一次 verify 运行记录",
-    "commit": "72e2a551512cfed1080122a455ad175819d6c43c",
+    "commit": "9df2b22c3aaa831913a22f4b65fd8071f5e4ec64",
     "branch": "master",
-    "dirty": true,
-    "files": [
-      {
-        "path": "G4A1-1-evidence.zip",
-        "status": "D",
-        "source": "staged"
-      },
-      {
-        "path": "app/src/main/java/com/mengyalife/app/data/backup/AndroidBackupStorage.kt",
-        "status": "M",
-        "source": "unstaged"
-      },
-      {
-        "path": "app/src/main/java/com/mengyalife/app/data/backup/FileBackupTempStore.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/main/java/com/mengyalife/app/data/restore/BackupRestoreReader.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/main/java/com/mengyalife/app/data/restore/RestoreCurrentStateSource.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/main/java/com/mengyalife/app/data/restore/RestoreModels.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/main/java/com/mengyalife/app/data/restore/RestorePlanner.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/main/java/com/mengyalife/app/data/restore/RestoreValidator.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/main/java/com/mengyalife/app/data/restore/SafRestoreFileSource.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/main/java/com/mengyalife/app/di/AppContainer.kt",
-        "status": "M",
-        "source": "unstaged"
-      },
-      {
-        "path": "app/src/main/java/com/mengyalife/app/ui/screens/SettingsScreen.kt",
-        "status": "M",
-        "source": "unstaged"
-      },
-      {
-        "path": "app/src/main/java/com/mengyalife/app/ui/settings/RestoreSection.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/main/java/com/mengyalife/app/ui/settings/RestoreViewModel.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/test/java/com/mengyalife/app/backup/FileBackupTempStoreTest.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/test/java/com/mengyalife/app/restore/BackupRestoreReaderTest.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/test/java/com/mengyalife/app/restore/RestorePlannerTest.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/test/java/com/mengyalife/app/restore/RestoreTestSupport.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/test/java/com/mengyalife/app/restore/RestoreValidatorTest.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "docs/reports/G4A2A-acceptance/qa/preview-result.json",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "docs/reports/G4A2A-acceptance/qa/run-output.txt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "docs/reports/REPORT-G4A1-1.md",
-        "status": "M",
-        "source": "unstaged"
-      },
-      {
-        "path": "tests/test-map.json",
-        "status": "M",
-        "source": "unstaged"
-      },
-      {
-        "path": "tools/ui-verify/verify_restore_preview.py",
-        "status": "A",
-        "source": "untracked"
-      }
-    ]
+    "dirty": false,
+    "files": []
   },
   "device": {
     "serial": "10.13.224.241:46519",
     "model": "2509FPN0BC",
     "android": "17",
     "sdk": "37",
-    "fetchedAt": "2026-11-05T16:42:01+0800"
+    "fetchedAt": "2026-11-05T16:56:33+0800"
   },
   "apk": {
     "qa": {
@@ -215,7 +99,7 @@
         "assertions": 21,
         "destructive": true,
         "resetsQaData": true,
-        "measuredSec": 141.84,
+        "measuredSec": 142.93,
         "timeoutSec": 600,
         "modules": [
           "restore-validate"
@@ -356,42 +240,42 @@
     {
       "name": "QA 安全前置校验（包名 / QA_BUILD 标记）",
       "status": "PASS",
-      "durationSec": 25.3,
+      "durationSec": 26.0,
       "counts": {
         "assertions": "10/10"
       },
-      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-164200/logs/qa-verify_qa_preflight.log",
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-165632/logs/qa-verify_qa_preflight.log",
       "detail": ""
     },
     {
       "name": "JVM 测试（3 类）",
       "status": "PASS",
-      "durationSec": 4.4,
+      "durationSec": 3.4,
       "counts": {
         "tests": 15,
         "failures": 0
       },
-      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-164200/logs/jvm-testDebugUnitTest.log",
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-165632/logs/jvm-testDebugUnitTest.log",
       "detail": ""
     },
     {
       "name": "真机 verify_navigation.py",
       "status": "PASS",
-      "durationSec": 123.2,
+      "durationSec": 121.2,
       "counts": {
         "assertions": "28/28"
       },
-      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-164200/logs/qa-verify_navigation.log",
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-165632/logs/qa-verify_navigation.log",
       "detail": ""
     },
     {
       "name": "真机 verify_restore_preview.py",
       "status": "PASS",
-      "durationSec": 140.1,
+      "durationSec": 140.3,
       "counts": {
         "assertions": "21/21"
       },
-      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-164200/logs/qa-verify_restore_preview.log",
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-165632/logs/qa-verify_restore_preview.log",
       "detail": ""
     },
     {
@@ -408,11 +292,11 @@
       "package": "com.mengyalife.app.qa",
       "status": "PASS",
       "exitCode": 0,
-      "durationSec": 123.2,
+      "durationSec": 121.2,
       "assertionsPassed": 28,
       "assertionsTotal": 28,
       "failures": [],
-      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-164200/logs/qa-verify_navigation.log",
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-165632/logs/qa-verify_navigation.log",
       "tail": "PASS  tab_trends 可进入设置\nPASS  tab_trends 设置页已就位\nPASS  tab_trends 设置页隐藏底栏\nPASS  tab_trends 返回后底栏恢复\nPASS  tab_diary 可进入设置\nPASS  tab_diary 设置页已就位\nPASS  tab_diary 设置页隐藏底栏\nPASS  tab_diary 返回后底栏恢复\nPASS  日记页仍可打开\nPASS  无崩溃日志\n\n==== SUMMARY: 28/28 passed ====",
       "modules": [
         "navigation"
@@ -424,12 +308,12 @@
       "package": "com.mengyalife.app.qa",
       "status": "PASS",
       "exitCode": 0,
-      "durationSec": 140.1,
+      "durationSec": 140.3,
       "assertionsPassed": 21,
       "assertionsTotal": 21,
       "failures": [],
-      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-164200/logs/qa-verify_restore_preview.log",
-      "tail": "PASS  明确尚未执行\nPASS  执行按钮不可点击  False\nPASS  没有成功/执行提示\nPASS  预览后 DB 完全不变\nPASS  预览后 10 表 counts 不变\nPASS  预览后仍无写入路径\nPASS  重启后不保留预览/口令\nPASS  重启后应用日志无口令\nPASS  测试文件已清理\nQA_RESTORE_PREVIEW_SECONDS=139.68\n\n==== SUMMARY: 21/21 passed ====",
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-165632/logs/qa-verify_restore_preview.log",
+      "tail": "PASS  明确尚未执行\nPASS  执行按钮不可点击  False\nPASS  没有成功/执行提示\nPASS  预览后 DB 完全不变\nPASS  预览后 10 表 counts 不变\nPASS  预览后仍无写入路径\nPASS  重启后不保留预览/口令\nPASS  重启后应用日志无口令\nPASS  测试文件已清理\nQA_RESTORE_PREVIEW_SECONDS=139.91\n\n==== SUMMARY: 21/21 passed ====",
       "modules": [
         "restore-validate"
       ],
@@ -449,7 +333,7 @@
       "deviceStatuses": [
         "PASS"
       ],
-      "durationSec": 123.2,
+      "durationSec": 121.2,
       "jvmClassCount": 0
     },
     {
@@ -468,7 +352,7 @@
       "deviceStatuses": [
         "PASS"
       ],
-      "durationSec": 140.8,
+      "durationSec": 141.0,
       "jvmClassCount": 3
     }
   ],
@@ -485,9 +369,9 @@
     "notRun": 0
   },
   "artifacts": {
-    "dir": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-164200",
-    "json": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-164200/report.json",
-    "md": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-164200/summary.md",
-    "logs": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-164200/logs"
+    "dir": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-165632",
+    "json": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-165632/report.json",
+    "md": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-165632/summary.md",
+    "logs": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-165632/logs"
   }
 }

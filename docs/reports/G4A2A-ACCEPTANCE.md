@@ -48,8 +48,8 @@ JVM 覆盖：正确/错误口令、截断/篡改、v1/未知版本、未来 sche
 | 命令 | 退出码 | 结果 | 耗时 |
 |---|---|---|---|
 | `./scripts/verify.sh --module restore-validate --level fast` | 0 | PASS（15 个 restore 测试） | 7.8s |
-| 全量 JVM | 0 | **291/291 PASS** | 8.8s |
-| `DEV=... ./scripts/verify.sh --module restore-validate --level feature` | 0 | **L1 PASS** | 295.1s |
+| 全量 JVM | 0 | **291/291 PASS** | 6.6s |
+| `DEV=... ./scripts/verify.sh --module restore-validate --level feature` | 0 | **L1 PASS** | 292.3s |
 | `verify_restore_preview.py`（最终 APK） | 0 | **21/21 PASS** | 142.93s |
 | APK 构建 | 0 | BUILD SUCCESSFUL | 13s |
 

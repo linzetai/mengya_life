@@ -1,8 +1,8 @@
-# 测试执行报告 · 20261105-164755
+# 测试执行报告 · 20261105-165618
 
-- 开始：2026-11-05T16:47:55+0800
-- 结束：2026-11-05T16:48:04+0800
-- 总耗时：**8.8s**
+- 开始：2026-11-05T16:56:18+0800
+- 结束：2026-11-05T16:56:25+0800
+- 总耗时：**6.6s**
 - 级别：**fast**（L0 Fast）
 - 模式：all
 - 结论：**PASS**
@@ -10,40 +10,11 @@
 
 ## Git 与变更
 
-- commit：`72e2a551512cfed1080122a455ad175819d6c43c`
+- commit：`9df2b22c3aaa831913a22f4b65fd8071f5e4ec64`
 - branch：`master`
-- 基线：`72e2a551512cfed1080122a455ad175819d6c43c`（上一次 verify 运行记录）
-- 工作区 dirty：True
-- 变更文件：26
-
-| 状态 | 文件 | 来源 |
-|---|---|---|
-| D | `G4A1-1-evidence.zip` | staged |
-| M | `app/src/main/java/com/mengyalife/app/data/backup/AndroidBackupStorage.kt` | unstaged |
-| A | `app/src/main/java/com/mengyalife/app/data/backup/FileBackupTempStore.kt` | untracked |
-| A | `app/src/main/java/com/mengyalife/app/data/restore/BackupRestoreReader.kt` | untracked |
-| A | `app/src/main/java/com/mengyalife/app/data/restore/RestoreCurrentStateSource.kt` | untracked |
-| A | `app/src/main/java/com/mengyalife/app/data/restore/RestoreModels.kt` | untracked |
-| A | `app/src/main/java/com/mengyalife/app/data/restore/RestorePlanner.kt` | untracked |
-| A | `app/src/main/java/com/mengyalife/app/data/restore/RestoreValidator.kt` | untracked |
-| A | `app/src/main/java/com/mengyalife/app/data/restore/SafRestoreFileSource.kt` | untracked |
-| M | `app/src/main/java/com/mengyalife/app/di/AppContainer.kt` | unstaged |
-| M | `app/src/main/java/com/mengyalife/app/ui/screens/SettingsScreen.kt` | unstaged |
-| A | `app/src/main/java/com/mengyalife/app/ui/settings/RestoreSection.kt` | untracked |
-| A | `app/src/main/java/com/mengyalife/app/ui/settings/RestoreViewModel.kt` | untracked |
-| A | `app/src/test/java/com/mengyalife/app/backup/FileBackupTempStoreTest.kt` | untracked |
-| A | `app/src/test/java/com/mengyalife/app/restore/BackupRestoreReaderTest.kt` | untracked |
-| A | `app/src/test/java/com/mengyalife/app/restore/RestorePlannerTest.kt` | untracked |
-| A | `app/src/test/java/com/mengyalife/app/restore/RestoreTestSupport.kt` | untracked |
-| A | `app/src/test/java/com/mengyalife/app/restore/RestoreValidatorTest.kt` | untracked |
-| A | `docs/reports/G4A2A-acceptance/l1/report.json` | untracked |
-| A | `docs/reports/G4A2A-acceptance/l1/run-output.txt` | untracked |
-| A | `docs/reports/G4A2A-acceptance/l1/summary.md` | untracked |
-| A | `docs/reports/G4A2A-acceptance/qa/preview-result.json` | untracked |
-| A | `docs/reports/G4A2A-acceptance/qa/run-output.txt` | untracked |
-| M | `docs/reports/REPORT-G4A1-1.md` | unstaged |
-| M | `tests/test-map.json` | unstaged |
-| A | `tools/ui-verify/verify_restore_preview.py` | untracked |
+- 基线：`9df2b22c3aaa831913a22f4b65fd8071f5e4ec64`（master 的 merge-base）
+- 工作区 dirty：False
+- 变更文件：0
 
 ## 设备与 APK
 
@@ -81,8 +52,8 @@
 
 | 步骤 | 状态 | 耗时 | 计数 | 日志 |
 |---|---|---|---|---|
-| 静态检查（schema-contract, script-syntax, validate-map） | PASS | 1.2s | issues=0 |  |
-| JVM 测试（全量） | PASS | 7.0s | tests=291, failures=0 | `jvm-testDebugUnitTest.log` |
+| 静态检查（schema-contract, script-syntax, validate-map） | PASS | 1.8s | issues=0 |  |
+| JVM 测试（全量） | PASS | 4.2s | tests=291, failures=0 | `jvm-testDebugUnitTest.log` |
 
 ## 未运行与原因
 
@@ -114,9 +85,9 @@
 
 - 无失败
 
-- 报告目录：`/root/workspace/mengya-life/docs/reports/test-runs/20261105-164755`
-- JSON：`/root/workspace/mengya-life/docs/reports/test-runs/20261105-164755/report.json`
-- 日志目录：`/root/workspace/mengya-life/docs/reports/test-runs/20261105-164755/logs`
+- 报告目录：`/root/workspace/mengya-life/docs/reports/test-runs/20261105-165618`
+- JSON：`/root/workspace/mengya-life/docs/reports/test-runs/20261105-165618/report.json`
+- 日志目录：`/root/workspace/mengya-life/docs/reports/test-runs/20261105-165618/logs`
 
 ## 级别验收
 

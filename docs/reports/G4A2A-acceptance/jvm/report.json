@@ -1,151 +1,20 @@
 {
   "schemaVersion": 1,
-  "runId": "20261105-164755",
+  "runId": "20261105-165618",
   "gate": "3F",
-  "startedAt": "2026-11-05T16:47:55+0800",
-  "finishedAt": "2026-11-05T16:48:04+0800",
-  "durationSec": 8.8,
+  "startedAt": "2026-11-05T16:56:18+0800",
+  "finishedAt": "2026-11-05T16:56:25+0800",
+  "durationSec": 6.6,
   "level": "fast",
   "levelTitle": "L0 Fast",
   "mode": "all",
   "git": {
-    "base": "72e2a551512cfed1080122a455ad175819d6c43c",
-    "baseReason": "上一次 verify 运行记录",
-    "commit": "72e2a551512cfed1080122a455ad175819d6c43c",
+    "base": "9df2b22c3aaa831913a22f4b65fd8071f5e4ec64",
+    "baseReason": "master 的 merge-base",
+    "commit": "9df2b22c3aaa831913a22f4b65fd8071f5e4ec64",
     "branch": "master",
-    "dirty": true,
-    "files": [
-      {
-        "path": "G4A1-1-evidence.zip",
-        "status": "D",
-        "source": "staged"
-      },
-      {
-        "path": "app/src/main/java/com/mengyalife/app/data/backup/AndroidBackupStorage.kt",
-        "status": "M",
-        "source": "unstaged"
-      },
-      {
-        "path": "app/src/main/java/com/mengyalife/app/data/backup/FileBackupTempStore.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/main/java/com/mengyalife/app/data/restore/BackupRestoreReader.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/main/java/com/mengyalife/app/data/restore/RestoreCurrentStateSource.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/main/java/com/mengyalife/app/data/restore/RestoreModels.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/main/java/com/mengyalife/app/data/restore/RestorePlanner.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/main/java/com/mengyalife/app/data/restore/RestoreValidator.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/main/java/com/mengyalife/app/data/restore/SafRestoreFileSource.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/main/java/com/mengyalife/app/di/AppContainer.kt",
-        "status": "M",
-        "source": "unstaged"
-      },
-      {
-        "path": "app/src/main/java/com/mengyalife/app/ui/screens/SettingsScreen.kt",
-        "status": "M",
-        "source": "unstaged"
-      },
-      {
-        "path": "app/src/main/java/com/mengyalife/app/ui/settings/RestoreSection.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/main/java/com/mengyalife/app/ui/settings/RestoreViewModel.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/test/java/com/mengyalife/app/backup/FileBackupTempStoreTest.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/test/java/com/mengyalife/app/restore/BackupRestoreReaderTest.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/test/java/com/mengyalife/app/restore/RestorePlannerTest.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/test/java/com/mengyalife/app/restore/RestoreTestSupport.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "app/src/test/java/com/mengyalife/app/restore/RestoreValidatorTest.kt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "docs/reports/G4A2A-acceptance/l1/report.json",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "docs/reports/G4A2A-acceptance/l1/run-output.txt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "docs/reports/G4A2A-acceptance/l1/summary.md",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "docs/reports/G4A2A-acceptance/qa/preview-result.json",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "docs/reports/G4A2A-acceptance/qa/run-output.txt",
-        "status": "A",
-        "source": "untracked"
-      },
-      {
-        "path": "docs/reports/REPORT-G4A1-1.md",
-        "status": "M",
-        "source": "unstaged"
-      },
-      {
-        "path": "tests/test-map.json",
-        "status": "M",
-        "source": "unstaged"
-      },
-      {
-        "path": "tools/ui-verify/verify_restore_preview.py",
-        "status": "A",
-        "source": "untracked"
-      }
-    ]
+    "dirty": false,
+    "files": []
   },
   "device": null,
   "apk": {},
@@ -638,7 +507,7 @@
     {
       "name": "静态检查（schema-contract, script-syntax, validate-map）",
       "status": "PASS",
-      "durationSec": 1.23,
+      "durationSec": 1.81,
       "counts": {
         "issues": 0
       },
@@ -647,12 +516,12 @@
     {
       "name": "JVM 测试（全量）",
       "status": "PASS",
-      "durationSec": 7.0,
+      "durationSec": 4.2,
       "counts": {
         "tests": 291,
         "failures": 0
       },
-      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-164755/logs/jvm-testDebugUnitTest.log",
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-165618/logs/jvm-testDebugUnitTest.log",
       "detail": ""
     }
   ],
@@ -1014,9 +883,9 @@
     "notRun": 0
   },
   "artifacts": {
-    "dir": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-164755",
-    "json": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-164755/report.json",
-    "md": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-164755/summary.md",
-    "logs": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-164755/logs"
+    "dir": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-165618",
+    "json": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-165618/report.json",
+    "md": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-165618/summary.md",
+    "logs": "/root/workspace/mengya-life/docs/reports/test-runs/20261105-165618/logs"
   }
 }
