@@ -797,7 +797,9 @@
         "app/src/main/java/com/mengyalife/app/data/backup/AndroidBackupStorage.kt",
         "app/src/main/java/com/mengyalife/app/data/backup/BackupPostRestoreProjection.kt",
         "app/src/main/java/com/mengyalife/app/ui/settings/BackupViewModel.kt",
-        "app/src/main/java/com/mengyalife/app/ui/settings/BackupSection.kt"
+        "app/src/main/java/com/mengyalife/app/ui/settings/BackupSection.kt",
+        "app/src/main/java/com/mengyalife/app/data/qa/QaBackupFixtureSeeder.kt",
+        "app/src/main/java/com/mengyalife/app/data/backup/QaBackupFaultInjector.kt"
       ],
       "dependsOn": [
         "backup-format",
@@ -818,6 +820,26 @@
           "resetsQaData": true,
           "measuredSec": 18.06,
           "timeoutSec": 600
+        },
+        {
+          "script": "verify_backup_v2_full.py",
+          "package": "qa",
+          "tier": "feature",
+          "assertions": 19,
+          "destructive": true,
+          "resetsQaData": true,
+          "measuredSec": 18.07,
+          "timeoutSec": 600
+        },
+        {
+          "script": "verify_backup_v2_failures.py",
+          "package": "qa",
+          "tier": "feature",
+          "assertions": 45,
+          "destructive": true,
+          "resetsQaData": true,
+          "measuredSec": 327.21,
+          "timeoutSec": 900
         }
       ],
       "risk": "high",
@@ -825,7 +847,7 @@
       "needsQaBuild": true,
       "needsQaReset": true,
       "requiresProdReadonlySmoke": false,
-      "notes": "v2 导出/SAF/回读；JVM 10.0s；QA 真机 28/28 PASS，端到端 18.06s（假数据 5,445B）。",
+      "notes": "v2 导出/SAF/回读；JVM 10.0s；QA 全表 19/19（120/120 列）18.07s；失败路径 45/45 326.72s；L1/L2 PASS。",
       "estimatedSec": 10.0,
       "measuredSec": 10.0
     },
@@ -1117,7 +1139,9 @@
         "app/src/main/java/com/mengyalife/app/data/backup/BackupFileWriter.kt",
         "app/src/main/java/com/mengyalife/app/data/backup/AndroidBackupStorage.kt",
         "app/src/main/java/com/mengyalife/app/ui/settings/BackupViewModel.kt",
-        "app/src/main/java/com/mengyalife/app/ui/settings/BackupSection.kt"
+        "app/src/main/java/com/mengyalife/app/ui/settings/BackupSection.kt",
+        "app/src/main/java/com/mengyalife/app/data/qa/QaBackupFixtureSeeder.kt",
+        "app/src/main/java/com/mengyalife/app/data/backup/QaBackupFaultInjector.kt"
       ],
       "modules": [
         "backup-export"
