@@ -766,8 +766,8 @@
       "needsQaReset": false,
       "requiresProdReadonlySmoke": false,
       "notes": "格式/校验 JVM；编辑循环 L0，不启动设备。",
-      "estimatedSec": null,
-      "measuredSec": null
+      "estimatedSec": 10.0,
+      "measuredSec": 10.0
     },
     "backup-crypto": {
       "title": "备份加密",
@@ -785,8 +785,8 @@
       "needsQaReset": false,
       "requiresProdReadonlySmoke": false,
       "notes": "KDF/AEAD 向量与参数边界；参数变更由规则升级到 integration。",
-      "estimatedSec": null,
-      "measuredSec": null
+      "estimatedSec": 8.3,
+      "measuredSec": 8.3
     },
     "backup-export": {
       "title": "完整备份导出",
@@ -825,9 +825,9 @@
       "needsQaBuild": true,
       "needsQaReset": true,
       "requiresProdReadonlySmoke": false,
-      "notes": "v2 导出/SAF/回读；QA 真机脚本验证实际文件。",
-      "estimatedSec": null,
-      "measuredSec": null
+      "notes": "v2 导出/SAF/回读；JVM 10.0s，QA 真机脚本本轮 NOT RUN（设备离线）。",
+      "estimatedSec": 10.0,
+      "measuredSec": 10.0
     },
     "backup-security": {
       "title": "备份安全",
@@ -846,8 +846,8 @@
       "needsQaReset": false,
       "requiresProdReadonlySmoke": false,
       "notes": "系统备份排除策略；Manifest/规则变更升级 L2。",
-      "estimatedSec": null,
-      "measuredSec": null
+      "estimatedSec": 9.3,
+      "measuredSec": 9.3
     }
   },
   "impactRules": [

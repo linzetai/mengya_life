@@ -1,0 +1,2 @@
+G4A1_METRIC artifactBytes=6689 buildMs=397 records=12
+G4A1_METRIC artifactBytes=6689 buildMs=397 records=12

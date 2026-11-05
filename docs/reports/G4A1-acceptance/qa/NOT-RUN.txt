@@ -1,0 +1,9 @@
+QA device unavailable at 2026-11-05 09:1x Asia/Shanghai.
+$ adb devices -l
+List of devices attached
+(empty)
+
+$ adb connect 192.168.10.183:33537
+failed to connect ...
+
+verify_backup_v2.py: NOT RUN (no device). No PASS claimed.

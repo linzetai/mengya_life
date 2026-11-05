@@ -42,7 +42,7 @@
 | 7 | `growth_memories` | 16 | `id` UUID | JSON 引用 signal ids / source diary ids | **高**（长期画像） | 部分（可重算，但用户纠正/墓碑不可重建） | **是（核心）** | 7 | 否 | v7；软删除/纠正状态必须保留 |
 | 8 | `insight_reports` | 11 | `id` UUID | 逻辑 `data_version` 绑定输入 | **高**（AI 解释） | 是（重跑 AI，不确定） | 可选派生 | 8 | 否 | v8；缓存按 dataVersion 失效 |
 | 9 | `weekly_reviews` | 11 | `id` UUID，`period_key` 唯一 | 无 | **高**（周回顾） | 是（本地规则确定性） | 可选派生 | 9 | 否 | v9/v10 加 data/consent version |
-| 10 | `weekly_ai_reviews` | 13 | `period_key` | 逻辑绑定 consent/config | **高**（AI 周报） | 否（AI 不确定） | 归档；**恢复必须排除**（预算/授权） | —（不恢复） | 否 | v10/v11；`fact_ids_json` 不是 JSON（P1 技术债） |
+| 10 | `weekly_ai_reviews` | 13 | `period_key` | 逻辑绑定 consent/config | **高**（AI 周报） | 否（AI 不确定） | 归档；**恢复必须排除**（预算/授权） | —（不恢复） | 否 | v10/v11；`fact_ids_json` 历史为 U+001F；G4A-1 新写入 JSON，读取兼容 |
 
 总计：**10 表 / 120 列**。v1 导出 3 表 / 23 列（19.2%）；详见 §6。
 
@@ -241,7 +241,7 @@ goal_checkins.goal_id    -> goals.id        ON DELETE CASCADE
 | `summary` | TEXT | **是** | 否 | 归档 | |
 | `highlights_json` | TEXT | **是** | 否 | 归档 | |
 | `suggestion` | TEXT | **是** | 否 | 归档 | |
-| `fact_ids_json` | TEXT | 是 | 否 | 归档 | **实际是 U+001F 分隔串，不是 JSON** |
+| `fact_ids_json` | TEXT | 是 | 否 | 归档 | **历史行是 U+001F 分隔串；G4A-1 新写入 JSON 数组，读取兼容两种** |
 | `categories` | TEXT | 是 | 否 | 归档 | |
 | `error` | TEXT NULL | 是 | 否 | 归档 | |
 | `model` | TEXT NULL | 是 | 否 | 归档 | |
@@ -315,7 +315,7 @@ goal_checkins.goal_id    -> goals.id        ON DELETE CASCADE
 | **P0** | 无跨存储事务 | Room + 4 个 DataStore + WorkManager | 恢复中断会半恢复；需 journal/reconciliation |
 | **P0** | 秘密/授权恢复策略未定义 | `AiConfigStorage.kt:45`；`SecretCipher` Keystore；consent keys | 可能把不可解密 Key 或旧授权带入新设备，导致静默发送或永久锁死 |
 | **P0** | 无导入校验/限额 | 只有 `verify` 结构校验；无大小/行数上限 | 恶意/损坏文件可 OOM、崩溃、部分写入 |
-| **P1** | `fact_ids_json` 非 JSON | `WeeklyAiService.kt:184`；G3F 日志 `'week-counts'` | 备份解析器若按 JSON 处理会失败；归档会保留脏格式 |
+| **P1** | `fact_ids_json` 非 JSON | `WeeklyAiService.kt:184`；G3F 日志 `'week-counts'` | **G4A-1 已修正**：新写入 JSON 数组；读取兼容历史 U+001F；历史行不批量改写 |
 | **P1** | 逻辑引用无 FK | proposals/signals/memories/insights | 恢复可能留下悬挂引用，UI 打不开或展示错误 |
 | **P1** | 迁移/缓存兼容 | v6-v11 字段；insight dataVersion；weekly AI 预算 | 旧备份在新版本可能缺字段/缓存错误命中 |
 | **P1** | 设备断开，未采集真实行数 | 本轮 adb 无设备 | 无法给出实际字节；v2 限额需在 G4A-1 用 QA 数据校准 |
