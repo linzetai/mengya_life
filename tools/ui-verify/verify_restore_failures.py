@@ -170,7 +170,7 @@ def run_single_scenario(scenario):
     """Run one isolated fault case without replaying earlier R2-R6 cases."""
     scenario = scenario.upper()
     started = time.time()
-    allowed = {"R2", "R3", "R4", "R5", "R6", "R7"}
+    allowed = {"R2", "R3", "R4", "R5", "R6", "R7", "SETTINGS_FAIL"}
     if scenario not in allowed:
         check("case名称有效", False, f"{scenario}; allowed={sorted(allowed)}")
         restore_chrome(); sys.exit(1)
@@ -217,6 +217,20 @@ def run_single_scenario(scenario):
         start(); check(f"{scenario}重启收敛", wait_ready())
         tag = scenario.lower() + "-single-restart"
         assert_recovered_after_restart(scenario, dump_db(pull_db(f"/tmp/g4a2b-{tag}")), qa_after())
+    elif scenario == "SETTINGS_FAIL":
+        do_restore("--ez qa_restore_fail_settings true")
+        check("设置收敛故障被记录", wait_status_label("COMMITTED_NEEDS_CONVERGENCE"))
+        failed_state = status()
+        check("设置失败时Gate仍保持", gate_exists() and failed_state.get("gateActive") is True, str(failed_state))
+        check("设置失败时Key已删除", failed_state.get("keyPresent") is False, str(failed_state))
+        check("设置失败不报告成功且Gate未释放",
+              status().get("label") == "COMMITTED_NEEDS_CONVERGENCE" and gate_exists())
+        db = dump_db(pull_db("/tmp/g4a2b-settings-fail"))
+        check("设置失败时核心数据已提交A", tables_equal(EXPECTED_A, db, CORE))
+        check("维护状态下没有weekly AI副作用", len(db["weekly_ai_reviews"]["rows"]) == 0)
+        start(); check("移除故障后重启收敛", wait_ready())
+        assert_recovered_after_restart(
+            scenario, dump_db(pull_db("/tmp/g4a2b-settings-fail-recovered")), qa_after())
 
     adb(f"shell rm -f {REMOTE}")
     elapsed = time.time() - started

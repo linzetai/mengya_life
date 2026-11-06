@@ -212,12 +212,20 @@ def validate_selection_policy(map_: dict) -> list[str]:
         apply_case_filter(restore_case, "R7")
         if len(restore_case.device_scripts) != 1 or restore_case.device_scripts[0]["script"] != "verify_restore_failures.py":
             return ["restore --case R7 应只选择故障矩阵脚本"]
-        if len(restore_case.deferred_device_scripts) != 3:
-            return ["restore --case R7 必须明确延期其余三个脚本"]
+        if len(restore_case.deferred_device_scripts) != 4:
+            return ["restore --case R7 必须明确延期其余四个脚本"]
         fresh_case = select(map_, None, ["restore-validate"], "integration")
         apply_case_filter(fresh_case, "FRESH_V12")
         if len(fresh_case.device_scripts) != 1 or fresh_case.device_scripts[0]["script"] != "verify_restore_fresh_db.py":
             return ["fresh v12 scenario 应可单独选择"]
+        db_unreadable_case = select(map_, None, ["restore-validate"], "integration")
+        apply_case_filter(db_unreadable_case, "DB_UNREADABLE")
+        if len(db_unreadable_case.device_scripts) != 1 or db_unreadable_case.device_scripts[0]["script"] != "verify_restore_db_unreadable.py":
+            return ["DB不可读startup fail-closed scenario应可单独选择"]
+        settings_fail_case = select(map_, None, ["restore-validate"], "integration")
+        apply_case_filter(settings_fail_case, "SETTINGS_FAIL")
+        if len(settings_fail_case.device_scripts) != 1 or settings_fail_case.device_scripts[0]["script"] != "verify_restore_failures.py":
+            return ["Gate/maintenance失败场景应可单独选择"]
 
         backup_ui_change = ChangeSet(
             base="(self-test)", base_reason="policy self-test",

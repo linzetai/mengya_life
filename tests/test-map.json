@@ -957,7 +957,7 @@
           "estimatedSec": 518.4,
           "timeoutSec": 1200,
           "scenarioEnvVar": "MENGYA_RESTORE_SCENARIO",
-          "scenarios": ["R2", "R3", "R4", "R5", "R6", "R7"],
+          "scenarios": ["R2", "R3", "R4", "R5", "R6", "R7", "SETTINGS_FAIL"],
           "scenarioMinLevel": "integration"
         },
         {
@@ -972,6 +972,19 @@
           "timeoutSec": 180,
           "scenarioEnvVar": "MENGYA_RESTORE_FRESH_SCENARIO",
           "scenarios": ["FRESH_V12"],
+          "scenarioMinLevel": "integration"
+        },
+        {
+          "script": "verify_restore_db_unreadable.py",
+          "package": "qa",
+          "tier": "integration",
+          "assertions": 12,
+          "destructive": true,
+          "resetsQaData": true,
+          "estimatedSec": 120,
+          "timeoutSec": 600,
+          "scenarioEnvVar": "MENGYA_RESTORE_STARTUP_SCENARIO",
+          "scenarios": ["DB_UNREADABLE"],
           "scenarioMinLevel": "integration"
         }
       ],
