@@ -1351,7 +1351,9 @@
       "description": "共享恢复写屏障及业务写入口并发保护",
       "patterns": [
         "app/src/main/java/com/mengyalife/app/data/restore/RestoreWriteBarrier.kt",
-        "app/src/main/java/com/mengyalife/app/data/restore/RestoreCoordinator.kt"
+        "app/src/main/java/com/mengyalife/app/data/restore/RestoreCoordinator.kt",
+        "app/src/main/java/com/mengyalife/app/data/weekly/WeeklyReviewWorker.kt",
+        "app/src/main/java/com/mengyalife/app/di/AppContainer.kt"
       ],
       "modules": [
         "restore-validate", "diary", "goals", "advisor", "ai-consent",

@@ -285,6 +285,18 @@ def validate_selection_policy(map_: dict) -> list[str]:
             "verify_weekly_ai.py", "verify_g3b1.py",
         }.issubset(startup_scripts):
             return ["startup gate变更必须覆盖DB不可读/fresh/restore/weekly/consent L2"]
+        for guarded_path in (
+            "app/src/main/java/com/mengyalife/app/data/weekly/WeeklyReviewWorker.kt",
+            "app/src/main/java/com/mengyalife/app/di/AppContainer.kt",
+        ):
+            guarded = select(map_, ChangeSet(
+                base="(self-test)", base_reason="policy self-test",
+                changes=[Change(guarded_path, "M", "self-test")],
+                commit="self-test", branch="self-test",
+            ), None, None)
+            guarded_scripts = {d["script"] for d in guarded.device_scripts}
+            if guarded.level != "integration" or "verify_restore_db_unreadable.py" not in guarded_scripts:
+                return [f"{guarded_path}改动必须命中恢复维护/Worker fail-closed L2探针"]
 
         gate_case = select(map_, None, ["restore-validate"], "gate")
         try:

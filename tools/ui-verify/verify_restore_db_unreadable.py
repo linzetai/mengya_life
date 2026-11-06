@@ -17,11 +17,11 @@ if scenario and scenario != "DB_UNREADABLE":
 DB_NAME = "mengya-life-qa.db"
 DB_REMOTE = f"databases/{DB_NAME}"
 
-def pull_db(path):
+def pull_file(remote, path):
     found_main = False
     for suffix in ("", "-wal", "-shm"):
         result = subprocess.run(
-            ["adb", "-s", DEV, "exec-out", "run-as", PKG, "cat", DB_REMOTE + suffix],
+            ["adb", "-s", DEV, "exec-out", "run-as", PKG, "cat", remote + suffix],
             capture_output=True, timeout=40,
         )
         if result.returncode == 0 and result.stdout:
@@ -29,7 +29,10 @@ def pull_db(path):
                 output.write(result.stdout)
             if not suffix:
                 found_main = True
-    if not found_main:
+    return path if found_main else None
+
+def pull_db(path):
+    if pull_file(DB_REMOTE, path) is None:
         raise RuntimeError("无法读取QA数据库快照")
     return path
 
@@ -89,8 +92,9 @@ try:
     check("DB不可读时不显示目标写入入口", not has_tag("tab_goals"))
     check("DB不可读时不显示AI请求入口", not has_tag("weekly_generate_ai"))
 
-    # Explicitly enqueue the worker through the QA-only Activity extra above.
-    # Its first operation must be rejected by the non-READY barrier.
+    # Explicitly enqueue the QA worker while the DB is unreadable. Its outer
+    # RestoreWriteBarrier guards its DB/AI/notification body; keep the window
+    # open long enough for any scheduled attempt before comparing Room rows.
     time.sleep(15)
     adb(f"shell am force-stop {PKG}")
     restore_perm = chmod_db("600")
