@@ -1,10 +1,11 @@
-# G4A-2B evidence index
+# G4A2B evidence index
 
-- `../REPORT-G4A2B-CLOSURE.md`: final source status (NOT PASS; device unavailable).
-- `l0/`: final 299/299 JVM/static report and log, final comparator self-test.
+- `../REPORT-G4A2B-CLOSURE.md`: current closure result; L2 partial, Gate NOT PASS.
+- `l0/`: historical full 299/299 plus final restore-targeted L0 and comparator evidence; the final P0 edits were additionally covered by six restore classes.
 - `build/` and `apk/`: final QA/debug build log and SHA-256.
-- `optimization/`: old broad L2 timing, final focused L2 dry-run, preflight/settings targeted runs.
-- `device/NOT-RUN-final.txt`: explicit final device disconnect status.
-- `logs/e2e-final-apk.log`, `logs/failures.log`, `logs/migration.log`: historical pre-barrier device PASS logs only; they are not evidence for the final barrier build.
-- `reports/l1-report.json`, `db/`, `apk/` in `G4A2B-acceptance`: prior QA evidence; use only with the caveat in the closure report.
-- `G4A2B-acceptance/failures/failure-*`: earlier QA-only failed-run diagnostics, synthetic fixtures only.
+- `optimization/`: broad vs focused plans and local dev-profile timing.
+- `device/NOT-RUN-final.txt`: actual port-34225 partial-run status; no further device action after user's pause.
+- `../workflow-optimization/runs/20261106-111828-partial-l2/`: port-34225 QA preflight/migration/g3b1/E2E/R2-R6 logs; R7 setup failed and remaining work was interrupted.
+- `logs/e2e-final-apk.log`, `logs/failures.log`, `logs/migration.log`: older pre-barrier results only; not final-source evidence.
+- `reports/l1-report.json`, `db/`, `apk/` in `G4A2B-acceptance`: prior QA evidence; use with the caveat in the closure report.
+- `G4A2B-acceptance/failures/failure-*`: QA-only diagnostics; synthetic test data.

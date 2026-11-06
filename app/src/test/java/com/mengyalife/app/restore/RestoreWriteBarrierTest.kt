@@ -36,15 +36,18 @@ class RestoreWriteBarrierTest {
             }
         }
         entered.await()
+        var convergedWrite = 0
         val restore = async {
             barrier.withExclusive {
                 assertFalse(barrier.isReady())
+                barrier.withWrite { convergedWrite++ }
             }
         }
         assertFalse(restore.isCompleted)
         release.complete(Unit)
         writer.join()
         restore.await()
+        assertEquals(1, convergedWrite)
         assertEquals(1, written)
         assertFalse(barrier.isReady())
         val failure = runCatching { barrier.withWrite(generation) { written++ } }.exceptionOrNull()

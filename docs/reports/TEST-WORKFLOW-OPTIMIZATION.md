@@ -45,14 +45,14 @@
 | `--profile dev --module restore-validate --level integration` | **4.5s LOCAL PASS** | 6个JVM类，0真机；fullLevelSatisfied=false |
 | `--profile dev --module settings --level feature` | **3.8s LOCAL PASS** | 没有JVM类时实际执行 app Kotlin 编译；0真机 |
 | `--profile dev --changed`（本轮测试体系/文档改动） | **3.1s LOCAL PASS** | 静态脚本检查；跳过无关app编译/JVM/真机 |
-| `--all --level fast` | **5.9s PASS** | 全量静态 + JVM 299/299；0真机 |
+| `--all --level fast` | **历史 5.9s / 299/299 PASS** | barrier/space最后两项P0修复前；修复后 restore-validate L0 6类/24 tests PASS，19.4s |
 | 标准L2 dry-run advisor + ai-consent + settings | **7→5 唯一脚本** | 网络401移Gate，已覆盖UI模块跳过导航；g3b1/settings共享声明折叠 |
 | weekly-ai integration dry-run | **smoke 22条，估时881s总链路** | 包含迁移/授权/settings；95条全矩阵仅Gate/Release，静态策略自测确认模式 |
 | 备份模块 dry-run | **4→2个设备脚本** | 移除重复基础导出+通用导航，保留full字段校验+失败矩阵；历史估计省约233s |
 
 旧 broad integration 实测 **2043.5s（34.1分钟）**。G4A-2B focused L2 按迁移34s + E2E估算393s + R2-R7历史518s + fresh DB 14.5s，脚本约960s；加QA前置/JVM后预计约16–17分钟（约少一半），这是估算，未声称最终设备PASS。
 
-复验报告和dry-run计划已提交到 `docs/reports/workflow-optimization/`；其中 dev restore 报告明确列出4个延后设备脚本，且 `fullLevelSatisfied=false`。本轮没有启动真机测试；设备层统计来自历史实测或dry-run估时。
+复验报告和dry-run计划已整理在 `docs/reports/workflow-optimization/`。本轮使用port 34225做了combined L2：QA preflight 11/11、migration 26/26、g3b1 47/47、E2E 39/39、R2-R6 PASS；R7 setup断言失败时用户要求暂停，fresh DB/weekly smoke未到达，SIGTERM前无总report.json。整体L2为INCOMPLETE，不是PASS。原始部分日志见 `runs/20261106-111828-partial-l2/`。
 
 ## 推荐节奏
 

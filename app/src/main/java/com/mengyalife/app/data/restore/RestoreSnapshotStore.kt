@@ -16,7 +16,9 @@ class RestoreSnapshotStore(
     private val dir: File,
     private val exporter: BackupExporter,
     private val keyCipher: SecretCipher,
-    private val availableBytes: () -> Long = { StatFs(dir.absolutePath).availableBytes },
+    private val availableBytes: () -> Long = {
+        StatFs(spaceProbeDirectory(dir).absolutePath).availableBytes
+    },
 ) {
     private val random = SecureRandom()
 
@@ -76,6 +78,10 @@ class RestoreSnapshotStore(
 
     companion object {
         const val MIN_MARGIN_BYTES = 16L * 1024 * 1024
+
+        /** The restore directory is created after this preflight, so fall back to an existing parent. */
+        fun spaceProbeDirectory(dir: File): File = if (dir.exists()) dir else (dir.parentFile ?: dir)
+
         fun requiredBytes(sourceBackupBytes: Long): Long =
             sourceBackupBytes * 2 + maxOf(MIN_MARGIN_BYTES, sourceBackupBytes / 5)
 

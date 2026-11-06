@@ -1,3 +1,4 @@
-Final focused L2: NOT RUN after final source edits.
-Current device: 127.0.0.1:46511 connection refused; 10.13.224.241:35193 offline.
-Final build and JVM passed; no PASS claimed for final device scenarios.
+Port 34225 combined L2 ran partially, then was stopped at user's request to free the phone.
+PASS: QA preflight 11/11, migration 26/26, g3b1 47/47, E2E 39/39, R2-R6.
+R7 setup assertion failed; R7 body, fresh DB, and weekly smoke were NOT RUN. Runner ended by SIGTERM before writing a final report; overall status INCOMPLETE/NOT PASS.
+QA-only test data may remain because runner cleanup did not execute. Production package/data was not touched. No further device commands were issued after the pause.

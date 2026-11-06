@@ -2,9 +2,9 @@
 
 ## 1. Gate 状态
 
-**最终代码：G4A-2B Gate NOT PASS。** 旧构建主链路/失败矩阵曾PASS；WriteBarrier/generation和fresh-database修复后，QA设备offline，最终L1/L2未执行。以 `G4A2B-CLOSURE-ACCEPTANCE.md` 为最终状态。
+**最终代码：G4A-2B Gate NOT PASS。** port 34225 上的final combined L2部分执行：E2E 39/39、迁移26/26、R2-R6通过；R7 setup断言失败后用户暂停，整体INCOMPLETE。以 `G4A2B-CLOSURE-ACCEPTANCE.md` 为最终状态。
 
-旧版本曾完成 A→导出→B→恢复→A 35/35及R2-R7 59/59；这些日志生成于最终WriteBarrier/generation变更前，**不构成最终源码证据**。最终focused L2因设备offline NOT RUN。
+旧版本曾有 E2E 35/35、R2-R7 59/59；这些不是当前源码证据。当前partial logs位于 `workflow-optimization/runs/20261106-111828-partial-l2/`；fresh DB/weekly smoke未跑。
 
 ## 2. 已完成的主链路证据
 
@@ -54,23 +54,24 @@
 
 | 命令 | 结果 | 耗时 |
 |---|---|---|
-| 全量 JVM | **291/291 PASS** | 24.5s |
-| `--module restore-validate --level feature`（G4A-2A preview） | PASS（历史） | 292.3s |
-| `verify_restore_e2e.py` | **35/35 PASS** | 346.84s |
-| `verify_restore_failures.py` | **NOT RUN**（设备断开） | — |
-| 迁移 G3F 真机脚本 | **NOT RUN**（仅手动 schema 检查） | — |
-| L1/L2 `verify.sh` 完整入口 | **NOT RUN** | — |
+| 全量 JVM（barrier前历史版本） | **299/299 PASS** | 历史记录 |
+| 最终 restore-validate L0 | **6类/24 tests PASS** | 19.4s |
+| `verify_restore_e2e.py`（最终修复后） | **39/39 PASS** | 379.77s |
+| 迁移 v10/v11→v12 | **26/26 PASS** | 真机 |
+| L2 g3b1 授权/隐私 | **47/47 PASS** | 真机 |
+| R2–R6 故障/崩溃场景 | **逐项PASS** | 最终combined L2部分执行 |
+| R7 / combined L2 | **INCOMPLETE**；用户暂停前R7 setup断言失败 | 约23分钟后SIGTERM |
 
 ## 6. 失败/崩溃矩阵
 
 | ID | 场景 | 状态 |
 |---|---|---|
-| R2 | 事务中注入失败，回滚、旧 Key/consent 保留 | **NOT RUN**（脚本已写，未执行） |
-| R3 | DB 提交后 Key 删除失败，Gate 保持、重启收敛 | **NOT RUN**（脚本已写） |
-| R4 | DB 提交后、journal 前崩溃 | **NOT RUN**（脚本已写） |
-| R5 | 安全重置中途崩溃 | **NOT RUN**（脚本已写） |
-| R6 | Journal 缺失/损坏 | **NOT RUN**（脚本已写） |
-| R7 | Gate 缺失/损坏 | **NOT RUN**（脚本已写） |
+| R2 | 事务中注入失败，回滚、旧 Key/consent 保留 | **PASS** |
+| R3 | DB提交后Key删除失败，Gate保持、重启收敛 | **PASS** |
+| R4 | DB提交后、journal前崩溃 | **PASS** |
+| R5 | 安全重置中途崩溃 | **PASS** |
+| R6 | Journal缺失/损坏 | **PASS** |
+| R7 | Gate缺失/损坏 | **INCOMPLETE**：B setup断言失败后用户暂停，恢复断言未跑 |
 | R8/R9 | 强引用拒绝/历史悬挂 | JVM 已覆盖；设备未跑 |
 | R11-R13 | Key/consent/自动发送 | **PASS**（E2E qa-after） |
 | R14/R15 | 旧 AI 请求/周 AI 预算 | 代码有 gate 阻断；设备未专项 |
@@ -80,13 +81,13 @@
 
 ## 7. 未覆盖/风险
 
-1. **未执行** R2-R7；这是完整 Gate 的阻断项。脚本已就绪，设备恢复后需跑。
-2. 未跑 L1/L2 `verify.sh` 集成；仅直接 E2E 与 JVM。
-3. 迁移仅手动验证 `user_version=12`/app_meta 列，未跑 G3F `verify_migration`。
-4. 最终 APK 在 E2E 之后又做了成功提示/QA 状态小改动；主链路源码未变，但最终 APK 未重新跑 E2E（设备 21:33 后离线）。
+1. R7尚未完成；这是完整Gate的阻断项。B fixture 10表已在库，但 `start()` 的UI readiness断言失败，需修稳后单独复测。
+2. combined L2在用户要求暂停时SIGTERM，fresh DB与weekly AI smoke未执行，无runner总报告。
+3. DB不可读、Worker并发/通知、设置收敛失败等专项目标未在本次设备矩阵覆盖。
+4. QA数据清理步骤未运行，QA包可能残留测试假数据；正式包/生产数据未触碰。
 5. 真实大数据量/七组全量回归未做。
 6. 成功提示依赖设置页滚动/RestoreResultHost；Toast 已加，但设备最终版未复验。
 
 ## 8. 结论
 
-**功能主链路已实际恢复成功并可重启使用；失败/崩溃收敛未验证，不能标记完整 PASS。** 停止在 G4A-2B，不进入 G4A-2C。
+**主链路E2E与R2-R6已在最终APK通过；R7 setup及额外Worker/DB故障注入仍未完成，因此Gate保持 NOT PASS。** 不进入G4A-2C，等待用户另行安排剩余R7验证。

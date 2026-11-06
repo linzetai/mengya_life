@@ -1,5 +1,5 @@
 {
-  "stage": "--ez qa_restore_fail_transaction true",
+  "stage": "--ez qa_restore_pause_after_commit_ms 30000",
   "assertion": "启动B+安全+故障",
   "detail": "",
   "db": {
@@ -50,7 +50,34 @@
           "type": "INTEGER"
         }
       ],
-      "rows": []
+      "rows": [
+        {
+          "id": 1,
+          "title": "B 变体日记",
+          "body": "B body after export",
+          "created_at": 1793900000000,
+          "updated_at": 1793900000010,
+          "analysis_status": "COMPLETED",
+          "analysis_hash": "hash-qa-1",
+          "analysis_error": null,
+          "analysis_attempts": 2,
+          "analyzed_at": 1793900000011,
+          "analysis_last_attempt_at": 1793900000012
+        },
+        {
+          "id": 2,
+          "title": "B 变体日记",
+          "body": "B body after export",
+          "created_at": 1793900000020,
+          "updated_at": 1793900000021,
+          "analysis_status": "FAILED",
+          "analysis_hash": null,
+          "analysis_error": "AI 超时\n请重试",
+          "analysis_attempts": 1,
+          "analyzed_at": null,
+          "analysis_last_attempt_at": 1793900000022
+        }
+      ]
     },
     "goals": {
       "columns": [
@@ -99,7 +126,47 @@
           "type": "INTEGER"
         }
       ],
-      "rows": []
+      "rows": [
+        {
+          "id": 1,
+          "title": "B 长期健康 标题 \"引号\" / 换行\n第二行 😀",
+          "description": "根目标\n多行",
+          "level": "LONG_TERM",
+          "parent_id": null,
+          "domain": "HEALTH",
+          "status": "IN_PROGRESS",
+          "start_date": 1793900000000,
+          "due_date": 1796492000000,
+          "created_at": 1793900000000,
+          "updated_at": 1793900000001
+        },
+        {
+          "id": 2,
+          "title": "B 阶段：每周运动",
+          "description": null,
+          "level": "STAGE",
+          "parent_id": 1,
+          "domain": "HEALTH",
+          "status": "IN_PROGRESS",
+          "start_date": null,
+          "due_date": 1795109600000,
+          "created_at": 1793900000002,
+          "updated_at": 1793900000003
+        },
+        {
+          "id": 3,
+          "title": "B 行动：三次 30 分钟",
+          "description": "带 \"引号\" 的描述",
+          "level": "ACTION",
+          "parent_id": 2,
+          "domain": "HEALTH",
+          "status": "NOT_STARTED",
+          "start_date": 1793900000004,
+          "due_date": null,
+          "created_at": 1793900000004,
+          "updated_at": 1793900000005
+        }
+      ]
     },
     "goal_checkins": {
       "columns": [
@@ -132,7 +199,26 @@
           "type": "TEXT"
         }
       ],
-      "rows": []
+      "rows": [
+        {
+          "id": 1,
+          "goal_id": 3,
+          "recorded_at": 1793900000100,
+          "note": "B 第一次打卡\n状态不错",
+          "metric_value": 3.5,
+          "metric_unit": "次/周",
+          "source": "MANUAL"
+        },
+        {
+          "id": 2,
+          "goal_id": 2,
+          "recorded_at": 1793900000200,
+          "note": "B 无数值打卡 \"quoted\"",
+          "metric_value": null,
+          "metric_unit": null,
+          "source": "MANUAL"
+        }
+      ]
     },
     "advisor_messages": {
       "columns": [
@@ -185,7 +271,50 @@
           "type": "INTEGER"
         }
       ],
-      "rows": []
+      "rows": [
+        {
+          "id": "qa-msg-assistant-1",
+          "role": "assistant",
+          "content": "B 建议先记录一周睡眠 😀\n再设阶段目标",
+          "created_at": 1793900000301,
+          "status": "SENT",
+          "error_code": null,
+          "error_message": null,
+          "context_goal_id": 1,
+          "context_epoch": 7,
+          "sources_json": "[{\"type\":\"GOAL\",\"id\":\"1\",\"title\":\"长期健康\"}]",
+          "proposal_error": null,
+          "proposal_mode": 1
+        },
+        {
+          "id": "qa-msg-failed-1",
+          "role": "assistant",
+          "content": "B ",
+          "created_at": 1793900000302,
+          "status": "FAILED",
+          "error_code": "TIMEOUT",
+          "error_message": "请求超时，请重试",
+          "context_goal_id": null,
+          "context_epoch": 7,
+          "sources_json": null,
+          "proposal_error": "无法解析草案",
+          "proposal_mode": 1
+        },
+        {
+          "id": "qa-msg-user-1",
+          "role": "user",
+          "content": "B 我想改进健康\n\"从睡眠开始\"",
+          "created_at": 1793900000300,
+          "status": "SENT",
+          "error_code": null,
+          "error_message": null,
+          "context_goal_id": 1,
+          "context_epoch": 7,
+          "sources_json": null,
+          "proposal_error": null,
+          "proposal_mode": 0
+        }
+      ]
     },
     "goal_proposals": {
       "columns": [
@@ -242,7 +371,38 @@
           "type": "INTEGER"
         }
       ],
-      "rows": []
+      "rows": [
+        {
+          "id": "qa-proposal-applied",
+          "message_id": "qa-msg-assistant-1",
+          "created_at": 1793900000304,
+          "schema_version": 1,
+          "status": "APPLIED",
+          "summary": "B 已应用草案",
+          "assumptions_json": "[]",
+          "risks_json": "[]",
+          "nodes_json": "[{\"tempId\":\"n3\",\"title\":\"行动：拉伸\"}]",
+          "selected_temp_ids_json": "[\"n3\"]",
+          "applied_at": 1793900000305,
+          "applied_goal_ids_json": "[3]",
+          "undone_at": null
+        },
+        {
+          "id": "qa-proposal-draft",
+          "message_id": "qa-msg-assistant-1",
+          "created_at": 1793900000303,
+          "schema_version": 1,
+          "status": "DRAFT",
+          "summary": "B 睡眠与运动草案",
+          "assumptions_json": "[\"用户希望改善健康\"]",
+          "risks_json": "[{\"level\":\"LOW\",\"text\":\"时间不足\"}]",
+          "nodes_json": "[{\"tempId\":\"n1\",\"title\":\"阶段：睡眠\",\"children\":[{\"tempId\":\"n2\",\"title\":\"行动：23点前睡\"}]}]",
+          "selected_temp_ids_json": null,
+          "applied_at": null,
+          "applied_goal_ids_json": null,
+          "undone_at": null
+        }
+      ]
     },
     "growth_signals": {
       "columns": [
@@ -307,7 +467,59 @@
           "type": "INTEGER"
         }
       ],
-      "rows": []
+      "rows": [
+        {
+          "id": "qa-signal-active",
+          "source_type": "DIARY",
+          "source_id": 1,
+          "source_version": "v1",
+          "category": "HABIT",
+          "content": "B 开始记录睡眠\n有意识改变",
+          "evidence": "日记提到睡眠",
+          "is_inference": 0,
+          "confidence": 0.85,
+          "extracted_at": 1793900000400,
+          "status": "ACTIVE",
+          "origin": "AI",
+          "source_title": "标题 \"引号\" / 换行\n第二行 😀",
+          "content_hash": "qa-signal-hash-active",
+          "updated_at": 1793900000401
+        },
+        {
+          "id": "qa-signal-corrected",
+          "source_type": "DIARY",
+          "source_id": 2,
+          "source_version": "v1",
+          "category": "EMOTION",
+          "content": "B 用户纠正过的线索 \"quoted\"",
+          "evidence": "用户纠正",
+          "is_inference": 1,
+          "confidence": null,
+          "extracted_at": 1793900000410,
+          "status": "CORRECTED",
+          "origin": "USER",
+          "source_title": null,
+          "content_hash": "qa-signal-hash-corrected",
+          "updated_at": 1793900000411
+        },
+        {
+          "id": "qa-signal-stale",
+          "source_type": "DIARY",
+          "source_id": 1,
+          "source_version": "v0",
+          "category": "HABIT",
+          "content": "B 旧版本线索",
+          "evidence": "旧日记版本",
+          "is_inference": 0,
+          "confidence": 0.5,
+          "extracted_at": 1793900000420,
+          "status": "STALE",
+          "origin": "AI",
+          "source_title": "旧标题",
+          "content_hash": "qa-signal-hash-stale",
+          "updated_at": 1793900000421
+        }
+      ]
     },
     "growth_memories": {
       "columns": [
@@ -376,7 +588,44 @@
           "type": "INTEGER"
         }
       ],
-      "rows": []
+      "rows": [
+        {
+          "id": "qa-memory-active",
+          "theme": "健康与习惯",
+          "content": "B 用户重视睡眠\n希望可持续",
+          "is_inference": 0,
+          "status": "ACTIVE",
+          "created_at": 1793900000500,
+          "updated_at": 1793900000501,
+          "signal_ids_json": "[\"qa-signal-active\"]",
+          "source_diary_ids_json": "[1]",
+          "user_corrected": 1,
+          "version": 2,
+          "confidence": 0.9,
+          "insufficient": 0,
+          "recent_change": "用户补充了睡眠目标",
+          "fingerprint": "qa-memory-fp-active",
+          "deleted_at": null
+        },
+        {
+          "id": "qa-memory-deleted",
+          "theme": "职业",
+          "content": "B 已删除的旧记忆",
+          "is_inference": 1,
+          "status": "DELETED",
+          "created_at": 1793900000510,
+          "updated_at": 1793900000511,
+          "signal_ids_json": "[]",
+          "source_diary_ids_json": "[]",
+          "user_corrected": 0,
+          "version": 1,
+          "confidence": null,
+          "insufficient": 1,
+          "recent_change": null,
+          "fingerprint": "qa-memory-fp-deleted",
+          "deleted_at": 1793900000512
+        }
+      ]
     },
     "insight_reports": {
       "columns": [
@@ -425,7 +674,34 @@
           "type": "TEXT"
         }
       ],
-      "rows": []
+      "rows": [
+        {
+          "id": "qa-insight-failed",
+          "data_version": "dv-full-2",
+          "status": "FAILED",
+          "summary": "B 失败摘要",
+          "facts_json": "[]",
+          "insights_json": "[]",
+          "period_start": 1792690400000,
+          "period_end": 1793295200000,
+          "generated_at": 1793900000601,
+          "error": "AI 失败\n可重试",
+          "model": null
+        },
+        {
+          "id": "qa-insight-ready",
+          "data_version": "dv-full-1",
+          "status": "READY",
+          "summary": "B 洞察摘要\n带 \"引号\" 和 😀",
+          "facts_json": "[{\"key\":\"sleep\",\"value\":3.5}]",
+          "insights_json": "[{\"title\":\"睡眠\",\"body\":\"有改善\"}]",
+          "period_start": 1793295200000,
+          "period_end": 1793900000000,
+          "generated_at": 1793900000600,
+          "error": null,
+          "model": "qa-fake"
+        }
+      ]
     },
     "weekly_reviews": {
       "columns": [
@@ -474,7 +750,34 @@
           "type": "INTEGER"
         }
       ],
-      "rows": []
+      "rows": [
+        {
+          "id": "49490316-9c46-4219-9b94-5f09795f1cea",
+          "period_key": "2026-W45",
+          "period_start": 1793548800000,
+          "period_end": 1793936438686,
+          "generated_at": 1793936438686,
+          "version": 1,
+          "data_version": "7e37811b2795a8da986a65ad5ac75f78cd51bd3fde9e47ffe44129978d5da47d",
+          "ai_consent_version": "a925417dabdd059dcd448ec35a83225f99fa28c167851b5f6606d05c457e1066",
+          "facts_json": "[{\"id\":\"week-counts\",\"text\":\"本周 2 条进展，上周 0 条。\",\"sources\":[{\"type\":\"CHECKIN\",\"id\":\"1\",\"label\":\"B 行动：三次 30 分钟\"},{\"type\":\"CHECKIN\",\"id\":\"2\",\"label\":\"B 阶段：每周运动\"}]},{\"id\":\"week-single-3-次/周\",\"text\":\"目标「B 行动：三次 30 分钟」本周只有 1 个「次/周」数值点，不足以判断趋势。\",\"sources\":[{\"type\":\"CHECKIN\",\"id\":\"1\",\"label\":\"B 行动：三次 30 分钟\"}]},{\"id\":\"goals-active\",\"text\":\"当前有 3 个目标，其中进行中 2 个；本周有进展记录的目标 2 个。\",\"sources\":[{\"type\":\"GOAL\",\"id\":\"1\",\"label\":\"B 长期健康 标题 \\\"引号\\\" / 换行\\n第二行 😀\"},{\"type\":\"GOAL\",\"id\":\"2\",\"label\":\"B 阶段：每周运动\"},{\"type\":\"GOAL\",\"id\":\"3\",\"label\":\"B 行动：三次 30 分钟\"}]},{\"id\":\"wins-progress\",\"text\":\"本周留下了 2 条可回看的进展记录。\",\"sources\":[{\"type\":\"CHECKIN\",\"id\":\"1\",\"label\":\"B 行动：三次 30 分钟\"},{\"type\":\"CHECKIN\",\"id\":\"2\",\"label\":\"B 阶段：每周运动\"}]},{\"id\":\"next-continue\",\"text\":\"从本周有进展的目标中选一个，写下下一步可执行动作。\",\"sources\":[{\"type\":\"CHECKIN\",\"id\":\"1\",\"label\":\"B 行动：三次 30 分钟\"},{\"type\":\"CHECKIN\",\"id\":\"2\",\"label\":\"B 阶段：每周运动\"}]}]",
+          "sections_json": "{\"changes\":[{\"id\":\"week-counts\",\"text\":\"本周 2 条进展，上周 0 条。\",\"sources\":[{\"type\":\"CHECKIN\",\"id\":\"1\",\"label\":\"B 行动：三次 30 分钟\"},{\"type\":\"CHECKIN\",\"id\":\"2\",\"label\":\"B 阶段：每周运动\"}]},{\"id\":\"week-single-3-次/周\",\"text\":\"目标「B 行动：三次 30 分钟」本周只有 1 个「次/周」数值点，不足以判断趋势。\",\"sources\":[{\"type\":\"CHECKIN\",\"id\":\"1\",\"label\":\"B 行动：三次 30 分钟\"}]}],\"wins\":[{\"id\":\"goals-active\",\"text\":\"当前有 3 个目标，其中进行中 2 个；本周有进展记录的目标 2 个。\",\"sources\":[{\"type\":\"GOAL\",\"id\":\"1\",\"label\":\"B 长期健康 标题 \\\"引号\\\" / 换行\\n第二行 😀\"},{\"type\":\"GOAL\",\"id\":\"2\",\"label\":\"B 阶段：每周运动\"},{\"type\":\"GOAL\",\"id\":\"3\",\"label\":\"B 行动：三次 30 分钟\"}]},{\"id\":\"wins-progress\",\"text\":\"本周留下了 2 条可回看的进展记录。\",\"sources\":[{\"type\":\"CHECKIN\",\"id\":\"1\",\"label\":\"B 行动：三次 30 分钟\"},{\"type\":\"CHECKIN\",\"id\":\"2\",\"label\":\"B 阶段：每周运动\"}]}],\"attention\":[],\"nextSteps\":[{\"id\":\"next-continue\",\"text\":\"从本周有进展的目标中选一个，写下下一步可执行动作。\",\"sources\":[{\"type\":\"CHECKIN\",\"id\":\"1\",\"label\":\"B 行动：三次 30 分钟\"},{\"type\":\"CHECKIN\",\"id\":\"2\",\"label\":\"B 阶段：每周运动\"}]}]}",
+          "notified_at": 1793900000701
+        },
+        {
+          "id": "qa-weekly-44",
+          "period_key": "2026-W44",
+          "period_start": 1793295200000,
+          "period_end": 1793900000000,
+          "generated_at": 1793900000710,
+          "version": 1,
+          "data_version": "dv-full-0",
+          "ai_consent_version": "cv-full-1",
+          "facts_json": "[]",
+          "sections_json": "{\"sections\":[]}",
+          "notified_at": null
+        }
+      ]
     },
     "weekly_ai_reviews": {
       "columns": [
@@ -531,7 +834,38 @@
           "type": "TEXT"
         }
       ],
-      "rows": []
+      "rows": [
+        {
+          "period_key": "2026-W44",
+          "local_data_version": "dv-full-0",
+          "ai_consent_version": "cv-full-1",
+          "status": "STALE",
+          "generated_at": 1793900000810,
+          "summary": "B 新格式 AI 周报",
+          "highlights_json": "[]",
+          "suggestion": "下周再试",
+          "fact_ids_json": "[\"week-counts\",\"goal-progress\"]",
+          "categories": "GOALS",
+          "error": "旧周报已过期",
+          "model": null,
+          "config_hash": "cfg-2"
+        },
+        {
+          "period_key": "2026-W45",
+          "local_data_version": "dv-full-1",
+          "ai_consent_version": "cv-full-1",
+          "status": "READY",
+          "generated_at": 1793900000800,
+          "summary": "B 旧格式 AI 周报\n带 \"引号\"",
+          "highlights_json": "[{\"type\":\"POSITIVE\",\"title\":\"睡眠\",\"body\":\"有改善\"}]",
+          "suggestion": "继续保持",
+          "fact_ids_json": "week-counts\u001fcheckin-done",
+          "categories": "GOALS",
+          "error": null,
+          "model": "qa-fake",
+          "config_hash": "cfg-1"
+        }
+      ]
     }
   },
   "app_meta": [
@@ -547,6 +881,6 @@
       null
     ]
   ],
-  "logcat": "",
-  "ui": "<?xml version='1.0' encoding='UTF-8' standalone='yes' ?><hierarchy rotation=\"0\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.widget.FrameLayout\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.widget.LinearLayout\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"1\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.widget.FrameLayout\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"2\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"com.android.chrome:id/action_bar_root\" class=\"android.widget.FrameLayout\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"1\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"android:id/content\" class=\"android.widget.FrameLayout\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"1\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"com.android.chrome:id/edge_to_edge_base_layout\" class=\"android.widget.FrameLayout\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"1\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.widget.FrameLayout\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,144][1200,2548]\" drawing-order=\"1\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"com.android.chrome:id/coordinator\" class=\"android.view.ViewGroup\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,144][1200,2548]\" drawing-order=\"2\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"com.android.chrome:id/compositor_view_holder\" class=\"android.widget.FrameLayout\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,144][1200,2548]\" drawing-order=\"1\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.widget.FrameLayout\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,144][1200,2548]\" drawing-order=\"1\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.SurfaceView\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,144][1200,2548]\" drawing-order=\"1\" hint=\"\" /></node><node index=\"1\" text=\"\" resource-id=\"\" class=\"android.widget.FrameLayout\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,144][1200,2548]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.webkit.WebView\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"true\" focused=\"true\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,144][1200,2377]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,144][1200,2377]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"react-root\" class=\"android.view.View\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,144][1200,2376]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"main-application\" class=\"android.view.View\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,144][1200,2376]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"application__frame\" class=\"android.view.View\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,144][1200,2376]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,144][1200,2376]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,144][1200,2376]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,144][1200,744]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,144][1200,744]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,144][1200,144]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,144][1200,144]\" drawing-order=\"0\" hint=\"\" /></node></node></node><node index=\"1\" text=\"\" resource-id=\"navbar__inquiry-dynamic-flow\" class=\"com.google.android.material.navigation.NavigationView\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,144][1200,336]\" drawing-order=\"0\" hint=\"\" /><node index=\"2\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,144][1200,2376]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,144][1200,2376]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,144][1200,2376]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,144][1200,2376]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[72,360][1128,1752]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"Submit Government IDs\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[72,360][1128,468]\" drawing-order=\"0\" hint=\"\" /><node index=\"1\" text=\"Select 2 of the following.\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[72,522][624,582]\" drawing-order=\"0\" hint=\"\" /><node index=\"2\" text=\"Passport\" resource-id=\"clickable__stack\" class=\"android.widget.Button\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[72,636][1128,834]\" drawing-order=\"0\" hint=\"\" /><node index=\"3\" text=\"Driver's License\" resource-id=\"clickable__stack\" class=\"android.widget.Button\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[72,882][1128,1080]\" drawing-order=\"0\" hint=\"\" /><node index=\"4\" text=\"National ID\" resource-id=\"clickable__stack\" class=\"android.widget.Button\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[72,1128][1128,1326]\" drawing-order=\"0\" hint=\"\" /><node index=\"5\" text=\"Residence permit\" resource-id=\"clickable__stack\" class=\"android.widget.Button\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[72,1374][1128,1572]\" drawing-order=\"0\" hint=\"\" /><node index=\"6\" text=\"Continue\" resource-id=\"submit-button\" class=\"android.widget.Button\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"false\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[72,1620][1128,1752]\" drawing-order=\"0\" hint=\"\" /></node></node><node index=\"1\" text=\"249735747563157317 • 2026-11-06T01:11:30.316Z\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,2352][1200,2377]\" drawing-order=\"0\" hint=\"\" /></node></node></node></node></node></node></node></node></node></node></node></node><node index=\"1\" text=\"\" resource-id=\"com.android.chrome:id/control_container\" class=\"android.widget.FrameLayout\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,2377][1200,2548]\" drawing-order=\"16\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"com.android.chrome:id/toolbar_container\" class=\"android.view.ViewGroup\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,2377][1200,2548]\" drawing-order=\"1\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"com.android.chrome:id/toolbar_hairline\" class=\"android.widget.ImageView\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,2377][1200,2380]\" drawing-order=\"2\" hint=\"\" /><node index=\"1\" text=\"\" resource-id=\"com.android.chrome:id/toolbar\" class=\"android.widget.FrameLayout\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"true\" password=\"false\" selected=\"false\" bounds=\"[0,2380][1200,2548]\" drawing-order=\"1\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"com.android.chrome:id/home_button\" class=\"android.widget.ImageButton\" package=\"com.android.chrome\" content-desc=\"打开主页\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"true\" password=\"false\" selected=\"false\" bounds=\"[0,2380][144,2548]\" drawing-order=\"1\" hint=\"\" /><node index=\"1\" text=\"\" resource-id=\"com.android.chrome:id/location_bar\" class=\"android.view.ViewGroup\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[144,2380][756,2548]\" drawing-order=\"4\" hint=\"\"><node index=\"0\" text=\"inquiry.withpersona.com/verify?inquiry-id=inq_AqWNSC5Crk6PcwDLdmcf3uttHXGVDh&amp;session-token=eyJraWQiOiJlMzUyMzQ0ZGE0YjBjNmJmM2NkMjA1OWI4NGY3MjI0MzMzZDY0ZjI4MmMzNWZmYTZkNjYyZDAxZmY5OGY0NzlkIiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiJpcXNlX0FxV05TQzVjNkFERXpvczJSV1RTVWs3UDdmVm5wZyIsImF1ZCI6InBlcnNvbmEtdmVyaWZ5IiwiaXNzIjoid2l0aHBlcnNvbmEuY29tIiwiaWF0IjoxNzkzOTAwMTg5LCJuYmYiOjE3OTM5MDAxODksImV4cCI6MTc5Mzk4NjMwMywianRpIjoiMWY3MGY1M2EtODViOC00OTI4LTgxNGUtNmQxYzVjZGI0ZjdlIiwiaW5xdWlyeV9pZCI6ImlucV9BcVdOU0M1Q3JrNlBjd0RMZG1jZjN1dHRIWEdWRGgiLCJlbnZpcm9ubWVudF9pZCI6ImVudl9xQ2NiM3Yxc1JDaHNnNE1LbkV4cUMzdVNDZFJwIn0.j6EmS_-ciYyqpjfdGP535GhjN8SAzdejFpQKThvy140dmJ3OHyTCWIJ7as8kJxGUynDTBwA8HftH7p08DbZWTlV_Swy8-oGepIX0mygOnG8Qqsz6v5oJssSwtQz5ea-YhpGCehno8pUJva5Ab3xxohuy2jjeXBnaIptZXKREY0jMtagV49WBUW16ctvoQegTuV2g-k92oSe5f3OkD6fX-ERpnaqxHvLRH3BP-esoMtZRF59IpWKfscffdtpm_PPlOi-CO33weYI2wI-gKm5Bur6cacCPQWCN-Zahyxw6UwnKfeJLntCgcjpSucPBrneI-qUr4VgUIDrEjPHgXUsWXg\" resource-id=\"com.android.chrome:id/url_bar\" class=\"android.widget.EditText\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"true\" password=\"false\" selected=\"true\" bounds=\"[168,2380][756,2548]\" drawing-order=\"9\" hint=\"在 Google 中搜索或输入网址\" /><node index=\"1\" text=\"\" resource-id=\"com.android.chrome:id/focus_thief\" class=\"android.view.View\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[168,2380][169,2381]\" drawing-order=\"21\" hint=\"\" /></node><node index=\"2\" text=\"\" resource-id=\"com.android.chrome:id/toolbar_buttons\" class=\"android.widget.LinearLayout\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[756,2380][1200,2548]\" drawing-order=\"5\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"com.android.chrome:id/optional_toolbar_button_container\" class=\"android.widget.FrameLayout\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[756,2380][912,2548]\" drawing-order=\"1\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"com.android.chrome:id/optional_toolbar_button\" class=\"android.widget.ImageButton\" package=\"com.android.chrome\" content-desc=\"打开新的标签页\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"true\" password=\"false\" selected=\"false\" bounds=\"[756,2380][912,2548]\" drawing-order=\"2\" hint=\"\" /></node><node index=\"1\" text=\"\" resource-id=\"com.android.chrome:id/tab_switcher_button\" class=\"android.widget.ImageButton\" package=\"com.android.chrome\" content-desc=\"查看 22 个标签页\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"true\" password=\"false\" selected=\"false\" bounds=\"[912,2380][1056,2548]\" drawing-order=\"3\" hint=\"\" /><node index=\"2\" text=\"\" resource-id=\"com.android.chrome:id/menu_button_wrapper\" class=\"android.widget.FrameLayout\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[1056,2380][1200,2548]\" drawing-order=\"4\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"com.android.chrome:id/menu_button\" class=\"android.widget.ImageButton\" package=\"com.android.chrome\" content-desc=\"自定义及控制 Google Chrome\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[1056,2380][1200,2548]\" drawing-order=\"1\" hint=\"\" /></node></node></node></node></node><node index=\"2\" text=\"\" resource-id=\"com.android.chrome:id/toolbar_progress_bar_container\" class=\"android.widget.FrameLayout\" package=\"com.android.chrome\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,2371][1200,2377]\" drawing-order=\"15\" hint=\"\" /></node></node></node></node></node></node></node></node></hierarchy>"
+  "logcat": "11-06 11:40:54.219  3462  4937 D MiInputBoostRt: MiInputBoostRtStub: decision action=1 pid=11888 seq=235739 pidHasOtherDown=0 shouldBoost=0 pendingRestore=1\n11-06 11:40:54.347  3462  4937 D MiInputBoostRt: MiInputBoostRtStub: decision action=0 pid=11888 seq=235745 pidHasOtherDown=0 shouldBoost=1 pendingRestore=0\n11-06 11:40:54.347  3462  4937 D MiInputBoostRt: MiInputBoostRtStub: decision action=4 pid=24227 seq=235746 pidHasOtherDown=0 shouldBoost=1 pendingRestore=1\n11-06 11:40:54.420  3462  4937 D MiInputBoostRt: MiInputBoostRtStub: decision action=1 pid=11888 seq=235752 pidHasOtherDown=0 shouldBoost=0 pendingRestore=1\n",
+  "ui": "<?xml version='1.0' encoding='UTF-8' standalone='yes' ?><hierarchy rotation=\"0\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.widget.FrameLayout\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.widget.LinearLayout\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"1\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"android:id/content\" class=\"android.widget.FrameLayout\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"2\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.widget.FrameLayout\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"true\" focused=\"true\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"1\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"0\" hint=\"\" /><node index=\"1\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"0\" hint=\"\" /><node index=\"2\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,991]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.widget.ScrollView\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"true\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,991]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"已停止\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,73]\" drawing-order=\"0\" hint=\"\" /><node index=\"1\" text=\"\" resource-id=\"\" class=\"android.widget.Button\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"本轮 57 分 19 秒 · 98 步 · 53.61M tokens，查看本轮轨迹\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,73][1200,193]\" drawing-order=\"0\" hint=\"\" /><node index=\"2\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"改动了 7 个文件&#10;+49 −12\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,193][1200,853]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.widget.Button\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"tests/verify/selection.py，新增 6 行，删除 5 行\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"true\" password=\"false\" selected=\"false\" bounds=\"[48,361][1152,481]\" drawing-order=\"0\" hint=\"\" /><node index=\"1\" text=\"\" resource-id=\"\" class=\"android.widget.Button\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"tests/verify/validate.py，新增 7 行，删除 0 行\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"true\" password=\"false\" selected=\"false\" bounds=\"[48,481][1152,601]\" drawing-order=\"0\" hint=\"\" /><node index=\"2\" text=\"\" resource-id=\"\" class=\"android.widget.Button\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"app/src/main/java/com/mengyalife/app/data/restore/RestoreSnapshotStore.kt，新增 11 行，删除 5 行\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"true\" password=\"false\" selected=\"false\" bounds=\"[48,601][1152,721]\" drawing-order=\"0\" hint=\"\" /><node index=\"3\" text=\"\" resource-id=\"\" class=\"android.widget.Button\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"查看改动，还有 4 个文件\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[48,721][1152,853]\" drawing-order=\"0\" hint=\"\" /></node></node></node><node index=\"3\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"对话列表\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[36,162][168,294]\" drawing-order=\"0\" hint=\"\" /><node index=\"4\" text=\"\" resource-id=\"\" class=\"android.widget.Button\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"任务：萌芽人生 Gate 3F · 测试, 查看对话详情\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,162][500,294]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"已停止\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[273,237][334,273]\" drawing-order=\"0\" hint=\"\" /></node><node index=\"5\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[524,162][1008,294]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.widget.Button\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"模型：Azure/gpt 6 Luna，思考深度中\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[524,162][1008,294]\" drawing-order=\"0\" hint=\"\" /></node><node index=\"6\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"新对话\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[1032,162][1164,294]\" drawing-order=\"0\" hint=\"\" /><node NAF=\"true\" index=\"7\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"true\" long-clickable=\"true\" password=\"false\" selected=\"false\" bounds=\"[214,853][352,985]\" drawing-order=\"0\" hint=\"\" /><node index=\"8\" text=\"\" resource-id=\"\" class=\"android.widget.Button\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"待办 0/4，下一步：Reconnect and verify QA device at port 34225\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[36,973][1032,1081]\" drawing-order=\"0\" hint=\"\" /><node index=\"9\" text=\"\" resource-id=\"\" class=\"android.widget.Button\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"目标，Use QA device port 34225 to validate the optimized test workflow on-device without expanding into unnecessary suites, then reorganize the previous workflow-optimization deliverables and report actual timings, PASS/NOT RUN status, and clean commit.，已暂停\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[36,1099][1164,1207]\" drawing-order=\"0\" hint=\"\" /><node index=\"10\" text=\"\" resource-id=\"\" class=\"android.widget.Button\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"本对话的权限：完全权限\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[36,1225][354,1327]\" drawing-order=\"0\" hint=\"\" /><node index=\"11\" text=\"暂停吧，还是跑太慢了，我非常\" resource-id=\"\" class=\"android.widget.EditText\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"true\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[204,1375][833,1558]\" drawing-order=\"0\" hint=\"\" /><node index=\"12\" text=\"\" resource-id=\"\" class=\"android.widget.Button\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"添加图片或文件\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[60,1438][180,1558]\" drawing-order=\"0\" hint=\"\" /><node index=\"13\" text=\"\" resource-id=\"\" class=\"android.widget.Button\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"收起状态条\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[1056,973][1164,1081]\" drawing-order=\"0\" hint=\"\" /><node index=\"14\" text=\"\" resource-id=\"\" class=\"android.widget.Button\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"上下文已用 57%，查看用量\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[857,1438][1014,1558]\" drawing-order=\"0\" hint=\"\" /><node index=\"15\" text=\"\" resource-id=\"\" class=\"android.widget.Button\" package=\"io.github.ccch1mneyyy.dsh_app\" content-desc=\"发送\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"true\" password=\"false\" selected=\"false\" bounds=\"[1020,1438][1140,1558]\" drawing-order=\"0\" hint=\"\" /></node></node></node></node></node></node></node></node></hierarchy>"
 }

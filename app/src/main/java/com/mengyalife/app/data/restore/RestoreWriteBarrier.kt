@@ -24,13 +24,16 @@ class RestoreWriteBarrier(initiallyReady: Boolean = true) {
     suspend fun <T> withWrite(block: suspend () -> T): T = withWrite(null, block)
 
     suspend fun <T> withWrite(expectedGeneration: Long?, block: suspend () -> T): T {
+        val inherited = currentCoroutineContext()[Permit]
+        // Authorized convergence work inherits the exclusive permit. It must be
+        // allowed to write while the barrier is intentionally not READY.
+        if (inherited?.owner === this && inherited.exclusive) return block()
         // Fail immediately when called during UNKNOWN/RECONCILING/MAINTENANCE;
         // do not queue a stale UI/Worker write until after Gate release.
         if (!ready) throw RestoreException("RESTORE_BLOCKED", "恢复维护中，禁止业务写入")
         val captured = expectedGeneration ?: restoreGeneration
-        val inherited = currentCoroutineContext()[Permit]
         if (inherited?.owner === this) {
-            if (!inherited.exclusive) checkWritable(captured)
+            checkWritable(captured)
             return block()
         }
         return mutex.withLock {

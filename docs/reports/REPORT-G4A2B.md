@@ -1,7 +1,7 @@
 # Gate 4A-2B 报告：完整备份恢复闭环
 
 > 范围：真实恢复、Room v12、app_meta、Gate/journal、安全重置、快照、恢复 UI。
-> 历史结果（barrier修复前）：**主链路 35/35 PASS；失败/崩溃路径R2-R7曾59/59 PASS。** 该历史结果不代表最终barrier源码验收。最终状态以 [REPORT-G4A2B-CLOSURE.md](REPORT-G4A2B-CLOSURE.md) 为准：L0 299/299 PASS；最终L2因设备离线NOT RUN，Gate NOT PASS。
+> 历史结果（barrier修复前）：主链路35/35、R2-R7 59/59 PASS，不代表最终源码。最终状态以 [REPORT-G4A2B-CLOSURE.md](REPORT-G4A2B-CLOSURE.md) 为准：final源L0 6类/24 tests PASS；port34225 L2部分通过但R7未完成，Gate NOT PASS。
 
 ## 1. 实现概述
 

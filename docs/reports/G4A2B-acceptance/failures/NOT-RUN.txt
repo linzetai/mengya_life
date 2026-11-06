@@ -1,4 +1,4 @@
-R2/R3/R4/R5/R6/R7: NOT RUN
-Reason: QA device disconnected after normal E2E; adb devices empty at wrap-up.
-Script: tools/ui-verify/verify_restore_failures.py (written, not executed).
-This is a Gate blocker; no PASS is claimed for these paths.
+R2-R6: PASS on QA device port 34225 in partial integration run `20261106-111828`.
+R7: NOT COMPLETE. The setup assertion `启动B+安全+故障` failed while the 10-table B fixture was present; user then requested pausing the run, so the R7 restore/reconciliation assertions did not execute.
+The runner was terminated before it wrote a final report/cleanup; QA package may retain synthetic fixture data. Production package/data was not touched.
+Overall L2 remains INCOMPLETE / NOT PASS. Raw logs and exact status are in `docs/reports/workflow-optimization/runs/20261106-111828-partial-l2/`.

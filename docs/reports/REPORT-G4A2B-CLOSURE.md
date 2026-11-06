@@ -1,7 +1,7 @@
 # G4A-2B P0 修复与验收收口报告
 
 > Base HEAD：`3fb6781b955163994d891b98ff5f1d12c30692fc`；P0实现提交：`472524652aae1bf9e1d68f9a36bc45e9030f7ed3`。
-> 最终状态：P0代码修复与JVM通过；最终源码L1/L2设备验收因QA设备离线**NOT RUN**，最终Gate **NOT PASS**。
+> 最终状态：两项P0已修复；34225真机L2部分通过后用户暂停，R7 setup失败且余下项NOT RUN；整体Gate **NOT PASS**。
 
 ## 1. P0 修复
 
@@ -16,6 +16,8 @@
 - Worker 将整个 DB/通知工作包在 barrier 内；Gate 未 READY 时返回 retry，不误报成功。
 - 恢复交易与 Reconciliation 使用同一 exclusive barrier；Gate 文件状态不是唯一内存依据。
 - DB/app_meta读取异常与无恢复记录分开；DB不可读、meta缺行、generation/attempt不匹配均 fail-closed。
+- 修复首次恢复 snapshot 预检目录不存在：StatFs改查最近存在的父目录，并记录空间不足为可诊断的pre-commit状态。
+- 恢复exclusive permit允许授权的convergence内部DataStore写；普通协程在Gate/maintenance仍立即被阻断。
 - Gate/Journal 写入执行文件 fsync、原子 rename、父目录 fsync；Gate 删除失败抛错；收敛标记回读验证后才释放 Gate。
 
 ### QA 夹具与失败脚本
@@ -34,25 +36,27 @@
 
 设置脚本从全页多轮dump改为 tag定位/单次滚动，单独实测 **38/38 PASS，112s**（旧失败运行452.1s）。
 
-focused L2 预计约 15–16 分钟（基于迁移26s、E2E约342s、R2-R7约518s、fresh DB及前置/JVM），**本轮未实际完成focused L2，不把估算当实测**。
+Port 34225 实际启动 combined L2（restore-validate + weekly-ai），估算约28–29分钟。约23分钟后用户要求暂停：已完成 QA 前置、迁移、g3b1、E2E和R2-R6；R7 setup断言失败，fresh DB/weekly smoke未执行。Runner被SIGTERM，**没有总报告；本轮L2标记INCOMPLETE**。
 
 ## 3. 最终可执行证据
 
 | 项 | 结果 |
 |---|---|
-| 全量 JVM + 静态 | **299/299 PASS**，测试4.1s/总6.9s；报告 `G4A2B-closure/l0/final-report.json` |
-| affected modules L0 | 35 类/246 tests PASS（此前运行；见历史日志） |
-| settings独立脚本 | 38/38 PASS，112s |
-| failure comparator self-test | PASS |
-| QA/debug APK构建 | PASS |
-| v10→v12/v11→v12迁移真机 | 历史运行26/26 PASS；本轮 barrier 最终代码后未重跑 |
-| R2-R7 设备矩阵 | 历史代码 59/59 PASS；本轮 barrier 最终代码后未重跑 |
-| A→B→A最终 APK E2E | 历史代码35/35 PASS；本轮 barrier 最终代码后未重跑 |
-| focused final L2 | **NOT RUN/未完成**：设备 `127.0.0.1:46511` refused，`10.13.224.241:35193` offline |
+| 全量 JVM + 静态 | 历史 **299/299 PASS**（final两项修复前）；最终源码 restore-validate L0 **6类/24 tests PASS，19.4s** |
+| SnapshotSpace/Barrier单测 | PASS（包含“目录尚未创建时查父目录”“exclusive内部写允许”） |
+| QA/debug APK构建 | PASS；QA `2951bdf6...`，Debug `439565fa...` |
+| Port 34225 QA前置 | **11/11 PASS** |
+| v10/v11→v12迁移 | **26/26 PASS** |
+| g3b1授权/隐私 | **47/47 PASS** |
+| 最终代码 A→B→A E2E | **39/39 PASS，379.77s** |
+| R2-R6故障/崩溃矩阵 | **逐项PASS**；包含R3收敛和R4-R6重启路径 |
+| R7 Gate缺失 | **INCOMPLETE**：启动B场景断言失败（B夹具10表已存在）；R7恢复断言未跑完 |
+| Fresh DB / weekly L2 smoke | **NOT RUN**：用户暂停在R7 setup之后 |
+| Combined L2整体 | **INCOMPLETE / NOT PASS**：约23分钟后SIGTERM，无最终report.json |
 
 ## 4. 剩余P0与风险
 
-**严格验收尚未关闭**：同一设备未对 barrier 最终源码运行 focused L2；因此不能证明 R2-R7、迁移、最终APK E2E在最终构建上一致通过。
+**严格验收尚未关闭**：最终源码已在设备上通过E2E、迁移及R2-R6，但R7 setup断言失败、R7主体及fresh/weekly用例未执行。当前不应重跑整套长L2；应先分析R7 `wait_app_ui()` 假阴性/启动条件，再只复验R7和剩余用例。
 
 其他待补：
 
@@ -64,19 +68,15 @@ focused L2 预计约 15–16 分钟（基于迁移26s、E2E约342s、R2-R7约518
 
 | 包 | SHA256 |
 |---|---|
-| QA | `a0c0fba9246ed3008352bf33f7edfcfc1646de9a7249e298e57a01de7b041b0e` |
-| Debug | `6522385171821d932a04f23818365657413e99c44af4f0e6d30473d80bf482b9` |
+| QA | `2951bdf6d48b101e372082464627b6425b3447a092dc156375d82d04a68e852b` |
+| Debug | `439565fad056ae5f0fc6e8550fb3810ee75fc4ced0df212aea30fc502982ebfd` |
 
 ## 6. 后续最小验证命令
 
-设备恢复后，仅运行 focused L2，不再跑 broad integration：
+本轮按用户要求已暂停，不再执行设备操作。恢复验收时不要整套重跑：先分析/修复 R7 setup 等待条件，增加可单独运行的 R7 case；然后只跑 R7、fresh DB、weekly smoke。已通过的 E2E、迁移、R2-R6可引用本次部分日志，不要重复跑。
 
-```bash
-DEV=127.0.0.1:<port> ./scripts/verify.sh --module restore-validate --level integration
-```
-
-选择器dry-run已归档于 `G4A2B-closure/optimization/focused-plan.txt`。
+本次原始记录：`docs/reports/workflow-optimization/runs/20261106-111828-partial-l2/`。
 
 ## 7. 结论
 
-P0代码修复已完成并通过静态/JVM；由于当前设备不可用，最终 L2 没有执行，**Gate 保持 NOT PASS**。本报告不以历史 build 的真机 PASS 替代最终源码验证。
+已修复 snapshot空间预检路径与exclusive收敛写阻断，并由真实E2E及R2-R6验证通过。R7 setup失败、fresh DB/weekly未跑且用户暂停设备；**最终Gate仍 NOT PASS**。QA包可能保留部分假数据；生产包及生产数据未触碰。

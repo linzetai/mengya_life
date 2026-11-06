@@ -360,11 +360,12 @@ def _apply_level(map_: dict, sel: Selection, direct_modules: set[str],
                 for n in sorted(mods)
             ]
 
-    # Explicitly focused high-risk modules may satisfy a global integration prerequisite
-    # with their own end-to-end coverage. Keep the default L2 expansion unchanged.
-    focused_exclusions = set()
-    for direct in direct_modules:
-        focused_exclusions.update(mods.get(direct, {}).get("skipAlwaysModules", []))
+    # Exclude a global integration prerequisite only when every explicitly
+    # selected module opts out; one focused module cannot suppress coverage
+    # required by another module in a combined invocation.
+    skip_sets = [set(mods.get(direct, {}).get("skipAlwaysModules", []))
+                 for direct in direct_modules if direct in mods]
+    focused_exclusions = set.intersection(*skip_sets) if skip_sets else set()
     for mname in lv.get("alwaysModules", []) or []:
         if mname in focused_exclusions:
             continue

@@ -169,6 +169,13 @@ def validate_selection_policy(map_: dict) -> list[str]:
         backup_gate = select(map_, None, ["backup-export"], "gate")
         if "verify_g3b1.py" not in {d["script"] for d in backup_gate.device_scripts}:
             return ["全量Gate不能因backup模块的focused exclusion漏掉AI授权"]
+
+        restore_l2 = select(map_, None, ["restore-validate"], "integration")
+        if "verify_g3b1.py" in {d["script"] for d in restore_l2.device_scripts}:
+            return ["独立restore L2应以端到端安全断言替代泛用AI授权套件"]
+        combined_l2 = select(map_, None, ["restore-validate", "weekly-ai"], "integration")
+        if "verify_g3b1.py" not in {d["script"] for d in combined_l2.device_scripts}:
+            return ["合并restore+weekly时不能让restore exclusion屏蔽weekly授权覆盖"]
     except Exception as exc:
         return [f"选择器策略自检失败：{type(exc).__name__}: {exc}"]
     return []

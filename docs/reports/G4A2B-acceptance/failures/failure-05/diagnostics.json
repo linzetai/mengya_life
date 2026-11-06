@@ -1,6 +1,6 @@
 {
   "stage": "--ez qa_restore_fail_key_delete true",
-  "assertion": "设置页",
+  "assertion": "R3 Gate保持",
   "detail": "",
   "db": {
     "journal_entries": {
@@ -53,8 +53,8 @@
       "rows": [
         {
           "id": 1,
-          "title": "标题 \"引号\" / 换行\n第二行 😀",
-          "body": "正文 line1\nline2 \"quoted\" \\\\ slash \t tab 中文",
+          "title": "B 变体日记",
+          "body": "B body after export",
           "created_at": 1793900000000,
           "updated_at": 1793900000010,
           "analysis_status": "COMPLETED",
@@ -66,8 +66,8 @@
         },
         {
           "id": 2,
-          "title": null,
-          "body": "失败分析的日记\n带 \\ \" 特殊字符",
+          "title": "B 变体日记",
+          "body": "B body after export",
           "created_at": 1793900000020,
           "updated_at": 1793900000021,
           "analysis_status": "FAILED",
@@ -129,7 +129,7 @@
       "rows": [
         {
           "id": 1,
-          "title": "长期健康 标题 \"引号\" / 换行\n第二行 😀",
+          "title": "B 长期健康 标题 \"引号\" / 换行\n第二行 😀",
           "description": "根目标\n多行",
           "level": "LONG_TERM",
           "parent_id": null,
@@ -142,7 +142,7 @@
         },
         {
           "id": 2,
-          "title": "阶段：每周运动",
+          "title": "B 阶段：每周运动",
           "description": null,
           "level": "STAGE",
           "parent_id": 1,
@@ -155,7 +155,7 @@
         },
         {
           "id": 3,
-          "title": "行动：三次 30 分钟",
+          "title": "B 行动：三次 30 分钟",
           "description": "带 \"引号\" 的描述",
           "level": "ACTION",
           "parent_id": 2,
@@ -204,7 +204,7 @@
           "id": 1,
           "goal_id": 3,
           "recorded_at": 1793900000100,
-          "note": "第一次打卡\n状态不错",
+          "note": "B 第一次打卡\n状态不错",
           "metric_value": 3.5,
           "metric_unit": "次/周",
           "source": "MANUAL"
@@ -213,7 +213,7 @@
           "id": 2,
           "goal_id": 2,
           "recorded_at": 1793900000200,
-          "note": "无数值打卡 \"quoted\"",
+          "note": "B 无数值打卡 \"quoted\"",
           "metric_value": null,
           "metric_unit": null,
           "source": "MANUAL"
@@ -275,7 +275,7 @@
         {
           "id": "qa-msg-assistant-1",
           "role": "assistant",
-          "content": "建议先记录一周睡眠 😀\n再设阶段目标",
+          "content": "B 建议先记录一周睡眠 😀\n再设阶段目标",
           "created_at": 1793900000301,
           "status": "SENT",
           "error_code": null,
@@ -289,7 +289,7 @@
         {
           "id": "qa-msg-failed-1",
           "role": "assistant",
-          "content": "",
+          "content": "B ",
           "created_at": 1793900000302,
           "status": "FAILED",
           "error_code": "TIMEOUT",
@@ -303,7 +303,7 @@
         {
           "id": "qa-msg-user-1",
           "role": "user",
-          "content": "我想改进健康\n\"从睡眠开始\"",
+          "content": "B 我想改进健康\n\"从睡眠开始\"",
           "created_at": 1793900000300,
           "status": "SENT",
           "error_code": null,
@@ -378,7 +378,7 @@
           "created_at": 1793900000304,
           "schema_version": 1,
           "status": "APPLIED",
-          "summary": "已应用草案",
+          "summary": "B 已应用草案",
           "assumptions_json": "[]",
           "risks_json": "[]",
           "nodes_json": "[{\"tempId\":\"n3\",\"title\":\"行动：拉伸\"}]",
@@ -393,7 +393,7 @@
           "created_at": 1793900000303,
           "schema_version": 1,
           "status": "DRAFT",
-          "summary": "睡眠与运动草案",
+          "summary": "B 睡眠与运动草案",
           "assumptions_json": "[\"用户希望改善健康\"]",
           "risks_json": "[{\"level\":\"LOW\",\"text\":\"时间不足\"}]",
           "nodes_json": "[{\"tempId\":\"n1\",\"title\":\"阶段：睡眠\",\"children\":[{\"tempId\":\"n2\",\"title\":\"行动：23点前睡\"}]}]",
@@ -474,7 +474,7 @@
           "source_id": 1,
           "source_version": "v1",
           "category": "HABIT",
-          "content": "开始记录睡眠\n有意识改变",
+          "content": "B 开始记录睡眠\n有意识改变",
           "evidence": "日记提到睡眠",
           "is_inference": 0,
           "confidence": 0.85,
@@ -491,7 +491,7 @@
           "source_id": 2,
           "source_version": "v1",
           "category": "EMOTION",
-          "content": "用户纠正过的线索 \"quoted\"",
+          "content": "B 用户纠正过的线索 \"quoted\"",
           "evidence": "用户纠正",
           "is_inference": 1,
           "confidence": null,
@@ -508,7 +508,7 @@
           "source_id": 1,
           "source_version": "v0",
           "category": "HABIT",
-          "content": "旧版本线索",
+          "content": "B 旧版本线索",
           "evidence": "旧日记版本",
           "is_inference": 0,
           "confidence": 0.5,
@@ -592,7 +592,7 @@
         {
           "id": "qa-memory-active",
           "theme": "健康与习惯",
-          "content": "用户重视睡眠\n希望可持续",
+          "content": "B 用户重视睡眠\n希望可持续",
           "is_inference": 0,
           "status": "ACTIVE",
           "created_at": 1793900000500,
@@ -610,7 +610,7 @@
         {
           "id": "qa-memory-deleted",
           "theme": "职业",
-          "content": "已删除的旧记忆",
+          "content": "B 已删除的旧记忆",
           "is_inference": 1,
           "status": "DELETED",
           "created_at": 1793900000510,
@@ -679,7 +679,7 @@
           "id": "qa-insight-failed",
           "data_version": "dv-full-2",
           "status": "FAILED",
-          "summary": "失败摘要",
+          "summary": "B 失败摘要",
           "facts_json": "[]",
           "insights_json": "[]",
           "period_start": 1792690400000,
@@ -692,7 +692,7 @@
           "id": "qa-insight-ready",
           "data_version": "dv-full-1",
           "status": "READY",
-          "summary": "洞察摘要\n带 \"引号\" 和 😀",
+          "summary": "B 洞察摘要\n带 \"引号\" 和 😀",
           "facts_json": "[{\"key\":\"sleep\",\"value\":3.5}]",
           "insights_json": "[{\"title\":\"睡眠\",\"body\":\"有改善\"}]",
           "period_start": 1793295200000,
@@ -752,6 +752,19 @@
       ],
       "rows": [
         {
+          "id": "7762df31-3bde-4d15-bc5c-dfdabd84de62",
+          "period_key": "2026-W45",
+          "period_start": 1793548800000,
+          "period_end": 1793934143021,
+          "generated_at": 1793934143021,
+          "version": 1,
+          "data_version": "7e37811b2795a8da986a65ad5ac75f78cd51bd3fde9e47ffe44129978d5da47d",
+          "ai_consent_version": "dd497366691d119e8ca1a846a2d715c9989debe18a9f3f4af6cdb37189195767",
+          "facts_json": "[{\"id\":\"week-counts\",\"text\":\"本周 2 条进展，上周 0 条。\",\"sources\":[{\"type\":\"CHECKIN\",\"id\":\"1\",\"label\":\"B 行动：三次 30 分钟\"},{\"type\":\"CHECKIN\",\"id\":\"2\",\"label\":\"B 阶段：每周运动\"}]},{\"id\":\"week-single-3-次/周\",\"text\":\"目标「B 行动：三次 30 分钟」本周只有 1 个「次/周」数值点，不足以判断趋势。\",\"sources\":[{\"type\":\"CHECKIN\",\"id\":\"1\",\"label\":\"B 行动：三次 30 分钟\"}]},{\"id\":\"goals-active\",\"text\":\"当前有 3 个目标，其中进行中 2 个；本周有进展记录的目标 2 个。\",\"sources\":[{\"type\":\"GOAL\",\"id\":\"1\",\"label\":\"B 长期健康 标题 \\\"引号\\\" / 换行\\n第二行 😀\"},{\"type\":\"GOAL\",\"id\":\"2\",\"label\":\"B 阶段：每周运动\"},{\"type\":\"GOAL\",\"id\":\"3\",\"label\":\"B 行动：三次 30 分钟\"}]},{\"id\":\"wins-progress\",\"text\":\"本周留下了 2 条可回看的进展记录。\",\"sources\":[{\"type\":\"CHECKIN\",\"id\":\"1\",\"label\":\"B 行动：三次 30 分钟\"},{\"type\":\"CHECKIN\",\"id\":\"2\",\"label\":\"B 阶段：每周运动\"}]},{\"id\":\"next-continue\",\"text\":\"从本周有进展的目标中选一个，写下下一步可执行动作。\",\"sources\":[{\"type\":\"CHECKIN\",\"id\":\"1\",\"label\":\"B 行动：三次 30 分钟\"},{\"type\":\"CHECKIN\",\"id\":\"2\",\"label\":\"B 阶段：每周运动\"}]}]",
+          "sections_json": "{\"changes\":[{\"id\":\"week-counts\",\"text\":\"本周 2 条进展，上周 0 条。\",\"sources\":[{\"type\":\"CHECKIN\",\"id\":\"1\",\"label\":\"B 行动：三次 30 分钟\"},{\"type\":\"CHECKIN\",\"id\":\"2\",\"label\":\"B 阶段：每周运动\"}]},{\"id\":\"week-single-3-次/周\",\"text\":\"目标「B 行动：三次 30 分钟」本周只有 1 个「次/周」数值点，不足以判断趋势。\",\"sources\":[{\"type\":\"CHECKIN\",\"id\":\"1\",\"label\":\"B 行动：三次 30 分钟\"}]}],\"wins\":[{\"id\":\"goals-active\",\"text\":\"当前有 3 个目标，其中进行中 2 个；本周有进展记录的目标 2 个。\",\"sources\":[{\"type\":\"GOAL\",\"id\":\"1\",\"label\":\"B 长期健康 标题 \\\"引号\\\" / 换行\\n第二行 😀\"},{\"type\":\"GOAL\",\"id\":\"2\",\"label\":\"B 阶段：每周运动\"},{\"type\":\"GOAL\",\"id\":\"3\",\"label\":\"B 行动：三次 30 分钟\"}]},{\"id\":\"wins-progress\",\"text\":\"本周留下了 2 条可回看的进展记录。\",\"sources\":[{\"type\":\"CHECKIN\",\"id\":\"1\",\"label\":\"B 行动：三次 30 分钟\"},{\"type\":\"CHECKIN\",\"id\":\"2\",\"label\":\"B 阶段：每周运动\"}]}],\"attention\":[],\"nextSteps\":[{\"id\":\"next-continue\",\"text\":\"从本周有进展的目标中选一个，写下下一步可执行动作。\",\"sources\":[{\"type\":\"CHECKIN\",\"id\":\"1\",\"label\":\"B 行动：三次 30 分钟\"},{\"type\":\"CHECKIN\",\"id\":\"2\",\"label\":\"B 阶段：每周运动\"}]}]}",
+          "notified_at": 1793900000701
+        },
+        {
           "id": "qa-weekly-44",
           "period_key": "2026-W44",
           "period_start": 1793295200000,
@@ -763,19 +776,6 @@
           "facts_json": "[]",
           "sections_json": "{\"sections\":[]}",
           "notified_at": null
-        },
-        {
-          "id": "qa-weekly-45",
-          "period_key": "2026-W45",
-          "period_start": 1793900000000,
-          "period_end": 1794504800000,
-          "generated_at": 1793900000700,
-          "version": 1,
-          "data_version": "dv-full-1",
-          "ai_consent_version": "cv-full-1",
-          "facts_json": "[{\"key\":\"week-counts\",\"value\":\"3\"}]",
-          "sections_json": "{\"sections\":[{\"title\":\"本周\",\"body\":\"有进展\"}]}",
-          "notified_at": 1793900000701
         }
       ]
     },
@@ -841,7 +841,7 @@
           "ai_consent_version": "cv-full-1",
           "status": "STALE",
           "generated_at": 1793900000810,
-          "summary": "新格式 AI 周报",
+          "summary": "B 新格式 AI 周报",
           "highlights_json": "[]",
           "suggestion": "下周再试",
           "fact_ids_json": "[\"week-counts\",\"goal-progress\"]",
@@ -856,7 +856,7 @@
           "ai_consent_version": "cv-full-1",
           "status": "READY",
           "generated_at": 1793900000800,
-          "summary": "旧格式 AI 周报\n带 \"引号\"",
+          "summary": "B 旧格式 AI 周报\n带 \"引号\"",
           "highlights_json": "[{\"type\":\"POSITIVE\",\"title\":\"睡眠\",\"body\":\"有改善\"}]",
           "suggestion": "继续保持",
           "fact_ids_json": "week-counts\u001fcheckin-done",
@@ -868,7 +868,19 @@
       ]
     }
   },
-  "app_meta": [],
-  "logcat": "11-06 09:03:06.234  3462  4937 D MiInputBoostRt: MiInputBoostRtStub: decision action=1 pid=22106 seq=179803 pidHasOtherDown=0 shouldBoost=0 pendingRestore=1\n",
-  "ui": "<?xml version='1.0' encoding='UTF-8' standalone='yes' ?><hierarchy rotation=\"0\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.widget.FrameLayout\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.widget.LinearLayout\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"1\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"android:id/content\" class=\"android.widget.FrameLayout\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"2\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"androidx.compose.ui.platform.ComposeView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"1\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[72,72][1128,2536]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"正在完成安全恢复\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[344,1188][856,1275]\" drawing-order=\"0\" hint=\"\" /><node index=\"1\" text=\"数据恢复或安全重置尚未收敛。为避免产生不一致，暂不能使用应用；请保持应用打开，重启后会继续完成。\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[72,1311][1128,1421]\" drawing-order=\"0\" hint=\"\" /></node></node></node></node></node></node></hierarchy>"
+  "app_meta": [
+    [
+      1,
+      null,
+      null,
+      0,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  ],
+  "logcat": "",
+  "ui": "<?xml version='1.0' encoding='UTF-8' standalone='yes' ?><hierarchy rotation=\"0\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.widget.FrameLayout\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[120,332][1080,2360]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.widget.FrameLayout\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[120,332][1080,2360]\" drawing-order=\"1\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"android:id/content\" class=\"android.widget.FrameLayout\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[120,332][1080,2360]\" drawing-order=\"1\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.ViewGroup\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[120,332][1080,2360]\" drawing-order=\"1\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[120,332][1080,2360]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[120,332][1080,2360]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[120,332][1080,2360]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[120,332][1080,2360]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"恢复预览（只读）\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,404][704,491]\" drawing-order=\"0\" hint=\"\" /><node index=\"1\" text=\"\" resource-id=\"\" class=\"android.widget.ScrollView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,539][1008,2072]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"备份时间：2026-11-05 16:03\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,539][621,582]\" drawing-order=\"0\" hint=\"\" /><node index=\"1\" text=\"来源：com.mengyalife.app.qa 0.14.1-g3e2-1-qa（QA）\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,582][1008,674]\" drawing-order=\"0\" hint=\"\" /><node index=\"2\" text=\"格式：v2 / 加密 / KDF 310000\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,674][644,717]\" drawing-order=\"0\" hint=\"\" /><node index=\"3\" text=\"数据库：11 → 当前 12\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,717][508,760]\" drawing-order=\"0\" hint=\"\" /><node index=\"4\" text=\"文件：15373 字节\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,760][455,803]\" drawing-order=\"0\" hint=\"\" /><node index=\"5\" text=\"记录数（备份 / 本机）\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,827][566,877]\" drawing-order=\"0\" hint=\"\" /><node index=\"6\" text=\"日记：2 / 2（将覆盖）\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,877][523,920]\" drawing-order=\"0\" hint=\"\" /><node index=\"7\" text=\"目标：3 / 3（将覆盖）\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,920][525,963]\" drawing-order=\"0\" hint=\"\" /><node index=\"8\" text=\"进展：2 / 2（将覆盖）\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,963][523,1006]\" drawing-order=\"0\" hint=\"\" /><node index=\"9\" text=\"对话：3 / 3（将覆盖）\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,1006][525,1049]\" drawing-order=\"0\" hint=\"\" /><node index=\"10\" text=\"草案：2 / 2（将覆盖）\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,1049][523,1092]\" drawing-order=\"0\" hint=\"\" /><node index=\"11\" text=\"成长线索：3 / 3（将覆盖）\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,1092][590,1135]\" drawing-order=\"0\" hint=\"\" /><node index=\"12\" text=\"成长记忆：2 / 2（将覆盖）\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,1135][588,1178]\" drawing-order=\"0\" hint=\"\" /><node index=\"13\" text=\"洞察：2 / 2（将覆盖）\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,1178][523,1221]\" drawing-order=\"0\" hint=\"\" /><node index=\"14\" text=\"周回顾：2 / 2（将覆盖）\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,1221][555,1264]\" drawing-order=\"0\" hint=\"\" /><node index=\"15\" text=\"历史 AI 周报（仅归档）：2 / 2（仅归档，不恢复）\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,1264][930,1307]\" drawing-order=\"0\" hint=\"\" /><node index=\"16\" text=\"兼容性/历史引用 warning\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,1331][621,1381]\" drawing-order=\"0\" hint=\"\" /><node index=\"17\" text=\"备份数据库版本 11 低于当前 12；本阶段只预览，不做迁移\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,1381][1008,1473]\" drawing-order=\"0\" hint=\"\" /><node index=\"18\" text=\"不会恢复\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,1497][342,1547]\" drawing-order=\"0\" hint=\"\" /><node index=\"19\" text=\"• API Key / encrypted_api_key / Keystore\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,1547][826,1590]\" drawing-order=\"0\" hint=\"\" /><node index=\"20\" text=\"• AI 授权同意与旧接收方\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,1590][567,1633]\" drawing-order=\"0\" hint=\"\" /><node index=\"21\" text=\"• AI 自动发送开关\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,1633][470,1676]\" drawing-order=\"0\" hint=\"\" /><node index=\"22\" text=\"• 系统通知权限\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,1676][430,1719]\" drawing-order=\"0\" hint=\"\" /><node index=\"23\" text=\"• 历史 weekly AI 结果（仅归档，不恢复）\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,1719][820,1762]\" drawing-order=\"0\" hint=\"\" /><node index=\"24\" text=\"恢复会替换本机全部用户数据。建议先关闭预览，用上方“完整加密备份”导出当前数据。\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,1786][1008,1878]\" drawing-order=\"0\" hint=\"\" /><node NAF=\"true\" index=\"25\" text=\"\" resource-id=\"\" class=\"android.widget.CheckBox\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"true\" checked=\"true\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,1878][336,2022]\" drawing-order=\"0\" hint=\"\" /><node index=\"26\" text=\"我理解会替换本机数据，且恢复后需要重新配置 API Key/授权\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[336,1904][1008,1996]\" drawing-order=\"0\" hint=\"\" /><node index=\"27\" text=\"尚未执行恢复；没有写入任何数据。\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[192,2022][791,2072]\" drawing-order=\"0\" hint=\"\" /></node><node index=\"2\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[290,2144][464,2288]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"关闭\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[339,2189][415,2243]\" drawing-order=\"0\" hint=\"\" /><node index=\"1\" text=\"\" resource-id=\"\" class=\"android.widget.Button\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[290,2156][464,2276]\" drawing-order=\"0\" hint=\"\" /></node><node index=\"3\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[488,2144][1008,2288]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"确认恢复（替换本机数据）\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[524,2189][972,2243]\" drawing-order=\"0\" hint=\"\" /><node index=\"1\" text=\"\" resource-id=\"\" class=\"android.widget.Button\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[488,2156][1008,2276]\" drawing-order=\"0\" hint=\"\" /></node></node></node></node></node></node></node></node></node></hierarchy>"
 }

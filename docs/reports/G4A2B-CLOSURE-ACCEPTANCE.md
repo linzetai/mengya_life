@@ -2,29 +2,32 @@
 
 ## Gate
 
-**NOT PASS（设备 L2 未在最终 barrier 源码上执行）。**
+**NOT PASS（port 34225 的 L2 在 R7 setup 阶段中断）。**
 
-本轮已修复启动竞态、共享写屏障、迟到AI generation fencing、fresh v12 app_meta、Gate/Journal持久化和失败脚本断言；JVM **299/299 PASS**、构建成功。但 final focused L2因设备离线未执行，不能关闭R2-R7/迁移/最终APK E2E的最终版本验收。
+最终QA APK已在设备上跑过preflight、迁移、g3b1、A→B→A E2E及R2-R6；E2E 39/39、R2-R6各断言PASS。R7的B场景启动断言失败后，用户要求暂停；R7剩余断言、fresh DB、weekly L2 smoke没有完成。进程被SIGTERM，runner总报告未生成，不能宣称L2 PASS。
 
 ## 状态矩阵
 
-| 类别 | PASS | FAIL | NOT RUN |
+| 类别 | PASS | FAIL / 未完成 | NOT RUN |
 |---|---|---|---|
-| 全量JVM/静态 | **299/299，6.9s总计** | 0 | — |
-| 设置前置 | **38/38，112s** | 0 | — |
-| R2-R7（历史barrier前构建） | 历史 **59/59** | 0 | **最终源码未跑** |
-| 迁移（历史构建） | 历史 **26/26**（v10→12、v11→12） | 0 | **最终源码未跑** |
-| E2E（历史构建） | 历史 **35/35** | 0 | **最终源码未跑** |
-| final focused L2 | — | — | **设备离线** |
-| DB不可读/Worker并发等附加注入 | — | — | 未专项设备验证 |
+| 全量JVM/静态 | 历史版本 **299/299**；最终改动后的 restore-validate L0 **6类PASS** | 最终改动后未重跑全量299 | — |
+| QA前置 | **11/11** | — | — |
+| v10/v11→v12迁移 | **26/26** | — | — |
+| AI consent g3b1 | **47/47** | — | — |
+| A→B→A E2E | **39/39，379.77s** | — | — |
+| R2–R6故障/崩溃 | **逐项PASS** | — | — |
+| R7 Gate缺失 | — | **B setup断言失败；R7主体未执行** | — |
+| fresh v12、weekly L2 smoke | — | — | **用户暂停前未到达** |
+| QA集成总结果 | — | **SIGTERM前未生成最终report.json，整体INCOMPLETE** | — |
+| DB读取失败/Worker额外并发等注入 | — | — | 未专项设备验证 |
 
 历史真机结果不等于最终 barrier 源码结果。
 
 ## 时间优化
 
-旧 broad L2 **2043.5s**。focused plan只包含 `verify_migration.py`、`verify_restore_e2e.py`、`verify_restore_failures.py`、`verify_restore_fresh_db.py`；跳过泛用 g3b1、settings、navigation和重复preview。估算15–16分钟，仅为计划估算，未执行。
+旧 broad L2 **2043.5s**。restore-only focused plan为4个设备脚本，预计16–17分钟；本次实际组合 `restore-validate + weekly-ai` 共6个脚本，预计约28–29分钟。运行约23分钟后用户要求暂停，未完成。这个长组合不应作为每轮开发默认动作；日常应使用workflow `dev` profile，合并前再按目标风险单跑standard模块。
 
-设置测试优化后单跑38/38，112s；旧失败运行452.1s。
+设置旧记录38/38、112s；当前脚本加了2个入口可见断言，尚未重新真机计时。
 
 ## 工作区/交付
 

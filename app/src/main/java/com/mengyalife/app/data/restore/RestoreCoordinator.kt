@@ -191,6 +191,7 @@ class RestoreCoordinator(
         try {
             snapshotStore.requireSpace(bytes.size.toLong())
         } catch (e: Exception) {
+            writeQaStatus("FAILED_BEFORE_COMMIT", "preflight", 0L)
             return RestoreRunResult(RestoreRunStatus.FAILED_BEFORE_COMMIT, e.message ?: "可用空间不足")
         }
         val attemptId = newAttemptId()
