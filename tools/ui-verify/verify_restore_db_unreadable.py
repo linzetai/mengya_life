@@ -18,14 +18,19 @@ DB_NAME = "mengya-life-qa.db"
 DB_REMOTE = f"databases/{DB_NAME}"
 
 def pull_db(path):
-    result = subprocess.run(
-        f"adb -s {DEV} exec-out run-as {PKG} cat {DB_REMOTE}",
-        shell=True, capture_output=True, timeout=40,
-    )
-    if result.returncode != 0 or not result.stdout:
+    found_main = False
+    for suffix in ("", "-wal", "-shm"):
+        result = subprocess.run(
+            ["adb", "-s", DEV, "exec-out", "run-as", PKG, "cat", DB_REMOTE + suffix],
+            capture_output=True, timeout=40,
+        )
+        if result.returncode == 0 and result.stdout:
+            with open(path + suffix, "wb") as output:
+                output.write(result.stdout)
+            if not suffix:
+                found_main = True
+    if not found_main:
         raise RuntimeError("无法读取QA数据库快照")
-    with open(path, "wb") as output:
-        output.write(result.stdout)
     return path
 
 def chmod_db(mode):
@@ -55,6 +60,8 @@ try:
     clear_qa_data()
     check("Fresh QA数据库启动", restart_app())
     check("确认初始业务页可用", has_tag("tab_goals") or has_tag("tab_overview"))
+    adb(f"shell am force-stop {PKG}")
+    time.sleep(1.0)
     pull_db(first)
     before_version, before_counts = snapshot(first)
     check("QA数据库为v12", before_version == 12, str(before_version))
@@ -66,8 +73,19 @@ try:
     if not permission_restricted:
         raise RuntimeError("QA DB chmod failed; stop unreadable test")
     adb(f"shell am start -W -n {PKG}/com.mengyalife.app.MainActivity --ez qa_run_weekly_review true")
-    check("启动界面完成渲染", wait_app_ui(20))
-    check("DB不可读时显示维护页", wait_tag("restore_maintenance", 20))
+    foreground = ensure_foreground()
+    ui_ready = foreground and wait_app_ui(20)
+    check("DB不可读时Activity可见", foreground)
+    check("启动界面完成渲染", ui_ready)
+    maintenance = ui_ready and (
+        wait_text("暂不能使用应用", 20) or wait_text("数据恢复或安全重置尚未收敛", 20)
+    )
+    check("DB不可读时显示维护页", maintenance)
+    if not maintenance:
+        print("DB_UNREADABLE_UI_DIAGNOSTICS:", adb("shell dumpsys activity activities | grep -m1 -E 'mResumedActivity|topResumedActivity'"))
+        app_pid = adb(f"shell pidof {PKG}").strip()
+        if app_pid:
+            print("DB_UNREADABLE_APP_LOGS:", adb(f"logcat -d --pid={app_pid}")[-4000:])
     check("DB不可读时不显示目标写入入口", not has_tag("tab_goals"))
     check("DB不可读时不显示AI请求入口", not has_tag("weekly_generate_ai"))
 

@@ -104,6 +104,7 @@ def validate_restore_safety_source() -> list[str]:
     ai = (root / "data/weekly/WeeklyAiService.kt").read_text(encoding="utf-8")
     goal = (root / "data/repository/GoalRepository.kt").read_text(encoding="utf-8")
     journal = (root / "data/repository/JournalRepository.kt").read_text(encoding="utf-8")
+    root_app = (root / "MengyaLifeApp.kt").read_text(encoding="utf-8")
     gate_test = (TEST_ROOT / "com/mengyalife/app/restore/RestoreGateJournalTest.kt").read_text(encoding="utf-8")
     issues: list[str] = []
     if "if (!ready) throw RestoreException(\"RESTORE_BLOCKED\"" not in barrier:
@@ -114,6 +115,12 @@ def validate_restore_safety_source() -> list[str]:
         issues.append("DB app_meta读取失败未明确fail-closed到MAINTENANCE")
     if "private suspend fun readMetaResult(): Result<AppMetaEntity?> =\n        runCatching { database.appMetaDao().get() }" not in coordinator:
         issues.append("app_meta读取异常未封装为可判定的Result")
+    readiness_pos = root_app.find("val restoreGateActive")
+    first_viewmodel_pos = root_app.find("viewModel(")
+    if readiness_pos < 0 or first_viewmodel_pos < 0 or readiness_pos > first_viewmodel_pos:
+        issues.append("restore startup gate必须早于任意数据库ViewModel/Flow创建")
+    if "if (restoreGateActive)" not in root_app[:first_viewmodel_pos]:
+        issues.append("未READY时缺少只读维护屏的早期return")
     if "gate.clear(); journal.clear(); finishReady()" not in coordinator:
         issues.append("Gate/Journal释放后才进入READY的顺序缺失")
     converge = coordinator[coordinator.find("private suspend fun converge") : coordinator.find("private fun writeQaPhase")]
@@ -261,6 +268,19 @@ def validate_selection_policy(map_: dict) -> list[str]:
             return ["RestoreWriteBarrier 改动的L2安全/迁移设备覆盖不足"]
         if "verify_navigation.py" in barrier_scripts:
             return ["数据层写屏障变更不应重复加入全局导航冒烟"]
+
+        startup_gate_change = ChangeSet(
+            base="(self-test)", base_reason="policy self-test",
+            changes=[Change("app/src/main/java/com/mengyalife/app/MengyaLifeApp.kt", "M", "self-test")],
+            commit="self-test", branch="self-test",
+        )
+        startup_gate_plan = select(map_, startup_gate_change, None, None)
+        startup_scripts = {d["script"] for d in startup_gate_plan.device_scripts}
+        if startup_gate_plan.level != "integration" or not {
+            "verify_restore_db_unreadable.py", "verify_restore_fresh_db.py", "verify_restore_e2e.py",
+            "verify_weekly_ai.py", "verify_g3b1.py",
+        }.issubset(startup_scripts):
+            return ["startup gate变更必须覆盖DB不可读/fresh/restore/weekly/consent L2"]
 
         gate_case = select(map_, None, ["restore-validate"], "gate")
         try:

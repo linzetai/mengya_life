@@ -84,6 +84,16 @@ import com.mengyalife.app.ui.theme.ThemeMode
  */
 @Composable
 fun MengyaLifeApp() {
+    // The restore guard must run before constructing any DB-backed ViewModel.
+    // A corrupt/unreadable DB can fail when a Room Flow is first collected; while
+    // startup is UNKNOWN/RECONCILING/MAINTENANCE expose only this read-free screen.
+    val appContext = LocalContext.current.applicationContext as MengyaApplication
+    val restoreGateActive by appContext.container.restoreCoordinator.gateActive.collectAsStateWithLifecycle()
+    if (restoreGateActive) {
+        MengyaLifeTheme(darkTheme = isSystemInDarkTheme()) { RestoreMaintenanceScreen() }
+        return
+    }
+
     // ---- 主题 ----
     val themeViewModel: ThemeViewModel = viewModel(factory = ThemeViewModel.Factory)
     val persistedThemeMode by themeViewModel.themeMode.collectAsStateWithLifecycle()
@@ -153,13 +163,6 @@ fun MengyaLifeApp() {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
-    }
-
-    val appContext = LocalContext.current.applicationContext as MengyaApplication
-    val restoreGateActive by appContext.container.restoreCoordinator.gateActive.collectAsStateWithLifecycle()
-    if (restoreGateActive) {
-        MengyaLifeTheme(darkTheme = darkTheme) { RestoreMaintenanceScreen() }
-        return
     }
 
     val context = LocalContext.current

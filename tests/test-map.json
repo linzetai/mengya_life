@@ -1331,6 +1331,19 @@
       "reason": "Focused restore flow: E2E covers preview and settings navigation; L1/L2 only restore E2E + R2-R7; integration still includes v12 migration."
     },
     {
+      "id": "L-restore-startup-gate",
+      "description": "数据库启动读取未完成前封锁所有依赖Room的ViewModel",
+      "patterns": [
+        "app/src/main/java/com/mengyalife/app/MengyaLifeApp.kt",
+        "app/src/main/java/com/mengyalife/app/MengyaApplication.kt"
+      ],
+      "modules": ["restore-validate", "weekly-ai", "ai-consent", "app-smoke"],
+      "deviceModules": ["restore-validate", "weekly-ai", "ai-consent"],
+      "minLevel": "integration",
+      "testLevel": "integration",
+      "reason": "恢复startup gate是所有业务ViewModel和Worker的前置；L2验证fresh DB、DB不可读、weekly READY和恢复Gate场景。"
+    },
+    {
       "id": "L-restore-write-barrier",
       "description": "共享恢复写屏障及业务写入口并发保护",
       "patterns": [
