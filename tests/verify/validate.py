@@ -221,6 +221,10 @@ def validate_selection_policy(map_: dict) -> list[str]:
             return ["restore --case R7 应只选择故障矩阵脚本"]
         if len(restore_case.deferred_device_scripts) != 4:
             return ["restore --case R7 必须明确延期其余四个脚本"]
+        e2e_case = select(map_, None, ["restore-validate"], "integration")
+        apply_case_filter(e2e_case, "A_TO_B_TO_A")
+        if len(e2e_case.device_scripts) != 1 or e2e_case.device_scripts[0]["script"] != "verify_restore_e2e.py":
+            return ["A->B->A E2E 应可独立选择"]
         fresh_case = select(map_, None, ["restore-validate"], "integration")
         apply_case_filter(fresh_case, "FRESH_V12")
         if len(fresh_case.device_scripts) != 1 or fresh_case.device_scripts[0]["script"] != "verify_restore_fresh_db.py":

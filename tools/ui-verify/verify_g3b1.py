@@ -63,6 +63,7 @@ print("========== 0. 清空 QA 并配置模型 ==========")
 adb("shell logcat -b crash -c")
 clear_qa_data()
 restart_app()
+wait_tag("tab_overview", 20)  # startup Gate may briefly show maintenance until Room/app_meta is ready
 tap_tag("tab_advisor")
 time.sleep(1.0)
 check("未配置引导", wait_tag("advisor_not_configured", 8))

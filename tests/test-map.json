@@ -944,7 +944,10 @@
           "resetsQaData": true,
           "measuredSec": 346.84,
           "estimatedSec": 393,
-          "timeoutSec": 900
+          "timeoutSec": 900,
+          "scenarioEnvVar": "MENGYA_RESTORE_E2E_SCENARIO",
+          "scenarios": ["A_TO_B_TO_A"],
+          "scenarioMinLevel": "integration"
         },
         {
           "script": "verify_restore_failures.py",

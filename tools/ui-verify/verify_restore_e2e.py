@@ -5,6 +5,9 @@ from harness import *
 from verify_backup_v2_full import dump_db, pull_db, db_counts, TABLES
 
 require_qa("verify_restore_e2e.py")
+scenario = os.environ.get("MENGYA_RESTORE_E2E_SCENARIO", "").strip().upper()
+if scenario and scenario != "A_TO_B_TO_A":
+    raise SystemExit(f"未知restore E2E scenario: {scenario}")
 PASS = "BackupFull123!"
 EVIDENCE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
                         "docs/reports/G4A2B-acceptance/qa")
