@@ -1,0 +1,49 @@
+
+== 测试选择（L2 Integration / module / profile=dev）==
+开发快回路：只执行静态/JVM/必要编译；延期真机用例不计 Gate PASS。
+Git 基线: 944cbe1b1f05（上一次 verify 运行记录）  HEAD: 5b7d014fa72b  branch: master
+工作区变更 38 个（显式模块模式不参与选择）
+命中规则：
+  [explicit-module] 用户显式指定模块
+选择模块（2）：
+  - database-migration   risk=critical JVM=0  真机=verify_migration.py(integration)
+      理由: integration 级别强制包含高风险模块
+  - restore-validate     risk=high     JVM=6  真机=verify_restore_e2e.py(feature), verify_restore_failures.py(feature), verify_restore_fresh_db.py(feature), verify_restore_db_unreadable.py(integration)
+      理由: 显式指定 --module restore-validate
+JVM: 6 个类
+真机：
+  唯一脚本 5 个；估算脚本耗时 1080s（按当前case/smoke/full模式；不含构建/前置与设备空闲）
+  （本次不启动设备；以下是标准 profile 延期用例）
+  - qa:verify_migration.py [integration] modules=database-migration
+  - qa:verify_restore_db_unreadable.py [integration] modules=restore-validate
+  - qa:verify_restore_e2e.py [feature] modules=restore-validate
+  - qa:verify_restore_failures.py [feature] modules=restore-validate
+  - qa:verify_restore_fresh_db.py [feature] modules=restore-validate
+不运行：
+  - qa:verify_migration.py: --profile dev：只做本地静态/JVM/编译，延期到 standard/feature/integration 验收
+  - qa:verify_restore_db_unreadable.py: --profile dev：只做本地静态/JVM/编译，延期到 standard/feature/integration 验收
+  - qa:verify_restore_e2e.py: --profile dev：只做本地静态/JVM/编译，延期到 standard/feature/integration 验收
+  - qa:verify_restore_failures.py: --profile dev：只做本地静态/JVM/编译，延期到 standard/feature/integration 验收
+  - qa:verify_restore_fresh_db.py: --profile dev：只做本地静态/JVM/编译，延期到 standard/feature/integration 验收
+未选择的模块（19）：
+  - diary: 未命中变更路径，也不是被选模块的上游依赖
+  - goals: 未命中变更路径，也不是被选模块的上游依赖
+  - progress: 未命中变更路径，也不是被选模块的上游依赖
+  - trends: 未命中变更路径，也不是被选模块的上游依赖
+  - advisor: 未命中变更路径，也不是被选模块的上游依赖
+  - ai-consent: 未命中变更路径，也不是被选模块的上游依赖
+  - growth-memory: 未命中变更路径，也不是被选模块的上游依赖
+  - insight: 未命中变更路径，也不是被选模块的上游依赖
+  - weekly-review: 未命中变更路径，也不是被选模块的上游依赖
+  - weekly-ai: 未命中变更路径，也不是被选模块的上游依赖
+  - settings: 未命中变更路径，也不是被选模块的上游依赖
+  - export: 未命中变更路径，也不是被选模块的上游依赖
+  - navigation: 未命中变更路径，也不是被选模块的上游依赖
+  - app-smoke: 未命中变更路径，也不是被选模块的上游依赖
+  - test-infra: 未命中变更路径，也不是被选模块的上游依赖
+  - backup-format: 未命中变更路径，也不是被选模块的上游依赖
+  - backup-crypto: 未命中变更路径，也不是被选模块的上游依赖
+  - backup-export: 未命中变更路径，也不是被选模块的上游依赖
+  - backup-security: 未命中变更路径，也不是被选模块的上游依赖
+
+[计划] 未执行任何测试。计划已写入 /root/workspace/mengya-life/docs/reports/test-runs/20261106-180943/report.json
