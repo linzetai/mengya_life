@@ -3,7 +3,7 @@
 覆盖：首次授权/拒绝、四类开关、撤回、换服务地址重授权、自动上下文、
 日记/目标来源、历史 epoch 隔离、目标草案与重启恢复、业务数据不被修改。
 """
-import os, sys, time, sqlite3, subprocess, json, re
+import os, sys, time, sqlite3, subprocess, json, re, tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from harness import *
 
@@ -15,23 +15,34 @@ MODEL = "qa-offline"
 
 
 def db():
-    d = "/tmp/g3b1-db"
-    os.makedirs(d, exist_ok=True)
-    for f in ["mengya-life-qa.db", "mengya-life-qa.db-wal", "mengya-life-qa.db-shm"]:
-        subprocess.run(
-            f"adb -s {DEV} exec-out run-as {PKG} cat databases/{f} > {d}/{f}",
-            shell=True, capture_output=True,
-        )
-    con = sqlite3.connect(f"{d}/mengya-life-qa.db")
-    messages = con.execute(
-        "SELECT role,status,content,context_epoch,sources_json FROM advisor_messages ORDER BY created_at"
-    ).fetchall()
-    goals = con.execute("SELECT id,title FROM goals ORDER BY id").fetchall()
-    checkins = con.execute("SELECT COUNT(*) FROM goal_checkins").fetchone()[0]
-    journals = con.execute("SELECT id,title FROM journal_entries ORDER BY id").fetchall()
-    proposals = con.execute("SELECT COUNT(*) FROM goal_proposals").fetchone()[0]
-    con.close()
-    return messages, goals, checkins, journals, proposals
+    last_error = "database not created yet"
+    deadline = time.time() + 20
+    while time.time() < deadline:
+        d = tempfile.mkdtemp(prefix="g3b1-db-")
+        db_path = os.path.join(d, "mengya-life-qa.db")
+        for suffix in ("", "-wal", "-shm"):
+            remote = "databases/mengya-life-qa.db" + suffix
+            result = subprocess.run(
+                ["adb", "-s", DEV, "exec-out", "run-as", PKG, "cat", remote],
+                capture_output=True, timeout=40,
+            )
+            if result.returncode == 0 and result.stdout:
+                with open(db_path + suffix, "wb") as output:
+                    output.write(result.stdout)
+        try:
+            with sqlite3.connect(db_path) as con:
+                messages = con.execute(
+                    "SELECT role,status,content,context_epoch,sources_json FROM advisor_messages ORDER BY created_at"
+                ).fetchall()
+                goals = con.execute("SELECT id,title FROM goals ORDER BY id").fetchall()
+                checkins = con.execute("SELECT COUNT(*) FROM goal_checkins").fetchone()[0]
+                journals = con.execute("SELECT id,title FROM journal_entries ORDER BY id").fetchall()
+                proposals = con.execute("SELECT COUNT(*) FROM goal_proposals").fetchone()[0]
+            return messages, goals, checkins, journals, proposals
+        except Exception as exc:
+            last_error = f"{type(exc).__name__}: {exc}"
+            time.sleep(0.5)
+    raise RuntimeError(f"QA DB快照在20秒内不可用: {last_error}")
 
 
 def replace_field(tag, text):
@@ -76,7 +87,7 @@ replace_field("ai_model_input", MODEL)
 replace_field("ai_key_input", SECRET)
 tap_tag("ai_save")
 time.sleep(2)
-check("模型配置保存", has_text("配置已保存"))
+check("模型配置保存", wait_text("配置已保存", 8))
 check("界面不回显 key", not has_text(SECRET))
 shot("g3b1-01-settings")
 
