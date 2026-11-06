@@ -6,7 +6,9 @@
 - `runs/20261106-101716/`: dev-profile restore loop; LOCAL PASS with four device tests deferred and `fullLevelSatisfied=false`.
 - `runs/20261106-111828-partial-l2/`: port 34225 combined L2 partial logs; E2E/R2-R6 pass, R7 setup failed, user paused before fresh/weekly.
 - `runs/20261106-151302/`: port 34707 isolated R7 **16/16 PASS** in 90.9s; fullLevelSatisfied=false, sibling suites explicitly deferred.
-- `runs/20261106-150118/`: latest offline L0 after restore/backup/weekly case selectors; static/schema/script-map and 299 JVM PASS; no device.
+- `runs/20261106-164126/`: current QA SHA c2fc DB-unreadable case report; 12/12, case PASS only, fullLevelSatisfied=false.
+- `runs/20261106-174143/`: final offline L0; static/schema/map policy + 303 JVM PASS, no device.
+- `../G4A2B-final-acceptance/`: current c2fc evidence, APK SHA256SUMS, focused source diff, minimal test logs; overall NOT PASS for remaining exact fault-injection gaps.
 - `runs/20261106-145819/`: prior scenario-filter L0, retained for comparison.
 - `runs/20261106-145527/`: earlier scenario-filter L0; retained for comparison.
 - `plans/restore-r7-case.txt`, `plans/backup-write-case.txt`, `plans/weekly-failed401-case.txt`: plans select one scenario and defer siblings.

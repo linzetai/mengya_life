@@ -1,0 +1,20 @@
+PASS  自测：错误预期会被比较捕获
+PASS  启动B+安全+故障
+PASS  B夹具10表非空  {'journal_entries': 2, 'goals': 3, 'goal_checkins': 2, 'advisor_messages': 3, 'goal_proposals': 2, 'growth_signals': 3, 'growth_memories': 2, 'insight_reports': 2, 'weekly_reviews': 2, 'weekly_ai_reviews': 2}
+PASS  选择A
+PASS  确定
+PASS  确认勾选
+PASS  执行
+PASS  R4到达DB_COMMITTED
+PASS  R4重启收敛
+PASS  R4 重启后A核心数据
+PASS  R4 历史weekly AI未恢复
+PASS  R4 重启后Key删除  {'attemptId': 'deb902f3-4ca3-4b42-b779-0e94f962388a', 'generation': 1, 'keyPresent': False, 'consentGranted': False, 'aiEnabled': False, 'gateActive': False, 'snapshotExists': True}
+PASS  R4 重启后consent撤销  {'attemptId': 'deb902f3-4ca3-4b42-b779-0e94f962388a', 'generation': 1, 'keyPresent': False, 'consentGranted': False, 'aiEnabled': False, 'gateActive': False, 'snapshotExists': True}
+PASS  R4 重启后自动AI关闭  {'attemptId': 'deb902f3-4ca3-4b42-b779-0e94f962388a', 'generation': 1, 'keyPresent': False, 'consentGranted': False, 'aiEnabled': False, 'gateActive': False, 'snapshotExists': True}
+PASS  R4 重启后Gate释放
+
+==== SUMMARY: 15/15 passed ====
+QA_FAILURE_R4_SECONDS=92.43
+
+==== SUMMARY: 15/15 passed ====

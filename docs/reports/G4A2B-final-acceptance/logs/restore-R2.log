@@ -1,0 +1,17 @@
+PASS  自测：错误预期会被比较捕获
+PASS  启动B+安全+故障
+PASS  B夹具10表非空  {'journal_entries': 2, 'goals': 3, 'goal_checkins': 2, 'advisor_messages': 3, 'goal_proposals': 2, 'growth_signals': 3, 'growth_memories': 2, 'insight_reports': 2, 'weekly_reviews': 2, 'weekly_ai_reviews': 2}
+PASS  选择A
+PASS  确定
+PASS  确认勾选
+PASS  执行
+PASS  R2事务失败到达
+PASS  R2失败后10表全部仍是B
+PASS  R2 Key保留  {'label': 'FAILED_BEFORE_COMMIT', 'attemptId': '41bb4196-4044-46ca-8602-b6f447fc7f45', 'generation': 1, 'keyPresent': True, 'consentGranted': True, 'aiEnabled': True, 'gateActive': False}
+PASS  R2 consent保留  {'label': 'FAILED_BEFORE_COMMIT', 'attemptId': '41bb4196-4044-46ca-8602-b6f447fc7f45', 'generation': 1, 'keyPresent': True, 'consentGranted': True, 'aiEnabled': True, 'gateActive': False}
+PASS  R2 Gate清理
+
+==== SUMMARY: 12/12 passed ====
+QA_FAILURE_R2_SECONDS=88.23
+
+==== SUMMARY: 12/12 passed ====

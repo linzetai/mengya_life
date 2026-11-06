@@ -1,0 +1,2776 @@
+diff --git a/app/src/test/java/com/mengyalife/app/advisor/WeeklyAiTest.kt b/app/src/test/java/com/mengyalife/app/advisor/WeeklyAiTest.kt
+index 15acd43..2c55006 100644
+--- a/app/src/test/java/com/mengyalife/app/advisor/WeeklyAiTest.kt
++++ b/app/src/test/java/com/mengyalife/app/advisor/WeeklyAiTest.kt
+@@ -2,6 +2,8 @@ package com.mengyalife.app.advisor
+
+ import com.mengyalife.app.data.local.weekly.WeeklyAiDao
+ import com.mengyalife.app.data.local.weekly.WeeklyAiEntity
++import com.mengyalife.app.data.restore.RestoreException
++import com.mengyalife.app.data.restore.RestoreWriteBarrier
+ import com.mengyalife.app.data.weekly.WeeklyAiService
+ import com.mengyalife.app.data.weekly.WeeklyReviewSource
+ import com.mengyalife.app.domain.advisor.AiConsentRules
+@@ -77,6 +79,27 @@ class WeeklyAiTest {
+         assertEquals(1, engine.calls.size)
+     }
+
++    @Test
++    fun `未知或维护状态下周AI不写库也不调用引擎`() = runTest {
++        val engine = ScriptedAdvisorEngine().apply { enqueue(AdvisorChatResult.Success(valid)) }
++        val dao = FakeAiDao()
++        val config = FakeConfigRepository().apply { save("https://api.example.com/v1", "m", "sk") }
++        val barrier = RestoreWriteBarrier(initiallyReady = false)
++        val service = WeeklyAiService(
++            source = AiSource(snapshot),
++            consentRepository = FakeConsentRepository().apply { grant("https://api.example.com/v1", AiConsentRules.allCategories) },
++            configRepository = config,
++            networkEngine = engine,
++            dao = dao,
++            now = { now },
++            writeBarrier = barrier,
++        )
++        val failure = runCatching { service.generateIfAllowed(autoRequest = true) }.exceptionOrNull()
++        assertTrue(failure is RestoreException)
++        assertEquals(0, dao.rows.value.size)
++        assertEquals(0, engine.calls.size)
++    }
++
+     @Test
+     fun `AI输入只包含授权类别`() = runTest {
+         val engine = ScriptedAdvisorEngine().apply { enqueue(AdvisorChatResult.Success(valid)) }
+diff --git a/app/src/test/java/com/mengyalife/app/data/GoalRepositoryTest.kt b/app/src/test/java/com/mengyalife/app/data/GoalRepositoryTest.kt
+index e9b2707..dea5a73 100644
+--- a/app/src/test/java/com/mengyalife/app/data/GoalRepositoryTest.kt
++++ b/app/src/test/java/com/mengyalife/app/data/GoalRepositoryTest.kt
+@@ -5,6 +5,8 @@ import com.mengyalife.app.data.local.goal.GoalCheckinStat
+ import com.mengyalife.app.data.local.goal.GoalDao
+ import com.mengyalife.app.data.local.goal.GoalEntity
+ import com.mengyalife.app.data.repository.GoalDraft
++import com.mengyalife.app.data.restore.RestoreException
++import com.mengyalife.app.data.restore.RestoreWriteBarrier
+ import com.mengyalife.app.data.repository.GoalRepository
+ import com.mengyalife.app.data.repository.GoalResult
+ import com.mengyalife.app.domain.goals.GoalDomain
+@@ -28,6 +30,7 @@ private class FakeGoalDao : GoalDao {
+     private val checkins = MutableStateFlow<List<GoalCheckinEntity>>(emptyList())
+     private var nextGoalId = 1L
+     private var nextCheckinId = 1L
++    var goalInsertCalls = 0
+
+     override fun observeGoals(): Flow<List<GoalEntity>> =
+         goals.map { list -> list.sortedWith(compareBy<GoalEntity> { it.level.ordinal }.thenBy { it.createdAt }) }
+@@ -54,6 +57,7 @@ private class FakeGoalDao : GoalDao {
+     override suspend fun loadAllCheckins(): List<GoalCheckinEntity> = checkins.value.sortedBy { it.id }
+
+     override suspend fun insertGoal(goal: GoalEntity): Long {
++        goalInsertCalls++
+         val id = nextGoalId++
+         goals.update { it + goal.copy(id = id) }
+         return id
+@@ -119,6 +123,17 @@ class GoalRepositoryTest {
+         assertEquals(saved.createdAt, saved.updatedAt)
+     }
+
++    @Test
++    fun `未知或维护状态下普通目标写入无副作用`() = runTest {
++        val dao = FakeGoalDao()
++        val barrier = RestoreWriteBarrier(initiallyReady = false)
++        val repository = GoalRepository(dao, writeBarrier = barrier, now = { clock })
++        val failure = runCatching { repository.createGoal(GoalLevel.LONG_TERM, null, draft("blocked")) }.exceptionOrNull()
++        assertTrue(failure is RestoreException)
++        assertEquals(0, dao.goalInsertCalls)
++        assertEquals(0, dao.loadAllGoals().size)
++    }
++
+     @Test
+     fun `阶段目标必须挂长期目标`() = runTest {
+         val dao = FakeGoalDao()
+diff --git a/app/src/test/java/com/mengyalife/app/restore/RestoreGateJournalTest.kt b/app/src/test/java/com/mengyalife/app/restore/RestoreGateJournalTest.kt
+new file mode 100644
+index 0000000..7ae06a6
+--- /dev/null
++++ b/app/src/test/java/com/mengyalife/app/restore/RestoreGateJournalTest.kt
+@@ -0,0 +1,78 @@
++package com.mengyalife.app.restore
++
++import com.mengyalife.app.data.restore.RestoreException
++import com.mengyalife.app.data.restore.RestoreGate
++import com.mengyalife.app.data.restore.RestoreGatePhase
++import com.mengyalife.app.data.restore.RestoreGateState
++import com.mengyalife.app.data.restore.RestoreJournal
++import com.mengyalife.app.data.restore.RestoreJournalPhase
++import com.mengyalife.app.data.restore.RestoreJournalState
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertThrows
++import org.junit.Assert.assertTrue
++import org.junit.Test
++import java.io.File
++import java.nio.file.Files
++
++class RestoreGateJournalTest {
++    @Test
++    fun `gate writes atomically reads back and clears`() {
++        val dir = Files.createTempDirectory("gate").toFile()
++        val gate = RestoreGate(dir) { }
++        val state = RestoreGateState("a", "b", 2, RestoreGatePhase.ARMED, 1)
++        gate.write(state)
++        assertEquals(state, gate.read())
++        assertTrue(gate.isActive())
++        gate.clear()
++        assertFalse(gate.isActive())
++        dir.delete()
++    }
++
++    @Test
++    fun `gate clear failure is not silent`() {
++        val dir = Files.createTempDirectory("gate-fail").toFile()
++        val gate = RestoreGate(dir) { }
++        // 用非空目录占据 gate.json，File.delete() 必然 false。
++        val file = File(dir, "gate.json")
++        assertTrue(file.mkdir())
++        File(file, "child").writeText("x")
++        assertThrows(RestoreException::class.java) { gate.clear() }
++        File(file, "child").delete(); file.delete(); dir.delete()
++    }
++
++    @Test
++    fun `gate write failure is surfaced`() {
++        val dir = Files.createTempDirectory("gate-write-fail").toFile()
++        // 占据 tmp 路径为目录，rename 无法成功。
++        assertTrue(File(dir, "gate.json.tmp").mkdir())
++        val gate = RestoreGate(dir) { }
++        assertThrows(RestoreException::class.java) {
++            gate.write(RestoreGateState("a", "b", 1, RestoreGatePhase.ARMED, 1))
++        }
++        dir.delete()
++    }
++
++    @Test
++    fun `journal write failure is surfaced`() {
++        val dir = Files.createTempDirectory("journal-write-fail").toFile()
++        assertTrue(File(dir, "journal.json.tmp").mkdir())
++        val journal = RestoreJournal(dir) { }
++        assertThrows(RestoreException::class.java) {
++            journal.write(RestoreJournalState("a", "b", 1, RestoreJournalPhase.PREPARED, 1))
++        }
++        dir.delete()
++    }
++
++    @Test
++    fun `journal round trips`() {
++        val dir = Files.createTempDirectory("journal").toFile()
++        val journal = RestoreJournal(dir) { }
++        val state = RestoreJournalState("a", "b", 3, RestoreJournalPhase.DB_COMMITTED, 2)
++        journal.write(state)
++        assertEquals(state, journal.read())
++        journal.clear()
++        assertFalse(File(dir, "journal.json").exists())
++        dir.delete()
++    }
++}
+diff --git a/app/src/test/java/com/mengyalife/app/restore/RestoreSnapshotSpaceTest.kt b/app/src/test/java/com/mengyalife/app/restore/RestoreSnapshotSpaceTest.kt
+new file mode 100644
+index 0000000..0c80bd2
+--- /dev/null
++++ b/app/src/test/java/com/mengyalife/app/restore/RestoreSnapshotSpaceTest.kt
+@@ -0,0 +1,35 @@
++package com.mengyalife.app.restore
++
++import com.mengyalife.app.data.restore.RestoreException
++import com.mengyalife.app.data.restore.RestoreSnapshotStore
++import org.junit.Assert.assertTrue
++import org.junit.Assert.assertThrows
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Rule
++import org.junit.Test
++import org.junit.rules.TemporaryFolder
++
++class RestoreSnapshotSpaceTest {
++    @get:Rule val temp = TemporaryFolder()
++
++    @Test
++    fun `missing restore dir probes existing parent`() {
++        val parent = temp.newFolder("no-backup")
++        val restoreDir = java.io.File(parent, "restore")
++        assertFalse(restoreDir.exists())
++        assertEquals(parent, RestoreSnapshotStore.spaceProbeDirectory(restoreDir))
++        restoreDir.mkdir()
++        assertEquals(restoreDir, RestoreSnapshotStore.spaceProbeDirectory(restoreDir))
++    }
++
++    @Test
++    fun `preflight requires snapshot copy and safety margin`() {
++        val required = RestoreSnapshotStore.requiredBytes(10L * 1024 * 1024)
++        assertTrue(required >= 2 * 10L * 1024 * 1024 + RestoreSnapshotStore.MIN_MARGIN_BYTES)
++        RestoreSnapshotStore.requireAvailableSpace(10L * 1024 * 1024, required)
++        assertThrows(RestoreException::class.java) {
++            RestoreSnapshotStore.requireAvailableSpace(10L * 1024 * 1024, required - 1)
++        }
++    }
++}
+diff --git a/app/src/test/java/com/mengyalife/app/restore/RestoreWriteBarrierTest.kt b/app/src/test/java/com/mengyalife/app/restore/RestoreWriteBarrierTest.kt
+new file mode 100644
+index 0000000..6b11060
+--- /dev/null
++++ b/app/src/test/java/com/mengyalife/app/restore/RestoreWriteBarrierTest.kt
+@@ -0,0 +1,81 @@
++package com.mengyalife.app.restore
++
++import com.mengyalife.app.data.restore.RestoreException
++import com.mengyalife.app.data.restore.RestoreWriteBarrier
++
++import kotlinx.coroutines.CompletableDeferred
++import kotlinx.coroutines.async
++import kotlinx.coroutines.launch
++import kotlinx.coroutines.test.runTest
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertThrows
++import org.junit.Assert.assertTrue
++import org.junit.Test
++
++class RestoreWriteBarrierTest {
++    @Test
++    fun `unknown blocks writes without side effects`() = runTest {
++        val barrier = RestoreWriteBarrier(initiallyReady = false)
++        var sideEffects = 0
++        val failure = runCatching { barrier.withWrite { sideEffects++; 1 } }.exceptionOrNull()
++        assertTrue(failure is RestoreException)
++        assertEquals(0, sideEffects)
++    }
++
++    @Test
++    fun `worker critical section cannot produce effects during maintenance`() = runTest {
++        val barrier = RestoreWriteBarrier(initiallyReady = false)
++        var generatedReview = 0
++        var sentAi = 0
++        var notified = 0
++        val failure = runCatching {
++            barrier.withWrite {
++                generatedReview++
++                sentAi++
++                notified++
++            }
++        }.exceptionOrNull()
++        assertTrue(failure is RestoreException)
++        assertEquals(0, generatedReview)
++        assertEquals(0, sentAi)
++        assertEquals(0, notified)
++    }
++
++    @Test
++    fun `exclusive restore waits existing write and invalidates stale work`() = runTest {
++        val barrier = RestoreWriteBarrier(initiallyReady = true)
++        val generation = barrier.generation()
++        val entered = CompletableDeferred<Unit>()
++        val release = CompletableDeferred<Unit>()
++        var written = 0
++        val writer = launch {
++            barrier.withWrite(generation) {
++                entered.complete(Unit)
++                release.await()
++                written++
++            }
++        }
++        entered.await()
++        var convergedWrite = 0
++        val restore = async {
++            barrier.withExclusive {
++                assertFalse(barrier.isReady())
++                barrier.withWrite { convergedWrite++ }
++            }
++        }
++        assertFalse(restore.isCompleted)
++        release.complete(Unit)
++        writer.join()
++        restore.await()
++        assertEquals(1, convergedWrite)
++        assertEquals(1, written)
++        assertFalse(barrier.isReady())
++        val failure = runCatching { barrier.withWrite(generation) { written++ } }.exceptionOrNull()
++        assertTrue(failure is RestoreException)
++        assertEquals("stale side effect must not run", 1, written)
++        barrier.setReady(true)
++        barrier.withWrite(barrier.generation()) { written++ }
++        assertEquals(2, written)
++    }
++}
+diff --git a/tests/test-map.json b/tests/test-map.json
+index 41943ea..caaf0a6 100644
+--- a/tests/test-map.json
++++ b/tests/test-map.json
+@@ -156,7 +156,8 @@
+       "requiresProdReadonlySmoke": false,
+       "notes": "QA 包清库后走新建/编辑/重启/删除全流程。",
+       "estimatedSec": 161,
+-      "measuredSec": 161
++      "measuredSec": 161,
++      "skipNavigationSmoke": true
+     },
+     "goals": {
+       "title": "目标",
+@@ -206,7 +207,8 @@
+       "requiresProdReadonlySmoke": false,
+       "notes": "verify_goals 含三层目标/禁止跳级/进展/状态/编辑/删除/统计；verify_dates 覆盖截止日期与 UTC 零点。",
+       "estimatedSec": 563,
+-      "measuredSec": 563
++      "measuredSec": 563,
++      "skipNavigationSmoke": true
+     },
+     "progress": {
+       "title": "进展与打卡",
+@@ -242,7 +244,8 @@
+       "requiresProdReadonlySmoke": false,
+       "notes": "无独立脚本；进展面板与计数由 verify_goals 覆盖，图表由 verify_trends 覆盖。",
+       "estimatedSec": 470,
+-      "measuredSec": 470
++      "measuredSec": 470,
++      "skipNavigationSmoke": true
+     },
+     "trends": {
+       "title": "趋势",
+@@ -281,7 +284,8 @@
+       "requiresProdReadonlySmoke": false,
+       "notes": "依赖目标进展数据；空/单点/多点/多单位/非法数值。",
+       "estimatedSec": 475,
+-      "measuredSec": 475
++      "measuredSec": 475,
++      "skipNavigationSmoke": true
+     },
+     "advisor": {
+       "title": "AI 顾问",
+@@ -329,7 +333,7 @@
+         {
+           "script": "verify_advisor_network.py",
+           "package": "qa",
+-          "tier": "integration",
++          "tier": "gate",
+           "assertions": 10,
+           "destructive": true,
+           "resetsQaData": true,
+@@ -343,9 +347,10 @@
+       "needsQaBuild": true,
+       "needsQaReset": true,
+       "requiresProdReadonlySmoke": false,
+-      "notes": "verify_advisor 用 QA 假引擎（不联网）；verify_advisor_network 用无效测试 Key 验证真实 401，需外网。",
++      "notes": "verify_advisor 用 QA 假引擎（不联网）；真实网络401移至gate层的verify_advisor_network（外网可用时）。L2运行JVM网络模拟与离线顾问流程，不每次重复外网握手。",
+       "estimatedSec": 897,
+-      "measuredSec": 897
++      "measuredSec": 897,
++      "skipNavigationSmoke": true
+     },
+     "ai-consent": {
+       "title": "AI 授权与配置",
+@@ -377,16 +382,6 @@
+           "resetsQaData": true,
+           "measuredSec": 427,
+           "estimatedSec": 427
+-        },
+-        {
+-          "script": "verify_settings.py",
+-          "package": "qa",
+-          "tier": "feature",
+-          "assertions": 38,
+-          "destructive": true,
+-          "resetsQaData": true,
+-          "measuredSec": 171,
+-          "estimatedSec": 171
+         }
+       ],
+       "risk": "high",
+@@ -394,9 +389,10 @@
+       "needsQaBuild": true,
+       "needsQaReset": true,
+       "requiresProdReadonlySmoke": false,
+-      "notes": "授权、类别、撤回、密钥不回显/不入库/不进日志由 verify_g3b1 与 verify_settings 覆盖。",
+-      "estimatedSec": 598,
+-      "measuredSec": 598
++      "notes": "授权、类别、撤回、密钥不回显/不入库/不进日志由 verify_g3b1 覆盖；完整设置文案/主题只由 settings 模块验收，不在AI变更时重复扫描。",
++      "estimatedSec": 539,
++      "measuredSec": 598,
++      "skipNavigationSmoke": true
+     },
+     "growth-memory": {
+       "title": "成长记忆与日记提取",
+@@ -489,6 +485,13 @@
+           "resetsQaData": true,
+           "measuredSec": 308,
+           "smokeEnvVar": "MENGYA_WEEKLY_SMOKE",
++          "smokeLevels": [
++            "feature",
++            "integration"
++          ],
++          "scenarioEnvVar": "MENGYA_WEEKLY_SCENARIO",
++          "scenarios": ["READY", "FAILED_401", "TIMEOUT", "INTERRUPT", "STALE", "CATEGORIES", "WITHDRAW", "AUTO_DISABLED"],
++          "scenarioMinLevel": "integration",
+           "estimatedSec": 308,
+           "smokeAssertions": 22,
+           "measuredFullSec": 1160,
+@@ -500,9 +503,10 @@
+       "needsQaBuild": true,
+       "needsQaReset": true,
+       "requiresProdReadonlySmoke": false,
+-      "notes": "本轮新增 verify_weekly_ai.py，覆盖本地回顾 + AI 状态机。",
++      "notes": "feature/integration只跑22条READY成功冒烟；95条失败/超时/中断/STALE/撤权全状态机移至Gate/Release，失败路径由JVM回归维持开发反馈。",
+       "estimatedSec": 308,
+-      "measuredSec": 308
++      "measuredSec": 308,
++      "skipNavigationSmoke": true
+     },
+     "weekly-ai": {
+       "title": "每周 AI 增强",
+@@ -536,6 +540,13 @@
+           "resetsQaData": true,
+           "measuredSec": 308,
+           "smokeEnvVar": "MENGYA_WEEKLY_SMOKE",
++          "smokeLevels": [
++            "feature",
++            "integration"
++          ],
++          "scenarioEnvVar": "MENGYA_WEEKLY_SCENARIO",
++          "scenarios": ["READY", "FAILED_401", "TIMEOUT", "INTERRUPT", "STALE", "CATEGORIES", "WITHDRAW", "AUTO_DISABLED"],
++          "scenarioMinLevel": "integration",
+           "estimatedSec": 308,
+           "smokeAssertions": 22,
+           "measuredFullSec": 1160,
+@@ -547,15 +558,16 @@
+       "needsQaBuild": true,
+       "needsQaReset": true,
+       "requiresProdReadonlySmoke": false,
+-      "notes": "本轮新增真机用例：成功/失败/超时/中断/STALE/撤权/自动开关；仅 QA 假引擎。",
++      "notes": "L1/L2只跑22条READY成功冒烟；完整95条状态机在Gate/Release执行；仅QA假引擎。",
+       "estimatedSec": 308,
+-      "measuredSec": 308
++      "measuredSec": 308,
++      "skipNavigationSmoke": true
+     },
+     "settings": {
+       "title": "设置与主题",
+       "sourcePaths": [
+         "app/src/main/java/com/mengyalife/app/ui/screens/SettingsScreen.kt",
+-        "app/src/main/java/com/mengyalife/app/ui/settings/**",
++        "app/src/main/java/com/mengyalife/app/ui/settings/ThemeViewModel.kt",
+         "app/src/main/java/com/mengyalife/app/data/preferences/ThemePreferences.kt",
+         "app/src/main/java/com/mengyalife/app/ui/theme/**"
+       ],
+@@ -566,11 +578,11 @@
+           "script": "verify_settings.py",
+           "package": "qa",
+           "tier": "feature",
+-          "assertions": 38,
++          "assertions": 40,
+           "destructive": true,
+           "resetsQaData": true,
+-          "measuredSec": 171,
+-          "estimatedSec": 171
++          "measuredSec": 112,
++          "estimatedSec": 112
+         },
+         {
+           "script": "verify_theme.py",
+@@ -589,8 +601,9 @@
+       "needsQaReset": true,
+       "requiresProdReadonlySmoke": false,
+       "notes": "文案漂移与主题持久化；不涉及数据库内容。",
+-      "estimatedSec": 349,
+-      "measuredSec": 349
++      "estimatedSec": 290,
++      "measuredSec": 349,
++      "skipNavigationSmoke": true
+     },
+     "export": {
+       "title": "数据导出",
+@@ -625,7 +638,8 @@
+       "requiresProdReadonlySmoke": false,
+       "notes": "导出 JSON 与库逐项一致；写设备 Downloads（测试文件名带时间戳）。",
+       "estimatedSec": 195,
+-      "measuredSec": 195
++      "measuredSec": 195,
++      "skipNavigationSmoke": true
+     },
+     "database-migration": {
+       "title": "Room Schema / DAO / Migration",
+@@ -640,11 +654,11 @@
+           "script": "verify_migration.py",
+           "package": "qa",
+           "tier": "integration",
+-          "assertions": 17,
++          "assertions": 26,
+           "destructive": true,
+           "resetsQaData": true,
+           "measuredSec": 28,
+-          "estimatedSec": 28
++          "estimatedSec": 34
+         }
+       ],
+       "risk": "critical",
+@@ -652,9 +666,10 @@
+       "needsQaBuild": true,
+       "needsQaReset": true,
+       "requiresProdReadonlySmoke": false,
+-      "notes": "JVM 无 Room 仪器测试；本轮新增 verify_migration.py 用 v10 夹具在 QA 包上升级到 v11。",
+-      "estimatedSec": 28,
+-      "measuredSec": 28
++      "notes": "JVM 无 Room 仪器测试；verify_migration.py分别用v10与v11夹具升级到v12；新加v11场景后的34s为估算，旧单场景曾用28s。",
++      "estimatedSec": 34,
++      "measuredSec": 28,
++      "skipNavigationSmoke": true
+     },
+     "navigation": {
+       "title": "导航与共享 UI",
+@@ -767,7 +782,11 @@
+       "requiresProdReadonlySmoke": false,
+       "notes": "格式/校验 JVM；编辑循环 L0，不启动设备。",
+       "estimatedSec": 10.0,
+-      "measuredSec": 10.0
++      "measuredSec": 10.0,
++      "skipNavigationSmoke": true,
++      "skipAlwaysModules": [
++        "ai-consent"
++      ]
+     },
+     "backup-crypto": {
+       "title": "备份加密",
+@@ -786,7 +805,11 @@
+       "requiresProdReadonlySmoke": false,
+       "notes": "KDF/AEAD 向量与参数边界；参数变更由规则升级到 integration。",
+       "estimatedSec": 8.3,
+-      "measuredSec": 8.3
++      "measuredSec": 8.3,
++      "skipNavigationSmoke": true,
++      "skipAlwaysModules": [
++        "ai-consent"
++      ]
+     },
+     "backup-export": {
+       "title": "完整备份导出",
+@@ -813,16 +836,6 @@
+         "com.mengyalife.app.backup.FileBackupTempStoreTest"
+       ],
+       "device": [
+-        {
+-          "script": "verify_backup_v2.py",
+-          "package": "qa",
+-          "tier": "feature",
+-          "assertions": 28,
+-          "destructive": true,
+-          "resetsQaData": true,
+-          "measuredSec": 18.06,
+-          "timeoutSec": 600
+-        },
+         {
+           "script": "verify_backup_v2_full.py",
+           "package": "qa",
+@@ -830,18 +843,23 @@
+           "assertions": 19,
+           "destructive": true,
+           "resetsQaData": true,
+-          "measuredSec": 18.07,
++          "measuredSec": 55.1,
++          "estimatedSec": 55.1,
+           "timeoutSec": 600
+         },
+         {
+           "script": "verify_backup_v2_failures.py",
+           "package": "qa",
+-          "tier": "feature",
++          "tier": "integration",
+           "assertions": 45,
+           "destructive": true,
+           "resetsQaData": true,
+-          "measuredSec": 327.21,
+-          "timeoutSec": 900
++          "measuredSec": 329.2,
++          "estimatedSec": 329.2,
++          "timeoutSec": 900,
++          "scenarioEnvVar": "MENGYA_BACKUP_SCENARIO",
++          "scenarios": ["CANCEL", "WRITE", "TRUNCATE", "READ", "TEMP-CLEANUP", "DELETE"],
++          "scenarioMinLevel": "integration"
+         }
+       ],
+       "risk": "high",
+@@ -849,9 +867,13 @@
+       "needsQaBuild": true,
+       "needsQaReset": true,
+       "requiresProdReadonlySmoke": false,
+-      "notes": "v2 导出/SAF/回读；JVM 10.0s；QA 全表 19/19（120/120 列）18.07s；失败路径 45/45 326.72s；L1/L2 PASS。",
+-      "estimatedSec": 10.0,
+-      "measuredSec": 10.0
++      "notes": "默认只跑 verify_backup_v2_full（覆盖早期 verify_backup_v2 的 SAF/解密/计数并追加120列逐字段比较），避免同一轮重复导出；失败场景单独 verify_backup_v2_failures。旧 verify_backup_v2.py 保留供手动兼容复验，不纳入默认L1。",
++      "estimatedSec": 384.3,
++      "measuredSec": 384.3,
++      "skipNavigationSmoke": true,
++      "skipAlwaysModules": [
++        "ai-consent"
++      ]
+     },
+     "backup-security": {
+       "title": "备份安全",
+@@ -871,7 +893,11 @@
+       "requiresProdReadonlySmoke": false,
+       "notes": "系统备份排除策略；Manifest/规则变更升级 L2。",
+       "estimatedSec": 9.3,
+-      "measuredSec": 9.3
++      "measuredSec": 9.3,
++      "skipNavigationSmoke": true,
++      "skipAlwaysModules": [
++        "ai-consent"
++      ]
+     },
+     "restore-validate": {
+       "title": "恢复只读校验/预览",
+@@ -903,38 +929,67 @@
+       "jvmTests": [
+         "com.mengyalife.app.restore.BackupRestoreReaderTest",
+         "com.mengyalife.app.restore.RestoreValidatorTest",
+-        "com.mengyalife.app.restore.RestorePlannerTest"
++        "com.mengyalife.app.restore.RestorePlannerTest",
++        "com.mengyalife.app.restore.RestoreGateJournalTest",
++        "com.mengyalife.app.restore.RestoreWriteBarrierTest",
++        "com.mengyalife.app.restore.RestoreSnapshotSpaceTest"
+       ],
+       "device": [
+         {
+-          "script": "verify_restore_preview.py",
++          "script": "verify_restore_e2e.py",
+           "package": "qa",
+           "tier": "feature",
+-          "assertions": 21,
++          "assertions": 39,
+           "destructive": true,
+           "resetsQaData": true,
+-          "measuredSec": 142.93,
+-          "timeoutSec": 600
++          "measuredSec": 198.3,
++          "estimatedSec": 393,
++          "timeoutSec": 900,
++          "scenarioEnvVar": "MENGYA_RESTORE_E2E_SCENARIO",
++          "scenarios": ["A_TO_B_TO_A"],
++          "scenarioMinLevel": "integration"
+         },
+         {
+-          "script": "verify_restore_e2e.py",
++          "script": "verify_restore_failures.py",
+           "package": "qa",
+           "tier": "feature",
+-          "assertions": 35,
++          "assertions": 59,
+           "destructive": true,
+           "resetsQaData": true,
+-          "measuredSec": 346.84,
+-          "timeoutSec": 900
++          "measuredSec": 518.4,
++          "estimatedSec": 518.4,
++          "timeoutSec": 1200,
++          "scenarioEnvVar": "MENGYA_RESTORE_SCENARIO",
++          "scenarios": ["R2", "R3", "R4", "R5", "R6", "R7", "SETTINGS_FAIL"],
++          "scenarioMinLevel": "integration",
++          "scenarioEstimatedSec": {"R2": 88.23, "R3": 104.36, "R4": 92.43, "R5": 93.64, "R6": 93.82, "R7": 91.03, "SETTINGS_FAIL": 91.48}
+         },
+         {
+-          "script": "verify_restore_failures.py",
++          "script": "verify_restore_fresh_db.py",
+           "package": "qa",
+           "tier": "feature",
+-          "assertions": 0,
++          "assertions": 6,
+           "destructive": true,
+           "resetsQaData": true,
+-          "measuredSec": null,
+-          "timeoutSec": 1200
++          "measuredSec": 14.5,
++          "estimatedSec": 14.5,
++          "timeoutSec": 180,
++          "scenarioEnvVar": "MENGYA_RESTORE_FRESH_SCENARIO",
++          "scenarios": ["FRESH_V12"],
++          "scenarioMinLevel": "integration"
++        },
++        {
++          "script": "verify_restore_db_unreadable.py",
++          "package": "qa",
++          "tier": "integration",
++          "assertions": 12,
++          "destructive": true,
++          "resetsQaData": true,
++          "estimatedSec": 120,
++          "timeoutSec": 600,
++          "scenarioEnvVar": "MENGYA_RESTORE_STARTUP_SCENARIO",
++          "scenarios": ["DB_UNREADABLE"],
++          "scenarioMinLevel": "integration"
+         }
+       ],
+       "risk": "high",
+@@ -942,9 +997,13 @@
+       "needsQaBuild": true,
+       "needsQaReset": true,
+       "requiresProdReadonlySmoke": false,
+-      "notes": "只读预览+完整恢复E2E；E2E 35/35 PASS；R2-R7失败/崩溃脚本已写但本轮 NOT RUN（设备断开）。",
++      "notes": "Restore E2E covers settings navigation/preview/confirm; R2-R7 dedicated device matrix; focused L2 retains only v12 migration prerequisite (skips generic ai-consent/g3b1 and duplicate nav/preview).",
+       "estimatedSec": 30.0,
+-      "measuredSec": 6.4
++      "measuredSec": 6.4,
++      "skipAlwaysModules": [
++        "ai-consent"
++      ],
++      "skipNavigationSmoke": true
+     }
+   },
+   "impactRules": [
+@@ -1226,7 +1285,22 @@
+       ],
+       "minLevel": "feature",
+       "testLevel": "feature",
+-      "reason": "功能完成跑 L1 导出；QA 真机验证 SAF/回读。"
++      "reason": "普通导出/UI变化跑L1全字段成功路径；写入/回读/清理边界由专项规则抬到L2。"
++    },
++    {
++      "id": "K-backup-failure-paths",
++      "description": "备份文件写入/回读/临时清理故障路径",
++      "patterns": [
++        "app/src/main/java/com/mengyalife/app/data/backup/BackupFileWriter.kt",
++        "app/src/main/java/com/mengyalife/app/data/backup/AndroidBackupStorage.kt",
++        "app/src/main/java/com/mengyalife/app/data/backup/FileBackupTempStore.kt",
++        "app/src/main/java/com/mengyalife/app/data/backup/QaBackupFaultInjector.kt"
++      ],
++      "modules": ["backup-export"],
++      "deviceModules": ["backup-export"],
++      "minLevel": "integration",
++      "testLevel": "integration",
++      "reason": "L1保持快速成功导出；写入/回读/临时清理故障路径在L2跑verify_backup_v2_failures.py。"
+     },
+     {
+       "id": "K-backup-security",
+@@ -1258,7 +1332,39 @@
+       ],
+       "minLevel": "fast",
+       "testLevel": "fast",
+-      "reason": "编辑循环 L0；功能完成显式跑 L1 SAF 预览。"
++      "reason": "Focused restore flow: E2E covers preview and settings navigation; L1/L2 only restore E2E + R2-R7; integration still includes v12 migration."
++    },
++    {
++      "id": "L-restore-startup-gate",
++      "description": "数据库启动读取未完成前封锁所有依赖Room的ViewModel",
++      "patterns": [
++        "app/src/main/java/com/mengyalife/app/MengyaLifeApp.kt",
++        "app/src/main/java/com/mengyalife/app/MengyaApplication.kt"
++      ],
++      "modules": ["restore-validate", "weekly-ai", "ai-consent", "app-smoke"],
++      "deviceModules": ["restore-validate", "weekly-ai", "ai-consent"],
++      "minLevel": "integration",
++      "testLevel": "integration",
++      "reason": "恢复startup gate是所有业务ViewModel和Worker的前置；L2验证fresh DB、DB不可读、weekly READY和恢复Gate场景。"
++    },
++    {
++      "id": "L-restore-write-barrier",
++      "description": "共享恢复写屏障及业务写入口并发保护",
++      "patterns": [
++        "app/src/main/java/com/mengyalife/app/data/restore/RestoreWriteBarrier.kt",
++        "app/src/main/java/com/mengyalife/app/data/restore/RestoreCoordinator.kt",
++        "app/src/main/java/com/mengyalife/app/data/weekly/WeeklyReviewWorker.kt",
++        "app/src/main/java/com/mengyalife/app/di/AppContainer.kt"
++      ],
++      "modules": [
++        "restore-validate", "diary", "goals", "advisor", "ai-consent",
++        "growth-memory", "insight", "weekly-review", "weekly-ai", "settings"
++      ],
++      "deviceModules": ["restore-validate", "ai-consent"],
++      "minLevel": "integration",
++      "testLevel": "integration",
++      "skipNavigationSmoke": true,
++      "reason": "共享写屏障影响所有注入业务写入口；L2覆盖Barrier/各仓库JVM、restore E2E/R2-R7及g3b1授权安全用例。"
+     }
+   ]
+ }
+diff --git a/tests/verify/cli.py b/tests/verify/cli.py
+index 8eaf72b..1918c51 100644
+--- a/tests/verify/cli.py
++++ b/tests/verify/cli.py
+@@ -28,6 +28,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
+   ./scripts/verify.sh --module weekly-ai
+   ./scripts/verify.sh --level fast
+   ./scripts/verify.sh --level feature --module diary
++  ./scripts/verify.sh --profile dev --changed    # 本地快回路：静态/JVM，真机延期
++  ./scripts/verify.sh --module restore-validate --level integration --case R7 # 仅重跑单个故障场景
+   ./scripts/verify.sh --level integration --changed
+   ./scripts/verify.sh --level gate
+   ./scripts/verify.sh --all --level release
+@@ -38,6 +40,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
+     g.add_argument("--module", action="append", metavar="NAME", help="显式指定模块（可重复）")
+     g.add_argument("--all", action="store_true", help="强制全量回归（等同 --level gate）")
+     p.add_argument("--level", choices=LEVEL_CHOICES, help="执行级别：fast/feature/integration/gate/release")
++    p.add_argument("--profile", choices=("standard", "dev"), default="standard",
++                   help="standard 按级别完整执行；dev 只跑静态/JVM/必要编译，延后真机且不算 Gate PASS")
++    p.add_argument("--case", help="只重跑注册表标记的一个设备scenario（例如 R7）；其余用例显式NOT RUN")
+     p.add_argument("--base", help="--changed 的 Git 基线（默认见文档）")
+     p.add_argument("--files", action="append", metavar="PATH",
+                    help="模拟变更文件（用于验收选择器；不影响真实 Git）")
+@@ -55,8 +60,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
+     p.add_argument("--timeout-jvm", type=int, default=2400, help="Gradle 测试超时秒数")
+     p.add_argument("--strict", action="store_true", help="把 SKIPPED 也视为级别不满足")
+     args = p.parse_args(argv)
++    if args.profile == "dev" and args.strict:
++        p.error("--strict 与 --profile dev 冲突；dev profile 明确延后真机，不是 Gate 验收")
++    if args.profile == "dev" and args.no_device:
++        p.error("--profile dev 已延期真机，不要同时指定 --no-device")
++    if args.case and (args.profile != "standard" or args.no_device or args.strict):
++        p.error("--case 必须使用 standard profile，并且不能与 --no-device/--strict 同用")
+     if not (args.changed or args.module or args.all or args.list_modules):
+-        # 默认按 --changed 处理，符合「小改动默认 L0」
++        # 默认按 changed/standard 处理；业务规则可升级到 feature+。
++        # 要求每轮只做本地快检时，显式使用 --profile dev。
+         args.changed = True
+     return args
+
+@@ -139,6 +151,9 @@ def main(argv: list[str]) -> int:
+                            all_flag=args.all)
+     original_device = bool(sel.device_scripts)
+     sel.device_required_original = original_device
++    if args.case:
++        selection.apply_case_filter(sel, args.case)
++    selection.apply_execution_profile(sel, args.profile)
+     if args.no_device:
+         for d in sel.device_scripts:
+             sel.not_run.append({"item": f"{d['package']}:{d['script']}", "reason": "--no-device 显式跳过"})
+@@ -333,19 +348,43 @@ def main(argv: list[str]) -> int:
+     else:
+         jvm_result = {"status": STATUS_SKIP, "tests": 0, "classes": {}, "failures": 0,
+                       "durationSec": 0, "failuresDetail": [], "log": ""}
+-        steps.append({"name": "JVM 测试", "status": STATUS_SKIP, "durationSec": 0.0,
+-                      "counts": {}, "detail": "所选模块没有 JVM 测试"})
++        changed_paths = cs.paths if cs else []
++        compile_roots = (
++            "app/src/main/", "app/schemas/", "app/build.gradle", "app/build.gradle.kts",
++            "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts",
++            "gradle.properties", "gradle/",
++        )
++        needs_main_compile = sel.mode != "changed" or any(
++            path == root or path.startswith(root) for path in changed_paths for root in compile_roots
++        )
++        if sel.profile == "dev" and not sel.docs_only and needs_main_compile:
++            c = gradle.compile_main(logs_dir, timeout=args.timeout_jvm, offline=not args.online)
++            steps.append({
++                "name": "Gradle app 编译（dev profile 无 JVM 类）",
++                "status": c["status"], "durationSec": c["durationSec"],
++                "counts": {"tasks": len(c["tasks"])}, "log": c["log"],
++                "detail": "只编译主源码；不构建/安装 APK、不启动设备",
++            })
++            if c["status"] != STATUS_PASS:
++                failures.append({"module": "compile", "name": "compileDebugKotlin",
++                                 "detail": "主源码编译失败，见 " + c["log"]})
++        else:
++            reason = "测试/注册表/文档变化不影响 Android 源码" if sel.profile == "dev" else "所选模块没有 JVM 测试"
++            steps.append({"name": "JVM 测试", "status": STATUS_SKIP, "durationSec": 0.0,
++                          "counts": {}, "detail": reason})
+
+     # ---------- 真机 ----------
+     device_steps: list[dict] = []
+     for d in sel.device_scripts:
+         pkg = map_["packages"][d["package"]]["applicationId"]
+         entry = dict(d)
++        run_mode = f"case:{args.case}" if args.case else selection.device_run_mode(d, sel.level)
++        entry["runMode"] = run_mode
+         if d.get("requiresNetwork") and serial:
+             if not device.network_available(serial):
+                 device_steps.append({
+                     "script": d["script"], "package": d["package"], "status": STATUS_SKIP,
+-                    "exitCode": 0, "durationSec": 0.0,
++                    "runMode": run_mode, "exitCode": 0, "durationSec": 0.0,
+                     "assertionsPassed": 0, "assertionsTotal": d.get("assertions", 0),
+                     "failures": ["设备无网络，跳过真实网络用例（不报告 PASS）"],
+                     "log": "", "tail": "",
+@@ -356,8 +395,10 @@ def main(argv: list[str]) -> int:
+             "MENGYA_EXPECTED_VERSION": gradle.expected_version(),
+             "MENGYA_EXPECTED_SCHEMA": str(gradle.expected_schema()),
+         }
+-        if d.get("smokeEnvVar") and sel.level == "feature":
++        if d.get("smokeEnvVar") and run_mode == "smoke":
+             extra_env[d["smokeEnvVar"]] = "1"
++        if args.case and d.get("scenarioEnvVar"):
++            extra_env[d["scenarioEnvVar"]] = args.case
+         status = device.run_device_script(
+             serial, d["script"], pkg, logs_dir, shots_dir, export_dir,
+             timeout=d.get("timeoutSec") or args.timeout_device,
+@@ -365,9 +406,11 @@ def main(argv: list[str]) -> int:
+         )
+         status["modules"] = d.get("modules", [])
+         status["tier"] = d.get("tier", "")
++        status["runMode"] = run_mode
++        status["scenario"] = args.case
+         device_steps.append(status)
+         steps.append({
+-            "name": f"真机 {d['script']}",
++            "name": f"真机 {d['script']}" + (f" [case={args.case}]" if args.case else (f" [{run_mode}]" if run_mode else "")),
+             "status": status["status"], "durationSec": status["durationSec"],
+             "counts": {"assertions": f"{status['assertionsPassed']}/{status['assertionsTotal']}"},
+             "log": status["log"], "detail": "; ".join(status["failures"])[:300],
+@@ -448,9 +491,11 @@ def finish(args, map_, sel, cs, started, run_id, report_dir, steps, device_steps
+         required_device = True
+     if not args.no_device and sel.device_required_original and not dev_info:
+         required_device = True
+-    missing_device = bool(dev_info) is False and required_device
++    missing_device = bool(dev_info) is False and required_device and sel.profile != "dev"
+
+     level_satisfied = not failed_steps and not notrun_steps and not missing_device
++    full_level_satisfied = False
++    profile_satisfied = False
+     level_notes: list[str] = []
+     if sel.docs_only:
+         level_notes.append("仅文档变化：没有需要执行的 Android 测试，符合规则 G。")
+@@ -479,10 +524,36 @@ def finish(args, map_, sel, cs, started, run_id, report_dir, steps, device_steps
+     if skipped_modules:
+         level_notes.append("fast 级别未覆盖以下模块（需 L1+）：" + ", ".join(skipped_modules))
+
++    full_level_satisfied = level_satisfied
++    profile_satisfied = level_satisfied
++    if sel.profile == "dev":
++        local_steps = [
++            s for s in steps
++            if s["name"].startswith(("静态检查", "JVM 测试", "Gradle app 编译"))
++            and s["status"] != STATUS_SKIP
++        ]
++        profile_satisfied = bool(local_steps) and all(s["status"] == STATUS_PASS for s in local_steps)
++        if sel.deferred_device_scripts:
++            level_satisfied = False
++            level_notes.append("dev profile 只验证本地静态/JVM/编译；所有选中真机用例延期，不能作为L1/L2/Gate PASS。")
++
++    case_satisfied = False
++    if sel.case_filter:
++        case_steps = [d for d in device_steps if d.get("scenario") == sel.case_filter]
++        case_satisfied = len(case_steps) == 1 and case_steps[0]["status"] == STATUS_PASS and not failed_steps
++        level_satisfied = False
++        level_notes.append(f"仅运行case {sel.case_filter}；其他L2用例延期，不视为完整级别PASS。")
++
+     total = round(finished - started, 1)
+     if failed_steps:
+         verdict = "FAIL"
+         exit_code = 1
++    elif sel.case_filter:
++        verdict = f"CASE PASS (suite deferred): {sel.case_filter}" if case_satisfied else f"CASE FAIL: {sel.case_filter}"
++        exit_code = 0 if case_satisfied else 1
++    elif sel.profile == "dev":
++        verdict = "LOCAL PASS (device deferred)" if profile_satisfied else "LOCAL FAIL"
++        exit_code = 0 if profile_satisfied else 1
+     elif not level_satisfied:
+         verdict = "INCOMPLETE"
+         exit_code = 2
+@@ -502,6 +573,8 @@ def finish(args, map_, sel, cs, started, run_id, report_dir, steps, device_steps
+         "durationSec": total,
+         "level": sel.level,
+         "levelTitle": lv["id"] + " " + lv["title"],
++        "profile": sel.profile,
++        "caseFilter": sel.case_filter,
+         "mode": sel.mode,
+         "git": cs.as_dict() if cs else {},
+         "device": dev_info,
+@@ -516,11 +589,16 @@ def finish(args, map_, sel, cs, started, run_id, report_dir, steps, device_steps
+             "verdict": verdict,
+             "exitCode": exit_code,
+             "levelSatisfied": level_satisfied,
++            "fullLevelSatisfied": full_level_satisfied,
++            "profileSatisfied": profile_satisfied,
++            "profile": sel.profile,
++            "caseFilter": sel.case_filter,
++            "caseSatisfied": case_satisfied,
+             "levelNotes": level_notes,
+             "pass": sum(1 for s in steps if s["status"] == STATUS_PASS),
+             "fail": len(failed_steps),
+             "skipped": len(skipped_steps),
+-            "notRun": len(notrun_steps) + len(not_run_global),
++            "notRun": len(notrun_steps) + len(sel.not_run) + len(not_run_global),
+         },
+         "artifacts": {
+             "dir": str(report_dir),
+diff --git a/tests/verify/report.py b/tests/verify/report.py
+index 38215c3..f6d3838 100644
+--- a/tests/verify/report.py
++++ b/tests/verify/report.py
+@@ -4,13 +4,15 @@ from __future__ import annotations
+ import json
+ from pathlib import Path
+
+-from .selection import Selection
++from .selection import Selection, device_run_mode
+ from .util import ROOT, ensure_dir, write_text
+
+
+ def print_plan(map_: dict, sel: Selection, cs, argv: list[str]) -> None:
+     lv = map_["levels"][sel.level]
+-    print(f"\n== 测试选择（{lv['id']} {lv['title']} / {sel.mode}）==")
++    print(f"\n== 测试选择（{lv['id']} {lv['title']} / {sel.mode} / profile={sel.profile}）==")
++    if sel.profile == "dev":
++        print("开发快回路：只执行静态/JVM/必要编译；延期真机用例不计 Gate PASS。")
+     if cs is not None:
+         print(f"Git 基线: {cs.base[:12]}（{cs.base_reason}）  HEAD: {cs.commit[:12]}  branch: {cs.branch}")
+         if sel.mode == "changed":
+@@ -21,6 +23,8 @@ def print_plan(map_: dict, sel: Selection, cs, argv: list[str]) -> None:
+                 print(f"  ... 其余 {len(cs.changes) - 60} 个")
+         else:
+             print(f"工作区变更 {len(cs.paths)} 个（显式模块模式不参与选择）")
++    if sel.case_filter:
++        print(f"单场景重跑：{sel.case_filter}；剩余 {len(sel.deferred_device_scripts)} 个设备脚本延期，不计完整级别PASS。")
+     if sel.unknown_files:
+         print("! 无法映射的路径（保守升级）：")
+         for p in sel.unknown_files:
+@@ -33,16 +37,49 @@ def print_plan(map_: dict, sel: Selection, cs, argv: list[str]) -> None:
+                 print(f"      文件: {', '.join(r['files'][:6])}")
+     print(f"选择模块（{len(sel.modules)}）：")
+     for m in sel.modules:
+-        devs = ", ".join(f"{d['script']}({d['tier']})" for d in m.device) or "无真机"
++        devs = ", ".join(
++            f"{d['script']}({d['tier']}{('/' + device_run_mode(d, sel.level)) if device_run_mode(d, sel.level) else ''})"
++            for d in m.device
++        ) or "无真机"
+         print(f"  - {m.name:<20} risk={m.risk:<8} JVM={len(m.jvm):<2} 真机={devs}")
+         for reason in m.reasons:
+             print(f"      理由: {reason}")
+     print(f"JVM: {'全量' if sel.full_jvm else len(sel.jvm_classes)} 个类")
+     print("真机：")
++    planned_device = sel.device_scripts or sel.deferred_device_scripts
++    if planned_device:
++        declarations = sum(len(m.device) for m in sel.modules)
++        def script_estimate(d: dict) -> float:
++            # Feature smoke variables (e.g. weekly AI) expand to the full matrix at L2+.
++            if d.get("smokeEnvVar") and sel.level not in d.get("smokeLevels", ["feature"]):
++                return float(d.get("measuredFullSec") or d.get("estimatedSec") or d.get("measuredSec") or 0)
++            return float(d.get("estimatedSec") or d.get("measuredSec") or 0)
++        if sel.case_filter and any(
++            sel.case_filter not in (d.get("scenarioEstimatedSec") or {}) for d in planned_device
++        ):
++            print(f"  唯一case脚本 {len(planned_device)} 个；该case尚未单独标定时长，不套用整套脚本耗时")
++        else:
++            if sel.case_filter:
++                estimated = sum(float((d.get("scenarioEstimatedSec") or {}).get(sel.case_filter, 0)) for d in planned_device)
++            else:
++                estimated = sum(script_estimate(d) for d in planned_device)
++            print(f"  唯一脚本 {len(planned_device)} 个；估算脚本耗时 {estimated:.0f}s（按当前case/smoke/full模式；不含构建/前置与设备空闲）")
++        if declarations > len(planned_device):
++            print(f"  去重：模块注册 {declarations} 次 → 实际按 script+package 执行 {len(planned_device)} 次")
+     for d in sel.device_scripts:
+-        print(f"  - [{d['package']}] {d['script']}  tier={d['tier']}  modules={','.join(d.get('modules', []))}")
++        mode = f"case:{sel.case_filter}" if sel.case_filter else device_run_mode(d, sel.level)
++        suffix = f"  mode={mode}" if mode else ""
++        print(f"  - [{d['package']}] {d['script']}  tier={d['tier']}{suffix}  modules={','.join(d.get('modules', []))}")
++    if sel.case_filter:
++        for d in sel.deferred_device_scripts:
++            print(f"  - [deferred] {d['package']}:{d['script']} [{d['tier']}]")
+     if not sel.device_scripts:
+-        print("  （无；本级别不启动设备）")
++        if sel.deferred_device_scripts:
++            print("  （本次不启动设备；以下是标准 profile 延期用例）")
++            for d in sel.deferred_device_scripts:
++                print(f"  - {d['package']}:{d['script']} [{d['tier']}] modules={','.join(d.get('modules', []))}")
++        else:
++            print("  （无；本级别不启动设备）")
+     if sel.not_run:
+         print("不运行：")
+         for n in sel.not_run:
+@@ -79,6 +116,7 @@ def render_markdown(d: dict) -> str:
+         f"- 结束：{d['finishedAt']}",
+         f"- 总耗时：**{d['durationSec']:.1f}s**",
+         f"- 级别：**{d['level']}**（{d['levelTitle']}）",
++        f"- 执行 profile：**{d.get('profile', 'standard')}**",
+         f"- 模式：{d['mode']}",
+         f"- 结论：**{s['verdict']}**",
+         f"- 退出码：{s['exitCode']}",
+@@ -135,11 +173,11 @@ def render_markdown(d: dict) -> str:
+     lines.append("")
+
+     if d.get("deviceSteps"):
+-        lines += ["## 真机用例明细", "", "| 包 | 脚本 | 状态 | 断言 | 耗时 |", "|---|---|---|---|---|"]
++        lines += ["## 真机用例明细", "", "| 包 | 脚本 | 模式 | 状态 | 断言 | 耗时 |", "|---|---|---|---|---|---|"]
+         for x in d["deviceSteps"]:
+             lines.append(
+-                f"| {x['package']} | {x['script']} | {_status_badge(x['status'])} | "
+-                f"{x['assertionsPassed']}/{x['assertionsTotal']} | {x['durationSec']}s |")
++                f"| {x['package']} | {x['script']} | {x.get('runMode') or '—'} | "
++                f"{_status_badge(x['status'])} | {x['assertionsPassed']}/{x['assertionsTotal']} | {x['durationSec']}s |")
+         lines.append("")
+
+     lines += ["## 未运行与原因", ""]
+@@ -165,6 +203,8 @@ def render_markdown(d: dict) -> str:
+         "## 级别验收",
+         "",
+         f"- 满足当前级别：**{'是' if s['levelSatisfied'] else '否'}**",
++        f"- 本 profile 检查满足：**{'是' if s.get('profileSatisfied', s['levelSatisfied']) else '否'}**",
++        f"- 完整级别验收满足：**{'是' if s.get('fullLevelSatisfied', s['levelSatisfied']) else '否'}**",
+     ]
+     for n in s.get("levelNotes", []):
+         lines.append(f"- {n}")
+diff --git a/tests/verify/selection.py b/tests/verify/selection.py
+index 85c4ce4..804ba4c 100644
+--- a/tests/verify/selection.py
++++ b/tests/verify/selection.py
+@@ -26,10 +26,19 @@ CODE_ROOTS = (
+ )
+
+
++def _unique_object(pairs: list[tuple[str, object]]) -> dict:
++    out = {}
++    for key, value in pairs:
++        if key in out:
++            raise ValueError(f"test-map.json contains duplicate key: {key}")
++        out[key] = value
++    return out
++
++
+ def load_map(path: Path | None = None) -> dict:
+     p = path or MAP_PATH
+     with open(p, encoding="utf-8") as f:
+-        return json.load(f)
++        return json.load(f, object_pairs_hook=_unique_object)
+
+
+ def level_index(name: str) -> int:
+@@ -74,6 +83,9 @@ class ModulePlan:
+ class Selection:
+     level: str
+     mode: str  # changed / module / all / explicit
++    profile: str = "standard"  # standard / dev (local-only, never a Gate PASS)
++    case_filter: str | None = None
++    deferred_device_scripts: list[dict] = field(default_factory=list)
+     modules: list[ModulePlan] = field(default_factory=list)
+     device_scripts: list[dict] = field(default_factory=list)
+     jvm_classes: list[str] = field(default_factory=list)
+@@ -97,10 +109,18 @@ class Selection:
+         return {
+             "level": self.level,
+             "mode": self.mode,
++            "profile": self.profile,
++            "caseFilter": self.case_filter,
+             "modules": [m.as_dict() for m in self.modules],
+             "jvmClasses": self.jvm_classes,
+             "fullJvm": self.full_jvm,
+-            "deviceScripts": self.device_scripts,
++            "deviceScripts": [
++                dict(d, runMode=f"case:{self.case_filter}" if self.case_filter else device_run_mode(d, self.level))
++                for d in self.device_scripts
++            ],
++            "deferredDeviceScripts": [
++                dict(d, runMode=device_run_mode(d, self.level)) for d in self.deferred_device_scripts
++            ],
+             "rulesHit": self.rules_hit,
+             "unknownFiles": self.unknown_files,
+             "docsOnly": self.docs_only,
+@@ -282,6 +302,61 @@ def select(map_: dict, cs: ChangeSet | None, modules: list[str] | None,
+     return sel
+
+
++def device_run_mode(entry: dict, level: str) -> str | None:
++    if not entry.get("smokeEnvVar"):
++        return None
++    return "smoke" if level in entry.get("smokeLevels", ["feature"]) else "full"
++
++
++def apply_case_filter(sel: Selection, case: str) -> Selection:
++    """Keep exactly one registered device scenario; defer all sibling suites."""
++    if sel.level in ("gate", "release"):
++        raise SystemExit("--case 不能替代 Gate/Release 必须执行的安全全套用例")
++    normalized = case.strip().upper()
++    matches = [d for d in sel.device_scripts if normalized in d.get("scenarios", [])]
++    if len(matches) != 1:
++        available = sorted({c for d in sel.device_scripts for c in d.get("scenarios", [])})
++        raise SystemExit(
++            f"case {normalized!r} 未唯一匹配当前选择；可用case: {', '.join(available) or '无'}"
++        )
++    target = matches[0]
++    min_level = target.get("scenarioMinLevel")
++    if min_level and level_index(sel.level) < level_index(min_level):
++        raise SystemExit(f"case {normalized} 要求至少 {min_level}，当前级别为 {sel.level}")
++    deferred = [d for d in sel.device_scripts if d is not target]
++    sel.case_filter = normalized
++    sel.deferred_device_scripts.extend(deferred)
++    for d in deferred:
++        sel.not_run.append({
++            "item": f"{d['package']}:{d['script']}",
++            "reason": f"--case {normalized}：只重跑单个scenario；其他用例保留为NOT RUN",
++        })
++    sel.device_scripts = [target]
++    sel.device_required = True
++    return sel
++
++
++def apply_execution_profile(sel: Selection, profile: str) -> Selection:
++    """Apply an explicit local-only profile without weakening standard selection.
++
++    The dev profile preserves the required level/JVM set, records every planned
++    device script as deferred, and never claims full-level acceptance.
++    """
++    if profile not in ("standard", "dev"):
++        raise SystemExit(f"未知执行 profile：{profile}（可选：standard, dev）")
++    sel.profile = profile
++    if profile == "dev":
++        sel.deferred_device_scripts = list(sel.device_scripts)
++        for d in sel.deferred_device_scripts:
++            sel.not_run.append({
++                "item": f"{d['package']}:{d['script']}",
++                "reason": "--profile dev：只做本地静态/JVM/编译，延期到 standard/feature/integration 验收",
++            })
++        sel.device_scripts = []
++        sel.device_required = False
++    return sel
++
++
+ def _select_full(map_: dict, level_name: str, mode: str, reason: str) -> Selection:
+     mods = map_["modules"]
+     sel = Selection(level=level_name, mode=mode)
+@@ -327,7 +402,15 @@ def _apply_level(map_: dict, sel: Selection, direct_modules: set[str],
+                 for n in sorted(mods)
+             ]
+
++    # Exclude a global integration prerequisite only when every explicitly
++    # selected module opts out; one focused module cannot suppress coverage
++    # required by another module in a combined invocation.
++    skip_sets = [set(mods.get(direct, {}).get("skipAlwaysModules", []))
++                 for direct in direct_modules if direct in mods]
++    focused_exclusions = set.intersection(*skip_sets) if skip_sets else set()
+     for mname in lv.get("alwaysModules", []) or []:
++        if mname in focused_exclusions:
++            continue
+         if mname not in selected_names:
+             selected_names.add(mname)
+             if mname not in {m.name for m in sel.modules}:
+@@ -387,7 +470,19 @@ def _apply_level(map_: dict, sel: Selection, direct_modules: set[str],
+                        and (all_modules or mname in device_allowed)]
+
+     # L1+ 必要的导航冒烟：只要真的要跑真机，且导航未选择
+-    if run_device and level_index(sel.level) >= level_index("feature"):
++    focused_modules = [mods[name] for name in direct_modules if name in mods]
++    # A global navigation sweep is redundant only when every direct module
++    # selected for this run declares its own UI/device coverage. Shared-nav
++    # rules include the navigation module (which does not opt out), so they
++    # continue to run the cross-page sweep.
++    skip_by_rule = any(
++        next((r for r in map_["impactRules"] if r["id"] == rh["id"]), {}).get("skipNavigationSmoke", False)
++        for rh in sel.rules_hit
++    )
++    skip_navigation = skip_by_rule or (bool(focused_modules) and all(
++        m.get("skipNavigationSmoke", False) for m in focused_modules
++    ))
++    if run_device and level_index(sel.level) >= level_index("feature") and not skip_navigation:
+         if "navigation" not in selected_names:
+             selected_names.add("navigation")
+             sel.modules.append(ModulePlan(
+@@ -398,7 +493,7 @@ def _apply_level(map_: dict, sel: Selection, direct_modules: set[str],
+             device_scripts[("verify_navigation.py", "qa")] = {
+                 "script": "verify_navigation.py", "package": "qa", "tier": "feature",
+                 "assertions": 28, "destructive": False, "resetsQaData": False,
+-                "measuredSec": None, "modules": ["navigation"],
++                "measuredSec": 124, "estimatedSec": 124, "modules": ["navigation"],
+                 "reason": "L1+ 必要导航冒烟",
+             }
+
+diff --git a/tests/verify/validate.py b/tests/verify/validate.py
+index 05733f7..0350c92 100644
+--- a/tests/verify/validate.py
++++ b/tests/verify/validate.py
+@@ -38,6 +38,11 @@ def validate_map(map_: dict) -> list[str]:
+         for dep in m.get("dependsOn", []):
+             if dep not in mods:
+                 issues.append(f"模块 {mname} 的上游依赖不存在：{dep}")
++        if not isinstance(m.get("skipNavigationSmoke", False), bool):
++            issues.append(f"模块 {mname} 的 skipNavigationSmoke 必须是 bool")
++        for excluded in m.get("skipAlwaysModules", []):
++            if excluded not in mods:
++                issues.append(f"模块 {mname} 的 skipAlwaysModules 引用了不存在的模块：{excluded}")
+         for d in m.get("device", []):
+             p = DEVICE_ROOT / d["script"]
+             if not p.exists():
+@@ -53,6 +58,20 @@ def validate_map(map_: dict) -> list[str]:
+             for key in ("tier", "assertions", "destructive", "resetsQaData"):
+                 if key not in d:
+                     issues.append(f"{mname}/{d['script']} 缺少字段 {key}")
++            if d.get("smokeEnvVar"):
++                smoke_levels = d.get("smokeLevels", ["feature"])
++                if not smoke_levels or any(level not in map_.get("levels", {}) for level in smoke_levels):
++                    issues.append(f"{mname}/{d['script']} 的 smokeLevels 无效")
++                if not d.get("smokeAssertions") or not d.get("measuredFullSec"):
++                    issues.append(f"{mname}/{d['script']} 有 smokeEnvVar 但缺少 smoke/full 覆盖元数据")
++            if d.get("scenarios"):
++                if not d.get("scenarioEnvVar"):
++                    issues.append(f"{mname}/{d['script']} 有 scenarios 但缺少 scenarioEnvVar")
++                if len(d["scenarios"]) != len(set(d["scenarios"])):
++                    issues.append(f"{mname}/{d['script']} scenarios 有重复值")
++                min_level = d.get("scenarioMinLevel")
++                if min_level and min_level not in map_.get("levels", {}):
++                    issues.append(f"{mname}/{d['script']} scenarioMinLevel 无效：{min_level}")
+     for rule in map_.get("impactRules", []):
+         for mname in rule.get("modules", []):
+             if mname not in mods:
+@@ -71,9 +90,239 @@ def validate_map(map_: dict) -> list[str]:
+         for p in pat.get("patterns", []):
+             if not p.strip():
+                 issues.append(f"规则 {pat['id']} 有空 pattern")
++    issues.extend(validate_selection_policy(map_))
++    issues.extend(validate_restore_safety_source())
+     return issues
+
+
++def validate_restore_safety_source() -> list[str]:
++    """Guard critical fail-closed ordering and the shared business-write boundary."""
++    root = ROOT / "app/src/main/java/com/mengyalife/app"
++    barrier = (root / "data/restore/RestoreWriteBarrier.kt").read_text(encoding="utf-8")
++    coordinator = (root / "data/restore/RestoreCoordinator.kt").read_text(encoding="utf-8")
++    worker = (root / "data/weekly/WeeklyReviewWorker.kt").read_text(encoding="utf-8")
++    ai = (root / "data/weekly/WeeklyAiService.kt").read_text(encoding="utf-8")
++    goal = (root / "data/repository/GoalRepository.kt").read_text(encoding="utf-8")
++    journal = (root / "data/repository/JournalRepository.kt").read_text(encoding="utf-8")
++    root_app = (root / "MengyaLifeApp.kt").read_text(encoding="utf-8")
++    gate_test = (TEST_ROOT / "com/mengyalife/app/restore/RestoreGateJournalTest.kt").read_text(encoding="utf-8")
++    issues: list[str] = []
++    if "if (!ready) throw RestoreException(\"RESTORE_BLOCKED\"" not in barrier:
++        issues.append("RestoreWriteBarrier 未在非READY状态拒绝写入")
++    if "withContext(Permit(this, exclusive = false)) { block() }" not in barrier:
++        issues.append("普通业务写入口未统一通过RestoreWriteBarrier")
++    if "if (metaResult.isFailure) { finishMaintenance(); return }" not in coordinator:
++        issues.append("DB app_meta读取失败未明确fail-closed到MAINTENANCE")
++    if "private suspend fun readMetaResult(): Result<AppMetaEntity?> =\n        runCatching { database.appMetaDao().get() }" not in coordinator:
++        issues.append("app_meta读取异常未封装为可判定的Result")
++    readiness_pos = root_app.find("val restoreGateActive")
++    first_viewmodel_pos = root_app.find("viewModel(")
++    if readiness_pos < 0 or first_viewmodel_pos < 0 or readiness_pos > first_viewmodel_pos:
++        issues.append("restore startup gate必须早于任意数据库ViewModel/Flow创建")
++    if "if (restoreGateActive)" not in root_app[:first_viewmodel_pos]:
++        issues.append("未READY时缺少只读维护屏的早期return")
++    if "gate.clear(); journal.clear(); finishReady()" not in coordinator:
++        issues.append("Gate/Journal释放后才进入READY的顺序缺失")
++    converge = coordinator[coordinator.find("private suspend fun converge") : coordinator.find("private fun writeQaPhase")]
++    release = converge.find("gate.clear(); journal.clear(); finishReady()")
++    catch = converge.find("catch (e: Exception)")
++    if release < 0 or catch < release or "finishMaintenance()" not in converge[catch:]:
++        issues.append("Gate/Journaling释放失败没有收敛到MAINTENANCE")
++    if "restoreWriteBarrier.withWrite { runWorker(app) }" not in worker:
++        issues.append("WeeklyReviewWorker的副作用区未被写屏障包住")
++    if "writeBarrier?.withWrite(expectedGeneration) { block() }" not in ai:
++        issues.append("Weekly AI 请求引擎未受恢复写屏障保护")
++    if "writeBarrier?.withWrite(expectedGeneration) { ensureWritable(); block() }" not in goal:
++        issues.append("GoalRepository普通写入口未受恢复写屏障保护")
++    if "writeBarrier?.withWrite(expectedGeneration) { ensureWritable(); block() }" not in journal:
++        issues.append("JournalRepository普通写入口未受恢复写屏障保护")
++    if "gate clear failure is not silent" not in gate_test:
++        issues.append("缺少Gate清除失败测试")
++    return issues
++
++
++def validate_selection_policy(map_: dict) -> list[str]:
++    """Self-test duplicate collapse and the explicit local-only dev profile."""
++    try:
++        from .selection import apply_case_filter, apply_execution_profile, device_run_mode, select
++        sample = select(map_, None, ["advisor", "ai-consent", "settings"], "integration")
++        keys = [(d["script"], d["package"]) for d in sample.device_scripts]
++        if len(keys) != len(set(keys)):
++            return ["真机选择器未按 script+package 去重"]
++        for expected_once in ("verify_g3b1.py", "verify_settings.py"):
++            if sum(1 for d in sample.device_scripts if d["script"] == expected_once) != 1:
++                return [f"跨模块共享脚本未合并为一次运行：{expected_once}"]
++        if any(d["script"] == "verify_navigation.py" for d in sample.device_scripts):
++            return ["所有直接模块均有自身UI覆盖时仍重复加入导航冒烟"]
++        jvm_before = list(sample.jvm_classes)
++        apply_execution_profile(sample, "dev")
++        if sample.device_scripts:
++            return ["dev profile 仍然计划执行真机"]
++        if len(sample.deferred_device_scripts) != len(keys):
++            return ["dev profile 未完整记录被延期的设备脚本"]
++        if sample.jvm_classes != jvm_before:
++            return ["dev profile 改变了受影响 JVM 用例集合"]
++        if not sample.deferred_device_scripts and keys:
++            return ["dev profile 丢失设备延期清单"]
++
++        goals = select(map_, None, ["goals"], "feature")
++        if any(d["script"] == "verify_navigation.py" for d in goals.device_scripts):
++            return ["goals已有专属UI用例，不应重复跑全局导航冒烟"]
++
++        from .changes import Change, ChangeSet
++        shared_change = ChangeSet(
++            base="(self-test)", base_reason="policy self-test",
++            changes=[Change("app/src/main/java/com/mengyalife/app/MengyaLifeApp.kt", "M", "self-test")],
++            commit="self-test", branch="self-test",
++        )
++        shared = select(map_, shared_change, None, "feature")
++        if not any(d["script"] == "verify_navigation.py" for d in shared.device_scripts):
++            return ["导航/共享UI变更必须保留跨页导航冒烟"]
++
++        weekly_l2 = select(map_, None, ["weekly-ai"], "integration")
++        weekly_entry = next((d for d in weekly_l2.device_scripts if d["script"] == "verify_weekly_ai.py"), None)
++        if weekly_entry is None or device_run_mode(weekly_entry, weekly_l2.level) != "smoke":
++            return ["weekly-ai L2 应跑成功冒烟，不应误跑Gate全矩阵"]
++        weekly_gate = select(map_, None, ["weekly-ai"], "gate")
++        weekly_gate_entry = next((d for d in weekly_gate.device_scripts if d["script"] == "verify_weekly_ai.py"), None)
++        if weekly_gate_entry is None or device_run_mode(weekly_gate_entry, weekly_gate.level) != "full":
++            return ["weekly-ai Gate/Release 必须保留完整状态矩阵"]
++        weekly_case = select(map_, None, ["weekly-ai"], "integration")
++        apply_case_filter(weekly_case, "FAILED_401")
++        if len(weekly_case.device_scripts) != 1 or weekly_case.device_scripts[0]["script"] != "verify_weekly_ai.py":
++            return ["weekly-ai 失败场景case应可单独选择"]
++
++        backup_l2 = select(map_, None, ["backup-export"], "integration")
++        backup_scripts = {d["script"] for d in backup_l2.device_scripts}
++        if "verify_g3b1.py" in backup_scripts or "verify_navigation.py" in backup_scripts:
++            return ["独立备份模块L2不应重复运行无关AI授权/导航用例"]
++        if "verify_migration.py" not in backup_scripts:
++            return ["备份模块L2仍需保留数据库迁移前置"]
++        from .changes import Change, ChangeSet
++        writer_change = ChangeSet(
++            base="(self-test)", base_reason="policy self-test",
++            changes=[Change("app/src/main/java/com/mengyalife/app/data/backup/BackupFileWriter.kt", "M", "self-test")],
++            commit="self-test", branch="self-test",
++        )
++        backup_fault = select(map_, writer_change, None, None)
++        fault_scripts = {d["script"] for d in backup_fault.device_scripts}
++        if backup_fault.level != "integration" or "verify_backup_v2_failures.py" not in fault_scripts:
++            return ["备份写入故障代码改动必须升级L2并选择故障矩阵"]
++        if "verify_g3b1.py" in fault_scripts or "verify_navigation.py" in fault_scripts:
++            return ["备份L2不应捎带无关授权或全局导航用例"]
++        backup_case = select(map_, writer_change, None, None)
++        apply_case_filter(backup_case, "write")
++        if len(backup_case.device_scripts) != 1 or backup_case.device_scripts[0]["script"] != "verify_backup_v2_failures.py":
++            return ["backup --case write 应只选择一个故障scenario"]
++
++        restore_case = select(map_, None, ["restore-validate"], "integration")
++        apply_case_filter(restore_case, "R7")
++        if len(restore_case.device_scripts) != 1 or restore_case.device_scripts[0]["script"] != "verify_restore_failures.py":
++            return ["restore --case R7 应只选择故障矩阵脚本"]
++        if len(restore_case.deferred_device_scripts) != 4:
++            return ["restore --case R7 必须明确延期其余四个脚本"]
++        e2e_case = select(map_, None, ["restore-validate"], "integration")
++        apply_case_filter(e2e_case, "A_TO_B_TO_A")
++        if len(e2e_case.device_scripts) != 1 or e2e_case.device_scripts[0]["script"] != "verify_restore_e2e.py":
++            return ["A->B->A E2E 应可独立选择"]
++        fresh_case = select(map_, None, ["restore-validate"], "integration")
++        apply_case_filter(fresh_case, "FRESH_V12")
++        if len(fresh_case.device_scripts) != 1 or fresh_case.device_scripts[0]["script"] != "verify_restore_fresh_db.py":
++            return ["fresh v12 scenario 应可单独选择"]
++        db_unreadable_case = select(map_, None, ["restore-validate"], "integration")
++        apply_case_filter(db_unreadable_case, "DB_UNREADABLE")
++        if len(db_unreadable_case.device_scripts) != 1 or db_unreadable_case.device_scripts[0]["script"] != "verify_restore_db_unreadable.py":
++            return ["DB不可读startup fail-closed scenario应可单独选择"]
++        settings_fail_case = select(map_, None, ["restore-validate"], "integration")
++        apply_case_filter(settings_fail_case, "SETTINGS_FAIL")
++        if len(settings_fail_case.device_scripts) != 1 or settings_fail_case.device_scripts[0]["script"] != "verify_restore_failures.py":
++            return ["Gate/maintenance失败场景应可单独选择"]
++
++        backup_ui_change = ChangeSet(
++            base="(self-test)", base_reason="policy self-test",
++            changes=[Change("app/src/main/java/com/mengyalife/app/ui/settings/BackupSection.kt", "M", "self-test")],
++            commit="self-test", branch="self-test",
++        )
++        backup_ui = select(map_, backup_ui_change, None, "feature")
++        backup_ui_scripts = {d["script"] for d in backup_ui.device_scripts}
++        if "backup-export" not in backup_ui.module_names() or "settings" in backup_ui.module_names():
++            return ["BackupSection 改动应只命中备份模块，不应触发整页设置重复测试"]
++        if "verify_backup_v2_full.py" not in backup_ui_scripts or any(
++            x in backup_ui_scripts for x in ("verify_settings.py", "verify_theme.py", "verify_navigation.py")
++        ):
++            return ["备份Section L1 应只跑全字段导出用例，不重复跑设置/导航"]
++
++        backup_gate = select(map_, None, ["backup-export"], "gate")
++        if "verify_g3b1.py" not in {d["script"] for d in backup_gate.device_scripts}:
++            return ["全量Gate不能因backup模块的focused exclusion漏掉AI授权"]
++
++        restore_l2 = select(map_, None, ["restore-validate"], "integration")
++        if "verify_g3b1.py" in {d["script"] for d in restore_l2.device_scripts}:
++            return ["独立restore L2应以端到端安全断言替代泛用AI授权套件"]
++        barrier_change = ChangeSet(
++            base="(self-test)", base_reason="policy self-test",
++            changes=[Change("app/src/main/java/com/mengyalife/app/data/restore/RestoreWriteBarrier.kt", "M", "self-test")],
++            commit="self-test", branch="self-test",
++        )
++        barrier_plan = select(map_, barrier_change, None, None)
++        if barrier_plan.level != "integration" or "com.mengyalife.app.restore.RestoreWriteBarrierTest" not in barrier_plan.jvm_classes:
++            return ["RestoreWriteBarrier 改动必须升级L2并运行屏障单测"]
++        barrier_scripts = {d["script"] for d in barrier_plan.device_scripts}
++        if not {"verify_restore_e2e.py", "verify_restore_failures.py", "verify_g3b1.py", "verify_migration.py"}.issubset(barrier_scripts):
++            return ["RestoreWriteBarrier 改动的L2安全/迁移设备覆盖不足"]
++        if "verify_navigation.py" in barrier_scripts:
++            return ["数据层写屏障变更不应重复加入全局导航冒烟"]
++
++        startup_gate_change = ChangeSet(
++            base="(self-test)", base_reason="policy self-test",
++            changes=[Change("app/src/main/java/com/mengyalife/app/MengyaLifeApp.kt", "M", "self-test")],
++            commit="self-test", branch="self-test",
++        )
++        startup_gate_plan = select(map_, startup_gate_change, None, None)
++        startup_scripts = {d["script"] for d in startup_gate_plan.device_scripts}
++        if startup_gate_plan.level != "integration" or not {
++            "verify_restore_db_unreadable.py", "verify_restore_fresh_db.py", "verify_restore_e2e.py",
++            "verify_weekly_ai.py", "verify_g3b1.py",
++        }.issubset(startup_scripts):
++            return ["startup gate变更必须覆盖DB不可读/fresh/restore/weekly/consent L2"]
++        for guarded_path in (
++            "app/src/main/java/com/mengyalife/app/data/weekly/WeeklyReviewWorker.kt",
++            "app/src/main/java/com/mengyalife/app/di/AppContainer.kt",
++        ):
++            guarded = select(map_, ChangeSet(
++                base="(self-test)", base_reason="policy self-test",
++                changes=[Change(guarded_path, "M", "self-test")],
++                commit="self-test", branch="self-test",
++            ), None, None)
++            guarded_scripts = {d["script"] for d in guarded.device_scripts}
++            if guarded.level != "integration" or "verify_restore_db_unreadable.py" not in guarded_scripts:
++                return [f"{guarded_path}改动必须命中恢复维护/Worker fail-closed L2探针"]
++
++        gate_case = select(map_, None, ["restore-validate"], "gate")
++        try:
++            apply_case_filter(gate_case, "R7")
++        except SystemExit:
++            pass
++        else:
++            return ["Gate不允许用单case PASS跳过必须执行的完整安全用例"]
++
++        unknown_change = ChangeSet(
++            base="(self-test)", base_reason="policy self-test",
++            changes=[Change("unmapped/restore-sensitive.kt", "M", "self-test")],
++            commit="self-test", branch="self-test",
++        )
++        unknown_plan = select(map_, unknown_change, None, None)
++        if not unknown_plan.unknown_files or len(unknown_plan.modules) != len(map_["modules"]):
++            return ["未知源码路径必须保守扩大到完整模块选择"]
++
++        combined_l2 = select(map_, None, ["restore-validate", "weekly-ai"], "integration")
++        if "verify_g3b1.py" not in {d["script"] for d in combined_l2.device_scripts}:
++            return ["合并restore+weekly时不能让restore exclusion屏蔽weekly授权覆盖"]
++    except Exception as exc:
++        return [f"选择器策略自检失败：{type(exc).__name__}: {exc}"]
++    return []
++
++
+ def validate_schema_contract(map_: dict) -> list[str]:
+     issues: list[str] = []
+     db = ROOT / "app/src/main/java/com/mengyalife/app/data/local/MengyaDatabase.kt"
+diff --git a/tools/ui-verify/verify_backup_v2_failures.py b/tools/ui-verify/verify_backup_v2_failures.py
+index 7b8b638..1157251 100644
+--- a/tools/ui-verify/verify_backup_v2_failures.py
++++ b/tools/ui-verify/verify_backup_v2_failures.py
+@@ -86,6 +86,16 @@ def record(name, ok, detail=""):
+
+ def main():
+     started = time.time()
++    selected_case = os.environ.get("MENGYA_BACKUP_SCENARIO", "all").strip().lower()
++    allowed_cases = {"all", "cancel", "write", "truncate", "read", "temp-cleanup", "delete"}
++    if selected_case not in allowed_cases:
++        check("case名称有效", False, f"{selected_case}; allowed={sorted(allowed_cases)}")
++        restore_chrome()
++        sys.exit(1)
++
++    def should_run(case):
++        return selected_case == "all" or selected_case == case
++
+     clear_qa_data()
+     adb(f"shell am start -W -n {PKG}/com.mengyalife.app.MainActivity --ez qa_seed_backup_fixture true")
+     wait_app_ui()
+@@ -108,90 +118,98 @@ def main():
+     baseline_temp = temp_files()
+     record("失败前无临时备份文件", not baseline_temp, str(baseline_temp))
+
+-    # 1) 用户取消 SAF 选择
+-    check("取消场景启动", start())
+-    before_files = remote_files()
+-    check("取消场景打开备份", open_backup_dialog())
+-    check("取消场景 SAF 出现", wait_text("保存", 15))
+-    adb("shell input keyevent KEYCODE_BACK")
+-    check("取消后明确未写入", wait_text("已取消备份", 12))
+-    new_files = remote_files() - before_files
+-    record("取消 SAF：不显示成功/不生成文件", not has_text("完整备份已写入") and not new_files, str(new_files))
+-    record("取消 SAF：DB 不变", db_snapshot() == before)
+-    record("取消 SAF：无临时明文", assert_no_plaintext_temp())
+-
+-    # 2) 目标写入失败
+-    check("写失败场景启动", start("qa_backup_fail_write"))
+-    check("写失败场景打开备份", open_backup_dialog())
+-    check("写失败场景 SAF 出现", wait_text("保存", 15))
+-    tap_text("保存")
+-    check("写失败提示", wait_text("备份失败", 20))
+-    new_files = remote_files() - baseline_files
+-    record("写入失败：不显示成功", not has_text("完整备份已写入"))
+-    record("写入失败：DB 不变", db_snapshot() == before)
+-    record("写入失败：无明文临时文件", assert_no_plaintext_temp())
+-    cleanup_remote(new_files)
+-    cleanup_temp()
+-
+-    # 3) 目标文件被截断
+-    check("截断场景启动", start("qa_backup_truncate_write"))
+-    check("截断场景打开备份", open_backup_dialog())
+-    check("截断场景 SAF 出现", wait_text("保存", 15))
+-    tap_text("保存")
+-    check("截断提示", wait_text("回读内容与写入不一致", 20))
+-    new_files = remote_files() - baseline_files
+-    record("截断：不显示成功", not has_text("完整备份已写入"))
+-    record("截断：DB 不变", db_snapshot() == before)
+-    record("截断：无明文临时文件", assert_no_plaintext_temp())
+-    cleanup_remote(new_files)
+-    cleanup_temp()
+-
+-    # 4) 回读失败
+-    check("回读失败场景启动", start("qa_backup_fail_read"))
+-    check("回读失败场景打开备份", open_backup_dialog())
+-    check("回读失败场景 SAF 出现", wait_text("保存", 15))
+-    tap_text("保存")
+-    check("回读失败提示", wait_text("备份失败", 20))
+-    new_files = remote_files() - baseline_files
+-    record("回读失败：不显示成功", not has_text("完整备份已写入"))
+-    record("回读失败：DB 不变", db_snapshot() == before)
+-    record("回读失败：无明文临时文件", assert_no_plaintext_temp())
+-    cleanup_remote(new_files)
+-    cleanup_temp()
+-
+-    # 5) 临时文件清理失败：文件本身成功，但必须显式 warning
+-    check("清理失败场景启动", start("qa_backup_fail_temp_cleanup"))
+-    check("清理失败场景打开备份", open_backup_dialog())
+-    check("清理失败场景 SAF 出现", wait_text("保存", 15))
+-    tap_text("保存")
+-    check("清理失败提示", wait_text("临时文件清理失败", 25))
+-    new_files = remote_files() - baseline_files
+-    record("清理失败：不当作完全成功", has_text("临时文件清理失败"))
+-    record("清理失败：DB 不变", db_snapshot() == before)
+-    record("清理失败：临时文件是密文（无明文）", assert_no_plaintext_temp())
+-    cleanup_remote(new_files)
+-    cleanup_temp()
+-
+-    # 6) 目标无法删除 + 写失败
+-    check("删除失败场景启动", start("qa_backup_fail_write"))
+-    # 同时注入 delete 失败：重新启动会 reset，需用两个 extra
+-    adb(f"shell am force-stop {PKG}")
+-    time.sleep(0.8)
+-    adb(f"shell am start -W -n {PKG}/com.mengyalife.app.MainActivity --ez qa_backup_fail_write true --ez qa_backup_fail_delete true")
+-    wait_app_ui()
+-    check("删除失败场景打开备份", open_backup_dialog())
+-    check("删除失败场景 SAF 出现", wait_text("保存", 15))
+-    tap_text("保存")
+-    check("删除失败提示", wait_text("目标文件可能无效", 25))
+-    new_files = remote_files() - baseline_files
+-    record("删除失败：明确提示可能无效", has_text("目标文件可能无效"), str(new_files))
+-    record("删除失败：不显示成功", not has_text("完整备份已写入"))
+-    record("删除失败：DB 不变", db_snapshot() == before)
+-    cleanup_remote(new_files)
+-    cleanup_temp()
++    if should_run("cancel"):
++        # 1) 用户取消 SAF 选择
++        check("取消场景启动", start())
++        before_files = remote_files()
++        check("取消场景打开备份", open_backup_dialog())
++        check("取消场景 SAF 出现", wait_text("保存", 15))
++        adb("shell input keyevent KEYCODE_BACK")
++        check("取消后明确未写入", wait_text("已取消备份", 12))
++        new_files = remote_files() - before_files
++        record("取消 SAF：不显示成功/不生成文件", not has_text("完整备份已写入") and not new_files, str(new_files))
++        record("取消 SAF：DB 不变", db_snapshot() == before)
++        record("取消 SAF：无临时明文", assert_no_plaintext_temp())
++
++    if should_run("write"):
++        # 2) 目标写入失败
++        check("写失败场景启动", start("qa_backup_fail_write"))
++        check("写失败场景打开备份", open_backup_dialog())
++        check("写失败场景 SAF 出现", wait_text("保存", 15))
++        tap_text("保存")
++        check("写失败提示", wait_text("备份失败", 20))
++        new_files = remote_files() - baseline_files
++        record("写入失败：不显示成功", not has_text("完整备份已写入"))
++        record("写入失败：DB 不变", db_snapshot() == before)
++        record("写入失败：无明文临时文件", assert_no_plaintext_temp())
++        cleanup_remote(new_files)
++        cleanup_temp()
++
++    if should_run("truncate"):
++        # 3) 目标文件被截断
++        check("截断场景启动", start("qa_backup_truncate_write"))
++        check("截断场景打开备份", open_backup_dialog())
++        check("截断场景 SAF 出现", wait_text("保存", 15))
++        tap_text("保存")
++        check("截断提示", wait_text("回读内容与写入不一致", 20))
++        new_files = remote_files() - baseline_files
++        record("截断：不显示成功", not has_text("完整备份已写入"))
++        record("截断：DB 不变", db_snapshot() == before)
++        record("截断：无明文临时文件", assert_no_plaintext_temp())
++        cleanup_remote(new_files)
++        cleanup_temp()
++
++    if should_run("read"):
++        # 4) 回读失败
++        check("回读失败场景启动", start("qa_backup_fail_read"))
++        check("回读失败场景打开备份", open_backup_dialog())
++        check("回读失败场景 SAF 出现", wait_text("保存", 15))
++        tap_text("保存")
++        check("回读失败提示", wait_text("备份失败", 20))
++        new_files = remote_files() - baseline_files
++        record("回读失败：不显示成功", not has_text("完整备份已写入"))
++        record("回读失败：DB 不变", db_snapshot() == before)
++        record("回读失败：无明文临时文件", assert_no_plaintext_temp())
++        cleanup_remote(new_files)
++        cleanup_temp()
++
++    if should_run("temp-cleanup"):
++        # 5) 临时文件清理失败：文件本身成功，但必须显式 warning
++        check("清理失败场景启动", start("qa_backup_fail_temp_cleanup"))
++        check("清理失败场景打开备份", open_backup_dialog())
++        check("清理失败场景 SAF 出现", wait_text("保存", 15))
++        tap_text("保存")
++        check("清理失败提示", wait_text("临时文件清理失败", 25))
++        new_files = remote_files() - baseline_files
++        record("清理失败：不当作完全成功", has_text("临时文件清理失败"))
++        record("清理失败：DB 不变", db_snapshot() == before)
++        record("清理失败：临时文件是密文（无明文）", assert_no_plaintext_temp())
++        cleanup_remote(new_files)
++        cleanup_temp()
++
++    if should_run("delete"):
++        # 6) 目标无法删除 + 写失败
++        check("删除失败场景启动", start("qa_backup_fail_write"))
++        # 同时注入 delete 失败：重新启动会 reset，需用两个 extra
++        adb(f"shell am force-stop {PKG}")
++        time.sleep(0.8)
++        adb(f"shell am start -W -n {PKG}/com.mengyalife.app.MainActivity --ez qa_backup_fail_write true --ez qa_backup_fail_delete true")
++        wait_app_ui()
++        check("删除失败场景打开备份", open_backup_dialog())
++        check("删除失败场景 SAF 出现", wait_text("保存", 15))
++        tap_text("保存")
++        check("删除失败提示", wait_text("目标文件可能无效", 25))
++        new_files = remote_files() - baseline_files
++        record("删除失败：明确提示可能无效", has_text("目标文件可能无效"), str(new_files))
++        record("删除失败：不显示成功", not has_text("完整备份已写入"))
++        record("删除失败：DB 不变", db_snapshot() == before)
++        cleanup_remote(new_files)
++        cleanup_temp()
+
+     record("所有场景后 DB 仍不变", db_snapshot() == before)
+-    json.dump(scenarios, open(RESULTS_FILE, "w"), ensure_ascii=False, indent=2)
++    result_path = RESULTS_FILE if selected_case == "all" else RESULTS_FILE.replace("scenarios.json", f"scenario-{selected_case}.json")
++    json.dump(scenarios, open(result_path, "w"), ensure_ascii=False, indent=2)
++    print(f"QA_BACKUP_SCENARIO={selected_case}")
+     print(f"QA_FAILURE_SECONDS={time.time() - started:.2f}")
+     restore_chrome()
+     sys.exit(0 if summary() else 1)
+diff --git a/tools/ui-verify/verify_g3b1.py b/tools/ui-verify/verify_g3b1.py
+index 12b9b91..df751a3 100644
+--- a/tools/ui-verify/verify_g3b1.py
++++ b/tools/ui-verify/verify_g3b1.py
+@@ -3,7 +3,7 @@
+ 覆盖：首次授权/拒绝、四类开关、撤回、换服务地址重授权、自动上下文、
+ 日记/目标来源、历史 epoch 隔离、目标草案与重启恢复、业务数据不被修改。
+ """
+-import os, sys, time, sqlite3, subprocess, json, re
++import os, sys, time, sqlite3, subprocess, json, re, tempfile
+ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+ from harness import *
+
+@@ -15,23 +15,34 @@ MODEL = "qa-offline"
+
+
+ def db():
+-    d = "/tmp/g3b1-db"
+-    os.makedirs(d, exist_ok=True)
+-    for f in ["mengya-life-qa.db", "mengya-life-qa.db-wal", "mengya-life-qa.db-shm"]:
+-        subprocess.run(
+-            f"adb -s {DEV} exec-out run-as {PKG} cat databases/{f} > {d}/{f}",
+-            shell=True, capture_output=True,
+-        )
+-    con = sqlite3.connect(f"{d}/mengya-life-qa.db")
+-    messages = con.execute(
+-        "SELECT role,status,content,context_epoch,sources_json FROM advisor_messages ORDER BY created_at"
+-    ).fetchall()
+-    goals = con.execute("SELECT id,title FROM goals ORDER BY id").fetchall()
+-    checkins = con.execute("SELECT COUNT(*) FROM goal_checkins").fetchone()[0]
+-    journals = con.execute("SELECT id,title FROM journal_entries ORDER BY id").fetchall()
+-    proposals = con.execute("SELECT COUNT(*) FROM goal_proposals").fetchone()[0]
+-    con.close()
+-    return messages, goals, checkins, journals, proposals
++    last_error = "database not created yet"
++    deadline = time.time() + 20
++    while time.time() < deadline:
++        d = tempfile.mkdtemp(prefix="g3b1-db-")
++        db_path = os.path.join(d, "mengya-life-qa.db")
++        for suffix in ("", "-wal", "-shm"):
++            remote = "databases/mengya-life-qa.db" + suffix
++            result = subprocess.run(
++                ["adb", "-s", DEV, "exec-out", "run-as", PKG, "cat", remote],
++                capture_output=True, timeout=40,
++            )
++            if result.returncode == 0 and result.stdout:
++                with open(db_path + suffix, "wb") as output:
++                    output.write(result.stdout)
++        try:
++            with sqlite3.connect(db_path) as con:
++                messages = con.execute(
++                    "SELECT role,status,content,context_epoch,sources_json FROM advisor_messages ORDER BY created_at"
++                ).fetchall()
++                goals = con.execute("SELECT id,title FROM goals ORDER BY id").fetchall()
++                checkins = con.execute("SELECT COUNT(*) FROM goal_checkins").fetchone()[0]
++                journals = con.execute("SELECT id,title FROM journal_entries ORDER BY id").fetchall()
++                proposals = con.execute("SELECT COUNT(*) FROM goal_proposals").fetchone()[0]
++            return messages, goals, checkins, journals, proposals
++        except Exception as exc:
++            last_error = f"{type(exc).__name__}: {exc}"
++            time.sleep(0.5)
++    raise RuntimeError(f"QA DB快照在20秒内不可用: {last_error}")
+
+
+ def replace_field(tag, text):
+@@ -63,6 +74,7 @@ print("========== 0. 清空 QA 并配置模型 ==========")
+ adb("shell logcat -b crash -c")
+ clear_qa_data()
+ restart_app()
++wait_tag("tab_overview", 20)  # startup Gate may briefly show maintenance until Room/app_meta is ready
+ tap_tag("tab_advisor")
+ time.sleep(1.0)
+ check("未配置引导", wait_tag("advisor_not_configured", 8))
+@@ -75,7 +87,7 @@ replace_field("ai_model_input", MODEL)
+ replace_field("ai_key_input", SECRET)
+ tap_tag("ai_save")
+ time.sleep(2)
+-check("模型配置保存", has_text("配置已保存"))
++check("模型配置保存", wait_text("配置已保存", 8))
+ check("界面不回显 key", not has_text(SECRET))
+ shot("g3b1-01-settings")
+
+diff --git a/tools/ui-verify/verify_restore_db_unreadable.py b/tools/ui-verify/verify_restore_db_unreadable.py
+new file mode 100644
+index 0000000..3ba4c4e
+--- /dev/null
++++ b/tools/ui-verify/verify_restore_db_unreadable.py
+@@ -0,0 +1,117 @@
++"""QA-only startup fail-closed probe when the Room DB cannot be opened."""
++import os
++import sqlite3
++import subprocess
++import sys
++import tempfile
++import time
++
++sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
++from harness import *
++
++require_qa("verify_restore_db_unreadable.py")
++scenario = os.environ.get("MENGYA_RESTORE_STARTUP_SCENARIO", "").strip().upper()
++if scenario and scenario != "DB_UNREADABLE":
++    raise SystemExit(f"未知startup scenario: {scenario}")
++
++DB_NAME = "mengya-life-qa.db"
++DB_REMOTE = f"databases/{DB_NAME}"
++
++def pull_file(remote, path):
++    found_main = False
++    for suffix in ("", "-wal", "-shm"):
++        result = subprocess.run(
++            ["adb", "-s", DEV, "exec-out", "run-as", PKG, "cat", remote + suffix],
++            capture_output=True, timeout=40,
++        )
++        if result.returncode == 0 and result.stdout:
++            with open(path + suffix, "wb") as output:
++                output.write(result.stdout)
++            if not suffix:
++                found_main = True
++    return path if found_main else None
++
++def pull_db(path):
++    if pull_file(DB_REMOTE, path) is None:
++        raise RuntimeError("无法读取QA数据库快照")
++    return path
++
++def chmod_db(mode):
++    return subprocess.run(
++        ["adb", "-s", DEV, "shell", "run-as", PKG, "chmod", mode, DB_REMOTE],
++        capture_output=True, text=True, timeout=30,
++    )
++
++def snapshot(path):
++    db = sqlite3.connect(path)
++    try:
++        tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
++        names = ("journal_entries", "goals", "goal_checkins", "weekly_reviews", "weekly_ai_reviews")
++        counts = {name: db.execute(f"SELECT count(*) FROM `{name}`").fetchone()[0]
++                  for name in names if name in tables}
++        version = db.execute("PRAGMA user_version").fetchone()[0]
++        return version, counts
++    finally:
++        db.close()
++
++root = tempfile.mkdtemp(prefix="g4a2b-unreadable-")
++first = os.path.join(root, "before.db")
++after = os.path.join(root, "after.db")
++permission_restricted = False
++cleaned = False
++try:
++    clear_qa_data()
++    check("Fresh QA数据库启动", restart_app())
++    check("确认初始业务页可用", has_tag("tab_goals") or has_tag("tab_overview"))
++    adb(f"shell am force-stop {PKG}")
++    time.sleep(1.0)
++    pull_db(first)
++    before_version, before_counts = snapshot(first)
++    check("QA数据库为v12", before_version == 12, str(before_version))
++
++    adb(f"shell am force-stop {PKG}")
++    chmod = chmod_db("000")
++    permission_restricted = chmod.returncode == 0
++    check("模拟DB不可读权限", permission_restricted, chmod.stderr.strip())
++    if not permission_restricted:
++        raise RuntimeError("QA DB chmod failed; stop unreadable test")
++    adb(f"shell am start -W -n {PKG}/com.mengyalife.app.MainActivity --ez qa_run_weekly_review true")
++    foreground = ensure_foreground()
++    ui_ready = foreground and wait_app_ui(20)
++    check("DB不可读时Activity可见", foreground)
++    check("启动界面完成渲染", ui_ready)
++    maintenance = ui_ready and (
++        wait_text("暂不能使用应用", 20) or wait_text("数据恢复或安全重置尚未收敛", 20)
++    )
++    check("DB不可读时显示维护页", maintenance)
++    if not maintenance:
++        print("DB_UNREADABLE_UI_DIAGNOSTICS:", adb("shell dumpsys activity activities | grep -m1 -E 'mResumedActivity|topResumedActivity'"))
++        app_pid = adb(f"shell pidof {PKG}").strip()
++        if app_pid:
++            print("DB_UNREADABLE_APP_LOGS:", adb(f"logcat -d --pid={app_pid}")[-4000:])
++    check("DB不可读时不显示目标写入入口", not has_tag("tab_goals"))
++    check("DB不可读时不显示AI请求入口", not has_tag("weekly_generate_ai"))
++
++    # Explicitly enqueue the QA worker while the DB is unreadable. Its outer
++    # RestoreWriteBarrier guards its DB/AI/notification body; keep the window
++    # open long enough for any scheduled attempt before comparing Room rows.
++    time.sleep(15)
++    adb(f"shell am force-stop {PKG}")
++    restore_perm = chmod_db("600")
++    if restore_perm.returncode != 0:
++        raise RuntimeError(f"restore DB permissions failed: {restore_perm.stderr}")
++    permission_restricted = False
++    pull_db(after)
++    after_version, after_counts = snapshot(after)
++    check("DB不可读期间Room user_version未改变", after_version == before_version)
++    check("DB不可读期间业务表无写入副作用", after_counts == before_counts,
++          f"before={before_counts}; after={after_counts}")
++finally:
++    if permission_restricted:
++        restore_perm = chmod_db("600")
++        check("恢复QA DB权限", restore_perm.returncode == 0, restore_perm.stderr.strip())
++    clear_qa_data()
++    cleaned = True
++    check("测试后QA包数据已清理", cleaned)
++
++sys.exit(0 if summary() else 1)
+diff --git a/tools/ui-verify/verify_restore_e2e.py b/tools/ui-verify/verify_restore_e2e.py
+index 8c2cf7c..2eafb7d 100644
+--- a/tools/ui-verify/verify_restore_e2e.py
++++ b/tools/ui-verify/verify_restore_e2e.py
+@@ -5,6 +5,9 @@ from harness import *
+ from verify_backup_v2_full import dump_db, pull_db, db_counts, TABLES
+
+ require_qa("verify_restore_e2e.py")
++scenario = os.environ.get("MENGYA_RESTORE_E2E_SCENARIO", "").strip().upper()
++if scenario and scenario != "A_TO_B_TO_A":
++    raise SystemExit(f"未知restore E2E scenario: {scenario}")
+ PASS = "BackupFull123!"
+ EVIDENCE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                         "docs/reports/G4A2B-acceptance/qa")
+@@ -54,6 +57,14 @@ def export_current():
+     return new[-1] if new else ""
+
+
++def clickable(text):
++    xml=dump()
++    for node in re.finditer(r'<node[^>]*>',xml):
++        tag=node.group(0)
++        if f'text="{text}"' in tag: return 'clickable="true"' in tag
++    return None
++
++
+ def checkbox_tap():
+     xml = dump()
+     m = re.search(r'<node[^>]*class="android.widget.CheckBox"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml)
+@@ -75,6 +86,13 @@ def restore_file(remote):
+     check("恢复密码框", wait_text("输入备份口令", 10))
+     tap_text("备份口令"); adb(f"shell input text '{PASS}'"); close_keyboard()
+     check("预览", tap_text("校验并预览") and wait_text("恢复预览（只读）", 15))
++    check("预览10表计数", all(has_text(x) for x in [
++        "日记：2 / 2", "目标：3 / 3", "进展：2 / 2", "对话：3 / 3", "草案：2 / 2",
++        "成长线索：3 / 3", "成长记忆：2 / 2", "洞察：2 / 2", "周回顾：2 / 2",
++        "历史 AI 周报（仅归档）：2 / 2（仅归档，不恢复）",
++    ]))
++    check("预览不恢复敏感状态", all(has_text(x) for x in ["API Key", "AI 授权同意", "AI 自动发送开关", "系统通知权限"]))
++    check("未勾选前执行不可点击", clickable("确认恢复（替换本机数据）") is False)
+     check("勾选风险确认", checkbox_tap()); time.sleep(.5)
+     check("执行确认", tap_text("确认恢复（替换本机数据）"))
+     end = time.time()+180
+@@ -96,12 +114,18 @@ def main():
+     time.sleep(6)
+     a = stable_db("a")
+     check("A夹具就绪", a is not None and all(db_counts(a)[t] > 0 for t in TABLES))
++    if a is None or not all(db_counts(a)[t] > 0 for t in TABLES):
++        sys.exit(1)
+     remote = export_current()
+     check("A备份文件", bool(remote), remote)
+     check("B数据+安全状态", start("--ez qa_seed_backup_fixture_b true --ez qa_seed_restore_security true"))
+     time.sleep(6)
+     b = stable_db("b")
+-    check("B与A内容不同", b["journal_entries"] != a["journal_entries"])
++    check("B夹具就绪", b is not None and all(db_counts(b)[t] > 0 for t in TABLES))
++    if b is None or not all(db_counts(b)[t] > 0 for t in TABLES):
++        sys.exit(1)
++    diffs=[t for t in TABLES if a[t]["rows"] != b[t]["rows"]]
++    check("A/B 10表均有差异", len(diffs)==10, str(diffs))
+     # from settings? B start is main; open settings restore
+     if not open_settings(): check("B设置页", False)
+     check("A文件仍存在", adb(f"shell 'ls {remote}'").strip() != "")
+@@ -110,7 +134,7 @@ def main():
+     check("恢复成功提示", ok)
+     core = [t for t in TABLES if t not in ("weekly_ai_reviews", "weekly_reviews")]
+     check("核心8表A逐字段恢复", all(a[t] == after[t] for t in core))
+-    check("周回顾已恢复", len(after["weekly_reviews"]["rows"]) == len(a["weekly_reviews"]["rows"]))
++    check("周回顾恢复后初始内容=A", after["weekly_reviews"]["rows"] == a["weekly_reviews"]["rows"])
+     check("weekly AI 未恢复旧行", after["weekly_ai_reviews"]["rows"] != a["weekly_ai_reviews"]["rows"])
+     check("A日记内容回来", after["journal_entries"]["rows"][0].get("title") == a["journal_entries"]["rows"][0].get("title"))
+     qa = adb(f"shell run-as {PKG} cat no_backup/restore/qa-after.json 2>/dev/null").strip()
+diff --git a/tools/ui-verify/verify_restore_failures.py b/tools/ui-verify/verify_restore_failures.py
+index ea74248..597d352 100644
+--- a/tools/ui-verify/verify_restore_failures.py
++++ b/tools/ui-verify/verify_restore_failures.py
+@@ -3,6 +3,7 @@ import json, os, re, sys, time
+ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+ from harness import *
+ from verify_backup_v2_full import dump_db, pull_db, db_counts, TABLES
++from restore_failure_assertions import table_differences, tables_equal
+
+ require_qa("verify_restore_failures.py")
+ PASS = "BackupFull123!"
+@@ -13,6 +14,48 @@ EVIDENCE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.
+                         "docs/reports/G4A2B-acceptance/failures")
+ os.makedirs(EVIDENCE, exist_ok=True)
+ CORE = [t for t in TABLES if t not in ("weekly_ai_reviews", "weekly_reviews")]
++EXPECTED_A = json.load(open(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
++    "docs/reports/G4A2B-acceptance/qa/db-A.json")))
++
++BASE_CHECK = check
++CURRENT_STAGE = "setup"
++FAILURE_INDEX = 0
++
++def collect_failure_diagnostics(name, detail):
++    global FAILURE_INDEX
++    FAILURE_INDEX += 1
++    dest = os.path.join(EVIDENCE, f"failure-{FAILURE_INDEX:02d}")
++    os.makedirs(dest, exist_ok=True)
++    record = {"stage": CURRENT_STAGE, "assertion": name, "detail": detail}
++    try:
++        record["db"] = dump_db(pull_db(os.path.join("/tmp", f"g4a2b-failure-{FAILURE_INDEX}")))
++    except Exception as e:
++        record["dbReadError"] = str(e)
++    for filename in ("gate.json", "journal.json", "qa-status.json", "qa-after.json", "qa-phase.json"):
++        text = adb(f"shell run-as {PKG} cat no_backup/restore/{filename} 2>/dev/null").strip()
++        if text: record[filename] = text
++    meta_path = os.path.join("/tmp", f"g4a2b-failure-meta-{FAILURE_INDEX}")
++    try:
++        db = pull_db(meta_path)
++        import sqlite3
++        con = sqlite3.connect(db)
++        record["app_meta"] = con.execute("SELECT * FROM app_meta").fetchall()
++        con.close()
++    except Exception as e:
++        record["appMetaReadError"] = str(e)
++    log = adb("shell logcat -d -t 300 | grep -E 'Restore|AndroidRuntime|Room|SQLite' | tail -80")
++    record["logcat"] = log.replace(PASS, "<REDACTED>").replace("qa-restore-key-123456", "<REDACTED>")
++    record["ui"] = dump()
++    json.dump(record, open(os.path.join(dest, "diagnostics.json"), "w"), ensure_ascii=False, indent=2)
++    with open(os.path.join(dest, "ui.xml"), "w") as f: f.write(record["ui"])
++
++def check(name, cond, detail=""):
++    BASE_CHECK(name, cond, detail)
++    if not cond:
++        try:
++            collect_failure_diagnostics(name, detail)
++        except Exception as e:
++            print("DIAGNOSTICS_COLLECTION_FAILED:", type(e).__name__, str(e)[:200])
+
+
+ def start(extra=""):
+@@ -23,10 +66,14 @@ def start(extra=""):
+
+ def wait_db(tag="x"):
+     prev=None
+-    for _ in range(30):
+-        d=dump_db(pull_db(f"/tmp/g4a2b-{tag}"))
+-        if all(db_counts(d)[t] > 0 for t in TABLES) and prev == d: return d
+-        prev=d; time.sleep(1)
++    for _ in range(45):
++        try:
++            d=dump_db(pull_db(f"/tmp/g4a2b-{tag}"))
++        except Exception:
++            d=None
++        if d is not None and all(db_counts(d)[t] > 0 for t in TABLES) and prev == d: return d
++        if d is not None: prev=d
++        time.sleep(1)
+     return prev
+
+
+@@ -43,10 +90,16 @@ def checkbox():
+
+
+ def do_restore(flag_extra):
++    global CURRENT_STAGE
++    CURRENT_STAGE = flag_extra or "normal"
+     clear_qa_data()
+     check("启动B+安全+故障", start("--ez qa_seed_backup_fixture_b true --ez qa_seed_restore_security true " + flag_extra))
+     time.sleep(5)
+     before=wait_db("before")
++    if before is None or not all(db_counts(before)[t] > 0 for t in TABLES):
++        check("B夹具就绪", False, str(db_counts(before) if before else None))
++        sys.exit(1)
++    check("B夹具10表非空", True, str(db_counts(before)))
+     adb(f"push {SAMPLE} {REMOTE}")
+     if not open_settings(): check("设置页",False); return before
+     scroll_to_tag("settings_restore_v2",20); tap_tag("settings_restore_v2"); time.sleep(2)
+@@ -59,6 +112,23 @@ def do_restore(flag_extra):
+     return before
+
+
++def wait_phase(expected, timeout=60):
++    end=time.time()+timeout
++    while time.time()<end:
++        if adb(f"shell run-as {PKG} ls no_backup/restore/qa-phase-{expected}.flag 2>/dev/null").strip():
++            return True
++        time.sleep(.5)
++    return False
++
++
++def wait_ready(timeout=60):
++    end=time.time()+timeout
++    while time.time()<end:
++        if not gate_exists() and qa_after().get("keyPresent") is False: return True
++        time.sleep(.5)
++    return False
++
++
+ def status():
+     raw=adb(f"shell run-as {PKG} cat no_backup/restore/qa-status.json 2>/dev/null").strip()
+     return json.loads(raw) if raw else {}
+@@ -77,18 +147,126 @@ def after_restart():
+ def gate_exists():
+     return bool(adb(f"shell run-as {PKG} ls no_backup/restore/gate.json 2>/dev/null").strip())
+
++
++def wait_status_label(label, timeout=35):
++    end = time.time() + timeout
++    while time.time() < end:
++        if status().get("label") == label:
++            return True
++        time.sleep(.5)
++    return False
++
++
++def assert_recovered_after_restart(scenario, db, state):
++    check(f"{scenario} 重启后A核心数据", tables_equal(EXPECTED_A, db, CORE))
++    check(f"{scenario} 历史weekly AI未恢复", len(db["weekly_ai_reviews"]["rows"]) == 0)
++    check(f"{scenario} 重启后Key删除", state.get("keyPresent") is False, str(state))
++    check(f"{scenario} 重启后consent撤销", state.get("consentGranted") is False, str(state))
++    check(f"{scenario} 重启后自动AI关闭", state.get("aiEnabled") is False, str(state))
++    check(f"{scenario} 重启后Gate释放", not gate_exists())
++
++
++def run_single_scenario(scenario):
++    """Run one isolated fault case without replaying earlier R2-R6 cases."""
++    scenario = scenario.upper()
++    started = time.time()
++    allowed = {"R2", "R3", "R4", "R5", "R6", "R7", "SETTINGS_FAIL"}
++    if scenario not in allowed:
++        check("case名称有效", False, f"{scenario}; allowed={sorted(allowed)}")
++        restore_chrome(); sys.exit(1)
++    wrong = json.loads(json.dumps(EXPECTED_A))
++    wrong["journal_entries"]["rows"][0]["title"] = "WRONG_EXPECTATION"
++    check("自测：错误预期会被比较捕获", table_differences(wrong, EXPECTED_A, CORE) == ["journal_entries"])
++
++    if scenario == "R2":
++        before_b = do_restore("--ez qa_restore_fail_transaction true")
++        check("R2事务失败到达", wait_status_label("FAILED_BEFORE_COMMIT"))
++        db = dump_db(pull_db("/tmp/g4a2b-r2-single")); state = status()
++        check("R2失败后10表全部仍是B", tables_equal(before_b, db, TABLES))
++        check("R2 Key保留", state.get("keyPresent") is True, str(state))
++        check("R2 consent保留", state.get("consentGranted") is True, str(state))
++        check("R2 Gate清理", not gate_exists())
++    elif scenario == "R3":
++        do_restore("--ez qa_restore_fail_key_delete true")
++        check("R3提交后Key删除失败", wait_status_label("COMMITTED_NEEDS_CONVERGENCE"))
++        db = dump_db(pull_db("/tmp/g4a2b-r3-single")); state = status()
++        check("R3 DB已提交A", tables_equal(EXPECTED_A, db, CORE))
++        check("R3历史weekly AI未恢复", len(db["weekly_ai_reviews"]["rows"]) == 0)
++        check("R3 Gate保持", gate_exists())
++        check("R3 Key仍在", state.get("keyPresent") is True, str(state))
++        check("R3 consent已撤销", state.get("consentGranted") is False, str(state))
++        start(); time.sleep(12)
++        assert_recovered_after_restart("R3", dump_db(pull_db("/tmp/g4a2b-r3-single-restart")), qa_after())
++    elif scenario in ("R4", "R5"):
++        phase = "DB_COMMITTED" if scenario == "R4" else "CONSENT_DONE"
++        extra = "--ez qa_restore_pause_after_commit_ms 30000" if scenario == "R4" else "--ez qa_restore_pause_after_consent_ms 30000"
++        do_restore(extra)
++        check(f"{scenario}到达{phase}", wait_phase(phase))
++        adb(f"shell am force-stop {PKG}"); time.sleep(1)
++        start(); check(f"{scenario}重启收敛", wait_ready())
++        tag = scenario.lower() + "-single-restart"
++        assert_recovered_after_restart(scenario, dump_db(pull_db(f"/tmp/g4a2b-{tag}")), qa_after())
++    elif scenario in ("R6", "R7"):
++        do_restore("--ez qa_restore_pause_after_commit_ms 30000")
++        check(f"{scenario}到达DB_COMMITTED", wait_phase("DB_COMMITTED"))
++        adb(f"shell am force-stop {PKG}"); time.sleep(1)
++        if scenario == "R6":
++            adb(f"shell run-as {PKG} rm -f no_backup/restore/journal.json")
++        else:
++            adb(f"shell run-as {PKG} rm -f no_backup/restore/gate.json")
++        start(); check(f"{scenario}重启收敛", wait_ready())
++        tag = scenario.lower() + "-single-restart"
++        assert_recovered_after_restart(scenario, dump_db(pull_db(f"/tmp/g4a2b-{tag}")), qa_after())
++    elif scenario == "SETTINGS_FAIL":
++        do_restore("--ez qa_restore_fail_settings true")
++        check("设置收敛故障被记录", wait_status_label("COMMITTED_NEEDS_CONVERGENCE"))
++        failed_state = status()
++        check("设置失败时Gate仍保持", gate_exists() and failed_state.get("gateActive") is True, str(failed_state))
++        check("设置失败时Key已删除", failed_state.get("keyPresent") is False, str(failed_state))
++        check("设置失败不报告成功且Gate未释放",
++              status().get("label") == "COMMITTED_NEEDS_CONVERGENCE" and gate_exists())
++        db = dump_db(pull_db("/tmp/g4a2b-settings-fail"))
++        check("设置失败时核心数据已提交A", tables_equal(EXPECTED_A, db, CORE))
++        check("维护状态下没有weekly AI副作用", len(db["weekly_ai_reviews"]["rows"]) == 0)
++        start(); check("移除故障后重启收敛", wait_ready())
++        assert_recovered_after_restart(
++            scenario, dump_db(pull_db("/tmp/g4a2b-settings-fail-recovered")), qa_after())
++
++    adb(f"shell rm -f {REMOTE}")
++    elapsed = time.time() - started
++    json.dump({"scenario": scenario, "seconds": elapsed, "passed": summary()},
++              open(os.path.join(EVIDENCE, f"failure-{scenario}-result.json"), "w"),
++              ensure_ascii=False, indent=2)
++    print(f"QA_FAILURE_{scenario}_SECONDS={elapsed:.2f}")
++    restore_chrome()
++    sys.exit(0 if summary() else 1)
++
++
+ def main():
++    scenario = os.environ.get("MENGYA_RESTORE_SCENARIO", "").strip().upper()
++    if scenario:
++        run_single_scenario(scenario)
++        return
+     started=time.time()
++    wrong=json.loads(json.dumps(EXPECTED_A))
++    wrong["journal_entries"]["rows"][0]["title"]="WRONG_EXPECTATION"
++    check("自测：错误预期会被比较捕获", table_differences(wrong, EXPECTED_A, CORE) == ["journal_entries"])
+     # R2 transaction fail
+-    before=do_restore("--ez qa_restore_fail_transaction true"); time.sleep(4)
++    beforeB=do_restore("--ez qa_restore_fail_transaction true")
++    deadline=time.time()+30
++    while time.time()<deadline and status().get("label")!="FAILED_BEFORE_COMMIT": time.sleep(.5)
+     db=dump_db(pull_db("/tmp/g4a2b-r2")); st=status()
+-    check("R2 事务回滚旧B数据", all(before[t]==db[t] for t in CORE))
++    check("R2 事务回滚全部10表旧B数据", tables_equal(beforeB, db, TABLES))
+     check("R2 旧Key仍存在", st.get("keyPresent") is True, str(st))
++    check("R2 旧consent仍存在", st.get("consentGranted") is True, str(st))
+     check("R2 Gate已清理", not gate_exists())
+     # R3 key delete fail -> gate held
+-    a=do_restore("--ez qa_restore_fail_key_delete true"); time.sleep(8)
++    do_restore("--ez qa_restore_fail_key_delete true")
++    deadline=time.time()+30
++    while time.time()<deadline and status().get("label")!="COMMITTED_NEEDS_CONVERGENCE": time.sleep(.5)
+     db=dump_db(pull_db("/tmp/g4a2b-r3")); st=status()
+-    check("R3 DB已提交A", all(a[t]==db[t] for t in CORE))
++    check("R3 DB已提交A", tables_equal(EXPECTED_A, db, CORE))
++    check("历史weekly AI未恢复", len(db["weekly_ai_reviews"]["rows"]) == 0)
+     check("R3 Gate保持", gate_exists())
+     check("R3 Key删除失败保持", st.get("keyPresent") is True, str(st))
+     check("R3 consent已撤销", st.get("consentGranted") is False)
+@@ -96,36 +274,44 @@ def main():
+     st=qa_after(); check("R3 重启后收敛Key", st.get("keyPresent") is False, str(st))
+     check("R3 重启后Gate释放", not gate_exists())
+     # R4 crash after commit before journal
+-    a=do_restore("--ez qa_restore_pause_after_commit_ms 30000"); time.sleep(8)
++    do_restore("--ez qa_restore_pause_after_commit_ms 30000")
++    check("R4 到达DB_COMMITTED", wait_phase("DB_COMMITTED"))
+     adb(f"shell am force-stop {PKG}"); time.sleep(1)
+-    start(); time.sleep(10)
+-    db=after_restart(); st=qa_after()
+-    check("R4 重启后A数据", all(a[t]==db[t] for t in CORE))
++    start(); check("R4 启动收敛", wait_ready())
++    db=dump_db(pull_db("/tmp/g4a2b-r4")); st=qa_after()
++    check("R4 重启后A数据", tables_equal(EXPECTED_A, db, CORE))
++    check("历史weekly AI未恢复", len(db["weekly_ai_reviews"]["rows"]) == 0)
+     check("R4 重启后Key删除", st.get("keyPresent") is False, str(st))
+     check("R4 重启后Gate释放", not gate_exists())
+     # R5 crash during security reset
+-    a=do_restore("--ez qa_restore_pause_after_consent_ms 30000"); time.sleep(8)
++    do_restore("--ez qa_restore_pause_after_consent_ms 30000")
++    check("R5 到达CONSENT_DONE", wait_phase("CONSENT_DONE"))
+     adb(f"shell am force-stop {PKG}"); time.sleep(1)
+-    start(); time.sleep(10)
+-    db=after_restart(); st=qa_after()
+-    check("R5 重启后A数据", all(a[t]==db[t] for t in CORE))
++    start(); check("R5 启动收敛", wait_ready())
++    db=dump_db(pull_db("/tmp/g4a2b-r5")); st=qa_after()
++    check("R5 重启后A数据", tables_equal(EXPECTED_A, db, CORE))
++    check("历史weekly AI未恢复", len(db["weekly_ai_reviews"]["rows"]) == 0)
+     check("R5 重启后Key删除", st.get("keyPresent") is False, str(st))
+     check("R5 重启后Gate释放", not gate_exists())
+     # R6 journal missing after commit
+-    a=do_restore("--ez qa_restore_pause_after_commit_ms 30000"); time.sleep(8)
++    do_restore("--ez qa_restore_pause_after_commit_ms 30000")
++    check("R6 到达DB_COMMITTED", wait_phase("DB_COMMITTED"))
+     adb(f"shell am force-stop {PKG}"); time.sleep(1)
+     adb(f"shell run-as {PKG} rm -f no_backup/restore/journal.json")
+-    start(); time.sleep(12)
+-    db=after_restart(); st=qa_after()
+-    check("R6 journal缺失仍收敛A", all(a[t]==db[t] for t in CORE))
++    start(); check("R6 启动收敛", wait_ready())
++    db=dump_db(pull_db("/tmp/g4a2b-r6")); st=qa_after()
++    check("R6 journal缺失仍收敛A", tables_equal(EXPECTED_A, db, CORE))
++    check("历史weekly AI未恢复", len(db["weekly_ai_reviews"]["rows"]) == 0)
+     check("R6 Gate释放", not gate_exists())
+     # R7 gate missing after commit (journal present)
+-    a=do_restore("--ez qa_restore_pause_after_commit_ms 30000"); time.sleep(8)
++    do_restore("--ez qa_restore_pause_after_commit_ms 30000")
++    check("R7 到达DB_COMMITTED", wait_phase("DB_COMMITTED"))
+     adb(f"shell am force-stop {PKG}"); time.sleep(1)
+     adb(f"shell run-as {PKG} rm -f no_backup/restore/gate.json")
+-    start(); time.sleep(12)
+-    db=after_restart(); st=qa_after()
+-    check("R7 gate缺失仍收敛A", all(a[t]==db[t] for t in CORE))
++    start(); check("R7 启动收敛", wait_ready())
++    db=dump_db(pull_db("/tmp/g4a2b-r7")); st=qa_after()
++    check("R7 gate缺失仍收敛A", tables_equal(EXPECTED_A, db, CORE))
++    check("历史weekly AI未恢复", len(db["weekly_ai_reviews"]["rows"]) == 0)
+     check("R7 Gate释放", not gate_exists())
+     # cleanup app data, preserve sample for other scripts
+     adb(f"shell rm -f {REMOTE}")
+diff --git a/tools/ui-verify/verify_restore_fresh_db.py b/tools/ui-verify/verify_restore_fresh_db.py
+new file mode 100644
+index 0000000..1923f37
+--- /dev/null
++++ b/tools/ui-verify/verify_restore_fresh_db.py
+@@ -0,0 +1,31 @@
++"""G4A-2B QA：fresh v12数据库创建app_meta并从UNKNOWN收敛READY。"""
++import os, sqlite3, subprocess, sys, tempfile, time
++sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
++from harness import *
++
++require_qa("verify_restore_fresh_db.py")
++scenario = os.environ.get("MENGYA_RESTORE_FRESH_SCENARIO", "").strip().upper()
++if scenario and scenario != "FRESH_V12":
++    raise SystemExit(f"未知fresh DB scenario: {scenario}")
++
++clear_qa_data()
++check("冷启动应用", restart_app())
++check("fresh数据库完成初始化后离开维护态", wait_tag("tab_overview", 20))
++check("设置页可用", tap_tag("btn_settings") and wait_tag("settings_back", 10))
++root = tempfile.mkdtemp(prefix="g4a2b-fresh-")
++local = os.path.join(root, "mengya-life-qa.db")
++for name in ("mengya-life-qa.db", "mengya-life-qa.db-wal", "mengya-life-qa.db-shm"):
++    result = subprocess.run(
++        f"adb -s {DEV} exec-out run-as {PKG} cat databases/{name}",
++        shell=True, capture_output=True,
++    )
++    if result.stdout:
++        open(os.path.join(root, name), "wb").write(result.stdout)
++con = sqlite3.connect(local)
++check("fresh库v12", con.execute("PRAGMA user_version").fetchone()[0] == 12)
++meta = con.execute("SELECT restore_attempt_id, restore_generation, restore_converged_at FROM app_meta WHERE id=1").fetchone()
++check("fresh app_meta初始化", meta == (None, 0, None), repr(meta))
++check("fresh Gate不存在", not adb(f"shell run-as {PKG} ls no_backup/restore/gate.json 2>/dev/null").strip())
++con.close()
++restore_chrome()
++sys.exit(0 if summary() else 1)
+diff --git a/tools/ui-verify/verify_weekly_ai.py b/tools/ui-verify/verify_weekly_ai.py
+index e9a5775..5ee51a4 100644
+--- a/tools/ui-verify/verify_weekly_ai.py
++++ b/tools/ui-verify/verify_weekly_ai.py
+@@ -16,6 +16,14 @@ from harness import *
+
+ require_qa("verify_weekly_ai.py")
+
++WEEKLY_SCENARIOS = {"READY", "FAILED_401", "TIMEOUT", "INTERRUPT", "STALE", "CATEGORIES", "WITHDRAW", "AUTO_DISABLED"}
++WEEKLY_CASE = os.environ.get("MENGYA_WEEKLY_SCENARIO", "").strip().upper()
++if WEEKLY_CASE and WEEKLY_CASE not in WEEKLY_SCENARIOS:
++    raise SystemExit(f"未知weekly scenario {WEEKLY_CASE}; allowed={sorted(WEEKLY_SCENARIOS)}")
++
++def should_run_scenario(name):
++    return not WEEKLY_CASE or WEEKLY_CASE == name
++
+ PKG_QA = QA_PKG
+ DB = "mengya-life-qa.db"
+ KEY = "sk-qa-weekly-fake-0001"
+@@ -355,192 +363,203 @@ scroll_to_tag("weekly_review_generate", 6)
+ tap_tag("weekly_review_generate")
+ check("本地回顾已生成", wait_text("周期", 12) or has_text("本周变化"))
+
+-# ================= 1. 成功 =================
+-print("========== 1. AI 成功（READY） ==========")
+-check("AI 入口可见", scroll_to_tag("weekly_generate_ai", 8))
+-check("点击 AI 增强", tap_generate_ai())
+-check("状态 READY", wait_status("READY", 30))
+-check("显示 QA 假引擎摘要", has_text("QA 离线测试引擎"))
+-rows = ai_rows()
+-check("恰好 1 条 AI 结果", len(rows) == 1, str(rows))
+-row = rows[0] if rows else ("", "", "", "", "", "", "[]", "[]")
+-check("DB 状态 READY", row[1] == "READY", row[1])
+-check("模型记录为 qa-fake", row[4] == "qa-fake", str(row[4]))
+-check("授权类别非空", bool(row[5]) and "GOALS" in row[5], row[5])
+-raw_fact_ids = (row[6] or "").strip()
+-if raw_fact_ids.startswith("["):
+-    fact_ids = json.loads(raw_fact_ids)
+-else:
+-    fact_ids = [x for x in raw_fact_ids.split(",") if x]
+-check("factIds 非空", len(fact_ids) > 0, str(fact_ids))
+-highlights = json.loads(row[7] or "[]")
+-sources = [s for h in highlights for s in (h.get("sources") or [])]
+-check("来源由客户端 factIds 构造", len(sources) > 0, str(highlights)[:200])
+-check("来源类型合法", all(s.get("type") in ("GOAL", "CHECKIN", "MEMORY") for s in sources), str(sources)[:200])
+-
+-prefs = subprocess.run(
+-    f"adb -s {DEV} exec-out run-as {PKG} cat files/datastore/mengya_ai_qa.preferences_pb",
+-    shell=True, capture_output=True,
+-).stdout
+-check("DataStore 不含明文 Key", KEY.encode() not in prefs)
+-pid = adb(f"shell pidof {PKG}").strip()
+-logs = adb(f"logcat -d --pid={pid}") if pid else ""
+-check("进程日志不含 Key", KEY not in logs)
+-
+-if os.environ.get("MENGYA_WEEKLY_SMOKE") == "1":
+-    print("\n[SMOKE] L1 只跑成功路径；完整状态机在 L2/Gate 执行。")
+-    sys.exit(0 if summary() else 1)
+-
+-# ================= 2. 失败 =================
+-print("========== 2. AI 失败（401） ==========")
+-check("重置 AI 结果", clear_ai_rows())
+-check("切换失败模型", set_ai_model("qa-fake-401"))
+-restart_app()
+-check("重新打开周回顾", open_weekly())
+-check("AI 入口可见", scroll_to_tag("weekly_generate_ai", 8))
+-check("点击 AI", tap_generate_ai())
+-check("状态 FAILED", wait_status("FAILED", 30))
+-check("显示授权失败文案", has_text("API Key 无效或已过期"))
+-rows = ai_rows()
+-check("DB 记录 FAILED", len(rows) == 1 and rows[0][1] == "FAILED", str(rows))
+-check("失败时 summary 为空", bool(rows) and rows[0][2] == "", str(rows)[:160])
+-check("失败保留错误信息", bool(rows) and bool(rows[0][3]), str(rows)[:160])
+-check("本地回顾仍可见", has_text("本周变化") or has_text("周期"))
+-
+-# ================= 3. 超时 =================
+-print("========== 3. AI 超时 ==========")
+-check("重置 AI 结果", clear_ai_rows())
+-check("切换超时模型", set_ai_model("qa-fake-timeout"))
+-restart_app()
+-check("重新打开周回顾", open_weekly())
+-check("AI 入口可见", scroll_to_tag("weekly_generate_ai", 8))
+-check("点击 AI", tap_generate_ai())
+-check("状态 FAILED（超时）", wait_status("FAILED", 40))
+-check("显示超时文案", has_text("请求超时"))
+-rows = ai_rows()
+-check("DB 记录超时错误", len(rows) == 1 and rows[0][1] == "FAILED" and "超时" in (rows[0][3] or ""), str(rows)[:160])
+-
+-# ================= 4. 中断 / generating 恢复 =================
+-print("========== 4. 请求中断后的 generating 恢复 ==========")
+-check("重置 AI 结果", clear_ai_rows())
+-check("切换慢速模型", set_ai_model("qa-fake-slow"))
+-restart_app()
+-check("重新打开周回顾", open_weekly())
+-check("AI 入口可见", scroll_to_tag("weekly_generate_ai", 8))
+-check("点击慢速 AI", tap_generate_ai())
+-time.sleep(3.5)
+-adb(f"shell am force-stop {PKG}")
+-time.sleep(1.0)
+-restart_app()
+-check("中断后可重新进入周回顾", open_weekly())
+-check("没有残留 generating 文案", not has_text("本地整理中…"))
+-check("未显示可重复请求的 AI 按钮", not has_tag("weekly_generate_ai"))
+-check("显示额度已预留/处理中", has_text("AI 已预留本周额度") or has_text("处理中"))
+-rows = ai_rows()
+-check("中断只占 1 次额度", len(rows) == 1, str(rows))
+-check("中断后状态为 SENT/FAILED（不伪造 READY）", bool(rows) and rows[0][1] in ("SENT", "FAILED"), str(rows[:1]))
+-check("中断不删除本地回顾", has_text("周期") or has_text("本周变化"))
+-
+-# ================= 5. READY -> STALE（数据变化） =================
+-print("========== 5. READY -> STALE（数据变化） ==========")
+-check("重置 AI 结果", clear_ai_rows())
+-check("切回成功模型", set_ai_model("qa-fake"))
+-restart_app()
+-check("重新打开周回顾", open_weekly())
+-check("AI 入口可见", scroll_to_tag("weekly_generate_ai", 8))
+-check("再次生成 READY", tap_generate_ai() and wait_status("READY", 30))
+-check("数据变化（新增日记）", create_diary("WeeklyStaleDiary", "stale%strigger"))
+-restart_app()
+-check("重新打开周回顾", open_weekly())
+-check("状态变为 STALE", wait_status("STALE", 20))
+-check("显示缓存失效原因", has_text("本周数据/授权/模型已变化"))
+-rows = ai_rows()
+-check("STALE 不删除原 READY 行", len(rows) == 1 and rows[0][1] == "READY", str(rows[:1]))
+-
+-# ================= 6. 修改类别 =================
+-print("========== 6. 修改类别后失效 ==========")
+-check("重置 AI 结果", clear_ai_rows())
+-restart_app()
+-check("重新打开周回顾", open_weekly())
+-check("AI 入口可见", scroll_to_tag("weekly_generate_ai", 8))
+-check("生成 READY", tap_generate_ai() and wait_status("READY", 30))
+-check("进入设置", open_settings())
+-scroll_top()
+-for _ in range(24):
+-    if has_tag("ai_category_JOURNAL"):
+-        break
+-    adb("shell input swipe 600 1900 600 700 240")
+-    time.sleep(0.6)
+-check("找到 JOURNAL 类别开关", has_tag("ai_category_JOURNAL"))
+-check("关闭 JOURNAL 类别", tap_safe("ai_category_JOURNAL"))
+-time.sleep(1.2)
+-check("类别已关闭", not checked("ai_category_JOURNAL"))
+-restart_app()
+-check("重新打开周回顾", open_weekly())
+-check("改类别后 STALE", wait_status("STALE", 20))
+-
+-# ================= 7. 撤回授权 =================
+-print("========== 7. 撤回授权后不再发送 ==========")
+-check("重置 AI 结果", clear_ai_rows())
+-check("进入设置", open_settings())
+-scroll_top()
+-for _ in range(24):
+-    if has_tag("ai_withdraw"):
+-        break
+-    adb("shell input swipe 600 1900 600 700 240")
+-    time.sleep(0.6)
+-check("找到撤回入口", has_tag("ai_withdraw"))
+-check("点击撤回", tap_safe("ai_withdraw"))
+-check("撤回确认框", wait_tag("ai_withdraw_dialog", 8))
+-check("确认撤回", tap_tag("ai_withdraw_confirm"))
+-check("授权状态变为未授权", wait_text("未授权", 10) or has_tag("ai_consent_status_none"))
+-restart_app()
+-check("撤回后可打开周回顾", open_weekly())
+-check("本地回顾仍可用", has_text("周期") or has_text("本周变化"))
+-check("AI 入口存在但不会发送", has_tag("weekly_generate_ai"))
+-check("点击 AI（应被拒绝）", tap_generate_ai())
+-time.sleep(3.0)
+-check("撤回后 DB 无 AI 行", len(ai_rows()) == 0, str(ai_rows()[:1]))
+-
+-# ================= 8. 自动开关 =================
+-print("========== 8. 自动开关关闭后停止后台发送 ==========")
+-check("重新授权", grant_consent())
+-if not open_settings():
+-    check("进入设置", False)
+-scroll_top()
+-for _ in range(24):
+-    if has_tag("settings_weekly_ai_toggle"):
+-        break
+-    adb("shell input swipe 600 1900 600 700 240")
+-    time.sleep(0.6)
+-if not checked("settings_weekly_ai_toggle"):
+-    tap_tag("settings_weekly_ai_toggle")
++if should_run_scenario("READY"):
++    # ================= 1. 成功 =================
++    print("========== 1. AI 成功（READY） ==========")
++    check("AI 入口可见", scroll_to_tag("weekly_generate_ai", 8))
++    check("点击 AI 增强", tap_generate_ai())
++    check("状态 READY", wait_status("READY", 30))
++    check("显示 QA 假引擎摘要", has_text("QA 离线测试引擎"))
++    rows = ai_rows()
++    check("恰好 1 条 AI 结果", len(rows) == 1, str(rows))
++    row = rows[0] if rows else ("", "", "", "", "", "", "[]", "[]")
++    check("DB 状态 READY", row[1] == "READY", row[1])
++    check("模型记录为 qa-fake", row[4] == "qa-fake", str(row[4]))
++    check("授权类别非空", bool(row[5]) and "GOALS" in row[5], row[5])
++    raw_fact_ids = (row[6] or "").strip()
++    if raw_fact_ids.startswith("["):
++        fact_ids = json.loads(raw_fact_ids)
++    else:
++        fact_ids = [x for x in raw_fact_ids.split(",") if x]
++    check("factIds 非空", len(fact_ids) > 0, str(fact_ids))
++    highlights = json.loads(row[7] or "[]")
++    sources = [s for h in highlights for s in (h.get("sources") or [])]
++    check("来源由客户端 factIds 构造", len(sources) > 0, str(highlights)[:200])
++    check("来源类型合法", all(s.get("type") in ("GOAL", "CHECKIN", "MEMORY") for s in sources), str(sources)[:200])
++
++    prefs = subprocess.run(
++        f"adb -s {DEV} exec-out run-as {PKG} cat files/datastore/mengya_ai_qa.preferences_pb",
++        shell=True, capture_output=True,
++    ).stdout
++    check("DataStore 不含明文 Key", KEY.encode() not in prefs)
++    pid = adb(f"shell pidof {PKG}").strip()
++    logs = adb(f"logcat -d --pid={pid}") if pid else ""
++    check("进程日志不含 Key", KEY not in logs)
++
++    if os.environ.get("MENGYA_WEEKLY_SMOKE") == "1" and not WEEKLY_CASE:
++        print("\n[SMOKE] L1/L2 只跑 READY 成功路径；完整95条状态机在 Gate/Release 执行。")
++        restore_chrome()
++        sys.exit(0 if summary() else 1)
++
++if should_run_scenario("FAILED_401"):
++    # ================= 2. 失败 =================
++    print("========== 2. AI 失败（401） ==========")
++    check("重置 AI 结果", clear_ai_rows())
++    check("切换失败模型", set_ai_model("qa-fake-401"))
++    restart_app()
++    check("重新打开周回顾", open_weekly())
++    check("AI 入口可见", scroll_to_tag("weekly_generate_ai", 8))
++    check("点击 AI", tap_generate_ai())
++    check("状态 FAILED", wait_status("FAILED", 30))
++    check("显示授权失败文案", has_text("API Key 无效或已过期"))
++    rows = ai_rows()
++    check("DB 记录 FAILED", len(rows) == 1 and rows[0][1] == "FAILED", str(rows))
++    check("失败时 summary 为空", bool(rows) and rows[0][2] == "", str(rows)[:160])
++    check("失败保留错误信息", bool(rows) and bool(rows[0][3]), str(rows)[:160])
++    check("本地回顾仍可见", has_text("本周变化") or has_text("周期"))
++
++if should_run_scenario("TIMEOUT"):
++    # ================= 3. 超时 =================
++    print("========== 3. AI 超时 ==========")
++    check("重置 AI 结果", clear_ai_rows())
++    check("切换超时模型", set_ai_model("qa-fake-timeout"))
++    restart_app()
++    check("重新打开周回顾", open_weekly())
++    check("AI 入口可见", scroll_to_tag("weekly_generate_ai", 8))
++    check("点击 AI", tap_generate_ai())
++    check("状态 FAILED（超时）", wait_status("FAILED", 40))
++    check("显示超时文案", has_text("请求超时"))
++    rows = ai_rows()
++    check("DB 记录超时错误", len(rows) == 1 and rows[0][1] == "FAILED" and "超时" in (rows[0][3] or ""), str(rows)[:160])
++
++if should_run_scenario("INTERRUPT"):
++    # ================= 4. 中断 / generating 恢复 =================
++    print("========== 4. 请求中断后的 generating 恢复 ==========")
++    check("重置 AI 结果", clear_ai_rows())
++    check("切换慢速模型", set_ai_model("qa-fake-slow"))
++    restart_app()
++    check("重新打开周回顾", open_weekly())
++    check("AI 入口可见", scroll_to_tag("weekly_generate_ai", 8))
++    check("点击慢速 AI", tap_generate_ai())
++    time.sleep(3.5)
++    adb(f"shell am force-stop {PKG}")
++    time.sleep(1.0)
++    restart_app()
++    check("中断后可重新进入周回顾", open_weekly())
++    check("没有残留 generating 文案", not has_text("本地整理中…"))
++    check("未显示可重复请求的 AI 按钮", not has_tag("weekly_generate_ai"))
++    check("显示额度已预留/处理中", has_text("AI 已预留本周额度") or has_text("处理中"))
++    rows = ai_rows()
++    check("中断只占 1 次额度", len(rows) == 1, str(rows))
++    check("中断后状态为 SENT/FAILED（不伪造 READY）", bool(rows) and rows[0][1] in ("SENT", "FAILED"), str(rows[:1]))
++    check("中断不删除本地回顾", has_text("周期") or has_text("本周变化"))
++
++if should_run_scenario("STALE"):
++    # ================= 5. READY -> STALE（数据变化） =================
++    print("========== 5. READY -> STALE（数据变化） ==========")
++    check("重置 AI 结果", clear_ai_rows())
++    check("切回成功模型", set_ai_model("qa-fake"))
++    restart_app()
++    check("重新打开周回顾", open_weekly())
++    check("AI 入口可见", scroll_to_tag("weekly_generate_ai", 8))
++    check("再次生成 READY", tap_generate_ai() and wait_status("READY", 30))
++    check("数据变化（新增日记）", create_diary("WeeklyStaleDiary", "stale%strigger"))
++    restart_app()
++    check("重新打开周回顾", open_weekly())
++    check("状态变为 STALE", wait_status("STALE", 20))
++    check("显示缓存失效原因", has_text("本周数据/授权/模型已变化"))
++    rows = ai_rows()
++    check("STALE 不删除原 READY 行", len(rows) == 1 and rows[0][1] == "READY", str(rows[:1]))
++
++if should_run_scenario("CATEGORIES"):
++    # ================= 6. 修改类别 =================
++    print("========== 6. 修改类别后失效 ==========")
++    check("重置 AI 结果", clear_ai_rows())
++    restart_app()
++    check("重新打开周回顾", open_weekly())
++    check("AI 入口可见", scroll_to_tag("weekly_generate_ai", 8))
++    check("生成 READY", tap_generate_ai() and wait_status("READY", 30))
++    check("进入设置", open_settings())
++    scroll_top()
++    for _ in range(24):
++        if has_tag("ai_category_JOURNAL"):
++            break
++        adb("shell input swipe 600 1900 600 700 240")
++        time.sleep(0.6)
++    check("找到 JOURNAL 类别开关", has_tag("ai_category_JOURNAL"))
++    check("关闭 JOURNAL 类别", tap_safe("ai_category_JOURNAL"))
++    time.sleep(1.2)
++    check("类别已关闭", not checked("ai_category_JOURNAL"))
++    restart_app()
++    check("重新打开周回顾", open_weekly())
++    check("改类别后 STALE", wait_status("STALE", 20))
++
++if should_run_scenario("WITHDRAW"):
++    # ================= 7. 撤回授权 =================
++    print("========== 7. 撤回授权后不再发送 ==========")
++    check("重置 AI 结果", clear_ai_rows())
++    check("进入设置", open_settings())
++    scroll_top()
++    for _ in range(24):
++        if has_tag("ai_withdraw"):
++            break
++        adb("shell input swipe 600 1900 600 700 240")
++        time.sleep(0.6)
++    check("找到撤回入口", has_tag("ai_withdraw"))
++    check("点击撤回", tap_safe("ai_withdraw"))
++    check("撤回确认框", wait_tag("ai_withdraw_dialog", 8))
++    check("确认撤回", tap_tag("ai_withdraw_confirm"))
++    check("授权状态变为未授权", wait_text("未授权", 10) or has_tag("ai_consent_status_none"))
++    restart_app()
++    check("撤回后可打开周回顾", open_weekly())
++    check("本地回顾仍可用", has_text("周期") or has_text("本周变化"))
++    check("AI 入口存在但不会发送", has_tag("weekly_generate_ai"))
++    check("点击 AI（应被拒绝）", tap_generate_ai())
++    time.sleep(3.0)
++    check("撤回后 DB 无 AI 行", len(ai_rows()) == 0, str(ai_rows()[:1]))
++
++if should_run_scenario("AUTO_DISABLED"):
++    # ================= 8. 自动开关 =================
++    print("========== 8. 自动开关关闭后停止后台发送 ==========")
++    check("重新授权", grant_consent())
++    if not open_settings():
++        check("进入设置", False)
++    scroll_top()
++    for _ in range(24):
++        if has_tag("settings_weekly_ai_toggle"):
++            break
++        adb("shell input swipe 600 1900 600 700 240")
++        time.sleep(0.6)
++    if not checked("settings_weekly_ai_toggle"):
++        tap_tag("settings_weekly_ai_toggle")
++        time.sleep(1.0)
++    check("AI 自动开关已开", checked("settings_weekly_ai_toggle"))
++    check("重置 AI 结果", clear_ai_rows())
++    trigger_worker()
++    rows = wait_ai_rows(45)
++    check("自动路径确实会发送（正对照）", len(rows) == 1, str(rows[:1]))
++    check("自动结果 READY", bool(rows) and rows[0][1] == "READY", str(rows[:1]))
++
++    check("重置 AI 结果", clear_ai_rows())
++    if not open_settings():
++        check("进入设置", False)
++    scroll_top()
++    for _ in range(24):
++        if has_tag("settings_weekly_ai_toggle"):
++            break
++        adb("shell input swipe 600 1900 600 700 240")
++        time.sleep(0.6)
++    check("关闭 AI 自动开关", tap_safe("settings_weekly_ai_toggle"))
+     time.sleep(1.0)
+-check("AI 自动开关已开", checked("settings_weekly_ai_toggle"))
+-check("重置 AI 结果", clear_ai_rows())
+-trigger_worker()
+-rows = wait_ai_rows(45)
+-check("自动路径确实会发送（正对照）", len(rows) == 1, str(rows[:1]))
+-check("自动结果 READY", bool(rows) and rows[0][1] == "READY", str(rows[:1]))
+-
+-check("重置 AI 结果", clear_ai_rows())
+-if not open_settings():
+-    check("进入设置", False)
+-scroll_top()
+-for _ in range(24):
+-    if has_tag("settings_weekly_ai_toggle"):
+-        break
+-    adb("shell input swipe 600 1900 600 700 240")
+-    time.sleep(0.6)
+-check("关闭 AI 自动开关", tap_safe("settings_weekly_ai_toggle"))
+-time.sleep(1.0)
+-check("AI 自动开关已关", not checked("settings_weekly_ai_toggle"))
+-trigger_worker()
+-time.sleep(20)
+-rows = ai_rows()
+-check("自动关闭后不再发送（负对照）", len(rows) == 0, str(rows[:1]))
++    check("AI 自动开关已关", not checked("settings_weekly_ai_toggle"))
++    trigger_worker()
++    time.sleep(20)
++    rows = ai_rows()
++    check("自动关闭后不再发送（负对照）", len(rows) == 0, str(rows[:1]))
+
+ crash = adb("shell logcat -b crash -d")
+ check("无应用崩溃记录", "com.mengyalife.app" not in crash)
++if WEEKLY_CASE:
++    print(f"WEEKLY_SCENARIO={WEEKLY_CASE}")
+
+ sys.exit(0 if summary() else 1)

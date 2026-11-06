@@ -51,18 +51,22 @@
 | `--profile dev --module restore-validate --level integration` | **4.5s LOCAL PASS** | 6个JVM类，0真机；fullLevelSatisfied=false |
 | `--profile dev --module settings --level feature` | **3.8s LOCAL PASS** | 没有JVM类时实际执行 app Kotlin 编译；0真机 |
 | `--profile dev --changed`（本轮测试体系/文档改动） | **3.1s LOCAL PASS** | 静态脚本检查；跳过无关app编译/JVM/真机 |
-| restore `--case R7 --dry-run` | **1个脚本，3个延期** | 只调度R7故障脚本，不重跑E2E/迁移/fresh DB |
-| restore `--case R7` on port 34707 | **16/16 PASS，90.9s** | runner总125.6s；`fullLevelSatisfied=false`，仅case PASS |
+| restore R2–R7 (`--case`逐case，port 34707) | **逐项PASS** | 最终QA SHA c2fc；R2 12/12、R3 19/19、R4–R7各15/15；不回放其它case |
+| v10/v11→v12 migration | **26/26 PASS** | 最终QA SHA c2fc，真实Room迁移保持数据 |
+| g3b1 consent | **47/47 PASS** | 最终QA SHA c2fc、fake engine only |
+| restore SETTINGS_FAIL (`--case`) | **20/20 PASS** | Gate保留、失败不报成功，重启后收敛 |
+| Fresh v12 | **6/6 PASS** | QA SHA c2fc，独立清库后验证app_meta/Gate |
+| Weekly AI L2 READY | **22/22 PASS** | QA SHA c2fc，仅QA fake engine |
+| DB不可读启动 | **12/12 PASS** | QA SHA c2fc，维护页/无业务入口/业务表未改变 |
 | backup `--case WRITE --dry-run` | **1个脚本，2个延期** | 只调度写失败case，不重跑全字段备份/迁移 |
-| weekly `--case FAILED_401 --dry-run` | **1个脚本，2个延期** | 只重跑401状态，不重放migration/g3b1/READY前序 |
-| `--all --level fast` | **最终静态+299 JVM PASS，6.0s** | no-device；包含R2-R7/备份scenario过滤策略自检 |
+| `--all --level fast` | **最终静态+303 JVM PASS，7.7s** | no-device；含未知路径扩选、case/Gate限制、Barrier映射自检 |
 | 标准L2 dry-run advisor + ai-consent + settings | **7→5 唯一脚本** | 网络401移Gate，已覆盖UI模块跳过导航；g3b1/settings共享声明折叠 |
 | weekly-ai integration dry-run | **smoke 22条，估时881s总链路** | 包含迁移/授权/settings；95条全矩阵仅Gate/Release，静态策略自测确认模式 |
 | 备份模块 dry-run | **4→2个设备脚本** | 移除重复基础导出+通用导航，保留full字段校验+失败矩阵；历史估计省约233s |
 
 旧 broad integration 实测 **2043.5s（34.1分钟）**。G4A-2B focused L2 按迁移34s + E2E估算393s + R2-R7历史518s + fresh DB 14.5s，脚本约960s；加QA前置/JVM后预计约16–17分钟（约少一半），这是估算，未声称最终设备PASS。
 
-复验报告和dry-run计划已整理在 `docs/reports/workflow-optimization/`。port 34225 combined L2 的preflight 11/11、migration 26/26、g3b1 47/47、E2E 39/39和R2-R6通过；bulk中的R7 setup断言失败，用户暂停后fresh DB/weekly smoke未到达、总report未生成。之后port34707单独复跑R7为16/16 PASS（90.9s）。原combined L2仍INCOMPLETE，不冒充完整PASS；原始日志见 `runs/20261106-111828-partial-l2/` 与 `runs/20261106-151302/`。
+复验报告和dry-run计划已整理在 `docs/reports/workflow-optimization/`。port34225 combined L2因R7 bulk setup失败而被用户暂停、没有aggregate report。其后在最终QA SHA c2fc上分别完成E2E、迁移、g3b1、R2-R7、SETTINGS_FAIL、Fresh v12、Weekly READY和DB不可读探针，允许按相同APK聚合。整体仍NOT PASS：Coordinator内部Gate.clear专用注入与WorkManager attempt状态未直接观测；原始partial logs和当前case日志均保留。
 
 ## 推荐节奏
 

@@ -1,7 +1,7 @@
 # G4A-2B P0 修复与验收收口报告
 
 > Base HEAD：`3fb6781b955163994d891b98ff5f1d12c30692fc`；P0实现提交：`472524652aae1bf9e1d68f9a36bc45e9030f7ed3`；现场复测修复提交：`63e49ad`。
-> 最终状态：两项P0已修复；34225 combined L2被用户暂停，随后R7单case 16/16 PASS；fresh DB/weekly smoke和完整combined报告仍未完成，Gate **NOT PASS**。
+> 最终状态：旧34225 combined L2被用户暂停；经独立case补测，当前QA SHA `c2fcdfc0…`上的E2E、R2-R7、Fresh、Weekly、DB不可读、migration与g3b1均有PASS证据。由于Coordinator Gate.clear专门故障注入及WorkManager attempt状态未直接观测，最终仍为 **NOT PASS**，不宣布关闭。
 
 ## 1. P0 修复
 
@@ -36,47 +36,44 @@
 
 设置脚本从全页多轮dump改为 tag定位/单次滚动，单独实测 **38/38 PASS，112s**（旧失败运行452.1s）。
 
-Port 34225 combined L2（restore-validate + weekly-ai）运行约23分钟后用户要求暂停：preflight、迁移、g3b1、E2E及R2-R6通过，R7 bulk setup断言失败，fresh DB/weekly smoke未到达。用户随后给出port 34707，R7单case复跑16/16 PASS（90.9s）。Combined L2无最终总报告且fresh/weekly未跑，整体仍**INCOMPLETE**。
+Port 34225 combined L2（restore-validate + weekly-ai）运行约23分钟后用户要求暂停：preflight、迁移、g3b1、E2E及R2-R6通过，R7 bulk setup断言失败，且当时无combined report。用户随后给出port 34707；startup Gate修复构建后在同一QA SHA c2fc上独立完成E2E、R2-R7、fresh v12、weekly READY、DB不可读及g3b1。各用例可按SHA归并，不要求重跑迁移以生成combined report。
 
 ## 3. 最终可执行证据
 
 | 项 | 结果 |
 |---|---|
-| 全量 JVM + 静态 | 历史 **299/299 PASS**（final两项修复前）；最终源码 restore-validate L0 **6类/24 tests PASS，19.4s** |
-| SnapshotSpace/Barrier单测 | PASS（包含“目录尚未创建时查父目录”“exclusive内部写允许”） |
-| QA/debug APK构建 | PASS；QA `2951bdf6...`，Debug `439565fa...` |
-| Port 34225 QA前置 | **11/11 PASS** |
-| v10/v11→v12迁移 | **26/26 PASS** |
-| g3b1授权/隐私 | **47/47 PASS** |
-| 最终代码 A→B→A E2E | **39/39 PASS，379.77s** |
-| R2-R6故障/崩溃矩阵 | **逐项PASS**；包含R3收敛和R4-R6重启路径 |
-| R7 Gate缺失 | **PASS 16/16（单case，90.9s）**；bulk run首次setup断言失败，单case复跑通过 |
-| Fresh DB / weekly L2 smoke | **NOT RUN**：用户暂停在R7 setup之后 |
-| Combined L2整体 | **INCOMPLETE / NOT PASS**：约23分钟后SIGTERM，无最终report.json |
+| 全量L0 | **303/303 PASS**；静态/映射校验0 issues，run 20261106-174143 |
+| QA/Debug APK | 当前SHA：QA `c2fcdfc0…`；Debug `a77858ad…`；统一表 `docs/reports/G4A2B-final-acceptance/SHA256SUMS` |
+| QA前置 | 当前QA SHA c2fc：**11/11 PASS**（run 20261106-164126）；另有前台切换导致的一次UI preflight超时，目标用例未开始 |
+| v10/v11→v12迁移 | 当前QA SHA c2fc：**26/26 PASS** |
+| g3b1授权/隐私 | 当前QA SHA c2fc：**47/47 PASS** |
+| A→B→A E2E | 当前QA SHA c2fc：**39/39 PASS，198.30s** |
+| R2–R7故障/崩溃 | 当前QA SHA c2fc：R2 12/12、R3 19/19、R4/R5/R6各15/15、R7 15/15 PASS |
+| Fresh v12 / Weekly READY smoke | 当前QA SHA c2fc：Fresh 6/6、Weekly 22/22 PASS |
+| DB不可读startup | 当前QA SHA c2fc：维护页/无业务与AI入口/业务行不变，12/12 PASS |
+| 设置收敛失败 | 当前QA SHA c2fc：20/20 PASS；Gate保持，重启后收敛 |
+| Combined L2整体 | 未生成combined report；按用户许可汇总独立case，但Gate.clear专用注入及WorkManager attempt记录仍不足，整体 **NOT PASS** |
 
 ## 4. 剩余P0与风险
 
-**严格验收尚未关闭**：最终源码的E2E、迁移、R2-R7已独立PASS；但combined L2被用户暂停，fresh DB/weekly smoke和完整runner summary未完成。后续不重跑整个matrix，只跑未完成项；`--case`可避免重复已通过场景。
+**严格验收尚未关闭（NOT PASS）**：当前QA SHA c2fc的Fresh、Weekly READY、DB不可读、E2E、R2-R7、g3b1及迁移均有独立PASS；用户允许按同一版本聚合，不要求combined runner报告。但以下两项没有直接运行证据：Coordinator内部`gate.clear()`故障注入后仍维护态；WorkManager WorkSpec attempt/retry状态（业务DB无副作用及Worker Barrier单测通过）。此外，`MengyaApplication`在reconcile后仍无条件sync调度器，可能更新WorkManager内部状态；Worker外层Barrier能阻断业务写/AI/通知。
 
-其他待补：
+其他未覆盖风险：
 
-- DB读取异常/设置写失败/Worker中Gate/UNKNOWN写阻断的专项设备注入；代码有 fail-closed，最终设备未测。
-- 保护快照可重读的最终 build 设备复验。
-- 大数据量性能与七组全量回归（本轮不跑）。
+- 最终build的保护快照可重读专项设备复验。
+- 大数据量性能与七组全量回归（本轮明确不跑）。
 
 ## 5. APK
 
 | 包 | SHA256 |
 |---|---|
-| QA | `2951bdf6d48b101e372082464627b6425b3447a092dc156375d82d04a68e852b` |
-| Debug | `439565fad056ae5f0fc6e8550fb3810ee75fc4ced0df212aea30fc502982ebfd` |
+| QA | `c2fcdfc0d50b251c286291f483d52eade2845491cee446b2c925660906feaab1` |
+| Debug | `a77858ad0a84133df9dc2ffeca7cbdc5fd9e015b1dd3fa7a3ca642dad2d829f3` |
 
 ## 6. 后续最小验证命令
 
-本轮按用户要求已暂停，不再执行设备操作。恢复验收时不要整套重跑：先分析/修复 R7 setup 等待条件，增加可单独运行的 R7 case；然后只跑 R7、fresh DB、weekly smoke。已通过的 E2E、迁移、R2-R6可引用本次部分日志，不要重复跑。
-
-本次原始记录：`docs/reports/workflow-optimization/runs/20261106-111828-partial-l2/`。
+34225 combined L2的原始记录仍保存在`docs/reports/workflow-optimization/runs/20261106-111828-partial-l2/`。随后按独立case补测Fresh/Weekly/DB不可读/E2E/R2-R7/g3b1/迁移；逐条日志见`docs/reports/G4A2B-final-acceptance/logs/`。未为生成combined report而重跑整套历史matrix。
 
 ## 7. 结论
 
-已修复 snapshot空间预检路径与exclusive收敛写阻断，并由真实E2E及R2-R6验证通过。R7 setup失败、fresh DB/weekly未跑且用户暂停设备；**最终Gate仍 NOT PASS**。QA包可能保留部分假数据；生产包及生产数据未触碰。
+P0恢复修复和当前APK核心矩阵均通过；当前不宣布关闭，因Gate-clear coordinator直接故障注入及WorkManager attempt状态尚未直接观测，且startup维护期调度器仍会更新WorkManager内部状态。最终判定 **NOT PASS**。最终 QA 包清理已通过，生产包与生产数据未触碰。

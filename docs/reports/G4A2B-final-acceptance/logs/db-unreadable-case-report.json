@@ -1,0 +1,527 @@
+{
+  "schemaVersion": 1,
+  "runId": "20261106-164126",
+  "gate": "3F",
+  "startedAt": "2026-11-06T16:41:26+0800",
+  "finishedAt": "2026-11-06T16:42:37+0800",
+  "durationSec": 71.5,
+  "level": "integration",
+  "levelTitle": "L2 Integration",
+  "profile": "standard",
+  "caseFilter": "DB_UNREADABLE",
+  "mode": "module",
+  "git": {
+    "base": "46b6963246f8e8254c3168b35da2c374e7b8d971",
+    "baseReason": "上一次 verify 运行记录",
+    "commit": "75c4d9550406929c24e111eb411da695b96fafa4",
+    "branch": "master",
+    "dirty": true,
+    "files": [
+      {
+        "path": "app/src/main/java/com/mengyalife/app/MengyaLifeApp.kt",
+        "status": "M",
+        "source": "committed"
+      },
+      {
+        "path": "docs/reports/G4A2B-acceptance/failures/failure-01/diagnostics.json",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "docs/reports/G4A2B-acceptance/failures/failure-01/ui.xml",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "docs/reports/G4A2B-acceptance/failures/failure-SETTINGS_FAIL-result.json",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G4A2B-final-acceptance/source/restore-write-barrier.patch",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G4A2B-final-acceptance/source/test-selection-and-scenario.patch",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "tests/test-map.json",
+        "status": "M",
+        "source": "committed"
+      },
+      {
+        "path": "tests/verify/validate.py",
+        "status": "M",
+        "source": "committed"
+      },
+      {
+        "path": "tools/ui-verify/verify_restore_db_unreadable.py",
+        "status": "M",
+        "source": "committed"
+      }
+    ]
+  },
+  "device": {
+    "serial": "127.0.0.1:34707",
+    "model": "2509FPN0BC",
+    "android": "17",
+    "sdk": "37",
+    "fetchedAt": "2026-11-06T16:41:27+0800"
+  },
+  "apk": {
+    "qa": {
+      "path": "/root/workspace/mengya-life/app/build/outputs/apk/qa/app-qa.apk",
+      "sha256": "c2fcdfc0d50b251c286291f483d52eade2845491cee446b2c925660906feaab1",
+      "size": 12666113,
+      "versionName": "0.14.1-g3e2-1",
+      "built": false,
+      "reused": true
+    }
+  },
+  "selection": {
+    "level": "integration",
+    "mode": "module",
+    "profile": "standard",
+    "caseFilter": "DB_UNREADABLE",
+    "modules": [
+      {
+        "name": "database-migration",
+        "title": "Room Schema / DAO / Migration",
+        "risk": "critical",
+        "reasons": [
+          "integration 级别强制包含高风险模块"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [],
+        "device": [
+          {
+            "script": "verify_migration.py",
+            "package": "qa",
+            "tier": "integration"
+          }
+        ]
+      },
+      {
+        "name": "restore-validate",
+        "title": "恢复只读校验/预览",
+        "risk": "high",
+        "reasons": [
+          "显式指定 --module restore-validate"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [
+          "com.mengyalife.app.restore.BackupRestoreReaderTest",
+          "com.mengyalife.app.restore.RestoreValidatorTest",
+          "com.mengyalife.app.restore.RestorePlannerTest",
+          "com.mengyalife.app.restore.RestoreGateJournalTest",
+          "com.mengyalife.app.restore.RestoreWriteBarrierTest",
+          "com.mengyalife.app.restore.RestoreSnapshotSpaceTest"
+        ],
+        "device": [
+          {
+            "script": "verify_restore_e2e.py",
+            "package": "qa",
+            "tier": "feature"
+          },
+          {
+            "script": "verify_restore_failures.py",
+            "package": "qa",
+            "tier": "feature"
+          },
+          {
+            "script": "verify_restore_fresh_db.py",
+            "package": "qa",
+            "tier": "feature"
+          },
+          {
+            "script": "verify_restore_db_unreadable.py",
+            "package": "qa",
+            "tier": "integration"
+          }
+        ]
+      }
+    ],
+    "jvmClasses": [
+      "com.mengyalife.app.restore.BackupRestoreReaderTest",
+      "com.mengyalife.app.restore.RestoreGateJournalTest",
+      "com.mengyalife.app.restore.RestorePlannerTest",
+      "com.mengyalife.app.restore.RestoreSnapshotSpaceTest",
+      "com.mengyalife.app.restore.RestoreValidatorTest",
+      "com.mengyalife.app.restore.RestoreWriteBarrierTest"
+    ],
+    "fullJvm": false,
+    "deviceScripts": [
+      {
+        "script": "verify_restore_db_unreadable.py",
+        "package": "qa",
+        "tier": "integration",
+        "assertions": 12,
+        "destructive": true,
+        "resetsQaData": true,
+        "estimatedSec": 120,
+        "timeoutSec": 600,
+        "scenarioEnvVar": "MENGYA_RESTORE_STARTUP_SCENARIO",
+        "scenarios": [
+          "DB_UNREADABLE"
+        ],
+        "scenarioMinLevel": "integration",
+        "modules": [
+          "restore-validate"
+        ],
+        "runMode": "case:DB_UNREADABLE"
+      }
+    ],
+    "deferredDeviceScripts": [
+      {
+        "script": "verify_migration.py",
+        "package": "qa",
+        "tier": "integration",
+        "assertions": 26,
+        "destructive": true,
+        "resetsQaData": true,
+        "measuredSec": 28,
+        "estimatedSec": 34,
+        "modules": [
+          "database-migration"
+        ],
+        "runMode": null
+      },
+      {
+        "script": "verify_restore_e2e.py",
+        "package": "qa",
+        "tier": "feature",
+        "assertions": 35,
+        "destructive": true,
+        "resetsQaData": true,
+        "measuredSec": 346.84,
+        "estimatedSec": 393,
+        "timeoutSec": 900,
+        "modules": [
+          "restore-validate"
+        ],
+        "runMode": null
+      },
+      {
+        "script": "verify_restore_failures.py",
+        "package": "qa",
+        "tier": "feature",
+        "assertions": 59,
+        "destructive": true,
+        "resetsQaData": true,
+        "measuredSec": 518.4,
+        "estimatedSec": 518.4,
+        "timeoutSec": 1200,
+        "scenarioEnvVar": "MENGYA_RESTORE_SCENARIO",
+        "scenarios": [
+          "R2",
+          "R3",
+          "R4",
+          "R5",
+          "R6",
+          "R7",
+          "SETTINGS_FAIL"
+        ],
+        "scenarioMinLevel": "integration",
+        "modules": [
+          "restore-validate"
+        ],
+        "runMode": null
+      },
+      {
+        "script": "verify_restore_fresh_db.py",
+        "package": "qa",
+        "tier": "feature",
+        "assertions": 5,
+        "destructive": true,
+        "resetsQaData": true,
+        "measuredSec": 14.5,
+        "estimatedSec": 14.5,
+        "timeoutSec": 180,
+        "scenarioEnvVar": "MENGYA_RESTORE_FRESH_SCENARIO",
+        "scenarios": [
+          "FRESH_V12"
+        ],
+        "scenarioMinLevel": "integration",
+        "modules": [
+          "restore-validate"
+        ],
+        "runMode": null
+      }
+    ],
+    "rulesHit": [
+      {
+        "id": "explicit-module",
+        "reason": "用户显式指定模块"
+      }
+    ],
+    "unknownFiles": [],
+    "docsOnly": false,
+    "notSelected": [
+      {
+        "module": "diary",
+        "title": "日记",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "goals",
+        "title": "目标",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "progress",
+        "title": "进展与打卡",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "trends",
+        "title": "趋势",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "advisor",
+        "title": "AI 顾问",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "ai-consent",
+        "title": "AI 授权与配置",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "growth-memory",
+        "title": "成长记忆与日记提取",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "insight",
+        "title": "成长洞察",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "weekly-review",
+        "title": "每周成长回顾（本地）",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "weekly-ai",
+        "title": "每周 AI 增强",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "settings",
+        "title": "设置与主题",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "export",
+        "title": "数据导出",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "navigation",
+        "title": "导航与共享 UI",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "app-smoke",
+        "title": "应用启动与正式包冒烟",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "test-infra",
+        "title": "测试体系自身",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "backup-format",
+        "title": "备份格式/校验",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "backup-crypto",
+        "title": "备份加密",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "backup-export",
+        "title": "完整备份导出",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "backup-security",
+        "title": "备份安全",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      }
+    ],
+    "notRun": [
+      {
+        "item": "qa:verify_migration.py",
+        "reason": "--case DB_UNREADABLE：只重跑单个scenario；其他用例保留为NOT RUN"
+      },
+      {
+        "item": "qa:verify_restore_e2e.py",
+        "reason": "--case DB_UNREADABLE：只重跑单个scenario；其他用例保留为NOT RUN"
+      },
+      {
+        "item": "qa:verify_restore_failures.py",
+        "reason": "--case DB_UNREADABLE：只重跑单个scenario；其他用例保留为NOT RUN"
+      },
+      {
+        "item": "qa:verify_restore_fresh_db.py",
+        "reason": "--case DB_UNREADABLE：只重跑单个scenario；其他用例保留为NOT RUN"
+      }
+    ],
+    "staticChecks": [
+      "schema-contract",
+      "validate-map"
+    ],
+    "deviceRequired": true,
+    "deviceRequiredOriginal": true,
+    "prodSmokeRequired": false,
+    "warnings": []
+  },
+  "steps": [
+    {
+      "name": "静态检查（schema-contract, validate-map）",
+      "status": "PASS",
+      "durationSec": 0.07,
+      "counts": {
+        "issues": 0
+      },
+      "detail": ""
+    },
+    {
+      "name": "安装 qa APK",
+      "status": "SKIPPED",
+      "durationSec": 0.0,
+      "counts": {},
+      "detail": "已安装包哈希与本地 APK 一致，复用安装"
+    },
+    {
+      "name": "QA 安全前置校验（包名 / QA_BUILD 标记）",
+      "status": "PASS",
+      "durationSec": 29.3,
+      "counts": {
+        "assertions": "11/11"
+      },
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261106-164126/logs/qa-verify_qa_preflight.log",
+      "detail": ""
+    },
+    {
+      "name": "JVM 测试（6 类）",
+      "status": "PASS",
+      "durationSec": 4.3,
+      "counts": {
+        "tests": 25,
+        "failures": 0
+      },
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261106-164126/logs/jvm-testDebugUnitTest.log",
+      "detail": ""
+    },
+    {
+      "name": "真机 verify_restore_db_unreadable.py [case=DB_UNREADABLE]",
+      "status": "PASS",
+      "durationSec": 36.6,
+      "counts": {
+        "assertions": "12/12"
+      },
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261106-164126/logs/qa-verify_restore_db_unreadable.log",
+      "detail": ""
+    },
+    {
+      "name": "清理 QA 数据（pm clear）",
+      "status": "PASS",
+      "durationSec": 0.0,
+      "counts": {},
+      "detail": "仅清理 QA 包；正式包未触碰"
+    }
+  ],
+  "deviceSteps": [
+    {
+      "script": "verify_restore_db_unreadable.py",
+      "package": "com.mengyalife.app.qa",
+      "status": "PASS",
+      "exitCode": 0,
+      "durationSec": 36.6,
+      "assertionsPassed": 12,
+      "assertionsTotal": 12,
+      "failures": [],
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261106-164126/logs/qa-verify_restore_db_unreadable.log",
+      "tail": "PASS  QA数据库为v12  12\nPASS  模拟DB不可读权限\nPASS  DB不可读时Activity可见\nPASS  启动界面完成渲染\nPASS  DB不可读时显示维护页\nPASS  DB不可读时不显示目标写入入口\nPASS  DB不可读时不显示AI请求入口\nPASS  DB不可读期间Room user_version未改变\nPASS  DB不可读期间业务表无写入副作用  before={'journal_entries': 0, 'goals': 0, 'goal_checkins': 0, 'weekly_reviews': 1, 'weekly_ai_reviews': 0}; after={'journal_entries': 0, 'goals': 0, 'goal_checkins': 0, 'weekly_reviews': 1, 'weekly_ai_reviews': 0}\nPASS  测试后QA包数据已清理\n\n==== SUMMARY: 12/12 passed ====",
+      "modules": [
+        "restore-validate"
+      ],
+      "tier": "integration",
+      "runMode": "case:DB_UNREADABLE",
+      "scenario": "DB_UNREADABLE"
+    }
+  ],
+  "modules": [
+    {
+      "name": "database-migration",
+      "title": "Room Schema / DAO / Migration",
+      "risk": "critical",
+      "status": "NOT RUN",
+      "reasons": [
+        "integration 级别强制包含高风险模块"
+      ],
+      "jvmStatuses": [],
+      "deviceStatuses": [],
+      "durationSec": 0.0,
+      "jvmClassCount": 0
+    },
+    {
+      "name": "restore-validate",
+      "title": "恢复只读校验/预览",
+      "risk": "high",
+      "status": "PASS",
+      "reasons": [
+        "显式指定 --module restore-validate"
+      ],
+      "jvmStatuses": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "deviceStatuses": [
+        "PASS"
+      ],
+      "durationSec": 37.2,
+      "jvmClassCount": 6
+    }
+  ],
+  "failures": [],
+  "notRun": [],
+  "summary": {
+    "verdict": "CASE PASS (suite deferred): DB_UNREADABLE",
+    "exitCode": 0,
+    "levelSatisfied": false,
+    "fullLevelSatisfied": false,
+    "profileSatisfied": false,
+    "profile": "standard",
+    "caseFilter": "DB_UNREADABLE",
+    "caseSatisfied": true,
+    "levelNotes": [
+      "存在被选择但没有任何测试执行的模块（NOT RUN）。",
+      "仅运行case DB_UNREADABLE；其他L2用例延期，不视为完整级别PASS。"
+    ],
+    "pass": 5,
+    "fail": 0,
+    "skipped": 1,
+    "notRun": 4
+  },
+  "artifacts": {
+    "dir": "/root/workspace/mengya-life/docs/reports/test-runs/20261106-164126",
+    "json": "/root/workspace/mengya-life/docs/reports/test-runs/20261106-164126/report.json",
+    "md": "/root/workspace/mengya-life/docs/reports/test-runs/20261106-164126/summary.md",
+    "logs": "/root/workspace/mengya-life/docs/reports/test-runs/20261106-164126/logs"
+  }
+}

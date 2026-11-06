@@ -1,0 +1,32 @@
+========== 0. 构造 v10 夹具 ==========
+PASS  生成 v10 数据库
+PASS  夹具含 2 条日记
+PASS  夹具含 1 个目标
+PASS  夹具含 1 条进展
+========== 1. 写入 QA 包并启动（Room 执行 10→11） ==========
+PASS  写入 QA 数据库
+PASS  应用启动
+PASS  应用在前台
+PASS  user_version 升级为 12  user_version=12
+PASS  日记 2 条完整保留  [(1, 'MigA', 'alpha v10 body'), (2, 'MigB', 'beta v10 body')]
+PASS  目标保留  [(1, 'MigGoal', 'LONG_TERM', 'IN_PROGRESS')]
+PASS  进展保留  [(1, 1, 3.0, 'min')]
+PASS  迁移前的每周回顾行保留  [('a152cac3-dbce-4f75-bb04-7b0f24fcacfe', '2026-W45'), ('r1', '2026-W44')]
+PASS  迁移数据在 UI 可读（重启后）
+PASS  无迁移崩溃
+========== 2. 再次启动（幂等） ==========
+PASS  再次启动 user_version 仍为 12  user_version=12
+PASS  数据库包含 weekly_ai_reviews  ['advisor_messages', 'android_metadata', 'app_meta', 'goal_checkins', 'goal_proposals', 'goals', 'growth_memories', 'growth_signals', 'insight_reports', 'journal_entries', 'room_master_table', 'sqlite_sequence', 'weekly_ai_reviews', 'weekly_reviews']
+PASS  数据库包含 app_meta  ['advisor_messages', 'android_metadata', 'app_meta', 'goal_checkins', 'goal_proposals', 'goals', 'growth_memories', 'growth_signals', 'insight_reports', 'journal_entries', 'room_master_table', 'sqlite_sequence', 'weekly_ai_reviews', 'weekly_reviews']
+PASS  迁移新增 config_hash 列  ['period_key', 'local_data_version', 'ai_consent_version', 'status', 'generated_at', 'summary', 'highlights_json', 'suggestion', 'fact_ids_json', 'categories', 'error', 'model', 'config_hash']
+========== 3. 独立 v11→v12 迁移 ==========
+PASS  生成 v11 数据库
+PASS  写入 v11 QA 数据库
+PASS  v11 包启动
+PASS  user_version v11→12  user_version=12
+PASS  v11日记保持  [(1, 'MigA', 'alpha v10 body'), (2, 'MigB', 'beta v10 body')]
+PASS  v11 app_meta默认行
+PASS  v11周AI表/配置列  ['period_key', 'local_data_version', 'ai_consent_version', 'status', 'generated_at', 'summary', 'highlights_json', 'suggestion', 'fact_ids_json', 'categories', 'error', 'model', 'config_hash']
+PASS  v11无迁移崩溃
+
+==== SUMMARY: 26/26 passed ====

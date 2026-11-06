@@ -5,7 +5,7 @@
 - Gate：3F
 - 模块数：21；执行级别：fast, feature, integration, gate, release。
 - 设计原则：**逻辑模块化**，不拆 Gradle 多模块；源码路径 → 模块 → JVM/真机入口 → 级别，全部可审计。
-- 注册表19个唯一真机资产（18个QA + 1个prod；23处模块引用）；共享脚本按 `(script, package)` 合并，只跑一次。
+- 注册表20个唯一真机资产（19个QA + 1个prod；23处模块引用）；共享脚本按 `(script, package)` 合并，只跑一次。
 - 耗时为历史真机数据/估算；仅在本轮实测后回填，`—` 表示无真机覆盖或未测。
 
 ## 模块总表
@@ -28,7 +28,7 @@
 | `backup-crypto` | 备份加密 | critical | fast | — | BackupCryptoTest | 无真机 | 否 | 否 | — | JVM |
 | `backup-export` | 完整备份导出 | high | feature | backup-format, backup-crypto | BackupExporterTest<br>BackupFileWriterTest<br>BackupArtifactMetricsTest<br>FileBackupTempStoreTest | `verify_backup_v2_full.py` + `verify_backup_v2_failures.py` | 是 | 是 | — | 384s历史估时 |
 | `backup-security` | 系统备份排除 | critical | integration | — | BackupManifestSecurityTest | 无真机 | 否 | 否 | — | JVM |
-| `restore-validate` | 完整备份恢复/预览 | high | fast | backup-format, backup-crypto | Reader/Validator/Planner/Gate/Barrier tests | `verify_restore_e2e.py`, `verify_restore_failures.py`, `verify_restore_fresh_db.py` | 是 | 是 | — | ~926s估算 |
+| `restore-validate` | 完整备份恢复/预览 | high | fast | backup-format, backup-crypto | Reader/Validator/Planner/Gate/Barrier tests | `verify_restore_e2e.py`, `verify_restore_failures.py`, `verify_restore_fresh_db.py`, `verify_restore_db_unreadable.py` | 是 | 是 | — | L2估算包含R2-R7矩阵 |
 | `database-migration` | Room Schema / DAO / Migration | critical | integration | — | — | `verify_migration.py` (integration, qa) | 是 | 是 | — | ~34s估算 |
 | `navigation` | 导航与共享 UI | medium | feature | — | — | `verify_navigation.py` (feature, qa) | 是 | 否 | — | 124s |
 | `app-smoke` | 应用启动与正式包冒烟 | high | integration | database-migration | — | `verify_prod_smoke.py` (gate, prod) | 是 | 否 | 是 | 181s |
@@ -48,9 +48,10 @@
 | `verify_migration.py` | 26 | integration | 34s | 是 | 是 | v10/v11→v12迁移；最新schema演进时跑 |
 | `verify_backup_v2_full.py` | 19 | feature | 55s | 是 | 是 | 默认全字段备份验收；已覆盖旧 `verify_backup_v2.py` 的基本SAF/解密/计数，不重复跑旧脚本 |
 | `verify_backup_v2_failures.py` | 45 | feature | 329s | 是 | 是 | SAF写/读/清理故障路径，低频/合并运行 |
-| `verify_restore_e2e.py` | 35 | feature | ~393s估算 | 是 | 是 | 含预览/确认/还原，不另跑重复preview |
-| `verify_restore_failures.py` | 59 | feature | ~518s历史 | 是 | 是 | R2-R7仅最终集成验收或碰恢复代码时跑 |
-| `verify_restore_fresh_db.py` | 5 | feature | 15s | 是 | 是 | fresh v12 app_meta初始化 |
+| `verify_restore_e2e.py` | 39 | feature | 当前198.30s | 是 | 是 | A→B→A全字段/安全状态及重启 |
+| `verify_restore_failures.py` | 59 | feature | ~518s历史 | 是 | 是 | R2-R7/SETTINGS_FAIL支持case独跑，自建QA基线避免回放前序 |
+| `verify_restore_fresh_db.py` | 6 | feature | 当前6/6 | 是 | 是 | fresh v12 app_meta初始化，可`--case FRESH_V12`单跑 |
+| `verify_restore_db_unreadable.py` | 12 | integration | 当前12/12 | 是 | 是 | QA DB拒读维护页/无业务副作用，可`--case DB_UNREADABLE`单跑 |
 | `verify_navigation.py` | 28 | feature | 124s | 否 | 否 | QA 隔离 |
 | `verify_prod_smoke.py` | 50 | gate | 181s | 否 | 否 | 正式包只读 |
 | `verify_settings.py` | 40 | feature | 112s | 是 | 是 | 文案/QA标识/备份与恢复入口；设置屏改动时检测核心入口可见 |
@@ -395,6 +396,12 @@ app/src/test/**
 
 开发迭代请用 `./scripts/verify.sh --profile dev --changed`：只跑变更影响到的静态/JVM或必要编译，真机脚本逐条报告为延期，结果显示 `LOCAL PASS (device deferred)`，不能当作L1/L2/Gate PASS。合并前仍需standard L1/L2；最终发版跑L4。
 同一命令可传多个 `--module`，调度器只构建/安装一次，并按 `(script, package)` 折叠跨模块的重复脚本。
+
+## 恢复写入安全影响规则
+
+- `RestoreWriteBarrier.kt` / `RestoreCoordinator.kt` 以及 `AppContainer.kt` / `WeeklyReviewWorker.kt` 走 `L-restore-write-barrier`：L2覆盖屏障与业务写入口JVM、restore E2E/故障/fresh/DB不可读及AI consent安全脚本。
+- `MengyaLifeApp.kt` / `MengyaApplication.kt` 走 `L-restore-startup-gate`：Room ViewModel需等READY再创建，覆盖fresh、DB不可读维护态、Weekly READY及restore安全路径。
+- Gate/Release 不接受 `--case` 降级；未知源码路径仍按保守规则扩大到全模块。
 
 ## 说明
 

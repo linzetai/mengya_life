@@ -1,0 +1,14 @@
+PASS  Fresh QA数据库启动
+PASS  确认初始业务页可用
+PASS  QA数据库为v12  12
+PASS  模拟DB不可读权限
+PASS  DB不可读时Activity可见
+PASS  启动界面完成渲染
+PASS  DB不可读时显示维护页
+PASS  DB不可读时不显示目标写入入口
+PASS  DB不可读时不显示AI请求入口
+PASS  DB不可读期间Room user_version未改变
+PASS  DB不可读期间业务表无写入副作用  before={'journal_entries': 0, 'goals': 0, 'goal_checkins': 0, 'weekly_reviews': 1, 'weekly_ai_reviews': 0}; after={'journal_entries': 0, 'goals': 0, 'goal_checkins': 0, 'weekly_reviews': 1, 'weekly_ai_reviews': 0}
+PASS  测试后QA包数据已清理
+
+==== SUMMARY: 12/12 passed ====

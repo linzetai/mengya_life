@@ -1,0 +1,25 @@
+PASS  自测：错误预期会被比较捕获
+PASS  启动B+安全+故障
+PASS  B夹具10表非空  {'journal_entries': 2, 'goals': 3, 'goal_checkins': 2, 'advisor_messages': 3, 'goal_proposals': 2, 'growth_signals': 3, 'growth_memories': 2, 'insight_reports': 2, 'weekly_reviews': 2, 'weekly_ai_reviews': 2}
+PASS  选择A
+PASS  确定
+PASS  确认勾选
+PASS  执行
+PASS  设置收敛故障被记录
+PASS  设置失败时Gate仍保持  {'label': 'COMMITTED_NEEDS_CONVERGENCE', 'attemptId': 'dabaacbf-b22d-4ea5-9c77-49dd79bc4f4f', 'generation': 1, 'keyPresent': False, 'consentGranted': False, 'aiEnabled': False, 'gateActive': True}
+PASS  设置失败时Key已删除  {'label': 'COMMITTED_NEEDS_CONVERGENCE', 'attemptId': 'dabaacbf-b22d-4ea5-9c77-49dd79bc4f4f', 'generation': 1, 'keyPresent': False, 'consentGranted': False, 'aiEnabled': False, 'gateActive': True}
+PASS  设置失败不报告成功且Gate未释放
+PASS  设置失败时核心数据已提交A
+PASS  维护状态下没有weekly AI副作用
+PASS  移除故障后重启收敛
+PASS  SETTINGS_FAIL 重启后A核心数据
+PASS  SETTINGS_FAIL 历史weekly AI未恢复
+PASS  SETTINGS_FAIL 重启后Key删除  {'attemptId': 'dabaacbf-b22d-4ea5-9c77-49dd79bc4f4f', 'generation': 1, 'keyPresent': False, 'consentGranted': False, 'aiEnabled': False, 'gateActive': False, 'snapshotExists': True}
+PASS  SETTINGS_FAIL 重启后consent撤销  {'attemptId': 'dabaacbf-b22d-4ea5-9c77-49dd79bc4f4f', 'generation': 1, 'keyPresent': False, 'consentGranted': False, 'aiEnabled': False, 'gateActive': False, 'snapshotExists': True}
+PASS  SETTINGS_FAIL 重启后自动AI关闭  {'attemptId': 'dabaacbf-b22d-4ea5-9c77-49dd79bc4f4f', 'generation': 1, 'keyPresent': False, 'consentGranted': False, 'aiEnabled': False, 'gateActive': False, 'snapshotExists': True}
+PASS  SETTINGS_FAIL 重启后Gate释放
+
+==== SUMMARY: 20/20 passed ====
+QA_FAILURE_SETTINGS_FAIL_SECONDS=91.48
+
+==== SUMMARY: 20/20 passed ====

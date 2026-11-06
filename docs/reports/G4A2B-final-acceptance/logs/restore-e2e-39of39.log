@@ -1,0 +1,42 @@
+PASS  A数据+安全状态
+PASS  A夹具就绪
+PASS  打开设置
+PASS  备份入口
+PASS  导出密码框
+PASS  SAF保存
+PASS  导出成功
+PASS  A备份文件  /sdcard/Download/mengya-life-backup-v2-20261106-165433.mengyalife
+PASS  B数据+安全状态
+PASS  B夹具就绪
+PASS  A/B 10表均有差异  ['journal_entries', 'goals', 'goal_checkins', 'advisor_messages', 'goal_proposals', 'growth_signals', 'growth_memories', 'insight_reports', 'weekly_reviews', 'weekly_ai_reviews']
+PASS  A文件仍存在
+PASS  恢复入口
+PASS  文件选择器
+PASS  选择A备份
+PASS  确认选择
+PASS  恢复密码框
+PASS  预览
+PASS  预览10表计数
+PASS  预览不恢复敏感状态
+PASS  未勾选前执行不可点击
+PASS  勾选风险确认
+PASS  执行确认
+PASS  恢复成功提示
+PASS  核心8表A逐字段恢复
+PASS  周回顾恢复后初始内容=A
+PASS  weekly AI 未恢复旧行
+PASS  A日记内容回来
+PASS  安全状态文件  {"attemptId":"17d2fda7-18b6-474d-9878-ae60cc9a9901","generation":1,"keyPresent":false,"consentGranted":false,"aiEnabled":false,"gateActive":false,"snapshotExists":true}
+PASS  Key不存在  {'attemptId': '17d2fda7-18b6-474d-9878-ae60cc9a9901', 'generation': 1, 'keyPresent': False, 'consentGranted': False, 'aiEnabled': False, 'gateActive': False, 'snapshotExists': True}
+PASS  授权已撤销
+PASS  自动发送关闭
+PASS  快照存在
+PASS  Gate释放
+PASS  重启
+PASS  重启后核心8表A保持
+PASS  重启后周回顾仍存在
+PASS  重启后weekly AI仍为0
+PASS  重启后无Gate
+QA_E2E_SECONDS=198.30
+
+==== SUMMARY: 39/39 passed ====

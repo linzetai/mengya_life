@@ -1,0 +1,8 @@
+PASS  冷启动应用
+PASS  fresh数据库完成初始化后离开维护态
+PASS  设置页可用
+PASS  fresh库v12
+PASS  fresh app_meta初始化  (None, 0, None)
+PASS  fresh Gate不存在
+
+==== SUMMARY: 6/6 passed ====

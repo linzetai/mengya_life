@@ -1,0 +1,15 @@
+========== QA 包元数据 ==========
+PASS  applicationId 为 QA 包  com.mengyalife.app.qa
+PASS  versionName 以 -qa 结尾  0.14.1-g3e2-1-qa
+PASS  构建可调试（QA 继承 debug）   DEBUGGABLE HAS_CODE ALLOW_CLEAR_USER_DATA
+PASS  未在正式包上运行
+========== QA_BUILD 界面标记 ==========
+PASS  应用可启动
+PASS  进入设置
+PASS  设置页出现
+PASS  QA 横幅定位
+PASS  显示「QA 测试构建」横幅
+PASS  显示独立 QA 库名
+PASS  仅在 QA_BUILD 出现的离线测试引擎开关存在
+
+==== SUMMARY: 11/11 passed ====

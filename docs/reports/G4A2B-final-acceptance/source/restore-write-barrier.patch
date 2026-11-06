@@ -1,0 +1,2366 @@
+diff --git a/app/src/main/java/com/mengyalife/app/MainActivity.kt b/app/src/main/java/com/mengyalife/app/MainActivity.kt
+index 6459bba..72a4281 100644
+--- a/app/src/main/java/com/mengyalife/app/MainActivity.kt
++++ b/app/src/main/java/com/mengyalife/app/MainActivity.kt
+@@ -85,7 +85,7 @@ class MainActivity : ComponentActivity() {
+             if (intent?.getBooleanExtra("qa_seed_restore_security", false) == true) {
+                 val container = (application as MengyaApplication).container
+                 kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+-                    com.mengyalife.app.data.qa.QaRestoreSecuritySeeder.seed(container)
++                    container.qaSeedRestoreSecurity()
+                 }
+             }
+             if (intent?.hasExtra("qa_run_weekly_review") == true) {
+diff --git a/app/src/main/java/com/mengyalife/app/MengyaLifeApp.kt b/app/src/main/java/com/mengyalife/app/MengyaLifeApp.kt
+index 05bd3bf..f42d41a 100644
+--- a/app/src/main/java/com/mengyalife/app/MengyaLifeApp.kt
++++ b/app/src/main/java/com/mengyalife/app/MengyaLifeApp.kt
+@@ -34,7 +34,6 @@ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.saveable.rememberSaveable
+ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Modifier
+-import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.platform.testTag
+ import androidx.compose.ui.semantics.semantics
+ import androidx.compose.ui.semantics.testTagsAsResourceId
+@@ -85,6 +84,16 @@ import com.mengyalife.app.ui.theme.ThemeMode
+  */
+ @Composable
+ fun MengyaLifeApp() {
++    // The restore guard must run before constructing any DB-backed ViewModel.
++    // A corrupt/unreadable DB can fail when a Room Flow is first collected; while
++    // startup is UNKNOWN/RECONCILING/MAINTENANCE expose only this read-free screen.
++    val appContext = LocalContext.current.applicationContext as MengyaApplication
++    val restoreGateActive by appContext.container.restoreCoordinator.gateActive.collectAsStateWithLifecycle()
++    if (restoreGateActive) {
++        MengyaLifeTheme(darkTheme = isSystemInDarkTheme()) { RestoreMaintenanceScreen() }
++        return
++    }
++
+     // ---- 主题 ----
+     val themeViewModel: ThemeViewModel = viewModel(factory = ThemeViewModel.Factory)
+     val persistedThemeMode by themeViewModel.themeMode.collectAsStateWithLifecycle()
+@@ -156,13 +165,6 @@ fun MengyaLifeApp() {
+         ThemeMode.DARK -> true
+     }
+
+-    val appContext = LocalContext.current.applicationContext as MengyaApplication
+-    val restoreGateActive by appContext.container.restoreCoordinator.gateActive.collectAsStateWithLifecycle()
+-    if (restoreGateActive) {
+-        MengyaLifeTheme(darkTheme = darkTheme) { RestoreMaintenanceScreen() }
+-        return
+-    }
+-
+     val context = LocalContext.current
+     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+     val versionName = remember(context) { readVersionName(context) }
+diff --git a/app/src/main/java/com/mengyalife/app/data/advisor/AdvisorConfigRepository.kt b/app/src/main/java/com/mengyalife/app/data/advisor/AdvisorConfigRepository.kt
+index 7c902ac..c16878c 100644
+--- a/app/src/main/java/com/mengyalife/app/data/advisor/AdvisorConfigRepository.kt
++++ b/app/src/main/java/com/mengyalife/app/data/advisor/AdvisorConfigRepository.kt
+@@ -4,6 +4,7 @@ import com.mengyalife.app.BuildConfig
+ import com.mengyalife.app.domain.advisor.AdvisorRuntimeConfig
+ import com.mengyalife.app.domain.advisor.AdvisorRules
+ import com.mengyalife.app.domain.advisor.AiConfigState
++import com.mengyalife.app.data.restore.RestoreWriteBarrier
+ import kotlinx.coroutines.flow.Flow
+ import kotlinx.coroutines.flow.map
+
+@@ -39,6 +40,7 @@ class DataStoreAdvisorConfigRepository(
+     private val storage: AiConfigStorage,
+     private val cipher: SecretCipher,
+     private val allowFakeEngine: Boolean = BuildConfig.QA_BUILD,
++    private val writeBarrier: RestoreWriteBarrier? = null,
+ ) : AdvisorConfigRepository {
+
+     override val state: Flow<AiConfigState> = storage.observe().map {
+@@ -50,7 +52,10 @@ class DataStoreAdvisorConfigRepository(
+         )
+     }
+
+-    override suspend fun save(
++    override suspend fun save(endpoint: String, model: String, apiKey: String?): AiConfigSaveResult =
++        guarded { saveUnlocked(endpoint, model, apiKey) }
++
++    private suspend fun saveUnlocked(
+         endpoint: String,
+         model: String,
+         apiKey: String?,
+@@ -84,22 +89,22 @@ class DataStoreAdvisorConfigRepository(
+         return AiConfigSaveResult(true)
+     }
+
+-    override suspend fun deleteKey() {
++    override suspend fun deleteKey() = guarded {
+         val existing = storage.load()
+         storage.save(existing.copy(encryptedKey = null))
+         // 同时删除 Keystore 条目：旧密文即使被恢复也无法再解。
+         cipher.deleteKey()
+     }
+
+-    override suspend fun deleteKeyConfirmed(): KeyDeleteResult {
++    override suspend fun deleteKeyConfirmed(): KeyDeleteResult = guarded {
+         val existing = storage.load()
+         val confirmed = cipher.deleteKeyConfirmed()
+-        if (!confirmed) return KeyDeleteResult.FAILED
++        if (!confirmed) return@guarded KeyDeleteResult.FAILED
+         storage.save(existing.copy(encryptedKey = null))
+-        return if (existing.encryptedKey.isNullOrBlank()) KeyDeleteResult.ALREADY_ABSENT else KeyDeleteResult.DELETED
++        if (existing.encryptedKey.isNullOrBlank()) KeyDeleteResult.ALREADY_ABSENT else KeyDeleteResult.DELETED
+     }
+
+-    override suspend fun restoreEndpointAndModel(endpoint: String, model: String) {
++    override suspend fun restoreEndpointAndModel(endpoint: String, model: String) = guarded {
+         val existing = storage.load()
+         storage.save(existing.copy(endpoint = endpoint.trim(), model = model.trim(), encryptedKey = null))
+     }
+@@ -114,9 +119,12 @@ class DataStoreAdvisorConfigRepository(
+         return AdvisorRuntimeConfig(endpoint = endpoint, model = model, apiKey = key)
+     }
+
+-    override suspend fun setUseFakeEngine(enabled: Boolean) {
+-        if (!allowFakeEngine) return
++    override suspend fun setUseFakeEngine(enabled: Boolean) = guarded {
++        if (!allowFakeEngine) return@guarded
+         val existing = storage.load()
+         storage.save(existing.copy(useFakeEngine = enabled))
+     }
++
++    private suspend fun <T> guarded(block: suspend () -> T): T =
++        writeBarrier?.withWrite { block() } ?: block()
+ }
+diff --git a/app/src/main/java/com/mengyalife/app/data/advisor/ConversationRepository.kt b/app/src/main/java/com/mengyalife/app/data/advisor/ConversationRepository.kt
+index fba0b33..517790a 100644
+--- a/app/src/main/java/com/mengyalife/app/data/advisor/ConversationRepository.kt
++++ b/app/src/main/java/com/mengyalife/app/data/advisor/ConversationRepository.kt
+@@ -22,13 +22,14 @@ import java.util.UUID
+
+ interface ConversationRepository {
+     fun observeMessages(): Flow<List<AdvisorMessage>>
+-    suspend fun appendUser(content: String, contextGoalId: Long?, contextEpoch: Long = 0): AdvisorMessage
++    suspend fun appendUser(content: String, contextGoalId: Long?, contextEpoch: Long = 0, expectedRestoreGeneration: Long? = null): AdvisorMessage
+     suspend fun appendAssistant(
+         content: String,
+         contextEpoch: Long,
+         sources: List<AdvisorSource> = emptyList(),
+         proposalError: String? = null,
+         proposalMode: Boolean = false,
++        expectedRestoreGeneration: Long? = null,
+     ): AdvisorMessage
+
+     suspend fun appendFailure(
+@@ -36,6 +37,7 @@ interface ConversationRepository {
+         cancelled: Boolean,
+         contextEpoch: Long = 0,
+         proposalMode: Boolean = false,
++        expectedRestoreGeneration: Long? = null,
+     ): AdvisorMessage
+     suspend fun deleteMessage(id: String)
+     suspend fun loadAll(): List<AdvisorMessage>
+@@ -47,6 +49,7 @@ class RoomConversationRepository(
+     private val now: () -> Long = System::currentTimeMillis,
+     private val newId: () -> String = { UUID.randomUUID().toString() },
+     private val canWrite: () -> Boolean = { true },
++    private val writeBarrier: com.mengyalife.app.data.restore.RestoreWriteBarrier? = null,
+ ) : ConversationRepository {
+
+     override fun observeMessages(): Flow<List<AdvisorMessage>> =
+@@ -56,6 +59,7 @@ class RoomConversationRepository(
+         content: String,
+         contextGoalId: Long?,
+         contextEpoch: Long,
++        expectedRestoreGeneration: Long?,
+     ): AdvisorMessage =
+         insert(
+             AdvisorMessageEntity(
+@@ -66,7 +70,7 @@ class RoomConversationRepository(
+                 status = AdvisorMessageStatus.SENT.name,
+                 contextGoalId = contextGoalId,
+                 contextEpoch = contextEpoch,
+-            ),
++            ), expectedRestoreGeneration,
+         )
+
+     override suspend fun appendAssistant(
+@@ -75,6 +79,7 @@ class RoomConversationRepository(
+         sources: List<AdvisorSource>,
+         proposalError: String?,
+         proposalMode: Boolean,
++        expectedRestoreGeneration: Long?,
+     ): AdvisorMessage =
+         insert(
+             AdvisorMessageEntity(
+@@ -87,7 +92,7 @@ class RoomConversationRepository(
+                 sourcesJson = encodeSources(sources),
+                 proposalError = proposalError,
+                 proposalMode = proposalMode,
+-            ),
++            ), expectedRestoreGeneration,
+         )
+
+     override suspend fun appendFailure(
+@@ -95,6 +100,7 @@ class RoomConversationRepository(
+         cancelled: Boolean,
+         contextEpoch: Long,
+         proposalMode: Boolean,
++        expectedRestoreGeneration: Long?,
+     ): AdvisorMessage =
+         insert(
+             AdvisorMessageEntity(
+@@ -108,11 +114,13 @@ class RoomConversationRepository(
+                 errorMessage = error.userMessage,
+                 contextEpoch = contextEpoch,
+                 proposalMode = proposalMode,
+-            ),
++            ), expectedRestoreGeneration,
+         )
+
+     override suspend fun deleteMessage(id: String) {
+-        dao.deleteById(id)
++        val write: suspend () -> Unit = { dao.deleteById(id); Unit }
++        if (!canWrite()) throw IllegalStateException("恢复维护中，禁止删除对话")
++        if (writeBarrier != null) writeBarrier.withWrite { write() } else write()
+     }
+
+     override suspend fun loadAll(): List<AdvisorMessage> = dao.loadAll().map(::toDomain)
+@@ -123,10 +131,14 @@ class RoomConversationRepository(
+         return maxOf(now(), max + 1)
+     }
+
+-    private suspend fun insert(entity: AdvisorMessageEntity): AdvisorMessage {
++    private suspend fun insert(entity: AdvisorMessageEntity, expectedGeneration: Long?): AdvisorMessage {
+         if (!canWrite()) throw IllegalStateException("恢复维护中，禁止写入对话")
+-        dao.insert(entity)
+-        return toDomain(entity)
++        val write: suspend () -> AdvisorMessage = {
++            if (!canWrite()) throw IllegalStateException("恢复维护中，禁止写入对话")
++            dao.insert(entity)
++            toDomain(entity)
++        }
++        return writeBarrier?.withWrite(expectedGeneration) { write() } ?: write()
+     }
+
+     private fun toDomain(entity: AdvisorMessageEntity): AdvisorMessage = AdvisorMessage(
+diff --git a/app/src/main/java/com/mengyalife/app/data/advisor/GoalProposalApplyService.kt b/app/src/main/java/com/mengyalife/app/data/advisor/GoalProposalApplyService.kt
+index c0ed6bd..ee42f37 100644
+--- a/app/src/main/java/com/mengyalife/app/data/advisor/GoalProposalApplyService.kt
++++ b/app/src/main/java/com/mengyalife/app/data/advisor/GoalProposalApplyService.kt
+@@ -2,6 +2,7 @@ package com.mengyalife.app.data.advisor
+
+ import androidx.room.withTransaction
+ import com.mengyalife.app.data.local.MengyaDatabase
++import com.mengyalife.app.data.restore.RestoreWriteBarrier
+ import com.mengyalife.app.data.local.proposal.GoalProposalDao
+ import com.mengyalife.app.data.repository.GoalDraft
+ import com.mengyalife.app.data.repository.GoalRepository
+@@ -58,11 +59,18 @@ class GoalProposalApplyService(
+     private val proposalDao: GoalProposalDao,
+     private val goalRepository: GoalRepository,
+     private val now: () -> Long = System::currentTimeMillis,
++    private val canWrite: () -> Boolean = { true },
++    private val writeBarrier: RestoreWriteBarrier? = null,
+ ) : GoalProposalApply {
+     private val mutex = Mutex()
+
+     override suspend fun apply(proposalId: String, selectedTempIds: Set<String>): ProposalApplyResult =
++        if (writeBarrier != null) writeBarrier.withWrite { applyLocked(proposalId, selectedTempIds) }
++        else applyLocked(proposalId, selectedTempIds)
++
++    private suspend fun applyLocked(proposalId: String, selectedTempIds: Set<String>): ProposalApplyResult =
+         mutex.withLock {
++            if (!canWrite()) return@withLock ProposalApplyResult.Failure("恢复维护中，禁止应用草案")
+             try {
+                 database.withTransaction {
+                     val entity = proposalDao.findById(proposalId)
+@@ -151,7 +159,12 @@ class GoalProposalApplyService(
+             }
+         }
+
+-    override suspend fun undo(proposalId: String): ProposalUndoResult = mutex.withLock {
++    override suspend fun undo(proposalId: String): ProposalUndoResult =
++        if (writeBarrier != null) writeBarrier.withWrite { undoLocked(proposalId) }
++        else undoLocked(proposalId)
++
++    private suspend fun undoLocked(proposalId: String): ProposalUndoResult = mutex.withLock {
++        if (!canWrite()) return@withLock ProposalUndoResult.Failure("恢复维护中，禁止撤销草案")
+         try {
+             database.withTransaction {
+                 val entity = proposalDao.findById(proposalId)
+diff --git a/app/src/main/java/com/mengyalife/app/data/advisor/GoalProposalRepository.kt b/app/src/main/java/com/mengyalife/app/data/advisor/GoalProposalRepository.kt
+index 6dece63..c9f4202 100644
+--- a/app/src/main/java/com/mengyalife/app/data/advisor/GoalProposalRepository.kt
++++ b/app/src/main/java/com/mengyalife/app/data/advisor/GoalProposalRepository.kt
+@@ -2,6 +2,7 @@ package com.mengyalife.app.data.advisor
+
+ import com.mengyalife.app.data.local.proposal.GoalProposalDao
+ import com.mengyalife.app.data.local.proposal.GoalProposalEntity
++import com.mengyalife.app.data.restore.RestoreWriteBarrier
+ import com.mengyalife.app.domain.advisor.GoalProposalDraft
+ import com.mengyalife.app.domain.advisor.GoalProposalIds
+ import com.mengyalife.app.domain.advisor.GoalProposalParser
+@@ -27,7 +28,7 @@ data class StoredGoalProposal(
+
+ interface GoalProposalRepository {
+     fun observeAll(): Flow<List<StoredGoalProposal>>
+-    suspend fun save(messageId: String, draft: GoalProposalDraft): StoredGoalProposal
++    suspend fun save(messageId: String, draft: GoalProposalDraft, expectedRestoreGeneration: Long? = null): StoredGoalProposal
+     suspend fun findForMessage(messageId: String): StoredGoalProposal?
+     suspend fun findById(id: String): StoredGoalProposal?
+     /** 审核期间编辑/勾选：只更新 DRAFT。 */
+@@ -38,38 +39,36 @@ class RoomGoalProposalRepository(
+     private val dao: GoalProposalDao,
+     private val now: () -> Long = System::currentTimeMillis,
+     private val newId: () -> String = { UUID.randomUUID().toString() },
++    private val writeBarrier: RestoreWriteBarrier? = null,
+ ) : GoalProposalRepository {
+
+     override fun observeAll(): Flow<List<StoredGoalProposal>> =
+         dao.observeAll().map { rows -> rows.mapNotNull(::toDomain) }
+
+-    override suspend fun save(messageId: String, draft: GoalProposalDraft): StoredGoalProposal {
++    override suspend fun save(messageId: String, draft: GoalProposalDraft, expectedRestoreGeneration: Long?): StoredGoalProposal {
+         val encoded = GoalProposalParser.encode(draft)
+         val id = newId()
+         val createdAt = now()
+         val selected = draft.nodes.map { it.tempId }.toSet()
+-        dao.insert(
+-            GoalProposalEntity(
+-                id = id,
+-                messageId = messageId,
+-                createdAt = createdAt,
+-                schemaVersion = draft.schemaVersion,
+-                status = "DRAFT",
+-                summary = encoded.summary,
+-                assumptionsJson = encoded.assumptionsJson,
+-                risksJson = encoded.risksJson,
+-                nodesJson = encoded.nodesJson,
+-                selectedTempIdsJson = GoalProposalIds.encodeSelected(selected),
+-            ),
+-        )
+-        return StoredGoalProposal(
+-            id = id,
+-            messageId = messageId,
+-            createdAt = createdAt,
+-            draft = draft,
+-            status = "DRAFT",
+-            selectedTempIds = selected,
+-        )
++        val result = StoredGoalProposal(id, messageId, createdAt, draft, "DRAFT", selected)
++        val write: suspend () -> Unit = {
++            dao.insert(
++                GoalProposalEntity(
++                    id = id,
++                    messageId = messageId,
++                    createdAt = createdAt,
++                    schemaVersion = draft.schemaVersion,
++                    status = "DRAFT",
++                    summary = encoded.summary,
++                    assumptionsJson = encoded.assumptionsJson,
++                    risksJson = encoded.risksJson,
++                    nodesJson = encoded.nodesJson,
++                    selectedTempIdsJson = GoalProposalIds.encodeSelected(selected),
++                ),
++            )
++        }
++        if (writeBarrier != null) writeBarrier.withWrite(expectedRestoreGeneration) { write() } else write()
++        return result
+     }
+
+     override suspend fun findForMessage(messageId: String): StoredGoalProposal? =
+@@ -83,8 +82,10 @@ class RoomGoalProposalRepository(
+         draft: GoalProposalDraft,
+         selected: Set<String>,
+     ): Boolean {
++        val generation = writeBarrier?.generation()
+         val encoded = GoalProposalParser.encode(draft)
+-        return dao.updateDraft(id, encoded.nodesJson, GoalProposalIds.encodeSelected(selected)) > 0
++        val write: suspend () -> Boolean = { dao.updateDraft(id, encoded.nodesJson, GoalProposalIds.encodeSelected(selected)) > 0 }
++        return writeBarrier?.withWrite(generation) { write() } ?: write()
+     }
+
+     private fun toDomain(entity: GoalProposalEntity): StoredGoalProposal? {
+diff --git a/app/src/main/java/com/mengyalife/app/data/consent/AiConsentRepository.kt b/app/src/main/java/com/mengyalife/app/data/consent/AiConsentRepository.kt
+index 1927014..8d3b7dd 100644
+--- a/app/src/main/java/com/mengyalife/app/data/consent/AiConsentRepository.kt
++++ b/app/src/main/java/com/mengyalife/app/data/consent/AiConsentRepository.kt
+@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
+ import androidx.datastore.preferences.preferencesDataStore
+ import com.mengyalife.app.BuildConfig
+ import com.mengyalife.app.domain.advisor.AiConsentRules
++import com.mengyalife.app.data.restore.RestoreWriteBarrier
+ import com.mengyalife.app.domain.advisor.AiConsentState
+ import com.mengyalife.app.domain.advisor.ConsentCategory
+ import kotlinx.coroutines.flow.Flow
+@@ -44,6 +45,7 @@ private val Context.consentDataStore: DataStore<Preferences> by preferencesDataS
+ class DataStoreAiConsentRepository(
+     context: Context,
+     private val now: () -> Long = System::currentTimeMillis,
++    private val writeBarrier: RestoreWriteBarrier? = null,
+ ) : AiConsentRepository {
+
+     private val appContext = context.applicationContext
+@@ -76,7 +78,7 @@ class DataStoreAiConsentRepository(
+     override suspend fun current(): AiConsentState = state.first()
+
+     override suspend fun grant(recipient: String, categories: Set<ConsentCategory>) {
+-        appContext.consentDataStore.edit { prefs ->
++        val write: suspend () -> Unit = { appContext.consentDataStore.edit { prefs ->
+             val epoch = (prefs[epochKey] ?: 0L) + 1
+             prefs[grantedKey] = 1
+             prefs[textVersionKey] = AiConsentRules.TEXT_VERSION
+@@ -85,23 +87,25 @@ class DataStoreAiConsentRepository(
+             prefs[recipientKey] = AiConsentRules.normalizeRecipient(recipient)
+             prefs[categoriesKey] = encodeCategories(categories)
+             prefs[epochKey] = epoch
+-        }
++        } }
++        if (writeBarrier != null) writeBarrier.withWrite { write() } else write()
+     }
+
+     override suspend fun setCategory(category: ConsentCategory, enabled: Boolean) {
+-        appContext.consentDataStore.edit { prefs ->
++        val write: suspend () -> Unit = { appContext.consentDataStore.edit { prefs ->
+             val granted = (prefs[grantedKey] ?: 0) == 1
+             if (!granted) return@edit
+             val current = parseCategories(prefs[categoriesKey]).toMutableSet()
+             if (enabled) current.add(category) else current.remove(category)
+             prefs[categoriesKey] = encodeCategories(current)
+             prefs[epochKey] = (prefs[epochKey] ?: 0L) + 1
+-        }
++        } }
++        if (writeBarrier != null) writeBarrier.withWrite { write() } else write()
+     }
+
+     override suspend fun resetAfterRestore(generation: Long): ConsentResetResult {
+         var result = ConsentResetResult.RESET
+-        appContext.consentDataStore.edit { prefs ->
++        val write: suspend () -> Unit = { appContext.consentDataStore.edit { prefs ->
+             val last = prefs[lastResetGenerationKey] ?: 0L
+             val alreadyReset = last >= generation &&
+                 (prefs[grantedKey] ?: 0) == 0 &&
+@@ -119,12 +123,13 @@ class DataStoreAiConsentRepository(
+             prefs[categoriesKey] = ""
+             prefs[epochKey] = maxOf((prefs[epochKey] ?: 0L) + 1, generation, last + 1)
+             prefs[lastResetGenerationKey] = generation
+-        }
++        } }
++        if (writeBarrier != null) writeBarrier.withWrite { write() } else write()
+         return result
+     }
+
+     override suspend fun withdraw() {
+-        appContext.consentDataStore.edit { prefs ->
++        val write: suspend () -> Unit = { appContext.consentDataStore.edit { prefs ->
+             prefs[grantedKey] = 0
+             prefs[textVersionKey] = 0
+             prefs[categoriesVersionKey] = 0
+@@ -132,7 +137,8 @@ class DataStoreAiConsentRepository(
+             prefs[categoriesKey] = ""
+             // recipient 保留用于展示「上次授权给谁」，但 granted=false 不会再发送
+             prefs[epochKey] = (prefs[epochKey] ?: 0L) + 1
+-        }
++        } }
++        if (writeBarrier != null) writeBarrier.withWrite { write() } else write()
+     }
+
+     private fun parseCategories(raw: String?): Set<ConsentCategory> =
+diff --git a/app/src/main/java/com/mengyalife/app/data/growth/DiaryExtractionService.kt b/app/src/main/java/com/mengyalife/app/data/growth/DiaryExtractionService.kt
+index 7c34aa2..f21f347 100644
+--- a/app/src/main/java/com/mengyalife/app/data/growth/DiaryExtractionService.kt
++++ b/app/src/main/java/com/mengyalife/app/data/growth/DiaryExtractionService.kt
+@@ -5,6 +5,8 @@ import com.mengyalife.app.data.advisor.AdvisorEngine
+ import com.mengyalife.app.data.advisor.QaFaultInjector
+ import com.mengyalife.app.data.consent.AiConsentRepository
+ import com.mengyalife.app.data.local.growth.GrowthSignalDao
++import com.mengyalife.app.data.restore.RestoreWriteBarrier
++import com.mengyalife.app.data.restore.RestoreException
+ import com.mengyalife.app.data.local.growth.GrowthSignalEntity
+ import com.mengyalife.app.data.repository.JournalRepository
+ import com.mengyalife.app.domain.advisor.AdvisorChatMessage
+@@ -63,11 +65,13 @@ class DiaryExtractionService(
+     private val transaction: suspend (suspend () -> Unit) -> Unit = { it() },
+     private val onSignalsChanged: suspend () -> Unit = {},
+     private val preRequestHook: suspend () -> Unit = {},
++    private val writeBarrier: RestoreWriteBarrier? = null,
+ ) : DiaryExtractor {
+     private val mutex = Mutex()
+
+     override suspend fun extract(diaryId: Long, force: Boolean): DiaryExtractionOutcome =
+         mutex.withLock {
++            val restoreGeneration = writeBarrier?.generation()
+             val journal = journalRepository.getEntry(diaryId)
+                 ?: return@withLock DiaryExtractionOutcome.Skipped("日记不存在")
+             val hash = contentHash(journal.title, journal.body)
+@@ -91,6 +95,7 @@ class DiaryExtractionService(
+                 id = diaryId,
+                 expectedUpdatedAt = journal.updatedAt,
+                 hash = hash,
++                expectedRestoreGeneration = restoreGeneration,
+             )
+             if (!started) return@withLock DiaryExtractionOutcome.Busy
+
+@@ -104,7 +109,7 @@ class DiaryExtractionService(
+                     !boundConsent.isValidFor(boundRuntime.endpoint) ||
+                     !boundConsent.enabled(ConsentCategory.JOURNAL)
+                 ) {
+-                    journalRepository.markAnalysisFailed(diaryId, hash, "模型服务或授权已变化")
++                    journalRepository.markAnalysisFailed(diaryId, hash, "模型服务或授权已变化", restoreGeneration)
+                     return@withLock DiaryExtractionOutcome.Failed("模型服务或授权已变化，请重试")
+                 }
+                 val engine = if (boundConfig.useFakeEngine && fakeEngine != null) fakeEngine else networkEngine
+@@ -119,38 +124,42 @@ class DiaryExtractionService(
+                 currentCoroutineContext().ensureActive()
+                 val bindingProblem = preRequestProblem(boundRuntime, boundConsent, diaryId, hash)
+                 if (bindingProblem != null) {
+-                    journalRepository.markAnalysisFailed(diaryId, hash, bindingProblem)
++                    journalRepository.markAnalysisFailed(diaryId, hash, bindingProblem, restoreGeneration)
+                     return@withLock DiaryExtractionOutcome.Failed(bindingProblem)
+                 }
+                 val prompt = DiaryExtractionProtocol.prompt(journal.title, journal.body)
+-                val result = engine.chat(
+-                    config = boundRuntime,
+-                    messages = listOf(
+-                        AdvisorChatMessage(role = "system", content = "只输出严格 JSON；不要诊断或修改任何业务数据。"),
+-                        AdvisorChatMessage(role = "user", content = prompt),
+-                    ),
+-                    maxTokens = 1_200,
+-                )
++                val request: suspend () -> AdvisorChatResult = {
++                    engine.chat(
++                        config = boundRuntime,
++                        messages = listOf(
++                            AdvisorChatMessage(role = "system", content = "只输出严格 JSON；不要诊断或修改任何业务数据。"),
++                            AdvisorChatMessage(role = "user", content = prompt),
++                        ),
++                        maxTokens = 1_200,
++                    )
++                }
++                // 保持恢复对 AI 请求入口的串行化；请求返回后的数据写回仍用旧 generation fencing。
++                val result = if (writeBarrier != null) {
++                    writeBarrier.withWrite(restoreGeneration) { request() }
++                } else request()
+                 // 请求期间授权/配置/日记变化：丢弃结果
+                 val afterConfig = configRepository.state.first()
+                 val afterConsent = consentRepository.current()
+                 val afterJournal = journalRepository.getEntry(diaryId)
+-                if (afterJournal == null ||
+-                    contentHash(afterJournal.title, afterJournal.body) != hash
+-                ) {
++                if (afterJournal == null || contentHash(afterJournal.title, afterJournal.body) != hash) {
+                     return@withLock DiaryExtractionOutcome.Failed("日记已在分析期间变化，请重新分析")
+                 }
+                 if (afterConfig.endpoint != boundRuntime.endpoint ||
+                     !afterConsent.isValidFor(boundRuntime.endpoint) ||
+                     !afterConsent.enabled(ConsentCategory.JOURNAL)
+                 ) {
+-                    journalRepository.markAnalysisFailed(diaryId, hash, "授权或配置已变化")
++                    journalRepository.markAnalysisFailed(diaryId, hash, "授权或配置已变化", restoreGeneration)
+                     return@withLock DiaryExtractionOutcome.Failed("授权或配置已变化，未写入线索")
+                 }
+                 when (result) {
+                     is AdvisorChatResult.Failure -> {
+                         journalRepository.markAnalysisFailed(
+-                            diaryId, hash, result.error.userMessage,
++                            diaryId, hash, result.error.userMessage, restoreGeneration,
+                         )
+                         return@withLock DiaryExtractionOutcome.Failed(result.error.userMessage)
+                     }
+@@ -159,11 +168,12 @@ class DiaryExtractionService(
+                             result.content, journal.title, journal.body.take(DiaryExtractionProtocol.MAX_DIARY_CHARS),
+                         )) {
+                             is DiaryExtractionParseResult.Failure -> {
+-                                journalRepository.markAnalysisFailed(diaryId, hash, parsed.message)
++                                journalRepository.markAnalysisFailed(diaryId, hash, parsed.message, restoreGeneration)
+                                 return@withLock DiaryExtractionOutcome.Failed(parsed.message)
+                             }
+                             is DiaryExtractionParseResult.Success -> {
+                                 var inserted = 0
++                                val writeBatch: suspend () -> Unit = {
+                                 transaction {
+                                     // 与日记删除/编辑并发时，在事务内再次确认来源版本
+                                     val inTransaction = journalRepository.getEntry(diaryId)
+@@ -197,10 +207,12 @@ class DiaryExtractionService(
+                                         beforeWrite()
+                                         if (growthSignalDao.insertIgnore(entity) > 0) inserted++
+                                     }
+-                                    if (journalRepository.markAnalysisCompleted(diaryId, hash).not()) {
++                                    if (journalRepository.markAnalysisCompleted(diaryId, hash, restoreGeneration).not()) {
+                                         throw StaleExtraction()
+                                     }
+                                 }
++                                }
++                                if (writeBarrier != null) writeBarrier.withWrite(restoreGeneration) { writeBatch() } else writeBatch()
+                                 runCatching { onSignalsChanged() }
+                                 DiaryExtractionOutcome.Success(inserted, parsed.signals.size)
+                             }
+@@ -210,11 +222,15 @@ class DiaryExtractionService(
+             } catch (stale: StaleExtraction) {
+                 // 旧版本结果：事务已回滚，不覆盖新状态、不写线索
+                 DiaryExtractionOutcome.Superseded
++            } catch (staleRestore: RestoreException) {
++                if (staleRestore.code == "RESTORE_STALE_RESULT" || staleRestore.code == "RESTORE_BLOCKED") {
++                    DiaryExtractionOutcome.Superseded
++                } else throw staleRestore
+             } catch (cancel: CancellationException) {
+-                journalRepository.markAnalysisFailed(diaryId, hash, "分析已取消")
++                journalRepository.markAnalysisFailed(diaryId, hash, "分析已取消", restoreGeneration)
+                 throw cancel
+             } catch (error: Throwable) {
+-                journalRepository.markAnalysisFailed(diaryId, hash, error.message ?: "分析失败")
++                journalRepository.markAnalysisFailed(diaryId, hash, error.message ?: "分析失败", restoreGeneration)
+                 DiaryExtractionOutcome.Failed(error.message ?: "分析失败")
+             }
+         }
+diff --git a/app/src/main/java/com/mengyalife/app/data/growth/GrowthMemoryRepository.kt b/app/src/main/java/com/mengyalife/app/data/growth/GrowthMemoryRepository.kt
+index 0e327f5..908c701 100644
+--- a/app/src/main/java/com/mengyalife/app/data/growth/GrowthMemoryRepository.kt
++++ b/app/src/main/java/com/mengyalife/app/data/growth/GrowthMemoryRepository.kt
+@@ -5,6 +5,7 @@ import com.mengyalife.app.data.local.JournalEntryEntity
+ import com.mengyalife.app.data.local.growth.GrowthMemoryDao
+ import com.mengyalife.app.data.local.growth.GrowthMemoryEntity
+ import com.mengyalife.app.data.local.growth.GrowthSignalDao
++import com.mengyalife.app.data.restore.RestoreWriteBarrier
+ import com.mengyalife.app.data.local.growth.GrowthSignalEntity
+ import com.mengyalife.app.domain.growth.GrowthMemory
+ import com.mengyalife.app.domain.growth.GrowthMemoryIds
+@@ -23,6 +24,7 @@ class GrowthMemoryRepository(
+     private val signalDao: GrowthSignalDao,
+     private val journalDao: JournalEntryDao,
+     private val now: () -> Long = System::currentTimeMillis,
++    private val writeBarrier: RestoreWriteBarrier? = null,
+ ) {
+     fun observeAll(): Flow<List<GrowthMemory>> =
+         memoryDao.observeAll().map { list -> list.map(::toDomain) }
+@@ -37,12 +39,18 @@ class GrowthMemoryRepository(
+     }
+
+     suspend fun correct(id: String, content: String): Boolean {
++        val generation = writeBarrier?.generation()
+         val clean = content.trim()
+         if (clean.isEmpty() || clean.length > 2_000) return false
+-        return memoryDao.correct(id, clean, now()) > 0
++        val write: suspend () -> Boolean = { memoryDao.correct(id, clean, now()) > 0 }
++        return writeBarrier?.withWrite(generation) { write() } ?: write()
+     }
+
+-    suspend fun delete(id: String): Boolean = memoryDao.softDelete(id, now()) > 0
++    suspend fun delete(id: String): Boolean {
++        val generation = writeBarrier?.generation()
++        val write: suspend () -> Boolean = { memoryDao.softDelete(id, now()) > 0 }
++        return writeBarrier?.withWrite(generation) { write() } ?: write()
++    }
+
+     fun toDomain(entity: GrowthMemoryEntity): GrowthMemory = GrowthMemory(
+         id = entity.id,
+diff --git a/app/src/main/java/com/mengyalife/app/data/growth/GrowthMemoryService.kt b/app/src/main/java/com/mengyalife/app/data/growth/GrowthMemoryService.kt
+index d233919..1d35da7 100644
+--- a/app/src/main/java/com/mengyalife/app/data/growth/GrowthMemoryService.kt
++++ b/app/src/main/java/com/mengyalife/app/data/growth/GrowthMemoryService.kt
+@@ -4,6 +4,7 @@ import com.mengyalife.app.data.local.JournalEntryDao
+ import com.mengyalife.app.data.local.growth.GrowthMemoryDao
+ import com.mengyalife.app.data.local.growth.GrowthMemoryEntity
+ import com.mengyalife.app.data.local.growth.GrowthSignalDao
++import com.mengyalife.app.data.restore.RestoreWriteBarrier
+ import com.mengyalife.app.domain.growth.DiaryContentHash
+ import com.mengyalife.app.domain.growth.GrowthCategory
+ import com.mengyalife.app.domain.growth.GrowthMemoryIds
+@@ -26,8 +27,13 @@ class GrowthMemoryService(
+     private val transaction: suspend (suspend () -> Unit) -> Unit = { it() },
+     private val now: () -> Long = System::currentTimeMillis,
+     private val newId: () -> String = { UUID.randomUUID().toString() },
++    private val canWrite: () -> Boolean = { true },
++    private val writeBarrier: RestoreWriteBarrier? = null,
+ ) {
+     suspend fun rebuildAll() {
++        val generation = writeBarrier?.generation()
++        if (!canWrite()) return
++        val work: suspend () -> Unit = {
+         transaction {
+             val journals = journalDao.loadAll().associateBy { it.id }
+             val signals = signalDao.loadActive(300).filter { signal ->
+@@ -44,6 +50,8 @@ class GrowthMemoryService(
+                 .filter { it.status in setOf("ACTIVE", "CORRECTED") && it.theme !in liveThemes }
+                 .forEach { memoryDao.markStaleByTheme(it.theme, now()) }
+         }
++        }
++        if (writeBarrier != null) writeBarrier.withWrite(generation) { work() } else work()
+     }
+
+     private suspend fun rebuildTheme(
+diff --git a/app/src/main/java/com/mengyalife/app/data/growth/GrowthSignalRepository.kt b/app/src/main/java/com/mengyalife/app/data/growth/GrowthSignalRepository.kt
+index 0afbbaa..4a8f757 100644
+--- a/app/src/main/java/com/mengyalife/app/data/growth/GrowthSignalRepository.kt
++++ b/app/src/main/java/com/mengyalife/app/data/growth/GrowthSignalRepository.kt
+@@ -1,6 +1,7 @@
+ package com.mengyalife.app.data.growth
+
+ import com.mengyalife.app.data.local.growth.GrowthSignalDao
++import com.mengyalife.app.data.restore.RestoreWriteBarrier
+ import com.mengyalife.app.data.local.growth.GrowthSignalEntity
+ import com.mengyalife.app.domain.growth.GrowthCategory
+ import com.mengyalife.app.domain.growth.GrowthSignal
+@@ -13,22 +14,31 @@ class GrowthSignalRepository(
+     private val dao: GrowthSignalDao,
+     private val now: () -> Long = System::currentTimeMillis,
+     private val onChanged: suspend () -> Unit = {},
++    private val writeBarrier: RestoreWriteBarrier? = null,
+ ) {
+     fun observeForDiary(diaryId: Long): Flow<List<GrowthSignal>> =
+         dao.observeForDiary(diaryId).map { rows -> rows.map(::toDomain) }
+
+     suspend fun correct(id: String, content: String): Boolean {
++        val generation = writeBarrier?.generation()
+         val clean = content.trim()
+         if (clean.isEmpty() || clean.length > 500) return false
+-        val changed = dao.correct(id, clean, now()) > 0
+-        if (changed) runCatching { onChanged() }
+-        return changed
++        val write: suspend () -> Boolean = {
++            val changed = dao.correct(id, clean, now()) > 0
++            if (changed) runCatching { onChanged() }
++            changed
++        }
++        return writeBarrier?.withWrite(generation) { write() } ?: write()
+     }
+
+     suspend fun delete(id: String): Boolean {
+-        val changed = dao.softDelete(id, now()) > 0
+-        if (changed) runCatching { onChanged() }
+-        return changed
++        val generation = writeBarrier?.generation()
++        val write: suspend () -> Boolean = {
++            val changed = dao.softDelete(id, now()) > 0
++            if (changed) runCatching { onChanged() }
++            changed
++        }
++        return writeBarrier?.withWrite(generation) { write() } ?: write()
+     }
+
+     suspend fun loadForDiary(diaryId: Long): List<GrowthSignal> =
+diff --git a/app/src/main/java/com/mengyalife/app/data/insight/InsightService.kt b/app/src/main/java/com/mengyalife/app/data/insight/InsightService.kt
+index 6b2dc15..3ead0d0 100644
+--- a/app/src/main/java/com/mengyalife/app/data/insight/InsightService.kt
++++ b/app/src/main/java/com/mengyalife/app/data/insight/InsightService.kt
+@@ -5,6 +5,7 @@ import com.mengyalife.app.data.advisor.AdvisorDataRepository
+ import com.mengyalife.app.data.advisor.AdvisorEngine
+ import com.mengyalife.app.data.consent.AiConsentRepository
+ import com.mengyalife.app.data.local.insight.InsightReportDao
++import com.mengyalife.app.data.restore.RestoreWriteBarrier
+ import com.mengyalife.app.data.local.insight.InsightReportEntity
+ import com.mengyalife.app.domain.advisor.AdvisorChatMessage
+ import com.mengyalife.app.domain.advisor.AdvisorChatResult
+@@ -44,6 +45,7 @@ class InsightService(
+     private val newId: () -> String = { UUID.randomUUID().toString() },
+     private val beforeRequest: suspend () -> Unit = {},
+     private val beforeWrite: suspend () -> Unit = {},
++    private val writeBarrier: RestoreWriteBarrier? = null,
+ ) {
+     suspend fun currentInput(): InsightInput {
+         val consent = consentRepository.current()
+@@ -57,6 +59,7 @@ class InsightService(
+     }
+
+     suspend fun generate(force: Boolean = false): InsightGenerationResult {
++        val restoreGeneration = writeBarrier?.generation()
+         val consent = consentRepository.current()
+         val snapshot = dataRepository.snapshot(consent)
+         val input = InsightRules.build(snapshot, consent, now())
+@@ -73,13 +76,13 @@ class InsightService(
+             !consent.enabled(ConsentCategory.GOALS) &&
+             !consent.enabled(ConsentCategory.JOURNAL)
+         ) {
+-            return saveFailed(input, "尚未授权任何成长数据类别", null)
++            return saveFailed(input, "尚未授权任何成长数据类别", null, restoreGeneration)
+         }
+         if (!boundConfig.configured || boundRuntime == null ||
+             boundRuntime.endpoint != boundConfig.endpoint ||
+             !boundConsent.isValidFor(boundRuntime.endpoint)
+         ) {
+-            return saveFailed(input, "AI 服务未配置或授权已失效；已保留本地规则分析", null)
++            return saveFailed(input, "AI 服务未配置或授权已失效；已保留本地规则分析", null, restoreGeneration)
+         }
+
+         beforeRequest()
+@@ -88,41 +91,35 @@ class InsightService(
+
+         val engine = if (boundConfig.useFakeEngine && fakeEngine != null) fakeEngine else networkEngine
+         val prompt = InsightParser.prompt(boundInput)
+-        val result = engine.chat(
+-            config = boundRuntime,
+-            messages = listOf(
+-                AdvisorChatMessage("system", "只输出严格 JSON；只解释给定事实，不编造。"),
+-                AdvisorChatMessage("user", prompt),
+-            ),
+-            maxTokens = 2_500,
+-        )
+-        // 请求后再次校验；旧结果不得写入 READY
+-        val afterProblem = preflightProblem(boundConsent, boundCategories, boundRuntime, boundInput)
+-        if (afterProblem != null) {
+-            return InsightGenerationResult.Failed("$afterProblem；本次 AI 结果已丢弃", null)
++        val request: suspend () -> AdvisorChatResult = {
++            engine.chat(
++                config = boundRuntime,
++                messages = listOf(
++                    AdvisorChatMessage("system", "只输出严格 JSON；只解释给定事实，不编造。"),
++                    AdvisorChatMessage("user", prompt),
++                ),
++                maxTokens = 2_500,
++            )
+         }
++        // 不允许在恢复 Gate 激活后启动新请求；in-flight 请求完成后仍需generation check。
++        val result = writeBarrier?.withWrite(restoreGeneration) { request() } ?: request()
++        val afterProblem = preflightProblem(boundConsent, boundCategories, boundRuntime, boundInput)
++        if (afterProblem != null) return InsightGenerationResult.Failed("$afterProblem；本次 AI 结果已丢弃", null)
+         return when (result) {
+-            is AdvisorChatResult.Failure -> saveFailed(boundInput, result.error.userMessage, null)
++            is AdvisorChatResult.Failure -> saveFailed(boundInput, result.error.userMessage, null, restoreGeneration)
+             is AdvisorChatResult.Success -> when (val parsed = InsightParser.parse(
+                 result.content, boundInput.facts, boundInput.allowedSources, newId,
+             )) {
+-                is InsightParseResult.Failure -> saveFailed(boundInput, "洞察解析失败：${parsed.message}", null)
++                is InsightParseResult.Failure -> saveFailed(boundInput, "洞察解析失败：${parsed.message}", null, restoreGeneration)
+                 is InsightParseResult.Success -> {
+                     val report = InsightReport(
+-                        id = newId(),
+-                        dataVersion = boundInput.dataVersion,
+-                        status = InsightReportStatus.READY,
+-                        summary = parsed.summary,
+-                        facts = boundInput.facts,
+-                        insights = parsed.insights,
+-                        periodStart = boundInput.periodStart,
+-                        periodEnd = boundInput.periodEnd,
+-                        generatedAt = now(),
+-                        error = null,
+-                        model = null,
++                        id = newId(), dataVersion = boundInput.dataVersion,
++                        status = InsightReportStatus.READY, summary = parsed.summary,
++                        facts = boundInput.facts, insights = parsed.insights,
++                        periodStart = boundInput.periodStart, periodEnd = boundInput.periodEnd,
++                        generatedAt = now(), error = null, model = null,
+                     )
+-                    beforeWrite()
+-                    dao.insert(report.toEntity())
++                    writeReport(restoreGeneration) { dao.insert(report.toEntity()) }
+                     InsightGenerationResult.Ready(report)
+                 }
+             }
+@@ -154,6 +151,7 @@ class InsightService(
+         input: InsightInput,
+         message: String,
+         model: String?,
++        restoreGeneration: Long? = null,
+     ): InsightGenerationResult {
+         val report = InsightReport(
+             id = newId(),
+@@ -168,11 +166,15 @@ class InsightService(
+             error = message.take(300),
+             model = model,
+         )
+-        beforeWrite()
+-        dao.insert(report.toEntity())
++        writeReport(restoreGeneration) { dao.insert(report.toEntity()) }
+         return InsightGenerationResult.Failed(message, report)
+     }
+
++    private suspend fun writeReport(expectedGeneration: Long?, block: suspend () -> Unit) {
++        beforeWrite()
++        if (writeBarrier != null) writeBarrier.withWrite(expectedGeneration) { block() } else block()
++    }
++
+     private fun InsightReport.toEntity() = InsightReportEntity(
+         id = id, dataVersion = dataVersion, status = status.name,
+         summary = summary, factsJson = InsightCodec.factsToJson(facts),
+diff --git a/app/src/main/java/com/mengyalife/app/data/local/MengyaDatabase.kt b/app/src/main/java/com/mengyalife/app/data/local/MengyaDatabase.kt
+index b80fd3a..c93ae33 100644
+--- a/app/src/main/java/com/mengyalife/app/data/local/MengyaDatabase.kt
++++ b/app/src/main/java/com/mengyalife/app/data/local/MengyaDatabase.kt
+@@ -406,6 +406,13 @@ abstract class MengyaDatabase : RoomDatabase() {
+                     DATABASE_NAME,
+                 )
+                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
++                    .addCallback(object : RoomDatabase.Callback() {
++                        override fun onCreate(db: SupportSQLiteDatabase) {
++                            super.onCreate(db)
++                            // Fresh v12 installations do not execute MIGRATION_11_12.
++                            db.execSQL("INSERT OR IGNORE INTO `app_meta` (`id`, `restore_generation`) VALUES (1, 0)")
++                        }
++                    })
+                     .build()
+                     .also { instance = it }
+             }
+diff --git a/app/src/main/java/com/mengyalife/app/data/preferences/ThemePreferences.kt b/app/src/main/java/com/mengyalife/app/data/preferences/ThemePreferences.kt
+index 961c599..460b36f 100644
+--- a/app/src/main/java/com/mengyalife/app/data/preferences/ThemePreferences.kt
++++ b/app/src/main/java/com/mengyalife/app/data/preferences/ThemePreferences.kt
+@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
+ import androidx.datastore.preferences.preferencesDataStore
+ import com.mengyalife.app.BuildConfig
+ import com.mengyalife.app.ui.theme.ThemeMode
++import com.mengyalife.app.data.restore.RestoreWriteBarrier
+ import kotlinx.coroutines.flow.Flow
+ import kotlinx.coroutines.flow.catch
+ import kotlinx.coroutines.flow.map
+@@ -35,7 +36,7 @@ private val Context.settingsDataStore: DataStore<Preferences> by preferencesData
+  * 读取失败（例如文件损坏）时回落到「跟随系统」，并把 IOException 吃掉，
+  * 不让一个坏掉的偏好文件把整个 App 打崩。
+  */
+-class ThemePreferences(private val context: Context) {
++class ThemePreferences(private val context: Context, private val writeBarrier: RestoreWriteBarrier? = null) {
+
+     private val themeKey = stringPreferencesKey("theme_mode")
+
+@@ -49,8 +50,7 @@ class ThemePreferences(private val context: Context) {
+         }
+
+     suspend fun setThemeMode(mode: ThemeMode) {
+-        context.settingsDataStore.edit { preferences ->
+-            preferences[themeKey] = mode.name
+-        }
++        val write: suspend () -> Unit = { context.settingsDataStore.edit { preferences -> preferences[themeKey] = mode.name } }
++        if (writeBarrier != null) writeBarrier.withWrite { write() } else write()
+     }
+ }
+diff --git a/app/src/main/java/com/mengyalife/app/data/qa/QaBackupFixtureSeeder.kt b/app/src/main/java/com/mengyalife/app/data/qa/QaBackupFixtureSeeder.kt
+index 8e06866..a68138d 100644
+--- a/app/src/main/java/com/mengyalife/app/data/qa/QaBackupFixtureSeeder.kt
++++ b/app/src/main/java/com/mengyalife/app/data/qa/QaBackupFixtureSeeder.kt
+@@ -249,9 +249,16 @@ object QaBackupFixtureSeeder {
+         seed(database)
+         database.withTransaction {
+             val db = database.openHelper.writableDatabase
+-            db.execSQL("UPDATE journal_entries SET title='B 变体日记', body='B body after export' WHERE id=(SELECT MIN(id) FROM journal_entries)")
+-            db.execSQL("UPDATE goals SET title='B 变体目标' WHERE level='LONG_TERM'")
+-            db.execSQL("UPDATE growth_memories SET content='B 变体记忆' WHERE status='ACTIVE'")
++            db.execSQL("UPDATE journal_entries SET title='B 变体日记', body='B body after export'")
++            db.execSQL("UPDATE goals SET title='B ' || title")
++            db.execSQL("UPDATE goal_checkins SET note='B ' || note")
++            db.execSQL("UPDATE advisor_messages SET content='B ' || content")
++            db.execSQL("UPDATE goal_proposals SET summary='B ' || summary")
++            db.execSQL("UPDATE growth_signals SET content='B ' || content")
++            db.execSQL("UPDATE growth_memories SET content='B ' || content")
++            db.execSQL("UPDATE insight_reports SET summary='B ' || summary")
++            db.execSQL("UPDATE weekly_reviews SET facts_json='[]', sections_json='{\"sections\":[]}'")
++            db.execSQL("UPDATE weekly_ai_reviews SET summary='B ' || summary")
+         }
+     }
+ }
+diff --git a/app/src/main/java/com/mengyalife/app/data/repository/GoalRepository.kt b/app/src/main/java/com/mengyalife/app/data/repository/GoalRepository.kt
+index 0d4325f..c824651 100644
+--- a/app/src/main/java/com/mengyalife/app/data/repository/GoalRepository.kt
++++ b/app/src/main/java/com/mengyalife/app/data/repository/GoalRepository.kt
+@@ -3,6 +3,7 @@ package com.mengyalife.app.data.repository
+ import com.mengyalife.app.data.local.goal.GoalCheckinEntity
+ import com.mengyalife.app.data.local.goal.GoalCheckinStat
+ import com.mengyalife.app.data.local.goal.GoalDao
++import com.mengyalife.app.data.restore.RestoreWriteBarrier
+ import com.mengyalife.app.data.local.goal.GoalEntity
+ import com.mengyalife.app.domain.goals.CheckinSource
+ import com.mengyalife.app.domain.goals.GoalDomain
+@@ -107,8 +108,16 @@ sealed interface GoalResult<out T> {
+  */
+ class GoalRepository(
+     private val dao: GoalDao,
++    private val canWrite: () -> Boolean = { true },
++    private val writeBarrier: RestoreWriteBarrier? = null,
+     private val now: () -> Long = System::currentTimeMillis,
+ ) : AdvisorContextSource {
++    private fun ensureWritable() {
++        if (!canWrite()) throw IllegalStateException("恢复维护中，禁止写入目标")
++    }
++
++    private suspend fun <T> guarded(expectedGeneration: Long? = writeBarrier?.generation(), block: suspend () -> T): T =
++        writeBarrier?.withWrite(expectedGeneration) { ensureWritable(); block() } ?: run { ensureWritable(); block() }
+
+     fun observeSnapshot(): Flow<GoalSnapshot> =
+         combine(dao.observeGoals(), dao.observeCheckinStats()) { goals, stats ->
+@@ -138,16 +147,16 @@ class GoalRepository(
+         level: GoalLevel,
+         parentId: Long?,
+         draft: GoalDraft,
+-    ): GoalResult<Long> {
++    ): GoalResult<Long> = guarded {
+         val parent = parentId?.let { dao.findGoal(it) }
+-        if (parentId != null && parent == null) return GoalResult.Error(GoalRules.ERROR_PARENT_MISSING)
++        if (parentId != null && parent == null) return@guarded GoalResult.Error(GoalRules.ERROR_PARENT_MISSING)
+
+         GoalRules.validateParent(
+             level = level,
+             parent = parent?.let { GoalRef(it.id, it.level, it.parentId) },
+-        )?.let { return GoalResult.Error(it) }
++        )?.let { return@guarded GoalResult.Error(it) }
+
+-        validateDraft(draft)?.let { return GoalResult.Error(it) }
++        validateDraft(draft)?.let { return@guarded GoalResult.Error(it) }
+
+         val timestamp = now()
+         val id = dao.insertGoal(
+@@ -164,14 +173,15 @@ class GoalRepository(
+                 updatedAt = timestamp,
+             ),
+         )
+-        return GoalResult.Ok(id)
++        return@guarded GoalResult.Ok(id)
++
+     }
+
+     // ---------------------------------------------------------------- 编辑
+
+-    suspend fun updateGoal(id: Long, draft: GoalDraft): GoalResult<Unit> {
+-        val existing = dao.findGoal(id) ?: return GoalResult.Error("目标不存在")
+-        validateDraft(draft)?.let { return GoalResult.Error(it) }
++    suspend fun updateGoal(id: Long, draft: GoalDraft): GoalResult<Unit> = guarded {
++        val existing = dao.findGoal(id) ?: return@guarded GoalResult.Error("目标不存在")
++        validateDraft(draft)?.let { return@guarded GoalResult.Error(it) }
+
+         dao.updateGoal(
+             existing.copy(
+@@ -184,13 +194,15 @@ class GoalRepository(
+                 updatedAt = now(),
+             ),
+         )
+-        return GoalResult.Ok(Unit)
++        return@guarded GoalResult.Ok(Unit)
++
+     }
+
+-    suspend fun changeStatus(id: Long, status: GoalStatus): GoalResult<Unit> {
+-        val existing = dao.findGoal(id) ?: return GoalResult.Error("目标不存在")
++    suspend fun changeStatus(id: Long, status: GoalStatus): GoalResult<Unit> = guarded {
++        val existing = dao.findGoal(id) ?: return@guarded GoalResult.Error("目标不存在")
+         dao.updateGoal(existing.copy(status = status, updatedAt = now()))
+-        return GoalResult.Ok(Unit)
++        return@guarded GoalResult.Ok(Unit)
++
+     }
+
+     // ---------------------------------------------------------------- 删除
+@@ -213,13 +225,14 @@ class GoalRepository(
+      * 删除目标及其全部子目标与进展记录。
+      * 只在用户**明确确认影响范围**后调用（UI 会先展示 [assessDeleteImpact] 的结果）。
+      */
+-    suspend fun deleteGoalTree(id: Long): GoalResult<DeleteImpact> {
++    suspend fun deleteGoalTree(id: Long): GoalResult<DeleteImpact> = guarded {
+         val all = dao.loadAllGoals()
+         val subtree = collectSubtreeIds(id, all)
+-        if (subtree.isEmpty()) return GoalResult.Error("目标不存在")
++        if (subtree.isEmpty()) return@guarded GoalResult.Error("目标不存在")
+         val impact = assessDeleteImpact(id)
+         dao.deleteGoalTree(subtree)
+-        return GoalResult.Ok(impact)
++        return@guarded GoalResult.Ok(impact)
++
+     }
+
+     // ---------------------------------------------------------------- 进展
+@@ -229,13 +242,13 @@ class GoalRepository(
+         note: String,
+         metricValue: Double?,
+         metricUnit: String?,
+-    ): GoalResult<Long> {
+-        dao.findGoal(goalId) ?: return GoalResult.Error("目标不存在")
+-        GoalRules.validateCheckinNote(note)?.let { return GoalResult.Error(it) }
++    ): GoalResult<Long> = guarded {
++        dao.findGoal(goalId) ?: return@guarded GoalResult.Error("目标不存在")
++        GoalRules.validateCheckinNote(note)?.let { return@guarded GoalResult.Error(it) }
+         // 数据层兜底：NaN / Infinity / 超出范围一律拒绝，不依赖界面先校验。
+         // 即使以后接导入、脚本或其它入口，也无法把非法数值写进 goal_checkins。
+-        GoalRules.validateMetricValue(metricValue)?.let { return GoalResult.Error(it) }
+-        GoalRules.validateUnit(metricUnit)?.let { return GoalResult.Error(it) }
++        GoalRules.validateMetricValue(metricValue)?.let { return@guarded GoalResult.Error(it) }
++        GoalRules.validateUnit(metricUnit)?.let { return@guarded GoalResult.Error(it) }
+
+         val id = dao.insertCheckin(
+             GoalCheckinEntity(
+@@ -252,7 +265,8 @@ class GoalRepository(
+         if (goal != null && goal.status == GoalStatus.NOT_STARTED) {
+             dao.updateGoal(goal.copy(status = GoalStatus.IN_PROGRESS, updatedAt = now()))
+         }
+-        return GoalResult.Ok(id)
++        return@guarded GoalResult.Ok(id)
++
+     }
+
+     // ---------------------------------------------------------------- 顾问上下文
+diff --git a/app/src/main/java/com/mengyalife/app/data/repository/JournalRepository.kt b/app/src/main/java/com/mengyalife/app/data/repository/JournalRepository.kt
+index 947a995..c9b7f15 100644
+--- a/app/src/main/java/com/mengyalife/app/data/repository/JournalRepository.kt
++++ b/app/src/main/java/com/mengyalife/app/data/repository/JournalRepository.kt
+@@ -1,6 +1,7 @@
+ package com.mengyalife.app.data.repository
+
+ import com.mengyalife.app.data.local.JournalEntryDao
++import com.mengyalife.app.data.restore.RestoreWriteBarrier
+ import com.mengyalife.app.data.local.growth.GrowthSignalDao
+ import com.mengyalife.app.data.local.JournalEntryEntity
+ import com.mengyalife.app.domain.JournalRules
+@@ -22,7 +23,15 @@ class JournalRepository(
+     private val growthSignalDao: GrowthSignalDao? = null,
+     private val transaction: suspend (suspend () -> Unit) -> Unit = { it() },
+     private val onSignalsChanged: suspend () -> Unit = {},
++    private val canWrite: () -> Boolean = { true },
++    private val writeBarrier: RestoreWriteBarrier? = null,
+ ) {
++    private fun ensureWritable() {
++        if (!canWrite()) throw IllegalStateException("恢复维护中，禁止写入日记")
++    }
++
++    private suspend fun <T> guarded(expectedGeneration: Long? = writeBarrier?.generation(), block: suspend () -> T): T =
++        writeBarrier?.withWrite(expectedGeneration) { ensureWritable(); block() } ?: run { ensureWritable(); block() }
+
+     fun observeEntries(): Flow<List<JournalEntryEntity>> = dao.observeAll()
+
+@@ -34,11 +43,11 @@ class JournalRepository(
+      * 新建日记。
+      * @return 新记录的自增 id；正文非法时抛 [IllegalArgumentException]（调用方应先校验）。
+      */
+-    suspend fun createEntry(rawBody: String, rawTitle: String?): Long {
++    suspend fun createEntry(rawBody: String, rawTitle: String?): Long = guarded {
+         val body = rawBody.trim()
+         require(JournalRules.validateBody(body) == null) { "正文不能为空" }
+         val timestamp = now()
+-        return dao.insert(
++        return@guarded dao.insert(
+             JournalEntryEntity(
+                 title = normalizeTitle(rawTitle),
+                 body = body,
+@@ -47,16 +56,17 @@ class JournalRepository(
+                 analysisStatus = "PENDING",
+             ),
+         )
++
+     }
+
+     /**
+      * 更新正文与标题。`createdAt` 保持不变，`updatedAt` 刷新。
+      * @return 是否命中并更新了记录。
+      */
+-    suspend fun updateEntry(id: Long, rawBody: String, rawTitle: String?): Boolean {
++    suspend fun updateEntry(id: Long, rawBody: String, rawTitle: String?): Boolean = guarded {
+         val body = rawBody.trim()
+         require(JournalRules.validateBody(body) == null) { "正文不能为空" }
+-        val existing = dao.findById(id) ?: return false
++        val existing = dao.findById(id) ?: return@guarded false
+         val timestamp = now()
+         val newTitle = normalizeTitle(rawTitle)
+         val contentChanged = existing.title != newTitle || existing.body != body
+@@ -83,33 +93,39 @@ class JournalRepository(
+             }
+         }
+         if (changed && contentChanged) runCatching { onSignalsChanged() }
+-        return changed
++        changed
+     }
+
+     /** 删除日记时同步移除其线索，避免删除后仍参与未来上下文。 */
+-    suspend fun deleteEntry(id: Long): Boolean {
++    suspend fun deleteEntry(id: Long): Boolean = guarded {
+         var deleted = false
+         transaction {
+             deleted = dao.deleteById(id) > 0
+             if (deleted) growthSignalDao?.deleteForDiary(id)
+         }
+         if (deleted) runCatching { onSignalsChanged() }
+-        return deleted
++        deleted
+     }
+
+     fun observeSignals(diaryId: Long) =
+         growthSignalDao?.observeForDiary(diaryId) ?: kotlinx.coroutines.flow.flowOf(emptyList())
+
+-    suspend fun resetInterruptedAnalyses(): Int = dao.markInterruptedAnalyses()
++    suspend fun resetInterruptedAnalyses(): Int = guarded {
++        return@guarded dao.markInterruptedAnalyses()
++
++    }
+
+-    suspend fun markAnalyzing(id: Long, expectedUpdatedAt: Long, hash: String): Boolean =
++    suspend fun markAnalyzing(id: Long, expectedUpdatedAt: Long, hash: String, expectedRestoreGeneration: Long? = null): Boolean = guarded(expectedRestoreGeneration) {
+         dao.markAnalyzing(id, expectedUpdatedAt, hash, now()) > 0
++    }
+
+-    suspend fun markAnalysisCompleted(id: Long, hash: String): Boolean =
++    suspend fun markAnalysisCompleted(id: Long, hash: String, expectedRestoreGeneration: Long? = null): Boolean = guarded(expectedRestoreGeneration) {
+         dao.markCompleted(id, hash, now()) > 0
++    }
+
+-    suspend fun markAnalysisFailed(id: Long, hash: String, error: String): Boolean =
++    suspend fun markAnalysisFailed(id: Long, hash: String, error: String, expectedRestoreGeneration: Long? = null): Boolean = guarded(expectedRestoreGeneration) {
+         dao.markFailed(id, hash, error.take(300), now()) > 0
++    }
+
+     private fun normalizeTitle(rawTitle: String?): String? =
+         rawTitle?.trim()?.takeIf { it.isNotEmpty() }
+diff --git a/app/src/main/java/com/mengyalife/app/data/restore/RestoreCoordinator.kt b/app/src/main/java/com/mengyalife/app/data/restore/RestoreCoordinator.kt
+index 1487a96..b16ad9b 100644
+--- a/app/src/main/java/com/mengyalife/app/data/restore/RestoreCoordinator.kt
++++ b/app/src/main/java/com/mengyalife/app/data/restore/RestoreCoordinator.kt
+@@ -15,6 +15,8 @@ import kotlinx.coroutines.sync.Mutex
+ import kotlinx.coroutines.sync.withLock
+ import java.util.UUID
+
++enum class RestoreStartupState { UNKNOWN, RECONCILING, READY, MAINTENANCE }
++
+ enum class RestoreRunStatus { SUCCESS, FAILED_BEFORE_COMMIT, COMMITTED_NEEDS_CONVERGENCE, MAINTENANCE }
+
+ data class RestoreRunResult(
+@@ -39,68 +41,114 @@ class RestoreCoordinator(
+     private val reader: BackupRestoreReader,
+     private val validator: RestoreValidator,
+     private val evidenceDir: java.io.File? = null,
++    private val writeBarrier: RestoreWriteBarrier = RestoreWriteBarrier(initiallyReady = false),
+     private val onSuccess: (String) -> Unit = {},
+     private val now: () -> Long = System::currentTimeMillis,
+     private val newAttemptId: () -> String = { UUID.randomUUID().toString() },
+ ) {
+     private val lock = Mutex()
+-    private val _gateActive = MutableStateFlow(gate.isActive())
++    private val _startupState = MutableStateFlow(RestoreStartupState.UNKNOWN)
++    val startupState: StateFlow<RestoreStartupState> = _startupState.asStateFlow()
++    private val _gateActive = MutableStateFlow(true)
+     val gateActive: StateFlow<Boolean> = _gateActive.asStateFlow()
+     private val _completionMessage = MutableStateFlow<String?>(null)
+     val completionMessage: StateFlow<String?> = _completionMessage.asStateFlow()
+
++
++    suspend fun awaitReady(timeoutMillis: Long = 30_000): Boolean =
++        kotlinx.coroutines.withTimeoutOrNull(timeoutMillis) {
++            _startupState.first { it == RestoreStartupState.READY }
++            true
++        } ?: false
++
+     fun clearCompletionMessage() { _completionMessage.value = null }
+
+-    fun isGateActive(): Boolean = gate.isActive()
++    fun isGateActive(): Boolean = _startupState.value != RestoreStartupState.READY
++
++    private fun finishReady() {
++        writeBarrier.setReady(true)
++        _startupState.value = RestoreStartupState.READY
++        _gateActive.value = false
++    }
++
++    private fun finishMaintenance() {
++        writeBarrier.setReady(false)
++        _startupState.value = RestoreStartupState.MAINTENANCE
++        _gateActive.value = true
++    }
+
+     suspend fun reconcileOnStartup() {
+-        _gateActive.value = gate.isActive()
+-        if (!gate.isActive()) {
+-            val orphanJournal = journal.read()
+-            if (orphanJournal == null) {
+-                val meta = readMetaOrNull()
+-                if (meta?.restoreAttemptId != null && meta.restoreConvergedAt == null) {
+-                    // 已提交但 Gate/journal 都丢失：不能判断安全收敛，fail-closed。
+-                    runCatching {
+-                        gate.write(RestoreGateState(meta.restoreAttemptId, meta.restoreBackupId.orEmpty(),
+-                            meta.restoreGeneration, RestoreGatePhase.ARMED, now()))
++        writeBarrier.withExclusive { reconcileExclusive() }
++    }
++
++    private suspend fun reconcileExclusive() {
++        _startupState.value = RestoreStartupState.RECONCILING
++        _gateActive.value = true
++        try {
++            val gateState = gate.read()
++            if (!gate.isActive()) {
++                val journalState = journal.read()
++                val metaResult = readMetaResult()
++                if (metaResult.isFailure) { finishMaintenance(); return }
++                val meta = metaResult.getOrNull()
++                if (journalState == null) {
++                    if (meta == null) { finishMaintenance(); return }
++                    if (meta.restoreAttemptId != null && meta.restoreConvergedAt == null) {
++                        // Gate/journal 都丢失但已提交：先用 app_meta 做安全收敛。
++                        val state = RestoreGateState(meta.restoreAttemptId, meta.restoreBackupId.orEmpty(),
++                            meta.restoreGeneration, RestoreGatePhase.RESET_PENDING, now())
++                        runCatching { gate.write(state) }
++                        if (!gate.isActive()) { finishMaintenance(); return }
++                        val result = converge(state, meta)
++                        if (result.status == RestoreRunStatus.SUCCESS) finishReady() else finishMaintenance()
++                    } else {
++                        finishReady()
+                     }
+-                    _gateActive.value = gate.isActive()
++                    return
+                 }
+-                return
+-            }
+-            if (orphanJournal != null) {
+                 // Gate 丢失但 journal 存在：只有 app_meta 明确匹配才继续，否则 fail-closed。
+-                val meta = readMetaOrNull()
+-                if (meta?.restoreAttemptId == orphanJournal.attemptId) {
+-                    val state = RestoreGateState(orphanJournal.attemptId, orphanJournal.backupId,
+-                        orphanJournal.generation, RestoreGatePhase.RESET_PENDING, now())
++                if (meta?.restoreAttemptId == journalState.attemptId && meta.restoreConvergedAt != null) {
++                    journal.clear()
++                    finishReady()
++                    return
++                }
++                if (meta?.restoreAttemptId == journalState.attemptId) {
++                    val state = RestoreGateState(journalState.attemptId, journalState.backupId,
++                        journalState.generation, RestoreGatePhase.RESET_PENDING, now())
+                     runCatching { gate.write(state) }
+-                    _gateActive.value = gate.isActive()
+-                    if (_gateActive.value) converge(state, meta)
++                    if (!gate.isActive()) { finishMaintenance(); return }
++                    val result = converge(state, meta)
++                    if (result.status == RestoreRunStatus.SUCCESS) finishReady() else finishMaintenance()
+                 } else {
+                     runCatching {
+-                        gate.write(RestoreGateState(orphanJournal.attemptId, orphanJournal.backupId,
+-                            orphanJournal.generation, RestoreGatePhase.ARMED, now()))
++                        gate.write(RestoreGateState(journalState.attemptId, journalState.backupId,
++                            journalState.generation, RestoreGatePhase.ARMED, now()))
+                     }
+-                    _gateActive.value = gate.isActive()
++                    finishMaintenance()
+                 }
++                return
+             }
+-            return
+-        }
+-        val state = gate.read() ?: run { _gateActive.value = true; return }
+-        val meta = readMetaOrNull() ?: run { _gateActive.value = true; return }
+-        if (meta.restoreAttemptId != state.attemptId) {
+-            // 能明确证明本次 attempt 未提交：保护旧数据，清理本 attempt 的 Gate/journal。
+-            gate.clear(); journal.clear(); _gateActive.value = false
+-            return
+-        }
+-        if (meta.restoreGeneration != state.generation) {
+-            _gateActive.value = true // 异常，fail-closed
+-            return
++            val state = gate.read()
++            if (state == null) { finishMaintenance(); return }
++            val metaResult = readMetaResult()
++            if (metaResult.isFailure) { finishMaintenance(); return }
++            val meta = metaResult.getOrNull()
++            if (meta == null) { finishMaintenance(); return }
++            if (meta.restoreAttemptId != state.attemptId) {
++                // 能明确证明本次 attempt 未提交：保护旧数据，清理本 attempt 的 Gate/journal。
++                try { gate.clear(); journal.clear(); finishReady() } catch (e: Exception) { finishMaintenance() }
++                return
++            }
++            if (meta.restoreGeneration != state.generation) { finishMaintenance(); return }
++            if (meta.restoreConvergedAt != null) {
++                try { gate.clear(); journal.clear(); finishReady() } catch (e: Exception) { finishMaintenance() }
++                return
++            }
++            val result = converge(state, meta)
++            if (result.status == RestoreRunStatus.SUCCESS) finishReady() else finishMaintenance()
++        } catch (e: Exception) {
++            finishMaintenance()
+         }
+-        _gateActive.value = true
+-        converge(state, meta)
+     }
+
+     suspend fun execute(
+@@ -108,65 +156,118 @@ class RestoreCoordinator(
+         passphrase: CharArray,
+         expectedPayloadSha256: String,
+         expectedBackupId: String,
+-    ): RestoreRunResult = lock.withLock {
+-        if (gate.isActive()) return@withLock RestoreRunResult(RestoreRunStatus.MAINTENANCE, "存在未完成的恢复，需先收敛")
++): RestoreRunResult = lock.withLock {
++        writeBarrier.withExclusive {
++            val result = executeExclusive(bytes, passphrase, expectedPayloadSha256, expectedBackupId)
++            if (result.status == RestoreRunStatus.FAILED_BEFORE_COMMIT && !gate.isActive() &&
++                _startupState.value != RestoreStartupState.MAINTENANCE
++            ) finishReady()
++            result
++        }
++    }
++
++    private suspend fun executeExclusive(
++        bytes: ByteArray,
++        passphrase: CharArray,
++        expectedPayloadSha256: String,
++        expectedBackupId: String,
++    ): RestoreRunResult {
++        if (_startupState.value != RestoreStartupState.READY || gate.isActive()) {
++            return RestoreRunResult(RestoreRunStatus.MAINTENANCE, "恢复尚未就绪或存在未完成恢复")
++        }
+         val opened = try {
+             reader.open(bytes, passphrase)
+         } catch (e: RestoreException) {
+-            return@withLock RestoreRunResult(RestoreRunStatus.FAILED_BEFORE_COMMIT, e.message ?: "备份校验失败")
++            return RestoreRunResult(RestoreRunStatus.FAILED_BEFORE_COMMIT, e.message ?: "备份校验失败")
+         }
+         if (opened.payloadSha256 != expectedPayloadSha256 ||
+             (opened.payload["backupId"] as? kotlinx.serialization.json.JsonPrimitive)?.content != expectedBackupId
+         ) {
+-            return@withLock RestoreRunResult(RestoreRunStatus.FAILED_BEFORE_COMMIT, "备份文件在预览后发生变化，请重新预览")
++            return RestoreRunResult(RestoreRunStatus.FAILED_BEFORE_COMMIT, "备份文件在预览后发生变化，请重新预览")
+         }
+         val validation = try { validator.validate(opened.payload) } catch (e: RestoreException) {
+-            return@withLock RestoreRunResult(RestoreRunStatus.FAILED_BEFORE_COMMIT, e.message ?: "备份校验失败")
++            return RestoreRunResult(RestoreRunStatus.FAILED_BEFORE_COMMIT, e.message ?: "备份校验失败")
++        }
++        try {
++            snapshotStore.requireSpace(bytes.size.toLong())
++        } catch (e: Exception) {
++            writeQaStatus("FAILED_BEFORE_COMMIT", "preflight", 0L)
++            return RestoreRunResult(RestoreRunStatus.FAILED_BEFORE_COMMIT, e.message ?: "可用空间不足")
+         }
+         val attemptId = newAttemptId()
+-        val metaBefore = readMetaOrNull()
+-        val generation = maxOf((metaBefore?.restoreGeneration ?: 0L) + 1, 1L)
++        val metaResultBefore = readMetaResult()
++        if (metaResultBefore.isFailure) {
++            return RestoreRunResult(RestoreRunStatus.FAILED_BEFORE_COMMIT, "无法读取恢复元数据，未修改数据")
++        }
++        val metaBefore = metaResultBefore.getOrNull()
++            ?: return RestoreRunResult(RestoreRunStatus.FAILED_BEFORE_COMMIT, "恢复元数据缺失，未修改数据")
++        val generation = maxOf(metaBefore.restoreGeneration + 1, 1L)
+         try {
+             snapshotStore.create(attemptId) // 快照失败：不做任何覆盖
+         } catch (e: Exception) {
+-            return@withLock RestoreRunResult(RestoreRunStatus.FAILED_BEFORE_COMMIT, "保护快照生成失败：${e.message ?: "未知错误"}")
++            return RestoreRunResult(RestoreRunStatus.FAILED_BEFORE_COMMIT, "保护快照生成失败：${e.message ?: "未知错误"}")
+         }
+         val gateState = RestoreGateState(attemptId, expectedBackupId, generation, RestoreGatePhase.ARMED, now())
+         try {
+             gate.write(gateState)
++            _startupState.value = RestoreStartupState.RECONCILING
+             _gateActive.value = true
+             journal.write(RestoreJournalState(attemptId, expectedBackupId, generation,
+                 RestoreJournalPhase.PREPARED, now()))
+         } catch (e: Exception) {
+-            gate.clear(); journal.clear(); _gateActive.value = false
+-            return@withLock RestoreRunResult(RestoreRunStatus.FAILED_BEFORE_COMMIT, "无法持久化恢复门禁")
++            val cleared = runCatching { gate.clear() }.isSuccess
++            journal.clear()
++            if (cleared) finishReady() else finishMaintenance()
++            return RestoreRunResult(RestoreRunStatus.FAILED_BEFORE_COMMIT, "无法持久化恢复门禁")
+         }
+         val plan = RestorePlanBuilder.build(opened.payload, validation, generation, attemptId, now())
+         try {
+             transaction.apply(plan, now())
+         } catch (e: Exception) {
+             // 事务异常自动回滚；本次 attempt 未提交，清理 Gate/journal，旧数据保持。
+-            gate.clear(); journal.clear(); _gateActive.value = false
++            val cleared = runCatching { gate.clear() }.isSuccess
++            journal.clear()
++            if (cleared) finishReady() else finishMaintenance()
+             writeQaStatus("FAILED_BEFORE_COMMIT", attemptId, generation)
+-            return@withLock RestoreRunResult(RestoreRunStatus.FAILED_BEFORE_COMMIT,
++            return RestoreRunResult(RestoreRunStatus.FAILED_BEFORE_COMMIT,
+                 "恢复事务失败，旧数据已保留：${e.message ?: "未知错误"}")
+         }
++        if (com.mengyalife.app.BuildConfig.QA_BUILD) writeQaPhase("DB_COMMITTED", attemptId, generation)
+         if (com.mengyalife.app.BuildConfig.QA_BUILD && QaRestoreFaultInjector.pauseAfterCommitMs > 0) {
+             kotlinx.coroutines.delay(QaRestoreFaultInjector.pauseAfterCommitMs)
+         }
+-        journal.write(RestoreJournalState(attemptId, expectedBackupId, generation,
+-            RestoreJournalPhase.DB_COMMITTED, now()))
++        runCatching {
++            journal.write(RestoreJournalState(attemptId, expectedBackupId, generation,
++                RestoreJournalPhase.DB_COMMITTED, now()))
++        }
+         val committed = RestoreGateState(attemptId, expectedBackupId, generation, RestoreGatePhase.RESET_PENDING, now())
+-        gate.write(committed)
+-        return@withLock converge(committed, readMetaOrNull())
++        try {
++            gate.write(committed)
++        } catch (e: Exception) {
++            finishMaintenance()
++            return RestoreRunResult(RestoreRunStatus.COMMITTED_NEEDS_CONVERGENCE, "数据库已提交，但 Gate 更新失败；重启后继续")
++        }
++        val metaAfter = readMetaResult()
++        if (metaAfter.isFailure || metaAfter.getOrNull()?.restoreAttemptId != attemptId ||
++            metaAfter.getOrNull()?.restoreGeneration != generation
++        ) {
++            finishMaintenance()
++            return RestoreRunResult(RestoreRunStatus.COMMITTED_NEEDS_CONVERGENCE, "数据库已提交但元数据无法确认，保持维护状态")
++        }
++        return converge(committed, metaAfter.getOrNull())
+     }
+
+     private suspend fun converge(state: RestoreGateState, meta: AppMetaEntity?): RestoreRunResult {
++        if (meta == null || meta.restoreAttemptId != state.attemptId || meta.restoreGeneration != state.generation) {
++            finishMaintenance()
++            return RestoreRunResult(RestoreRunStatus.MAINTENANCE, "恢复元数据无法确认提交状态；保持维护状态")
++        }
+         try {
+             gate.write(state.copy(phase = RestoreGatePhase.RESET_PENDING))
+             journal.write(RestoreJournalState(state.attemptId, state.backupId, state.generation,
+                 RestoreJournalPhase.DB_COMMITTED, now()))
+             consentRepository.resetAfterRestore(state.generation)
++            if (com.mengyalife.app.BuildConfig.QA_BUILD) writeQaPhase("CONSENT_DONE", state.attemptId, state.generation)
+             if (com.mengyalife.app.BuildConfig.QA_BUILD && QaRestoreFaultInjector.pauseAfterConsentMs > 0) {
+                 kotlinx.coroutines.delay(QaRestoreFaultInjector.pauseAfterConsentMs)
+             }
+@@ -183,24 +284,40 @@ class RestoreCoordinator(
+                 RestoreJournalPhase.SECURITY_RESET, now()))
+             settingsApplier.apply(meta?.restoreSettingsJson)
+             database.appMetaDao().markConverged(now())
++            val convergedMeta = database.appMetaDao().get()
++                ?: throw RestoreException("META_VERIFY", "app_meta 收敛标记缺失")
++            if (convergedMeta.restoreAttemptId != state.attemptId ||
++                convergedMeta.restoreGeneration != state.generation || convergedMeta.restoreConvergedAt == null
++            ) throw RestoreException("META_VERIFY", "app_meta 收敛状态不匹配")
+             journal.write(RestoreJournalState(state.attemptId, state.backupId, state.generation,
+                 RestoreJournalPhase.SETTINGS_APPLIED, now()))
+             gate.write(state.copy(phase = RestoreGatePhase.READY_TO_RELEASE))
+             journal.write(RestoreJournalState(state.attemptId, state.backupId, state.generation,
+                 RestoreJournalPhase.DONE, now()))
+-            gate.clear(); journal.clear(); _gateActive.value = false
++            gate.clear(); journal.clear(); finishReady()
+             writeQaEvidence(state)
+             _completionMessage.value = "恢复完成，已撤权并删除旧 Key"
+             onSuccess("恢复完成，已撤权并删除旧 Key")
+             return RestoreRunResult(RestoreRunStatus.SUCCESS, "恢复完成，已撤权并删除旧 Key")
+         } catch (e: Exception) {
+-            _gateActive.value = true
++            finishMaintenance()
+             writeQaStatus("COMMITTED_NEEDS_CONVERGENCE", state.attemptId, state.generation)
+             return RestoreRunResult(RestoreRunStatus.COMMITTED_NEEDS_CONVERGENCE,
+                 "数据库已提交，但安全收敛未完成；重启后将继续")
+         }
+     }
+
++    private fun writeQaPhase(phase: String, attemptId: String, generation: Long) {
++        val dir = evidenceDir ?: return
++        runCatching {
++            dir.mkdirs()
++            java.io.File(dir, "qa-phase.json").writeText(
++                "{\"phase\":\"$phase\",\"attemptId\":\"$attemptId\",\"generation\":$generation}",
++            )
++            java.io.File(dir, "qa-phase-$phase.flag").writeText("1")
++        }
++    }
++
+     private suspend fun writeQaStatus(label: String, attemptId: String, generation: Long) {
+         val dir = evidenceDir ?: return
+         runCatching {
+@@ -233,6 +350,7 @@ class RestoreCoordinator(
+         }
+     }
+
+-    private suspend fun readMetaOrNull(): AppMetaEntity? =
+-        runCatching { database.appMetaDao().get() }.getOrNull()
++    private suspend fun readMetaResult(): Result<AppMetaEntity?> =
++        runCatching { database.appMetaDao().get() }
++
+ }
+diff --git a/app/src/main/java/com/mengyalife/app/data/restore/RestoreGate.kt b/app/src/main/java/com/mengyalife/app/data/restore/RestoreGate.kt
+index 18c9c85..7cd4945 100644
+--- a/app/src/main/java/com/mengyalife/app/data/restore/RestoreGate.kt
++++ b/app/src/main/java/com/mengyalife/app/data/restore/RestoreGate.kt
+@@ -10,6 +10,8 @@ import kotlinx.serialization.json.put
+ import kotlinx.serialization.json.longOrNull
+ import java.io.File
+ import java.io.FileOutputStream
++import android.system.Os
++import android.system.OsConstants
+
+ enum class RestoreGatePhase { ARMED, RESET_PENDING, SETTINGS_PENDING, READY_TO_RELEASE }
+
+@@ -22,7 +24,7 @@ data class RestoreGateState(
+ )
+
+ /** noBackupFilesDir/restore/gate.json；临时文件 + fsync + rename。 */
+-class RestoreGate(private val dir: File) {
++class RestoreGate(private val dir: File, private val syncParent: (File) -> Unit = ::syncParentDirectory) {
+     private val file = File(dir, "gate.json")
+     private val json = Json
+
+@@ -51,12 +53,28 @@ class RestoreGate(private val dir: File) {
+         }
+         val bytes = obj.toString().toByteArray(Charsets.UTF_8)
+         val tmp = File(dir, "gate.json.tmp")
+-        FileOutputStream(tmp).use { out -> out.write(bytes); out.flush(); runCatching { out.fd.sync() } }
+-        if (!tmp.renameTo(file)) {
++        try {
++            FileOutputStream(tmp).use { out -> out.write(bytes); out.flush(); out.fd.sync() }
++            if (!tmp.renameTo(file)) throw RestoreException("GATE_WRITE", "无法持久化恢复门禁")
++            syncParent(dir)
++        } catch (e: RestoreException) {
++            throw e
++        } catch (e: Exception) {
+             tmp.delete()
+-            throw RestoreException("GATE_WRITE", "无法持久化恢复门禁")
++            throw RestoreException("GATE_WRITE", "无法持久化恢复门禁", e)
+         }
+     }
+
+-    fun clear() { runCatching { file.delete() } }
++    fun clear() {
++        if (!file.exists()) return
++        if (!file.delete()) throw RestoreException("GATE_CLEAR", "无法删除恢复门禁")
++        syncParent(dir)
++    }
++
++    companion object {
++        private fun syncParentDirectory(dir: File) {
++            val fd = Os.open(dir.absolutePath, OsConstants.O_RDONLY, 0)
++            try { Os.fsync(fd) } finally { Os.close(fd) }
++        }
++    }
+ }
+diff --git a/app/src/main/java/com/mengyalife/app/data/restore/RestoreJournal.kt b/app/src/main/java/com/mengyalife/app/data/restore/RestoreJournal.kt
+index 7638309..3b59928 100644
+--- a/app/src/main/java/com/mengyalife/app/data/restore/RestoreJournal.kt
++++ b/app/src/main/java/com/mengyalife/app/data/restore/RestoreJournal.kt
+@@ -9,6 +9,8 @@ import kotlinx.serialization.json.longOrNull
+ import kotlinx.serialization.json.put
+ import java.io.File
+ import java.io.FileOutputStream
++import android.system.Os
++import android.system.OsConstants
+
+ enum class RestoreJournalPhase { PREPARED, DB_COMMITTED, SECURITY_RESET, SETTINGS_APPLIED, DONE }
+
+@@ -21,7 +23,7 @@ data class RestoreJournalState(
+ )
+
+ /** 仅辅助收敛；绝不作为 DB 是否提交的依据。 */
+-class RestoreJournal(private val dir: File) {
++class RestoreJournal(private val dir: File, private val syncParent: (File) -> Unit = ::syncParentDirectory) {
+     private val file = File(dir, "journal.json")
+     private val json = Json
+
+@@ -46,15 +48,31 @@ class RestoreJournal(private val dir: File) {
+             put("updatedAt", state.updatedAt)
+         }
+         val tmp = File(dir, "journal.json.tmp")
+-        FileOutputStream(tmp).use { out ->
+-            out.write(obj.toString().toByteArray(Charsets.UTF_8)); out.flush()
+-            runCatching { out.fd.sync() }
+-        }
+-        if (!tmp.renameTo(file)) {
++        try {
++            FileOutputStream(tmp).use { out ->
++                out.write(obj.toString().toByteArray(Charsets.UTF_8)); out.flush()
++                out.fd.sync()
++            }
++            if (!tmp.renameTo(file)) throw RestoreException("JOURNAL_WRITE", "无法写恢复日志")
++            syncParent(dir)
++        } catch (e: RestoreException) {
++            throw e
++        } catch (e: Exception) {
+             tmp.delete()
+-            throw RestoreException("JOURNAL_WRITE", "无法写恢复日志")
++            throw RestoreException("JOURNAL_WRITE", "无法写恢复日志", e)
+         }
+     }
+
+-    fun clear() { runCatching { file.delete() } }
++    fun clear(): Boolean {
++        if (!file.exists()) return true
++        if (!file.delete()) return false
++        return runCatching { syncParent(dir); true }.getOrDefault(false)
++    }
++
++    companion object {
++        private fun syncParentDirectory(dir: File) {
++            val fd = Os.open(dir.absolutePath, OsConstants.O_RDONLY, 0)
++            try { Os.fsync(fd) } finally { Os.close(fd) }
++        }
++    }
+ }
+diff --git a/app/src/main/java/com/mengyalife/app/data/restore/RestoreSnapshotStore.kt b/app/src/main/java/com/mengyalife/app/data/restore/RestoreSnapshotStore.kt
+index 9a2cd7a..419bdcc 100644
+--- a/app/src/main/java/com/mengyalife/app/data/restore/RestoreSnapshotStore.kt
++++ b/app/src/main/java/com/mengyalife/app/data/restore/RestoreSnapshotStore.kt
+@@ -6,6 +6,7 @@ import java.io.File
+ import java.io.FileOutputStream
+ import java.security.SecureRandom
+ import java.util.Base64
++import android.os.StatFs
+
+ /**
+  * 恢复前保护快照：v2 加密备份 + 独立 Keystore alias 保护的随机口令。
+@@ -15,9 +16,18 @@ class RestoreSnapshotStore(
+     private val dir: File,
+     private val exporter: BackupExporter,
+     private val keyCipher: SecretCipher,
++    private val availableBytes: () -> Long = {
++        StatFs(spaceProbeDirectory(dir).absolutePath).availableBytes
++    },
+ ) {
+     private val random = SecureRandom()
+
++    fun requireSpace(sourceBackupBytes: Long) {
++        if (sourceBackupBytes <= 0) throw RestoreException("SPACE_INPUT", "备份文件大小无效")
++        val free = availableBytes()
++        requireAvailableSpace(sourceBackupBytes, free)
++    }
++
+     suspend fun create(attemptId: String): File {
+         dir.mkdirs()
+         val pass = Base64.getUrlEncoder().withoutPadding()
+@@ -65,4 +75,21 @@ class RestoreSnapshotStore(
+             throw RestoreException("SNAPSHOT_WRITE", "无法写入保护快照")
+         }
+     }
++
++    companion object {
++        const val MIN_MARGIN_BYTES = 16L * 1024 * 1024
++
++        /** The restore directory is created after this preflight, so fall back to an existing parent. */
++        fun spaceProbeDirectory(dir: File): File = if (dir.exists()) dir else (dir.parentFile ?: dir)
++
++        fun requiredBytes(sourceBackupBytes: Long): Long =
++            sourceBackupBytes * 2 + maxOf(MIN_MARGIN_BYTES, sourceBackupBytes / 5)
++
++        fun requireAvailableSpace(sourceBackupBytes: Long, available: Long) {
++            val required = requiredBytes(sourceBackupBytes)
++            if (available < required) {
++                throw RestoreException("SPACE_LOW", "可用空间不足，至少需要 $required 字节")
++            }
++        }
++    }
+ }
+diff --git a/app/src/main/java/com/mengyalife/app/data/restore/RestoreWriteBarrier.kt b/app/src/main/java/com/mengyalife/app/data/restore/RestoreWriteBarrier.kt
+new file mode 100644
+index 0000000..e97f2d2
+--- /dev/null
++++ b/app/src/main/java/com/mengyalife/app/data/restore/RestoreWriteBarrier.kt
+@@ -0,0 +1,61 @@
++package com.mengyalife.app.data.restore
++
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.sync.Mutex
++import kotlinx.coroutines.sync.withLock
++import kotlinx.coroutines.withContext
++import kotlin.coroutines.AbstractCoroutineContextElement
++import kotlin.coroutines.CoroutineContext
++
++/** Shared single-process serialization boundary for business writes vs restore. */
++class RestoreWriteBarrier(initiallyReady: Boolean = true) {
++    private val mutex = Mutex()
++    @Volatile private var ready = initiallyReady
++    @Volatile private var restoreGeneration = 0L
++
++    private class Permit(val owner: RestoreWriteBarrier, val exclusive: Boolean) : AbstractCoroutineContextElement(Key) {
++        companion object Key : CoroutineContext.Key<Permit>
++    }
++
++    fun setReady(value: Boolean) { ready = value }
++    fun isReady(): Boolean = ready
++    fun generation(): Long = restoreGeneration
++
++    suspend fun <T> withWrite(block: suspend () -> T): T = withWrite(null, block)
++
++    suspend fun <T> withWrite(expectedGeneration: Long?, block: suspend () -> T): T {
++        val inherited = currentCoroutineContext()[Permit]
++        // Authorized convergence work inherits the exclusive permit. It must be
++        // allowed to write while the barrier is intentionally not READY.
++        if (inherited?.owner === this && inherited.exclusive) return block()
++        // Fail immediately when called during UNKNOWN/RECONCILING/MAINTENANCE;
++        // do not queue a stale UI/Worker write until after Gate release.
++        if (!ready) throw RestoreException("RESTORE_BLOCKED", "恢复维护中，禁止业务写入")
++        val captured = expectedGeneration ?: restoreGeneration
++        if (inherited?.owner === this) {
++            checkWritable(captured)
++            return block()
++        }
++        return mutex.withLock {
++            checkWritable(captured)
++            withContext(Permit(this, exclusive = false)) { block() }
++        }
++    }
++
++    /** Exclusive restore/reconciliation; increments token to invalidate requests in flight. */
++    suspend fun <T> withExclusive(block: suspend () -> T): T {
++        if (currentCoroutineContext()[Permit]?.owner === this) return block()
++        return mutex.withLock {
++            ready = false
++            restoreGeneration += 1
++            withContext(Permit(this, exclusive = true)) { block() }
++        }
++    }
++
++    private fun checkWritable(expectedGeneration: Long?) {
++        if (!ready) throw RestoreException("RESTORE_BLOCKED", "恢复维护中，禁止业务写入")
++        if (expectedGeneration != null && expectedGeneration != restoreGeneration) {
++            throw RestoreException("RESTORE_STALE_RESULT", "恢复后旧请求已过期")
++        }
++    }
++}
+diff --git a/app/src/main/java/com/mengyalife/app/data/weekly/WeeklyAiService.kt b/app/src/main/java/com/mengyalife/app/data/weekly/WeeklyAiService.kt
+index 8ca7176..d9f4381 100644
+--- a/app/src/main/java/com/mengyalife/app/data/weekly/WeeklyAiService.kt
++++ b/app/src/main/java/com/mengyalife/app/data/weekly/WeeklyAiService.kt
+@@ -5,6 +5,7 @@ import com.mengyalife.app.data.advisor.AdvisorEngine
+ import com.mengyalife.app.data.consent.AiConsentRepository
+ import com.mengyalife.app.data.local.weekly.WeeklyAiDao
+ import com.mengyalife.app.data.local.weekly.WeeklyAiEntity
++import com.mengyalife.app.data.restore.RestoreWriteBarrier
+ import com.mengyalife.app.domain.advisor.AdvisorChatMessage
+ import com.mengyalife.app.domain.advisor.AdvisorChatResult
+ import com.mengyalife.app.domain.advisor.ConsentCategory
+@@ -27,6 +28,7 @@ class WeeklyAiService(
+     private val fakeEngine: AdvisorEngine? = null,
+     private val now: () -> Long = System::currentTimeMillis,
+     private val autoEnabled: suspend () -> Boolean = { true },
++    private val writeBarrier: RestoreWriteBarrier? = null,
+     private val beforeRequest: suspend () -> Unit = {},
+     private val beforeComplete: suspend () -> Unit = {},
+ ) {
+@@ -62,6 +64,7 @@ class WeeklyAiService(
+     fun observeLatest() = dao.observeLatest().map { it?.toDomain() }
+
+     suspend fun generateIfAllowed(autoRequest: Boolean = false): WeeklyAiReview? {
++        val restoreGeneration = writeBarrier?.generation()
+         val initialConsent = consentRepository.current()
+         val initialConfig = configRepository.state.first()
+         val initialRuntime = configRepository.runtimeConfig()
+@@ -80,7 +83,7 @@ class WeeklyAiService(
+         if (existing != null) {
+             // 崩溃遗留的 PENDING（未发出）可安全恢复；SENT/FAILED/READY 都消耗本周预算。
+             if (existing.status == "PENDING") {
+-                dao.deletePending(review.periodKey)
++                guardedWrite(restoreGeneration) { dao.deletePending(review.periodKey); Unit }
+             } else {
+                 return existing.toDomain()
+             }
+@@ -92,54 +95,57 @@ class WeeklyAiService(
+             factIdsJson = "[]", categories = initialConsent.categories.joinToString(",") { it.name },
+             error = null, model = null, configHash = bound.configHash,
+         )
+-        if (dao.insertIfAbsent(reserved) == -1L) return dao.findByPeriod(review.periodKey)?.toDomain()
++        if (guardedWrite(restoreGeneration) { dao.insertIfAbsent(reserved) } == -1L) return dao.findByPeriod(review.periodKey)?.toDomain()
+         val before = try {
+             beforeRequest()
+             validate(bound, autoRequest)
+         } catch (e: Exception) { e.message ?: "请求前状态变化" }
+         if (before != null) {
+             // 尚未调用 engine：撤销预算预留，允许以后安全重试。
+-            dao.deletePending(review.periodKey)
++            guardedWrite(restoreGeneration) { dao.deletePending(review.periodKey); Unit }
+             return null
+         }
+-        if (dao.markSent(review.periodKey) != 1) return dao.findByPeriod(review.periodKey)?.toDomain()
++        if (guardedWrite(restoreGeneration) { dao.markSent(review.periodKey) } != 1) return dao.findByPeriod(review.periodKey)?.toDomain()
+         // markSent 之后、真正发送之前的最后临界区检查
+         val afterMark = validate(bound, autoRequest)
+         if (afterMark != null) {
+-            complete(reserved, "FAILED", "", emptyList(), "", "发送边界状态变化，未调用引擎", initialConfig.model, bound.configHash)
++            complete(reserved, "FAILED", "", emptyList(), "", "发送边界状态变化，未调用引擎", initialConfig.model, bound.configHash, expectedGeneration = restoreGeneration)
+             return dao.findByPeriod(review.periodKey)?.toDomain()
+         }
+         return try {
+             val facts = review.facts.take(20).map { it.copy(text = it.text.take(300)) }
+             val prompt = WeeklyAiParser.prompt(facts, reserved.categories)
+             val engine = if (initialConfig.useFakeEngine && fakeEngine != null) fakeEngine else networkEngine
+-            val result = engine.chat(
++            val chat = suspend {
++                engine.chat(
+                 config = initialRuntime,
+                 messages = listOf(
+                     AdvisorChatMessage("system", "只输出严格 JSON；只解释给定 factIds；不编造。"),
+                     AdvisorChatMessage("user", prompt),
+                 ),
+                 maxTokens = 900,
+-            )
++                )
++            }
++            val result = writeBarrier?.withWrite(restoreGeneration) { chat() } ?: chat()
+             beforeComplete()
+             val after = validate(bound, autoRequest)
+             if (after != null) {
+-                complete(reserved, "FAILED", "", emptyList(), "", "请求后状态变化，AI 结果已丢弃", initialConfig.model, bound.configHash)
++                complete(reserved, "FAILED", "", emptyList(), "", "请求后状态变化，AI 结果已丢弃", initialConfig.model, bound.configHash, expectedGeneration = restoreGeneration)
+                 return dao.findByPeriod(review.periodKey)?.toDomain()
+             }
+             when (result) {
+-                is AdvisorChatResult.Failure -> complete(reserved, "FAILED", "", emptyList(), "", result.error.userMessage, initialConfig.model, bound.configHash)
++                is AdvisorChatResult.Failure -> complete(reserved, "FAILED", "", emptyList(), "", result.error.userMessage, initialConfig.model, bound.configHash, expectedGeneration = restoreGeneration)
+                 is AdvisorChatResult.Success -> when (val parsed = WeeklyAiParser.parse(result.content, facts, reserved.categories)) {
+-                    is WeeklyAiParseResult.Failure -> complete(reserved, "FAILED", "", emptyList(), "", parsed.message, initialConfig.model, bound.configHash)
+-                    is WeeklyAiParseResult.Success -> complete(reserved, "READY", parsed.summary, parsed.highlights, parsed.suggestion, null, initialConfig.model, bound.configHash, parsed.factIds)
++                    is WeeklyAiParseResult.Failure -> complete(reserved, "FAILED", "", emptyList(), "", parsed.message, initialConfig.model, bound.configHash, expectedGeneration = restoreGeneration)
++                    is WeeklyAiParseResult.Success -> complete(reserved, "READY", parsed.summary, parsed.highlights, parsed.suggestion, null, initialConfig.model, bound.configHash, parsed.factIds, expectedGeneration = restoreGeneration)
+                 }
+             }
+             dao.findByPeriod(review.periodKey)?.toDomain()
+         } catch (cancelled: CancellationException) {
+-            complete(reserved, "FAILED", "", emptyList(), "", "请求已取消；服务端是否接收未知，预算已占用", null, bound.configHash)
++            complete(reserved, "FAILED", "", emptyList(), "", "请求已取消；服务端是否接收未知，预算已占用", null, bound.configHash, expectedGeneration = restoreGeneration)
+             throw cancelled
+         } catch (e: Exception) {
+-            complete(reserved, "FAILED", "", emptyList(), "", e.message ?: "AI 请求失败", null, bound.configHash)
++            complete(reserved, "FAILED", "", emptyList(), "", e.message ?: "AI 请求失败", null, bound.configHash, expectedGeneration = restoreGeneration)
+             dao.findByPeriod(review.periodKey)?.toDomain()
+         }
+     }
+@@ -179,11 +185,18 @@ class WeeklyAiService(
+         highlights: List<com.mengyalife.app.domain.weekly.WeeklyAiHighlight>,
+         suggestion: String, error: String?, model: String?, configHash: String,
+         factIds: List<String> = emptyList(),
++        expectedGeneration: Long? = null,
+     ) {
+-        dao.complete(base.periodKey, status, now(), summary, WeeklyAiParser.highlightsJson(highlights),
+-            suggestion, WeeklyAiParser.encodeFactIds(factIds), error, model, configHash)
++        guardedWrite(expectedGeneration) {
++            dao.complete(base.periodKey, status, now(), summary, WeeklyAiParser.highlightsJson(highlights),
++                suggestion, WeeklyAiParser.encodeFactIds(factIds), error, model, configHash)
++            Unit
++        }
+     }
+
++    private suspend fun <T> guardedWrite(expectedGeneration: Long?, block: suspend () -> T): T =
++        writeBarrier?.withWrite(expectedGeneration) { block() } ?: block()
++
+     private fun WeeklyAiEntity.toDomain() = WeeklyAiReview(
+         periodKey, localDataVersion, aiConsentVersion, status, generatedAt, summary,
+         WeeklyAiParser.highlightsFrom(highlightsJson), suggestion,
+diff --git a/app/src/main/java/com/mengyalife/app/data/weekly/WeeklyReviewPreferences.kt b/app/src/main/java/com/mengyalife/app/data/weekly/WeeklyReviewPreferences.kt
+index 4424436..42e900c 100644
+--- a/app/src/main/java/com/mengyalife/app/data/weekly/WeeklyReviewPreferences.kt
++++ b/app/src/main/java/com/mengyalife/app/data/weekly/WeeklyReviewPreferences.kt
+@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
+ import androidx.datastore.preferences.core.emptyPreferences
+ import androidx.datastore.preferences.preferencesDataStore
+ import com.mengyalife.app.BuildConfig
++import com.mengyalife.app.data.restore.RestoreWriteBarrier
+ import kotlinx.coroutines.flow.Flow
+ import kotlinx.coroutines.flow.catch
+ import kotlinx.coroutines.flow.first
+@@ -18,7 +19,7 @@ private val Context.weeklyDataStore: DataStore<Preferences> by preferencesDataSt
+     name = "${BuildConfig.PREFS_NAME}_weekly",
+ )
+
+-class WeeklyReviewPreferences(private val context: Context) {
++class WeeklyReviewPreferences(private val context: Context, private val writeBarrier: RestoreWriteBarrier? = null) {
+     private val enabledKey = booleanPreferencesKey("weekly_review_enabled")
+     private val notificationAskedKey = booleanPreferencesKey("notification_permission_asked")
+     private val aiEnabledKey = booleanPreferencesKey("weekly_ai_enabled")
+@@ -38,14 +39,17 @@ class WeeklyReviewPreferences(private val context: Context) {
+         .map { it[aiEnabledKey] ?: false }
+
+     suspend fun setAiEnabled(value: Boolean) {
+-        context.weeklyDataStore.edit { it[aiEnabledKey] = value }
++        val write: suspend () -> Unit = { context.weeklyDataStore.edit { it[aiEnabledKey] = value } }
++        if (writeBarrier != null) writeBarrier.withWrite { write() } else write()
+     }
+
+     suspend fun markNotificationAsked() {
+-        context.weeklyDataStore.edit { it[notificationAskedKey] = true }
++        val write: suspend () -> Unit = { context.weeklyDataStore.edit { it[notificationAskedKey] = true } }
++        if (writeBarrier != null) writeBarrier.withWrite { write() } else write()
+     }
+
+     suspend fun setEnabled(value: Boolean) {
+-        context.weeklyDataStore.edit { it[enabledKey] = value }
++        val write: suspend () -> Unit = { context.weeklyDataStore.edit { it[enabledKey] = value } }
++        if (writeBarrier != null) writeBarrier.withWrite { write() } else write()
+     }
+ }
+diff --git a/app/src/main/java/com/mengyalife/app/data/weekly/WeeklyReviewService.kt b/app/src/main/java/com/mengyalife/app/data/weekly/WeeklyReviewService.kt
+index 36e6787..0472588 100644
+--- a/app/src/main/java/com/mengyalife/app/data/weekly/WeeklyReviewService.kt
++++ b/app/src/main/java/com/mengyalife/app/data/weekly/WeeklyReviewService.kt
+@@ -3,6 +3,7 @@ package com.mengyalife.app.data.weekly
+ import com.mengyalife.app.data.consent.AiConsentRepository
+ import com.mengyalife.app.data.local.weekly.WeeklyReviewDao
+ import com.mengyalife.app.data.local.weekly.WeeklyReviewEntity
++import com.mengyalife.app.data.restore.RestoreWriteBarrier
+ import com.mengyalife.app.domain.weekly.WeeklyReview
+ import com.mengyalife.app.domain.weekly.WeeklyReviewCodec
+ import com.mengyalife.app.domain.weekly.WeeklyReviewRules
+@@ -16,8 +17,17 @@ class WeeklyReviewService(
+     private val consentRepository: AiConsentRepository,
+     private val now: () -> Long = System::currentTimeMillis,
+     private val newId: () -> String = { UUID.randomUUID().toString() },
++    private val canWrite: () -> Boolean = { true },
++    private val writeBarrier: RestoreWriteBarrier? = null,
+ ) {
+     suspend fun generateIfNeeded(force: Boolean = false): WeeklyReview {
++        val generation = writeBarrier?.generation()
++        if (!canWrite()) throw IllegalStateException("恢复维护中，禁止生成周回顾")
++        val work: suspend () -> WeeklyReview = { generateLocked(force) }
++        return writeBarrier?.withWrite(generation) { work() } ?: work()
++    }
++
++    private suspend fun generateLocked(force: Boolean): WeeklyReview {
+         val snapshot = dataRepository.load()
+         val consent = consentRepository.current()
+         val review = WeeklyReviewRules.build(snapshot, consent, now())
+@@ -36,7 +46,11 @@ class WeeklyReviewService(
+
+     fun observeLatest() = dao.observeLatest().map { it?.toDomain() }
+
+-    suspend fun markNotified(periodKey: String, at: Long) = dao.markNotified(periodKey, at)
++    suspend fun markNotified(periodKey: String, at: Long) {
++        val generation = writeBarrier?.generation()
++        val write: suspend () -> Unit = { dao.markNotified(periodKey, at); Unit }
++        if (writeBarrier != null) writeBarrier.withWrite(generation) { write() } else write()
++    }
+
+     fun WeeklyReview.toEntity(notifiedAt: Long?) = WeeklyReviewEntity(
+         id = id, periodKey = periodKey, periodStart = periodStart, periodEnd = periodEnd,
+diff --git a/app/src/main/java/com/mengyalife/app/data/weekly/WeeklyReviewWorker.kt b/app/src/main/java/com/mengyalife/app/data/weekly/WeeklyReviewWorker.kt
+index ed9d53b..431a6d3 100644
+--- a/app/src/main/java/com/mengyalife/app/data/weekly/WeeklyReviewWorker.kt
++++ b/app/src/main/java/com/mengyalife/app/data/weekly/WeeklyReviewWorker.kt
+@@ -12,7 +12,18 @@ class WeeklyReviewWorker(
+ ) : CoroutineWorker(appContext, params) {
+     override suspend fun doWork(): Result {
+         val app = applicationContext as? MengyaApplication ?: return Result.success()
+-        if (app.container.restoreCoordinator.isGateActive()) return Result.success()
++        return try {
++            // Hold shared read/write barrier through DB writes and notification side effects.
++            // Restore obtains the exclusive barrier, so no worker can pass its initial check
++            // and notify after Gate is armed.
++            app.container.restoreWriteBarrier.withWrite { runWorker(app) }
++        } catch (e: Exception) {
++            Result.retry()
++        }
++    }
++
++    private suspend fun runWorker(app: MengyaApplication): Result {
++        if (app.container.restoreCoordinator.isGateActive()) return Result.retry()
+         val preferences = app.container.weeklyReviewPreferences
+         if (!preferences.current()) return Result.success()
+         return try {
+@@ -20,17 +31,15 @@ class WeeklyReviewWorker(
+             if (app.container.weeklyReviewPreferences.aiEnabled.first()) {
+                 app.container.weeklyAiService.generateIfAllowed(autoRequest = true)
+             }
++            if (app.container.restoreCoordinator.isGateActive()) return Result.retry()
+             val dao = app.container.databaseWeeklyReviewDao
+             val stored = dao.findByPeriod(review.periodKey)
+             val notifier = app.container.weeklyReviewNotifier
+             if (stored?.notifiedAt == null && notifier.canPost()) {
+                 val claimAt = System.currentTimeMillis()
+-                // 原子 claim：并发 Worker / QA / 周期任务只有一个能成功
+                 if (dao.tryClaimNotification(review.periodKey, claimAt) == 1) {
+                     try {
+-                        if (!notifier.notifyReady(review.periodKey)) {
+-                            dao.releaseNotification(review.periodKey, claimAt)
+-                        }
++                        if (!notifier.notifyReady(review.periodKey)) dao.releaseNotification(review.periodKey, claimAt)
+                     } catch (e: Exception) {
+                         dao.releaseNotification(review.periodKey, claimAt)
+                         throw e
+diff --git a/app/src/main/java/com/mengyalife/app/di/AppContainer.kt b/app/src/main/java/com/mengyalife/app/di/AppContainer.kt
+index 59616c3..9dd90dc 100644
+--- a/app/src/main/java/com/mengyalife/app/di/AppContainer.kt
++++ b/app/src/main/java/com/mengyalife/app/di/AppContainer.kt
+@@ -74,6 +74,8 @@ class AppContainer(context: Context) {
+             growthSignalDao = database.growthSignalDao(),
+             transaction = { block -> database.withTransaction { block() } },
+             onSignalsChanged = { growthMemoryService.rebuildAll() },
++            canWrite = { !restoreCoordinator.isGateActive() },
++            writeBarrier = restoreWriteBarrier,
+         )
+     }
+
+@@ -83,6 +85,8 @@ class AppContainer(context: Context) {
+             signalDao = database.growthSignalDao(),
+             memoryDao = database.growthMemoryDao(),
+             transaction = { block -> database.withTransaction { block() } },
++            canWrite = { !restoreCoordinator.isGateActive() },
++            writeBarrier = restoreWriteBarrier,
+         )
+     }
+
+@@ -90,6 +94,7 @@ class AppContainer(context: Context) {
+         GrowthSignalRepository(
+             dao = database.growthSignalDao(),
+             onChanged = { growthMemoryService.rebuildAll() },
++            writeBarrier = restoreWriteBarrier,
+         )
+     }
+
+@@ -102,6 +107,7 @@ class AppContainer(context: Context) {
+             fakeEngine = fakeAdvisorEngine,
+             dao = database.insightReportDao(),
+             beforeWrite = { if (restoreCoordinator.isGateActive()) throw IllegalStateException("恢复维护中") },
++            writeBarrier = restoreWriteBarrier,
+         )
+     }
+
+@@ -110,6 +116,7 @@ class AppContainer(context: Context) {
+             memoryDao = database.growthMemoryDao(),
+             signalDao = database.growthSignalDao(),
+             journalDao = database.journalEntryDao(),
++            writeBarrier = restoreWriteBarrier,
+         )
+     }
+
+@@ -124,15 +131,16 @@ class AppContainer(context: Context) {
+             transaction = { block -> database.withTransaction { block() } },
+             onSignalsChanged = { growthMemoryService.rebuildAll() },
+             beforeWrite = { if (restoreCoordinator.isGateActive()) throw IllegalStateException("恢复维护中") },
++            writeBarrier = restoreWriteBarrier,
+         )
+     }
+
+     val goalRepository: GoalRepository by lazy {
+-        GoalRepository(database.goalDao())
++        GoalRepository(database.goalDao(), canWrite = { !restoreCoordinator.isGateActive() }, writeBarrier = restoreWriteBarrier)
+     }
+
+     val weeklyReviewPreferences: WeeklyReviewPreferences by lazy {
+-        WeeklyReviewPreferences(appContext)
++        WeeklyReviewPreferences(appContext, restoreWriteBarrier)
+     }
+
+     val weeklyReviewScheduler: WeeklyReviewScheduler by lazy {
+@@ -157,6 +165,8 @@ class AppContainer(context: Context) {
+             dataRepository = weeklyReviewDataRepository,
+             dao = database.weeklyReviewDao(),
+             consentRepository = aiConsentRepository,
++            canWrite = { !restoreCoordinator.isGateActive() },
++            writeBarrier = restoreWriteBarrier,
+         )
+     }
+
+@@ -169,7 +179,9 @@ class AppContainer(context: Context) {
+             fakeEngine = fakeAdvisorEngine,
+             dao = database.weeklyAiDao(),
+             autoEnabled = { weeklyReviewPreferences.enabled.first() && weeklyReviewPreferences.aiEnabled.first() },
++            beforeRequest = { if (restoreCoordinator.isGateActive()) throw IllegalStateException("恢复维护中") },
+             beforeComplete = { if (restoreCoordinator.isGateActive()) throw IllegalStateException("恢复维护中") },
++            writeBarrier = restoreWriteBarrier,
+         )
+     }
+
+@@ -177,24 +189,33 @@ class AppContainer(context: Context) {
+     val databaseWeeklyReviewDao get() = database.weeklyReviewDao()
+
+     /** 仅 QA：清空本周 AI 结果行，便于状态机用例独立重跑（正式包 no-op）。 */
+-    fun qaClearWeeklyAi() {
++    suspend fun qaClearWeeklyAi() {
+         if (!BuildConfig.QA_BUILD) return
+-        database.openHelper.writableDatabase.execSQL("DELETE FROM weekly_ai_reviews")
++        check(restoreCoordinator.awaitReady()) { "恢复尚未就绪，QA清理未执行" }
++        restoreWriteBarrier.withWrite { database.openHelper.writableDatabase.execSQL("DELETE FROM weekly_ai_reviews") }
++    }
++
++    suspend fun qaSeedRestoreSecurity() {
++        if (!BuildConfig.QA_BUILD) return
++        check(restoreCoordinator.awaitReady()) { "恢复尚未就绪，QA security fixture未写入" }
++        com.mengyalife.app.data.qa.QaRestoreSecuritySeeder.seed(this)
+     }
+
+     /** G4A-1.1 QA-only：10 表全字段非空夹具；正式包忽略。 */
+     suspend fun qaSeedBackupFixture() {
+         if (!BuildConfig.QA_BUILD) return
++        check(restoreCoordinator.awaitReady()) { "恢复尚未就绪，QA fixture未写入" }
+         com.mengyalife.app.data.qa.QaBackupFixtureSeeder.seed(database)
+     }
+
+     suspend fun qaSeedBackupFixtureB() {
+         if (!BuildConfig.QA_BUILD) return
++        check(restoreCoordinator.awaitReady()) { "恢复尚未就绪，QA fixture未写入" }
+         com.mengyalife.app.data.qa.QaBackupFixtureSeeder.seedVariantB(database)
+     }
+
+     val themePreferences: ThemePreferences by lazy {
+-        ThemePreferences(appContext)
++        ThemePreferences(appContext, restoreWriteBarrier)
+     }
+
+     private val secretCipher: SecretCipher by lazy {
+@@ -205,15 +226,16 @@ class AppContainer(context: Context) {
+         DataStoreAdvisorConfigRepository(
+             storage = DataStoreAiConfigStorage(appContext),
+             cipher = secretCipher,
++            writeBarrier = restoreWriteBarrier,
+         )
+     }
+
+     val conversationRepository: ConversationRepository by lazy {
+-        RoomConversationRepository(database.advisorMessageDao(), canWrite = { !restoreCoordinator.isGateActive() })
++        RoomConversationRepository(database.advisorMessageDao(), canWrite = { !restoreCoordinator.isGateActive() }, writeBarrier = restoreWriteBarrier)
+     }
+
+     val aiConsentRepository: AiConsentRepository by lazy {
+-        DataStoreAiConsentRepository(appContext)
++        DataStoreAiConsentRepository(appContext, writeBarrier = restoreWriteBarrier)
+     }
+
+     val advisorDataRepository: AdvisorDataRepository by lazy {
+@@ -226,7 +248,7 @@ class AppContainer(context: Context) {
+     }
+
+     val goalProposalRepository: GoalProposalRepository by lazy {
+-        RoomGoalProposalRepository(database.goalProposalDao())
++        RoomGoalProposalRepository(database.goalProposalDao(), writeBarrier = restoreWriteBarrier)
+     }
+
+     val goalProposalApplyService: GoalProposalApplyService by lazy {
+@@ -234,6 +256,8 @@ class AppContainer(context: Context) {
+             database = database,
+             proposalDao = database.goalProposalDao(),
+             goalRepository = goalRepository,
++            canWrite = { !restoreCoordinator.isGateActive() },
++            writeBarrier = restoreWriteBarrier,
+         )
+     }
+
+@@ -293,6 +317,8 @@ class AppContainer(context: Context) {
+         RestorePlanner(RoomRestoreCurrentStateSource(database))
+     }
+
++    val restoreWriteBarrier by lazy { com.mengyalife.app.data.restore.RestoreWriteBarrier(initiallyReady = false) }
++
+     private val restoreDir get() = java.io.File(appContext.noBackupFilesDir, "restore")
+     private val restoreGate by lazy { RestoreGate(restoreDir) }
+     private val restoreJournal by lazy { RestoreJournal(restoreDir) }
+@@ -319,6 +345,7 @@ class AppContainer(context: Context) {
+             settingsApplier = restoreSettingsApplier,
+             reader = restoreReader,
+             validator = restoreValidator,
++            writeBarrier = restoreWriteBarrier,
+             evidenceDir = if (BuildConfig.QA_BUILD) restoreDir else null,
+             onSuccess = { message ->
+                 android.os.Handler(android.os.Looper.getMainLooper()).post {
+diff --git a/app/src/main/java/com/mengyalife/app/ui/advisor/AdvisorViewModel.kt b/app/src/main/java/com/mengyalife/app/ui/advisor/AdvisorViewModel.kt
+index 830a515..cf3e4d9 100644
+--- a/app/src/main/java/com/mengyalife/app/ui/advisor/AdvisorViewModel.kt
++++ b/app/src/main/java/com/mengyalife/app/ui/advisor/AdvisorViewModel.kt
+@@ -59,6 +59,8 @@ class AdvisorViewModel(
+     private val assembler: AdvisorContextAssembler,
+     private val networkEngine: AdvisorEngine,
+     private val fakeEngine: AdvisorEngine?,
++    private val restoreGeneration: () -> Long = { 0L },
++    private val restoreWriteBarrier: com.mengyalife.app.data.restore.RestoreWriteBarrier? = null,
+ ) : ViewModel() {
+
+     private data class LocalState(
+@@ -217,6 +219,7 @@ class AdvisorViewModel(
+         }
+         val consent = state.consent
+         val epoch = consent.epoch
++        val expectedRestoreGeneration = restoreGeneration()
+         val sendConfig = state.config
+         val engine = engineFor(sendConfig)
+         activeEpoch = epoch
+@@ -238,7 +241,7 @@ class AdvisorViewModel(
+                 val assembled = assembler.assemble(input, consent, data)
+
+                 if (insertUser) {
+-                    conversations.appendUser(input, null, epoch)
++                    conversations.appendUser(input, null, epoch, expectedRestoreGeneration)
+                 }
+
+                 val runtime = configRepository.runtimeConfig()
+@@ -248,6 +251,7 @@ class AdvisorViewModel(
+                         cancelled = false,
+                         contextEpoch = epoch,
+                         proposalMode = proposalMode,
++                        expectedRestoreGeneration = expectedRestoreGeneration,
+                     )
+                     local.update { it.copy(sending = false) }
+                     return@launch
+@@ -267,6 +271,7 @@ class AdvisorViewModel(
+                         cancelled = true,
+                         contextEpoch = epoch,
+                         proposalMode = proposalMode,
++                        expectedRestoreGeneration = expectedRestoreGeneration,
+                     )
+                     local.update { it.copy(sending = false) }
+                     return@launch
+@@ -278,11 +283,15 @@ class AdvisorViewModel(
+                     contextEntries = assembled.entries,
+                     extraSystemPrompt = if (proposalMode) AdvisorRules.proposalSystemPrompt() else null,
+                 )
+-                when (val result = engine.chat(
+-                    runtime,
+-                    builtRequest.messages,
+-                    maxTokens = if (proposalMode) 3_000 else AdvisorRules.MAX_OUTPUT_TOKENS,
+-                )) {
++                val chat = suspend {
++                    engine.chat(
++                        runtime,
++                        builtRequest.messages,
++                        maxTokens = if (proposalMode) 3_000 else AdvisorRules.MAX_OUTPUT_TOKENS,
++                    )
++                }
++                val result = restoreWriteBarrier?.withWrite(expectedRestoreGeneration) { chat() } ?: chat()
++                when (result) {
+                     is AdvisorChatResult.Success -> {
+                         val afterConfig = configRepository.state.first()
+                         val after = consentRepository.current()
+@@ -295,6 +304,7 @@ class AdvisorViewModel(
+                                 cancelled = true,
+                                 contextEpoch = epoch,
+                                 proposalMode = proposalMode,
++                                expectedRestoreGeneration = expectedRestoreGeneration,
+                             )
+                             local.update { it.copy(sending = false) }
+                             return@launch
+@@ -306,6 +316,7 @@ class AdvisorViewModel(
+                                 sources = builtRequest.usedSources,
+                                 existingGoals = data.goals.associate { it.id to it.level },
+                                 contextChars = builtRequest.contextChars,
++                                expectedRestoreGeneration = expectedRestoreGeneration,
+                             )
+                         } else {
+                             conversations.appendAssistant(
+@@ -313,6 +324,7 @@ class AdvisorViewModel(
+                                 contextEpoch = epoch,
+                                 sources = builtRequest.usedSources,
+                                 proposalMode = false,
++                                expectedRestoreGeneration = expectedRestoreGeneration,
+                             )
+                         }
+                     }
+@@ -321,6 +333,7 @@ class AdvisorViewModel(
+                         cancelled = false,
+                         contextEpoch = epoch,
+                         proposalMode = proposalMode,
++                        expectedRestoreGeneration = expectedRestoreGeneration,
+                     )
+                 }
+                 local.update { it.copy(sending = false) }
+@@ -331,6 +344,7 @@ class AdvisorViewModel(
+                         cancelled = true,
+                         contextEpoch = epoch,
+                         proposalMode = proposalMode,
++                        expectedRestoreGeneration = expectedRestoreGeneration,
+                     )
+                 }
+                 local.update { it.copy(sending = false, infoMessage = "已取消本次请求。") }
+@@ -342,6 +356,7 @@ class AdvisorViewModel(
+                         cancelled = false,
+                         contextEpoch = epoch,
+                         proposalMode = proposalMode,
++                        expectedRestoreGeneration = expectedRestoreGeneration,
+                     )
+                 }
+                 local.update { it.copy(sending = false) }
+@@ -358,6 +373,7 @@ class AdvisorViewModel(
+         sources: List<com.mengyalife.app.domain.advisor.AdvisorSource>,
+         existingGoals: Map<Long, com.mengyalife.app.domain.goals.GoalLevel>,
+         contextChars: Int,
++        expectedRestoreGeneration: Long,
+     ) {
+         when (val parsed = GoalProposalParser.parse(raw, existingGoals)) {
+             is GoalProposalParseResult.Success -> {
+@@ -367,8 +383,9 @@ class AdvisorViewModel(
+                     contextEpoch = epoch,
+                     sources = sources,
+                     proposalMode = true,
++                    expectedRestoreGeneration = expectedRestoreGeneration,
+                 )
+-                proposalRepository.save(message.id, parsed.draft)
++                proposalRepository.save(message.id, parsed.draft, expectedRestoreGeneration)
+             }
+             is GoalProposalParseResult.Failure -> {
+                 conversations.appendAssistant(
+@@ -377,6 +394,7 @@ class AdvisorViewModel(
+                     sources = sources,
+                     proposalError = "草案解析失败：${parsed.message}",
+                     proposalMode = true,
++                    expectedRestoreGeneration = expectedRestoreGeneration,
+                 )
+             }
+         }
+@@ -565,6 +583,8 @@ class AdvisorViewModel(
+                     assembler = AdvisorContextAssembler(),
+                     networkEngine = app.container.networkAdvisorEngine,
+                     fakeEngine = app.container.fakeAdvisorEngine,
++                    restoreGeneration = { app.container.restoreWriteBarrier.generation() },
++                    restoreWriteBarrier = app.container.restoreWriteBarrier,
+                 )
+             }
+         }
