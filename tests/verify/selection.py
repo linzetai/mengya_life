@@ -26,10 +26,19 @@ CODE_ROOTS = (
 )
 
 
+def _unique_object(pairs: list[tuple[str, object]]) -> dict:
+    out = {}
+    for key, value in pairs:
+        if key in out:
+            raise ValueError(f"test-map.json contains duplicate key: {key}")
+        out[key] = value
+    return out
+
+
 def load_map(path: Path | None = None) -> dict:
     p = path or MAP_PATH
     with open(p, encoding="utf-8") as f:
-        return json.load(f)
+        return json.load(f, object_pairs_hook=_unique_object)
 
 
 def level_index(name: str) -> int:
