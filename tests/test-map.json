@@ -969,7 +969,10 @@
           "resetsQaData": true,
           "measuredSec": 14.5,
           "estimatedSec": 14.5,
-          "timeoutSec": 180
+          "timeoutSec": 180,
+          "scenarioEnvVar": "MENGYA_RESTORE_FRESH_SCENARIO",
+          "scenarios": ["FRESH_V12"],
+          "scenarioMinLevel": "integration"
         }
       ],
       "risk": "high",
@@ -1313,6 +1316,23 @@
       "minLevel": "fast",
       "testLevel": "fast",
       "reason": "Focused restore flow: E2E covers preview and settings navigation; L1/L2 only restore E2E + R2-R7; integration still includes v12 migration."
+    },
+    {
+      "id": "L-restore-write-barrier",
+      "description": "共享恢复写屏障及业务写入口并发保护",
+      "patterns": [
+        "app/src/main/java/com/mengyalife/app/data/restore/RestoreWriteBarrier.kt",
+        "app/src/main/java/com/mengyalife/app/data/restore/RestoreCoordinator.kt"
+      ],
+      "modules": [
+        "restore-validate", "diary", "goals", "advisor", "ai-consent",
+        "growth-memory", "insight", "weekly-review", "weekly-ai", "settings"
+      ],
+      "deviceModules": ["restore-validate", "ai-consent"],
+      "minLevel": "integration",
+      "testLevel": "integration",
+      "skipNavigationSmoke": true,
+      "reason": "共享写屏障影响所有注入业务写入口；L2覆盖Barrier/各仓库JVM、restore E2E/R2-R7及g3b1授权安全用例。"
     }
   ]
 }

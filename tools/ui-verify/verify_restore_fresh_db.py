@@ -4,6 +4,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from harness import *
 
 require_qa("verify_restore_fresh_db.py")
+scenario = os.environ.get("MENGYA_RESTORE_FRESH_SCENARIO", "").strip().upper()
+if scenario and scenario != "FRESH_V12":
+    raise SystemExit(f"未知fresh DB scenario: {scenario}")
 
 clear_qa_data()
 check("冷启动应用", restart_app())

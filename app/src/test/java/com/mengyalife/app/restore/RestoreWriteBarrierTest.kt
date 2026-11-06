@@ -15,10 +15,31 @@ import org.junit.Test
 
 class RestoreWriteBarrierTest {
     @Test
-    fun `unknown blocks writes`() = runTest {
+    fun `unknown blocks writes without side effects`() = runTest {
         val barrier = RestoreWriteBarrier(initiallyReady = false)
-        val failure = runCatching { barrier.withWrite { 1 } }.exceptionOrNull()
+        var sideEffects = 0
+        val failure = runCatching { barrier.withWrite { sideEffects++; 1 } }.exceptionOrNull()
         assertTrue(failure is RestoreException)
+        assertEquals(0, sideEffects)
+    }
+
+    @Test
+    fun `worker critical section cannot produce effects during maintenance`() = runTest {
+        val barrier = RestoreWriteBarrier(initiallyReady = false)
+        var generatedReview = 0
+        var sentAi = 0
+        var notified = 0
+        val failure = runCatching {
+            barrier.withWrite {
+                generatedReview++
+                sentAi++
+                notified++
+            }
+        }.exceptionOrNull()
+        assertTrue(failure is RestoreException)
+        assertEquals(0, generatedReview)
+        assertEquals(0, sentAi)
+        assertEquals(0, notified)
     }
 
     @Test
@@ -52,6 +73,7 @@ class RestoreWriteBarrierTest {
         assertFalse(barrier.isReady())
         val failure = runCatching { barrier.withWrite(generation) { written++ } }.exceptionOrNull()
         assertTrue(failure is RestoreException)
+        assertEquals("stale side effect must not run", 1, written)
         barrier.setReady(true)
         barrier.withWrite(barrier.generation()) { written++ }
         assertEquals(2, written)

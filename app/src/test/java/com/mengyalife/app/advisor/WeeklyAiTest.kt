@@ -2,6 +2,8 @@ package com.mengyalife.app.advisor
 
 import com.mengyalife.app.data.local.weekly.WeeklyAiDao
 import com.mengyalife.app.data.local.weekly.WeeklyAiEntity
+import com.mengyalife.app.data.restore.RestoreException
+import com.mengyalife.app.data.restore.RestoreWriteBarrier
 import com.mengyalife.app.data.weekly.WeeklyAiService
 import com.mengyalife.app.data.weekly.WeeklyReviewSource
 import com.mengyalife.app.domain.advisor.AiConsentRules
@@ -75,6 +77,27 @@ class WeeklyAiTest {
         assertEquals("READY", a?.status)
         assertEquals(a?.periodKey, b?.periodKey)
         assertEquals(1, engine.calls.size)
+    }
+
+    @Test
+    fun `未知或维护状态下周AI不写库也不调用引擎`() = runTest {
+        val engine = ScriptedAdvisorEngine().apply { enqueue(AdvisorChatResult.Success(valid)) }
+        val dao = FakeAiDao()
+        val config = FakeConfigRepository().apply { save("https://api.example.com/v1", "m", "sk") }
+        val barrier = RestoreWriteBarrier(initiallyReady = false)
+        val service = WeeklyAiService(
+            source = AiSource(snapshot),
+            consentRepository = FakeConsentRepository().apply { grant("https://api.example.com/v1", AiConsentRules.allCategories) },
+            configRepository = config,
+            networkEngine = engine,
+            dao = dao,
+            now = { now },
+            writeBarrier = barrier,
+        )
+        val failure = runCatching { service.generateIfAllowed(autoRequest = true) }.exceptionOrNull()
+        assertTrue(failure is RestoreException)
+        assertEquals(0, dao.rows.value.size)
+        assertEquals(0, engine.calls.size)
     }
 
     @Test

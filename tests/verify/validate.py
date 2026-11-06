@@ -91,6 +91,46 @@ def validate_map(map_: dict) -> list[str]:
             if not p.strip():
                 issues.append(f"规则 {pat['id']} 有空 pattern")
     issues.extend(validate_selection_policy(map_))
+    issues.extend(validate_restore_safety_source())
+    return issues
+
+
+def validate_restore_safety_source() -> list[str]:
+    """Guard critical fail-closed ordering and the shared business-write boundary."""
+    root = ROOT / "app/src/main/java/com/mengyalife/app"
+    barrier = (root / "data/restore/RestoreWriteBarrier.kt").read_text(encoding="utf-8")
+    coordinator = (root / "data/restore/RestoreCoordinator.kt").read_text(encoding="utf-8")
+    worker = (root / "data/weekly/WeeklyReviewWorker.kt").read_text(encoding="utf-8")
+    ai = (root / "data/weekly/WeeklyAiService.kt").read_text(encoding="utf-8")
+    goal = (root / "data/repository/GoalRepository.kt").read_text(encoding="utf-8")
+    journal = (root / "data/repository/JournalRepository.kt").read_text(encoding="utf-8")
+    gate_test = (TEST_ROOT / "com/mengyalife/app/restore/RestoreGateJournalTest.kt").read_text(encoding="utf-8")
+    issues: list[str] = []
+    if "if (!ready) throw RestoreException(\"RESTORE_BLOCKED\"" not in barrier:
+        issues.append("RestoreWriteBarrier 未在非READY状态拒绝写入")
+    if "withContext(Permit(this, exclusive = false)) { block() }" not in barrier:
+        issues.append("普通业务写入口未统一通过RestoreWriteBarrier")
+    if "if (metaResult.isFailure) { finishMaintenance(); return }" not in coordinator:
+        issues.append("DB app_meta读取失败未明确fail-closed到MAINTENANCE")
+    if "private suspend fun readMetaResult(): Result<AppMetaEntity?> =\n        runCatching { database.appMetaDao().get() }" not in coordinator:
+        issues.append("app_meta读取异常未封装为可判定的Result")
+    if "gate.clear(); journal.clear(); finishReady()" not in coordinator:
+        issues.append("Gate/Journal释放后才进入READY的顺序缺失")
+    converge = coordinator[coordinator.find("private suspend fun converge") : coordinator.find("private fun writeQaPhase")]
+    release = converge.find("gate.clear(); journal.clear(); finishReady()")
+    catch = converge.find("catch (e: Exception)")
+    if release < 0 or catch < release or "finishMaintenance()" not in converge[catch:]:
+        issues.append("Gate/Journaling释放失败没有收敛到MAINTENANCE")
+    if "restoreWriteBarrier.withWrite { runWorker(app) }" not in worker:
+        issues.append("WeeklyReviewWorker的副作用区未被写屏障包住")
+    if "writeBarrier?.withWrite(expectedGeneration) { block() }" not in ai:
+        issues.append("Weekly AI 请求引擎未受恢复写屏障保护")
+    if "writeBarrier?.withWrite(expectedGeneration) { ensureWritable(); block() }" not in goal:
+        issues.append("GoalRepository普通写入口未受恢复写屏障保护")
+    if "writeBarrier?.withWrite(expectedGeneration) { ensureWritable(); block() }" not in journal:
+        issues.append("JournalRepository普通写入口未受恢复写屏障保护")
+    if "gate clear failure is not silent" not in gate_test:
+        issues.append("缺少Gate清除失败测试")
     return issues
 
 
@@ -174,6 +214,10 @@ def validate_selection_policy(map_: dict) -> list[str]:
             return ["restore --case R7 应只选择故障矩阵脚本"]
         if len(restore_case.deferred_device_scripts) != 3:
             return ["restore --case R7 必须明确延期其余三个脚本"]
+        fresh_case = select(map_, None, ["restore-validate"], "integration")
+        apply_case_filter(fresh_case, "FRESH_V12")
+        if len(fresh_case.device_scripts) != 1 or fresh_case.device_scripts[0]["script"] != "verify_restore_fresh_db.py":
+            return ["fresh v12 scenario 应可单独选择"]
 
         backup_ui_change = ChangeSet(
             base="(self-test)", base_reason="policy self-test",
@@ -196,6 +240,37 @@ def validate_selection_policy(map_: dict) -> list[str]:
         restore_l2 = select(map_, None, ["restore-validate"], "integration")
         if "verify_g3b1.py" in {d["script"] for d in restore_l2.device_scripts}:
             return ["独立restore L2应以端到端安全断言替代泛用AI授权套件"]
+        barrier_change = ChangeSet(
+            base="(self-test)", base_reason="policy self-test",
+            changes=[Change("app/src/main/java/com/mengyalife/app/data/restore/RestoreWriteBarrier.kt", "M", "self-test")],
+            commit="self-test", branch="self-test",
+        )
+        barrier_plan = select(map_, barrier_change, None, None)
+        if barrier_plan.level != "integration" or "com.mengyalife.app.restore.RestoreWriteBarrierTest" not in barrier_plan.jvm_classes:
+            return ["RestoreWriteBarrier 改动必须升级L2并运行屏障单测"]
+        barrier_scripts = {d["script"] for d in barrier_plan.device_scripts}
+        if not {"verify_restore_e2e.py", "verify_restore_failures.py", "verify_g3b1.py", "verify_migration.py"}.issubset(barrier_scripts):
+            return ["RestoreWriteBarrier 改动的L2安全/迁移设备覆盖不足"]
+        if "verify_navigation.py" in barrier_scripts:
+            return ["数据层写屏障变更不应重复加入全局导航冒烟"]
+
+        gate_case = select(map_, None, ["restore-validate"], "gate")
+        try:
+            apply_case_filter(gate_case, "R7")
+        except SystemExit:
+            pass
+        else:
+            return ["Gate不允许用单case PASS跳过必须执行的完整安全用例"]
+
+        unknown_change = ChangeSet(
+            base="(self-test)", base_reason="policy self-test",
+            changes=[Change("unmapped/restore-sensitive.kt", "M", "self-test")],
+            commit="self-test", branch="self-test",
+        )
+        unknown_plan = select(map_, unknown_change, None, None)
+        if not unknown_plan.unknown_files or len(unknown_plan.modules) != len(map_["modules"]):
+            return ["未知源码路径必须保守扩大到完整模块选择"]
+
         combined_l2 = select(map_, None, ["restore-validate", "weekly-ai"], "integration")
         if "verify_g3b1.py" not in {d["script"] for d in combined_l2.device_scripts}:
             return ["合并restore+weekly时不能让restore exclusion屏蔽weekly授权覆盖"]

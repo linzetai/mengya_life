@@ -310,6 +310,8 @@ def device_run_mode(entry: dict, level: str) -> str | None:
 
 def apply_case_filter(sel: Selection, case: str) -> Selection:
     """Keep exactly one registered device scenario; defer all sibling suites."""
+    if sel.level in ("gate", "release"):
+        raise SystemExit("--case 不能替代 Gate/Release 必须执行的安全全套用例")
     normalized = case.strip().upper()
     matches = [d for d in sel.device_scripts if normalized in d.get("scenarios", [])]
     if len(matches) != 1:
@@ -473,9 +475,13 @@ def _apply_level(map_: dict, sel: Selection, direct_modules: set[str],
     # selected for this run declares its own UI/device coverage. Shared-nav
     # rules include the navigation module (which does not opt out), so they
     # continue to run the cross-page sweep.
-    skip_navigation = bool(focused_modules) and all(
-        m.get("skipNavigationSmoke", False) for m in focused_modules
+    skip_by_rule = any(
+        next((r for r in map_["impactRules"] if r["id"] == rh["id"]), {}).get("skipNavigationSmoke", False)
+        for rh in sel.rules_hit
     )
+    skip_navigation = skip_by_rule or (bool(focused_modules) and all(
+        m.get("skipNavigationSmoke", False) for m in focused_modules
+    ))
     if run_device and level_index(sel.level) >= level_index("feature") and not skip_navigation:
         if "navigation" not in selected_names:
             selected_names.add("navigation")

@@ -5,6 +5,8 @@ import com.mengyalife.app.data.local.goal.GoalCheckinStat
 import com.mengyalife.app.data.local.goal.GoalDao
 import com.mengyalife.app.data.local.goal.GoalEntity
 import com.mengyalife.app.data.repository.GoalDraft
+import com.mengyalife.app.data.restore.RestoreException
+import com.mengyalife.app.data.restore.RestoreWriteBarrier
 import com.mengyalife.app.data.repository.GoalRepository
 import com.mengyalife.app.data.repository.GoalResult
 import com.mengyalife.app.domain.goals.GoalDomain
@@ -28,6 +30,7 @@ private class FakeGoalDao : GoalDao {
     private val checkins = MutableStateFlow<List<GoalCheckinEntity>>(emptyList())
     private var nextGoalId = 1L
     private var nextCheckinId = 1L
+    var goalInsertCalls = 0
 
     override fun observeGoals(): Flow<List<GoalEntity>> =
         goals.map { list -> list.sortedWith(compareBy<GoalEntity> { it.level.ordinal }.thenBy { it.createdAt }) }
@@ -54,6 +57,7 @@ private class FakeGoalDao : GoalDao {
     override suspend fun loadAllCheckins(): List<GoalCheckinEntity> = checkins.value.sortedBy { it.id }
 
     override suspend fun insertGoal(goal: GoalEntity): Long {
+        goalInsertCalls++
         val id = nextGoalId++
         goals.update { it + goal.copy(id = id) }
         return id
@@ -117,6 +121,17 @@ class GoalRepositoryTest {
         assertEquals(GoalLevel.LONG_TERM, saved.level)
         assertEquals(null, saved.parentId)
         assertEquals(saved.createdAt, saved.updatedAt)
+    }
+
+    @Test
+    fun `未知或维护状态下普通目标写入无副作用`() = runTest {
+        val dao = FakeGoalDao()
+        val barrier = RestoreWriteBarrier(initiallyReady = false)
+        val repository = GoalRepository(dao, writeBarrier = barrier, now = { clock })
+        val failure = runCatching { repository.createGoal(GoalLevel.LONG_TERM, null, draft("blocked")) }.exceptionOrNull()
+        assertTrue(failure is RestoreException)
+        assertEquals(0, dao.goalInsertCalls)
+        assertEquals(0, dao.loadAllGoals().size)
     }
 
     @Test
