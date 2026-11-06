@@ -59,6 +59,8 @@ class AdvisorViewModel(
     private val assembler: AdvisorContextAssembler,
     private val networkEngine: AdvisorEngine,
     private val fakeEngine: AdvisorEngine?,
+    private val restoreGeneration: () -> Long = { 0L },
+    private val restoreWriteBarrier: com.mengyalife.app.data.restore.RestoreWriteBarrier? = null,
 ) : ViewModel() {
 
     private data class LocalState(
@@ -217,6 +219,7 @@ class AdvisorViewModel(
         }
         val consent = state.consent
         val epoch = consent.epoch
+        val expectedRestoreGeneration = restoreGeneration()
         val sendConfig = state.config
         val engine = engineFor(sendConfig)
         activeEpoch = epoch
@@ -238,7 +241,7 @@ class AdvisorViewModel(
                 val assembled = assembler.assemble(input, consent, data)
 
                 if (insertUser) {
-                    conversations.appendUser(input, null, epoch)
+                    conversations.appendUser(input, null, epoch, expectedRestoreGeneration)
                 }
 
                 val runtime = configRepository.runtimeConfig()
@@ -248,6 +251,7 @@ class AdvisorViewModel(
                         cancelled = false,
                         contextEpoch = epoch,
                         proposalMode = proposalMode,
+                        expectedRestoreGeneration = expectedRestoreGeneration,
                     )
                     local.update { it.copy(sending = false) }
                     return@launch
@@ -267,6 +271,7 @@ class AdvisorViewModel(
                         cancelled = true,
                         contextEpoch = epoch,
                         proposalMode = proposalMode,
+                        expectedRestoreGeneration = expectedRestoreGeneration,
                     )
                     local.update { it.copy(sending = false) }
                     return@launch
@@ -278,11 +283,15 @@ class AdvisorViewModel(
                     contextEntries = assembled.entries,
                     extraSystemPrompt = if (proposalMode) AdvisorRules.proposalSystemPrompt() else null,
                 )
-                when (val result = engine.chat(
-                    runtime,
-                    builtRequest.messages,
-                    maxTokens = if (proposalMode) 3_000 else AdvisorRules.MAX_OUTPUT_TOKENS,
-                )) {
+                val chat = suspend {
+                    engine.chat(
+                        runtime,
+                        builtRequest.messages,
+                        maxTokens = if (proposalMode) 3_000 else AdvisorRules.MAX_OUTPUT_TOKENS,
+                    )
+                }
+                val result = restoreWriteBarrier?.withWrite(expectedRestoreGeneration) { chat() } ?: chat()
+                when (result) {
                     is AdvisorChatResult.Success -> {
                         val afterConfig = configRepository.state.first()
                         val after = consentRepository.current()
@@ -295,6 +304,7 @@ class AdvisorViewModel(
                                 cancelled = true,
                                 contextEpoch = epoch,
                                 proposalMode = proposalMode,
+                                expectedRestoreGeneration = expectedRestoreGeneration,
                             )
                             local.update { it.copy(sending = false) }
                             return@launch
@@ -306,6 +316,7 @@ class AdvisorViewModel(
                                 sources = builtRequest.usedSources,
                                 existingGoals = data.goals.associate { it.id to it.level },
                                 contextChars = builtRequest.contextChars,
+                                expectedRestoreGeneration = expectedRestoreGeneration,
                             )
                         } else {
                             conversations.appendAssistant(
@@ -313,6 +324,7 @@ class AdvisorViewModel(
                                 contextEpoch = epoch,
                                 sources = builtRequest.usedSources,
                                 proposalMode = false,
+                                expectedRestoreGeneration = expectedRestoreGeneration,
                             )
                         }
                     }
@@ -321,6 +333,7 @@ class AdvisorViewModel(
                         cancelled = false,
                         contextEpoch = epoch,
                         proposalMode = proposalMode,
+                        expectedRestoreGeneration = expectedRestoreGeneration,
                     )
                 }
                 local.update { it.copy(sending = false) }
@@ -331,6 +344,7 @@ class AdvisorViewModel(
                         cancelled = true,
                         contextEpoch = epoch,
                         proposalMode = proposalMode,
+                        expectedRestoreGeneration = expectedRestoreGeneration,
                     )
                 }
                 local.update { it.copy(sending = false, infoMessage = "已取消本次请求。") }
@@ -342,6 +356,7 @@ class AdvisorViewModel(
                         cancelled = false,
                         contextEpoch = epoch,
                         proposalMode = proposalMode,
+                        expectedRestoreGeneration = expectedRestoreGeneration,
                     )
                 }
                 local.update { it.copy(sending = false) }
@@ -358,6 +373,7 @@ class AdvisorViewModel(
         sources: List<com.mengyalife.app.domain.advisor.AdvisorSource>,
         existingGoals: Map<Long, com.mengyalife.app.domain.goals.GoalLevel>,
         contextChars: Int,
+        expectedRestoreGeneration: Long,
     ) {
         when (val parsed = GoalProposalParser.parse(raw, existingGoals)) {
             is GoalProposalParseResult.Success -> {
@@ -367,8 +383,9 @@ class AdvisorViewModel(
                     contextEpoch = epoch,
                     sources = sources,
                     proposalMode = true,
+                    expectedRestoreGeneration = expectedRestoreGeneration,
                 )
-                proposalRepository.save(message.id, parsed.draft)
+                proposalRepository.save(message.id, parsed.draft, expectedRestoreGeneration)
             }
             is GoalProposalParseResult.Failure -> {
                 conversations.appendAssistant(
@@ -377,6 +394,7 @@ class AdvisorViewModel(
                     sources = sources,
                     proposalError = "草案解析失败：${parsed.message}",
                     proposalMode = true,
+                    expectedRestoreGeneration = expectedRestoreGeneration,
                 )
             }
         }
@@ -565,6 +583,8 @@ class AdvisorViewModel(
                     assembler = AdvisorContextAssembler(),
                     networkEngine = app.container.networkAdvisorEngine,
                     fakeEngine = app.container.fakeAdvisorEngine,
+                    restoreGeneration = { app.container.restoreWriteBarrier.generation() },
+                    restoreWriteBarrier = app.container.restoreWriteBarrier,
                 )
             }
         }

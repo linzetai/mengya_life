@@ -2,6 +2,7 @@ package com.mengyalife.app.data.advisor
 
 import com.mengyalife.app.data.local.proposal.GoalProposalDao
 import com.mengyalife.app.data.local.proposal.GoalProposalEntity
+import com.mengyalife.app.data.restore.RestoreWriteBarrier
 import com.mengyalife.app.domain.advisor.GoalProposalDraft
 import com.mengyalife.app.domain.advisor.GoalProposalIds
 import com.mengyalife.app.domain.advisor.GoalProposalParser
@@ -27,7 +28,7 @@ data class StoredGoalProposal(
 
 interface GoalProposalRepository {
     fun observeAll(): Flow<List<StoredGoalProposal>>
-    suspend fun save(messageId: String, draft: GoalProposalDraft): StoredGoalProposal
+    suspend fun save(messageId: String, draft: GoalProposalDraft, expectedRestoreGeneration: Long? = null): StoredGoalProposal
     suspend fun findForMessage(messageId: String): StoredGoalProposal?
     suspend fun findById(id: String): StoredGoalProposal?
     /** 审核期间编辑/勾选：只更新 DRAFT。 */
@@ -38,38 +39,36 @@ class RoomGoalProposalRepository(
     private val dao: GoalProposalDao,
     private val now: () -> Long = System::currentTimeMillis,
     private val newId: () -> String = { UUID.randomUUID().toString() },
+    private val writeBarrier: RestoreWriteBarrier? = null,
 ) : GoalProposalRepository {
 
     override fun observeAll(): Flow<List<StoredGoalProposal>> =
         dao.observeAll().map { rows -> rows.mapNotNull(::toDomain) }
 
-    override suspend fun save(messageId: String, draft: GoalProposalDraft): StoredGoalProposal {
+    override suspend fun save(messageId: String, draft: GoalProposalDraft, expectedRestoreGeneration: Long?): StoredGoalProposal {
         val encoded = GoalProposalParser.encode(draft)
         val id = newId()
         val createdAt = now()
         val selected = draft.nodes.map { it.tempId }.toSet()
-        dao.insert(
-            GoalProposalEntity(
-                id = id,
-                messageId = messageId,
-                createdAt = createdAt,
-                schemaVersion = draft.schemaVersion,
-                status = "DRAFT",
-                summary = encoded.summary,
-                assumptionsJson = encoded.assumptionsJson,
-                risksJson = encoded.risksJson,
-                nodesJson = encoded.nodesJson,
-                selectedTempIdsJson = GoalProposalIds.encodeSelected(selected),
-            ),
-        )
-        return StoredGoalProposal(
-            id = id,
-            messageId = messageId,
-            createdAt = createdAt,
-            draft = draft,
-            status = "DRAFT",
-            selectedTempIds = selected,
-        )
+        val result = StoredGoalProposal(id, messageId, createdAt, draft, "DRAFT", selected)
+        val write: suspend () -> Unit = {
+            dao.insert(
+                GoalProposalEntity(
+                    id = id,
+                    messageId = messageId,
+                    createdAt = createdAt,
+                    schemaVersion = draft.schemaVersion,
+                    status = "DRAFT",
+                    summary = encoded.summary,
+                    assumptionsJson = encoded.assumptionsJson,
+                    risksJson = encoded.risksJson,
+                    nodesJson = encoded.nodesJson,
+                    selectedTempIdsJson = GoalProposalIds.encodeSelected(selected),
+                ),
+            )
+        }
+        if (writeBarrier != null) writeBarrier.withWrite(expectedRestoreGeneration) { write() } else write()
+        return result
     }
 
     override suspend fun findForMessage(messageId: String): StoredGoalProposal? =
@@ -83,8 +82,10 @@ class RoomGoalProposalRepository(
         draft: GoalProposalDraft,
         selected: Set<String>,
     ): Boolean {
+        val generation = writeBarrier?.generation()
         val encoded = GoalProposalParser.encode(draft)
-        return dao.updateDraft(id, encoded.nodesJson, GoalProposalIds.encodeSelected(selected)) > 0
+        val write: suspend () -> Boolean = { dao.updateDraft(id, encoded.nodesJson, GoalProposalIds.encodeSelected(selected)) > 0 }
+        return writeBarrier?.withWrite(generation) { write() } ?: write()
     }
 
     private fun toDomain(entity: GoalProposalEntity): StoredGoalProposal? {

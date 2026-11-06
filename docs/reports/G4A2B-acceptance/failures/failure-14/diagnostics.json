@@ -1,0 +1,566 @@
+{
+  "stage": "--ez qa_restore_pause_after_commit_ms 30000",
+  "assertion": "确认勾选",
+  "detail": "",
+  "db": {
+    "journal_entries": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "title",
+          "type": "TEXT"
+        },
+        {
+          "name": "body",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "analysis_status",
+          "type": "TEXT"
+        },
+        {
+          "name": "analysis_hash",
+          "type": "TEXT"
+        },
+        {
+          "name": "analysis_error",
+          "type": "TEXT"
+        },
+        {
+          "name": "analysis_attempts",
+          "type": "INTEGER"
+        },
+        {
+          "name": "analyzed_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "analysis_last_attempt_at",
+          "type": "INTEGER"
+        }
+      ],
+      "rows": []
+    },
+    "goals": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "title",
+          "type": "TEXT"
+        },
+        {
+          "name": "description",
+          "type": "TEXT"
+        },
+        {
+          "name": "level",
+          "type": "TEXT"
+        },
+        {
+          "name": "parent_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "domain",
+          "type": "TEXT"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "start_date",
+          "type": "INTEGER"
+        },
+        {
+          "name": "due_date",
+          "type": "INTEGER"
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER"
+        }
+      ],
+      "rows": []
+    },
+    "goal_checkins": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "goal_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "recorded_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "note",
+          "type": "TEXT"
+        },
+        {
+          "name": "metric_value",
+          "type": "REAL"
+        },
+        {
+          "name": "metric_unit",
+          "type": "TEXT"
+        },
+        {
+          "name": "source",
+          "type": "TEXT"
+        }
+      ],
+      "rows": []
+    },
+    "advisor_messages": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "role",
+          "type": "TEXT"
+        },
+        {
+          "name": "content",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "error_code",
+          "type": "TEXT"
+        },
+        {
+          "name": "error_message",
+          "type": "TEXT"
+        },
+        {
+          "name": "context_goal_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "context_epoch",
+          "type": "INTEGER"
+        },
+        {
+          "name": "sources_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "proposal_error",
+          "type": "TEXT"
+        },
+        {
+          "name": "proposal_mode",
+          "type": "INTEGER"
+        }
+      ],
+      "rows": []
+    },
+    "goal_proposals": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "message_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "schema_version",
+          "type": "INTEGER"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "summary",
+          "type": "TEXT"
+        },
+        {
+          "name": "assumptions_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "risks_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "nodes_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "selected_temp_ids_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "applied_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "applied_goal_ids_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "undone_at",
+          "type": "INTEGER"
+        }
+      ],
+      "rows": []
+    },
+    "growth_signals": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "source_type",
+          "type": "TEXT"
+        },
+        {
+          "name": "source_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "source_version",
+          "type": "TEXT"
+        },
+        {
+          "name": "category",
+          "type": "TEXT"
+        },
+        {
+          "name": "content",
+          "type": "TEXT"
+        },
+        {
+          "name": "evidence",
+          "type": "TEXT"
+        },
+        {
+          "name": "is_inference",
+          "type": "INTEGER"
+        },
+        {
+          "name": "confidence",
+          "type": "REAL"
+        },
+        {
+          "name": "extracted_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "origin",
+          "type": "TEXT"
+        },
+        {
+          "name": "source_title",
+          "type": "TEXT"
+        },
+        {
+          "name": "content_hash",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER"
+        }
+      ],
+      "rows": []
+    },
+    "growth_memories": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "theme",
+          "type": "TEXT"
+        },
+        {
+          "name": "content",
+          "type": "TEXT"
+        },
+        {
+          "name": "is_inference",
+          "type": "INTEGER"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "signal_ids_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "source_diary_ids_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "user_corrected",
+          "type": "INTEGER"
+        },
+        {
+          "name": "version",
+          "type": "INTEGER"
+        },
+        {
+          "name": "confidence",
+          "type": "REAL"
+        },
+        {
+          "name": "insufficient",
+          "type": "INTEGER"
+        },
+        {
+          "name": "recent_change",
+          "type": "TEXT"
+        },
+        {
+          "name": "fingerprint",
+          "type": "TEXT"
+        },
+        {
+          "name": "deleted_at",
+          "type": "INTEGER"
+        }
+      ],
+      "rows": []
+    },
+    "insight_reports": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "data_version",
+          "type": "TEXT"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "summary",
+          "type": "TEXT"
+        },
+        {
+          "name": "facts_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "insights_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "period_start",
+          "type": "INTEGER"
+        },
+        {
+          "name": "period_end",
+          "type": "INTEGER"
+        },
+        {
+          "name": "generated_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "error",
+          "type": "TEXT"
+        },
+        {
+          "name": "model",
+          "type": "TEXT"
+        }
+      ],
+      "rows": []
+    },
+    "weekly_reviews": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "period_key",
+          "type": "TEXT"
+        },
+        {
+          "name": "period_start",
+          "type": "INTEGER"
+        },
+        {
+          "name": "period_end",
+          "type": "INTEGER"
+        },
+        {
+          "name": "generated_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "version",
+          "type": "INTEGER"
+        },
+        {
+          "name": "data_version",
+          "type": "TEXT"
+        },
+        {
+          "name": "ai_consent_version",
+          "type": "TEXT"
+        },
+        {
+          "name": "facts_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "sections_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "notified_at",
+          "type": "INTEGER"
+        }
+      ],
+      "rows": [
+        {
+          "id": "7d3d9228-4db7-4f00-9e77-34b85349f35c",
+          "period_key": "2026-W45",
+          "period_start": 1793548800000,
+          "period_end": 1793927069421,
+          "generated_at": 1793927069421,
+          "version": 1,
+          "data_version": "f3c930da8b750575b149fc0b324db5912c370aae8331835bcb99cc4ce63e0e36",
+          "ai_consent_version": "dd497366691d119e8ca1a846a2d715c9989debe18a9f3f4af6cdb37189195767",
+          "facts_json": "[{\"id\":\"week-counts\",\"text\":\"本周 0 条进展，上周 0 条。目前没有可比较的进展记录。\",\"sources\":[]},{\"id\":\"no-progress\",\"text\":\"数据不足：本周和上周都没有进展记录，无法判断变化。\",\"sources\":[]},{\"id\":\"insufficient-all\",\"text\":\"数据不足：没有目标、进展或成长记忆，本周回顾不形成结论。\",\"sources\":[]},{\"id\":\"next-record\",\"text\":\"本周先记录 1 条具体进展（行动或数值），下周才有可比较的变化。\",\"sources\":[]}]",
+          "sections_json": "{\"changes\":[{\"id\":\"week-counts\",\"text\":\"本周 0 条进展，上周 0 条。目前没有可比较的进展记录。\",\"sources\":[]}],\"wins\":[],\"attention\":[{\"id\":\"no-progress\",\"text\":\"数据不足：本周和上周都没有进展记录，无法判断变化。\",\"sources\":[]},{\"id\":\"insufficient-all\",\"text\":\"数据不足：没有目标、进展或成长记忆，本周回顾不形成结论。\",\"sources\":[]}],\"nextSteps\":[{\"id\":\"next-record\",\"text\":\"本周先记录 1 条具体进展（行动或数值），下周才有可比较的变化。\",\"sources\":[]}]}",
+          "notified_at": null
+        }
+      ]
+    },
+    "weekly_ai_reviews": {
+      "columns": [
+        {
+          "name": "period_key",
+          "type": "TEXT"
+        },
+        {
+          "name": "local_data_version",
+          "type": "TEXT"
+        },
+        {
+          "name": "ai_consent_version",
+          "type": "TEXT"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "generated_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "summary",
+          "type": "TEXT"
+        },
+        {
+          "name": "highlights_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "suggestion",
+          "type": "TEXT"
+        },
+        {
+          "name": "fact_ids_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "categories",
+          "type": "TEXT"
+        },
+        {
+          "name": "error",
+          "type": "TEXT"
+        },
+        {
+          "name": "model",
+          "type": "TEXT"
+        },
+        {
+          "name": "config_hash",
+          "type": "TEXT"
+        }
+      ],
+      "rows": []
+    }
+  },
+  "app_meta": [
+    [
+      1,
+      null,
+      null,
+      0,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  ],
+  "logcat": "11-06 09:08:13.005  6204  6204 D AndroidRuntime: callMain: return with no error.\n11-06 09:08:13.005  6204  6204 D AndroidRuntime: Shutting down VM\n11-06 09:08:13.005  6204  6204 E AndroidRuntime: FATAL EXCEPTION: main\n11-06 09:08:13.005  6204  6204 E AndroidRuntime: PID: 6204\n11-06 09:08:13.005  6204  6204 E AndroidRuntime: java.lang.IllegalStateException: UiAutomationService android.accessibilityservice.IAccessibilityServiceClient$Stub$Proxy@6b4ff64already registered!\n11-06 09:08:13.005  6204  6204 E AndroidRuntime: \tat android.os.Parcel.createExceptionOrNull(Parcel.java:3422)\n11-06 09:08:13.005  6204  6204 E AndroidRuntime: \tat android.os.Parcel.createException(Parcel.java:3398)\n11-06 09:08:13.005  6204  6204 E AndroidRuntime: \tat android.os.Parcel.readException(Parcel.java:3381)\n11-06 09:08:13.005  6204  6204 E AndroidRuntime: \tat android.os.Parcel.readException(Parcel.java:3323)\n11-06 09:08:13.005  6204  6204 E AndroidRuntime: \tat android.view.accessibility.IAccessibilityManager$Stub$Proxy.registerUiTestAutomationService(IAccessibilityManager.java:1200)\n11-06 09:08:13.005  6204  6204 E AndroidRuntime: \tat android.app.UiAutomationConnection.registerUiTestAutomationServiceLocked(UiAutomationConnection.java:689)\n11-06 09:08:13.005  6204  6204 E AndroidRuntime: \tat android.app.UiAutomationConnection.connect(UiAutomationConnection.java:117)\n11-06 09:08:13.005  6204  6204 E AndroidRuntime: \tat android.app.UiAutomation.connectWithTimeout(UiAutomation.java:390)\n11-06 09:08:13.005  6204  6204 E AndroidRuntime: \tat android.app.UiAutomation.connect(UiAutomation.java:335)\n11-06 09:08:13.005  6204  6204 E AndroidRuntime: \tat com.android.uiautomator.core.UiAutomationShellWrapper.connect(UiAutomationShellWrapper.java:36)\n11-06 09:08:13.005  6204  6204 E AndroidRuntime: \tat com.android.commands.uiautomator.DumpCommand.run(DumpCommand.java:78)\n11-06 09:08:13.005  6204  6204 E AndroidRuntime: \tat com.android.commands.uiautomator.Launcher.main(Launcher.java:83)\n11-06 09:08:13.005  6204  6204 E AndroidRuntime: \tat com.android.internal.os.RuntimeInit.nativeFinishInit(Native Method)\n11-06 09:08:13.005  6204  6204 E AndroidRuntime: \tat com.android.internal.os.RuntimeInit.main(RuntimeInit.java:390)\n11-06 09:08:13.036  6204  6204 E AndroidRuntime: Couldn't report crash. Here's the crash:\n11-06 09:08:13.036  6204  6204 E AndroidRuntime: java.lang.IllegalStateException: UiAutomationService android.accessibilityservice.IAccessibilityServiceClient$Stub$Proxy@6b4ff64already registered!\n11-06 09:08:13.036  6204  6204 E AndroidRuntime: \tat android.os.Parcel.createExceptionOrNull(Parcel.java:3422)\n11-06 09:08:13.036  6204  6204 E AndroidRuntime: \tat android.os.Parcel.createException(Parcel.java:3398)\n11-06 09:08:13.036  6204  6204 E AndroidRuntime: \tat android.os.Parcel.readException(Parcel.java:3381)\n11-06 09:08:13.036  6204  6204 E AndroidRuntime: \tat android.os.Parcel.readException(Parcel.java:3323)\n11-06 09:08:13.036  6204  6204 E AndroidRuntime: \tat android.view.accessibility.IAccessibilityManager$Stub$Proxy.registerUiTestAutomationService(IAccessibilityManager.java:1200)\n11-06 09:08:13.036  6204  6204 E AndroidRuntime: \tat android.app.UiAutomationConnection.registerUiTestAutomationServiceLocked(UiAutomationConnection.java:689)\n11-06 09:08:13.036  6204  6204 E AndroidRuntime: \tat android.app.UiAutomationConnection.connect(UiAutomationConnection.java:117)\n11-06 09:08:13.036  6204  6204 E AndroidRuntime: \tat android.app.UiAutomation.connectWithTimeout(UiAutomation.java:390)\n11-06 09:08:13.036  6204  6204 E AndroidRuntime: \tat android.app.UiAutomation.connect(UiAutomation.java:335)\n11-06 09:08:13.036  6204  6204 E AndroidRuntime: \tat com.android.uiautomator.core.UiAutomationShellWrapper.connect(UiAutomationShellWrapper.java:36)\n11-06 09:08:13.036  6204  6204 E AndroidRuntime: \tat com.android.commands.uiautomator.DumpCommand.run(DumpCommand.java:78)\n11-06 09:08:13.036  6204  6204 E AndroidRuntime: \tat com.android.commands.uiautomator.Launcher.main(Launcher.java:83)\n11-06 09:08:13.036  6204  6204 E AndroidRuntime: \tat com.android.internal.os.RuntimeInit.nativeFinishInit(Native Method)\n11-06 09:08:13.036  6204  6204 E AndroidRuntime: \tat com.android.internal.os.RuntimeInit.main(RuntimeInit.java:390)\n11-06 09:08:13.036  6204  6204 E AndroidRuntime: Error reporting crash. Here's the error:\n11-06 09:08:13.036  6204  6204 E AndroidRuntime: java.lang.RuntimeException: Bad file descriptor\n11-06 09:08:13.036  6204  6204 E AndroidRuntime: \tat android.os.BinderProxy.transactNative(Native Method)\n11-06 09:08:13.036  6204  6204 E AndroidRuntime: \tat android.os.BinderProxy.transact(BinderProxy.java:769)\n11-06 09:08:13.036  6204  6204 E AndroidRuntime: \tat android.app.IActivityManager$Stub$Proxy.handleApplicationCrash(IActivityManager.java:6750)\n11-06 09:08:13.036  6204  6204 E AndroidRuntime: \tat com.android.internal.os.RuntimeInit$KillApplicationHandler.uncaughtException(RuntimeInit.java:185)\n11-06 09:08:13.036  6204  6204 E AndroidRuntime: \tat java.lang.ThreadGroup.uncaughtException(ThreadGroup.java:1098)\n11-06 09:08:13.036  6204  6204 E AndroidRuntime: \tat java.lang.ThreadGroup.uncaughtException(ThreadGroup.java:1093)\n11-06 09:08:13.036  6204  6204 E AndroidRuntime: \tat java.lang.Thread.dispatchUncaughtException(Thread.java:3387)\n11-06 09:08:13.606  6066  6066 D AndroidRuntime: callMain: return with no error.\n11-06 09:08:13.606  6066  6066 D AndroidRuntime: Shutting down VM\n",
+  "ui": "<?xml version='1.0' encoding='UTF-8' standalone='yes' ?><hierarchy rotation=\"0\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.widget.FrameLayout\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.widget.LinearLayout\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"1\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"android:id/content\" class=\"android.widget.FrameLayout\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"2\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"androidx.compose.ui.platform.ComposeView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"1\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"true\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,336][1200,2548]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"配置与偏好\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[60,360][380,446]\" drawing-order=\"0\" hint=\"\" /><node index=\"1\" text=\"已实现的设置会立即生效并保存在本机；标注「后续接入」的能力尚未实现。\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[60,464][1140,574]\" drawing-order=\"0\" hint=\"\" /><node index=\"2\" text=\"\" resource-id=\"settings_qa_banner\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[60,604][1140,696]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"QA 测试构建：包名 com.mengyalife.app.qa，数据库 mengya-life-qa.db，与正式版完全隔离。\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[102,604][1140,696]\" drawing-order=\"0\" hint=\"\" /></node><node index=\"3\" text=\"AI 服务\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[72,756][194,806]\" drawing-order=\"0\" hint=\"\" /><node index=\"4\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[60,836][1140,2420]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[114,884][1086,2372]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"模型配置\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[114,886][941,939]\" drawing-order=\"0\" hint=\"\" /><node index=\"1\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[941,884][1086,941]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"未配置\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[968,893][1059,932]\" drawing-order=\"0\" hint=\"\" /></node><node index=\"2\" text=\"V1 支持 OpenAI-compatible Chat Completions；请求直接发往你填写的地址。\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[114,953][1086,1045]\" drawing-order=\"0\" hint=\"\" /><node index=\"3\" text=\"\" resource-id=\"ai_endpoint_input\" class=\"android.widget.EditText\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"true\" password=\"false\" selected=\"false\" bounds=\"[114,1081][1086,1271]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"API 服务地址（HTTPS）\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[162,1155][611,1220]\" drawing-order=\"0\" hint=\"\" /></node><node index=\"4\" text=\"\" resource-id=\"ai_model_input\" class=\"android.widget.EditText\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"true\" password=\"false\" selected=\"false\" bounds=\"[114,1301][1086,1491]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"模型名称\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[162,1375][325,1440]\" drawing-order=\"0\" hint=\"\" /></node><node index=\"5\" text=\"\" resource-id=\"ai_key_input\" class=\"android.widget.EditText\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"true\" password=\"true\" selected=\"false\" bounds=\"[114,1521][1086,1711]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"API Key\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[162,1595][308,1660]\" drawing-order=\"0\" hint=\"\" /></node><node index=\"6\" text=\"\" resource-id=\"ai_save\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[114,1747][585,1891]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"保存配置\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[275,1792][425,1846]\" drawing-order=\"0\" hint=\"\" /><node index=\"1\" text=\"\" resource-id=\"\" class=\"android.widget.Button\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[114,1759][585,1879]\" drawing-order=\"0\" hint=\"\" /></node><node index=\"7\" text=\"\" resource-id=\"ai_test\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[615,1747][1086,1891]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"测试连接\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[776,1792][926,1846]\" drawing-order=\"0\" hint=\"\" /><node index=\"1\" text=\"\" resource-id=\"\" class=\"android.widget.Button\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[615,1759][1086,1879]\" drawing-order=\"0\" hint=\"\" /></node><node index=\"8\" text=\"密钥由 Android Keystore 加密保存在本机；不上传、不写入 Room、不进入导出文件。应用新增的 INTERNET 权限只用于你主动发起的模型请求。\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[156,1921][1086,2062]\" drawing-order=\"0\" hint=\"\" /><node index=\"9\" text=\"本版本不支持导入恢复；模型输出只作为建议，不会自动修改目标或日记。\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[156,2080][1086,2172]\" drawing-order=\"0\" hint=\"\" /><node index=\"10\" text=\"使用离线测试引擎（仅 QA）\" resource-id=\"ai_fake_engine_label\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[114,2256][592,2306]\" drawing-order=\"0\" hint=\"\" /><node index=\"11\" text=\"不发起网络请求，用于自动化验证对话保存与失败重试。\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[114,2306][866,2345]\" drawing-order=\"0\" hint=\"\" /><node NAF=\"true\" index=\"12\" text=\"\" resource-id=\"ai_fake_engine\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"true\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[930,2228][1086,2372]\" drawing-order=\"0\" hint=\"\" /></node></node><node index=\"5\" text=\"AI 与隐私\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[72,2480][231,2530]\" drawing-order=\"0\" hint=\"\" /></node><node index=\"1\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,336]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"settings_back\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"true\" enabled=\"true\" focusable=\"true\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[12,168][156,312]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"返回\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[48,204][120,276]\" drawing-order=\"0\" hint=\"\" /><node index=\"1\" text=\"\" resource-id=\"\" class=\"android.widget.Button\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[24,180][144,300]\" drawing-order=\"0\" hint=\"\" /></node><node index=\"1\" text=\"设置\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[168,204][276,275]\" drawing-order=\"0\" hint=\"\" /></node></node></node></node></node></node></node></node></hierarchy>"
+}

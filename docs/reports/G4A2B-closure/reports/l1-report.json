@@ -1,0 +1,561 @@
+{
+  "schemaVersion": 1,
+  "runId": "20261106-002339",
+  "gate": "3F",
+  "startedAt": "2026-11-06T00:23:39+0800",
+  "finishedAt": "2026-11-06T00:43:11+0800",
+  "durationSec": 1172.1,
+  "level": "feature",
+  "levelTitle": "L1 Feature",
+  "mode": "module",
+  "git": {
+    "base": "3fb6781b955163994d891b98ff5f1d12c30692fc",
+    "baseReason": "上一次 verify 运行记录",
+    "commit": "3fb6781b955163994d891b98ff5f1d12c30692fc",
+    "branch": "master",
+    "dirty": true,
+    "files": [
+      {
+        "path": "app/src/main/java/com/mengyalife/app/data/advisor/GoalProposalApplyService.kt",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "app/src/main/java/com/mengyalife/app/data/growth/GrowthMemoryService.kt",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "app/src/main/java/com/mengyalife/app/data/qa/QaBackupFixtureSeeder.kt",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "app/src/main/java/com/mengyalife/app/data/repository/GoalRepository.kt",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "app/src/main/java/com/mengyalife/app/data/repository/JournalRepository.kt",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "app/src/main/java/com/mengyalife/app/data/restore/RestoreCoordinator.kt",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "app/src/main/java/com/mengyalife/app/data/restore/RestoreGate.kt",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "app/src/main/java/com/mengyalife/app/data/restore/RestoreJournal.kt",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "app/src/main/java/com/mengyalife/app/data/weekly/WeeklyReviewService.kt",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "app/src/main/java/com/mengyalife/app/data/weekly/WeeklyReviewWorker.kt",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "app/src/main/java/com/mengyalife/app/di/AppContainer.kt",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "app/src/test/java/com/mengyalife/app/restore/RestoreGateJournalTest.kt",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G4A2B-acceptance/failures/failures-result.json",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "docs/reports/G4A2B-acceptance/qa/e2e-result.json",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "tests/test-map.json",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "tools/ui-verify/test_restore_failure_assertions.py",
+        "status": "A",
+        "source": "untracked"
+      },
+      {
+        "path": "tools/ui-verify/verify_restore_e2e.py",
+        "status": "M",
+        "source": "unstaged"
+      },
+      {
+        "path": "tools/ui-verify/verify_restore_failures.py",
+        "status": "M",
+        "source": "unstaged"
+      }
+    ]
+  },
+  "device": {
+    "serial": "127.0.0.1:35193",
+    "model": "2509FPN0BC",
+    "android": "17",
+    "sdk": "37",
+    "fetchedAt": "2026-11-06T00:23:42+0800"
+  },
+  "apk": {
+    "qa": {
+      "path": "/root/workspace/mengya-life/app/build/outputs/apk/qa/app-qa.apk",
+      "sha256": "aa8ade31872fb9fa06e7e582050f2b0df2dd366a12d9f528827254cb8ad9ed5e",
+      "size": 12722570,
+      "versionName": "0.14.1-g3e2-1",
+      "built": false,
+      "reused": true
+    }
+  },
+  "selection": {
+    "level": "feature",
+    "mode": "module",
+    "modules": [
+      {
+        "name": "navigation",
+        "title": "导航与共享 UI",
+        "risk": "medium",
+        "reasons": [
+          "L1+ 必要导航冒烟（跨页面回归）"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [],
+        "device": []
+      },
+      {
+        "name": "restore-validate",
+        "title": "恢复只读校验/预览",
+        "risk": "high",
+        "reasons": [
+          "显式指定 --module restore-validate"
+        ],
+        "matchedFiles": [],
+        "propagatedFrom": [],
+        "jvmTests": [
+          "com.mengyalife.app.restore.BackupRestoreReaderTest",
+          "com.mengyalife.app.restore.RestoreValidatorTest",
+          "com.mengyalife.app.restore.RestorePlannerTest",
+          "com.mengyalife.app.restore.RestoreGateJournalTest"
+        ],
+        "device": [
+          {
+            "script": "verify_restore_preview.py",
+            "package": "qa",
+            "tier": "feature"
+          },
+          {
+            "script": "verify_restore_e2e.py",
+            "package": "qa",
+            "tier": "feature"
+          },
+          {
+            "script": "verify_restore_failures.py",
+            "package": "qa",
+            "tier": "feature"
+          }
+        ]
+      }
+    ],
+    "jvmClasses": [
+      "com.mengyalife.app.restore.BackupRestoreReaderTest",
+      "com.mengyalife.app.restore.RestoreGateJournalTest",
+      "com.mengyalife.app.restore.RestorePlannerTest",
+      "com.mengyalife.app.restore.RestoreValidatorTest"
+    ],
+    "fullJvm": false,
+    "deviceScripts": [
+      {
+        "script": "verify_navigation.py",
+        "package": "qa",
+        "tier": "feature",
+        "assertions": 28,
+        "destructive": false,
+        "resetsQaData": false,
+        "measuredSec": null,
+        "modules": [
+          "navigation"
+        ],
+        "reason": "L1+ 必要导航冒烟"
+      },
+      {
+        "script": "verify_restore_e2e.py",
+        "package": "qa",
+        "tier": "feature",
+        "assertions": 35,
+        "destructive": true,
+        "resetsQaData": true,
+        "measuredSec": 346.84,
+        "timeoutSec": 900,
+        "modules": [
+          "restore-validate"
+        ]
+      },
+      {
+        "script": "verify_restore_failures.py",
+        "package": "qa",
+        "tier": "feature",
+        "assertions": 0,
+        "destructive": true,
+        "resetsQaData": true,
+        "measuredSec": null,
+        "timeoutSec": 1200,
+        "modules": [
+          "restore-validate"
+        ]
+      },
+      {
+        "script": "verify_restore_preview.py",
+        "package": "qa",
+        "tier": "feature",
+        "assertions": 21,
+        "destructive": true,
+        "resetsQaData": true,
+        "measuredSec": 142.93,
+        "timeoutSec": 600,
+        "modules": [
+          "restore-validate"
+        ]
+      }
+    ],
+    "rulesHit": [
+      {
+        "id": "explicit-module",
+        "reason": "用户显式指定模块"
+      }
+    ],
+    "unknownFiles": [],
+    "docsOnly": false,
+    "notSelected": [
+      {
+        "module": "diary",
+        "title": "日记",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "goals",
+        "title": "目标",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "progress",
+        "title": "进展与打卡",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "trends",
+        "title": "趋势",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "advisor",
+        "title": "AI 顾问",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "ai-consent",
+        "title": "AI 授权与配置",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "growth-memory",
+        "title": "成长记忆与日记提取",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "insight",
+        "title": "成长洞察",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "weekly-review",
+        "title": "每周成长回顾（本地）",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "weekly-ai",
+        "title": "每周 AI 增强",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "settings",
+        "title": "设置与主题",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "export",
+        "title": "数据导出",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "database-migration",
+        "title": "Room Schema / DAO / Migration",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "app-smoke",
+        "title": "应用启动与正式包冒烟",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "test-infra",
+        "title": "测试体系自身",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "backup-format",
+        "title": "备份格式/校验",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "backup-crypto",
+        "title": "备份加密",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "backup-export",
+        "title": "完整备份导出",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      },
+      {
+        "module": "backup-security",
+        "title": "备份安全",
+        "reason": "未命中变更路径，也不是被选模块的上游依赖"
+      }
+    ],
+    "notRun": [],
+    "staticChecks": [
+      "validate-map"
+    ],
+    "deviceRequired": true,
+    "deviceRequiredOriginal": true,
+    "prodSmokeRequired": false,
+    "warnings": []
+  },
+  "steps": [
+    {
+      "name": "静态检查（validate-map）",
+      "status": "PASS",
+      "durationSec": 0.17,
+      "counts": {
+        "issues": 0
+      },
+      "detail": ""
+    },
+    {
+      "name": "安装 qa APK",
+      "status": "SKIPPED",
+      "durationSec": 0.0,
+      "counts": {},
+      "detail": "已安装包哈希与本地 APK 一致，复用安装"
+    },
+    {
+      "name": "QA 安全前置校验（包名 / QA_BUILD 标记）",
+      "status": "PASS",
+      "durationSec": 27.6,
+      "counts": {
+        "assertions": "10/10"
+      },
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261106-002339/logs/qa-verify_qa_preflight.log",
+      "detail": ""
+    },
+    {
+      "name": "JVM 测试（4 类）",
+      "status": "PASS",
+      "durationSec": 15.5,
+      "counts": {
+        "tests": 19,
+        "failures": 0
+      },
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261106-002339/logs/jvm-testDebugUnitTest.log",
+      "detail": ""
+    },
+    {
+      "name": "真机 verify_navigation.py",
+      "status": "PASS",
+      "durationSec": 123.1,
+      "counts": {
+        "assertions": "28/28"
+      },
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261106-002339/logs/qa-verify_navigation.log",
+      "detail": ""
+    },
+    {
+      "name": "真机 verify_restore_e2e.py",
+      "status": "PASS",
+      "durationSec": 342.4,
+      "counts": {
+        "assertions": "35/35"
+      },
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261106-002339/logs/qa-verify_restore_e2e.log",
+      "detail": ""
+    },
+    {
+      "name": "真机 verify_restore_failures.py",
+      "status": "PASS",
+      "durationSec": 518.5,
+      "counts": {
+        "assertions": "59/59"
+      },
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261106-002339/logs/qa-verify_restore_failures.log",
+      "detail": ""
+    },
+    {
+      "name": "真机 verify_restore_preview.py",
+      "status": "PASS",
+      "durationSec": 140.8,
+      "counts": {
+        "assertions": "21/21"
+      },
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261106-002339/logs/qa-verify_restore_preview.log",
+      "detail": ""
+    },
+    {
+      "name": "清理 QA 数据（pm clear）",
+      "status": "PASS",
+      "durationSec": 0.0,
+      "counts": {},
+      "detail": "仅清理 QA 包；正式包未触碰"
+    }
+  ],
+  "deviceSteps": [
+    {
+      "script": "verify_navigation.py",
+      "package": "com.mengyalife.app.qa",
+      "status": "PASS",
+      "exitCode": 0,
+      "durationSec": 123.1,
+      "assertionsPassed": 28,
+      "assertionsTotal": 28,
+      "failures": [],
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261106-002339/logs/qa-verify_navigation.log",
+      "tail": "PASS  tab_trends 可进入设置\nPASS  tab_trends 设置页已就位\nPASS  tab_trends 设置页隐藏底栏\nPASS  tab_trends 返回后底栏恢复\nPASS  tab_diary 可进入设置\nPASS  tab_diary 设置页已就位\nPASS  tab_diary 设置页隐藏底栏\nPASS  tab_diary 返回后底栏恢复\nPASS  日记页仍可打开\nPASS  无崩溃日志\n\n==== SUMMARY: 28/28 passed ====",
+      "modules": [
+        "navigation"
+      ],
+      "tier": "feature"
+    },
+    {
+      "script": "verify_restore_e2e.py",
+      "package": "com.mengyalife.app.qa",
+      "status": "PASS",
+      "exitCode": 0,
+      "durationSec": 342.4,
+      "assertionsPassed": 35,
+      "assertionsTotal": 35,
+      "failures": [],
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261106-002339/logs/qa-verify_restore_e2e.log",
+      "tail": "PASS  授权已撤销\nPASS  自动发送关闭\nPASS  快照存在\nPASS  Gate释放\nPASS  重启\nPASS  重启后核心8表A保持\nPASS  重启后周回顾仍存在\nPASS  重启后weekly AI仍为0\nPASS  重启后无Gate\nQA_E2E_SECONDS=342.02\n\n==== SUMMARY: 35/35 passed ====",
+      "modules": [
+        "restore-validate"
+      ],
+      "tier": "feature"
+    },
+    {
+      "script": "verify_restore_failures.py",
+      "package": "com.mengyalife.app.qa",
+      "status": "PASS",
+      "exitCode": 0,
+      "durationSec": 518.5,
+      "assertionsPassed": 59,
+      "assertionsTotal": 59,
+      "failures": [],
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261106-002339/logs/qa-verify_restore_failures.log",
+      "tail": "PASS  启动B+安全+故障\nPASS  选择A\nPASS  确定\nPASS  确认勾选\nPASS  执行\nPASS  R7 到达DB_COMMITTED\nPASS  R7 启动收敛\nPASS  R7 gate缺失仍收敛A\nPASS  R7 Gate释放\nQA_FAILURE_SECONDS=518.25\n\n==== SUMMARY: 59/59 passed ====",
+      "modules": [
+        "restore-validate"
+      ],
+      "tier": "feature"
+    },
+    {
+      "script": "verify_restore_preview.py",
+      "package": "com.mengyalife.app.qa",
+      "status": "PASS",
+      "exitCode": 0,
+      "durationSec": 140.8,
+      "assertionsPassed": 21,
+      "assertionsTotal": 21,
+      "failures": [],
+      "log": "/root/workspace/mengya-life/docs/reports/test-runs/20261106-002339/logs/qa-verify_restore_preview.log",
+      "tail": "PASS  明确尚未执行\nPASS  确认按钮未勾选不可点击  False\nPASS  没有成功/执行提示\nPASS  预览后 DB 完全不变\nPASS  预览后 10 表 counts 不变\nPASS  预览后仍无写入路径\nPASS  重启后不保留预览/口令\nPASS  重启后应用日志无口令\nPASS  测试文件已清理\nQA_RESTORE_PREVIEW_SECONDS=140.50\n\n==== SUMMARY: 21/21 passed ====",
+      "modules": [
+        "restore-validate"
+      ],
+      "tier": "feature"
+    }
+  ],
+  "modules": [
+    {
+      "name": "navigation",
+      "title": "导航与共享 UI",
+      "risk": "medium",
+      "status": "PASS",
+      "reasons": [
+        "L1+ 必要导航冒烟（跨页面回归）"
+      ],
+      "jvmStatuses": [],
+      "deviceStatuses": [
+        "PASS"
+      ],
+      "durationSec": 123.1,
+      "jvmClassCount": 0
+    },
+    {
+      "name": "restore-validate",
+      "title": "恢复只读校验/预览",
+      "risk": "high",
+      "status": "PASS",
+      "reasons": [
+        "显式指定 --module restore-validate"
+      ],
+      "jvmStatuses": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "deviceStatuses": [
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "durationSec": 1002.2,
+      "jvmClassCount": 4
+    }
+  ],
+  "failures": [],
+  "notRun": [],
+  "summary": {
+    "verdict": "PASS",
+    "exitCode": 0,
+    "levelSatisfied": true,
+    "levelNotes": [],
+    "pass": 8,
+    "fail": 0,
+    "skipped": 1,
+    "notRun": 0
+  },
+  "artifacts": {
+    "dir": "/root/workspace/mengya-life/docs/reports/test-runs/20261106-002339",
+    "json": "/root/workspace/mengya-life/docs/reports/test-runs/20261106-002339/report.json",
+    "md": "/root/workspace/mengya-life/docs/reports/test-runs/20261106-002339/summary.md",
+    "logs": "/root/workspace/mengya-life/docs/reports/test-runs/20261106-002339/logs"
+  }
+}

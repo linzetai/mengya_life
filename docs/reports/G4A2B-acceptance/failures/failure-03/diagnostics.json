@@ -1,0 +1,540 @@
+{
+  "stage": "--ez qa_restore_fail_transaction true",
+  "assertion": "R2 旧Key仍存在",
+  "detail": "{}",
+  "db": {
+    "journal_entries": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "title",
+          "type": "TEXT"
+        },
+        {
+          "name": "body",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "analysis_status",
+          "type": "TEXT"
+        },
+        {
+          "name": "analysis_hash",
+          "type": "TEXT"
+        },
+        {
+          "name": "analysis_error",
+          "type": "TEXT"
+        },
+        {
+          "name": "analysis_attempts",
+          "type": "INTEGER"
+        },
+        {
+          "name": "analyzed_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "analysis_last_attempt_at",
+          "type": "INTEGER"
+        }
+      ],
+      "rows": []
+    },
+    "goals": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "title",
+          "type": "TEXT"
+        },
+        {
+          "name": "description",
+          "type": "TEXT"
+        },
+        {
+          "name": "level",
+          "type": "TEXT"
+        },
+        {
+          "name": "parent_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "domain",
+          "type": "TEXT"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "start_date",
+          "type": "INTEGER"
+        },
+        {
+          "name": "due_date",
+          "type": "INTEGER"
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER"
+        }
+      ],
+      "rows": []
+    },
+    "goal_checkins": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "goal_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "recorded_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "note",
+          "type": "TEXT"
+        },
+        {
+          "name": "metric_value",
+          "type": "REAL"
+        },
+        {
+          "name": "metric_unit",
+          "type": "TEXT"
+        },
+        {
+          "name": "source",
+          "type": "TEXT"
+        }
+      ],
+      "rows": []
+    },
+    "advisor_messages": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "role",
+          "type": "TEXT"
+        },
+        {
+          "name": "content",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "error_code",
+          "type": "TEXT"
+        },
+        {
+          "name": "error_message",
+          "type": "TEXT"
+        },
+        {
+          "name": "context_goal_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "context_epoch",
+          "type": "INTEGER"
+        },
+        {
+          "name": "sources_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "proposal_error",
+          "type": "TEXT"
+        },
+        {
+          "name": "proposal_mode",
+          "type": "INTEGER"
+        }
+      ],
+      "rows": []
+    },
+    "goal_proposals": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "message_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "schema_version",
+          "type": "INTEGER"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "summary",
+          "type": "TEXT"
+        },
+        {
+          "name": "assumptions_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "risks_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "nodes_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "selected_temp_ids_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "applied_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "applied_goal_ids_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "undone_at",
+          "type": "INTEGER"
+        }
+      ],
+      "rows": []
+    },
+    "growth_signals": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "source_type",
+          "type": "TEXT"
+        },
+        {
+          "name": "source_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "source_version",
+          "type": "TEXT"
+        },
+        {
+          "name": "category",
+          "type": "TEXT"
+        },
+        {
+          "name": "content",
+          "type": "TEXT"
+        },
+        {
+          "name": "evidence",
+          "type": "TEXT"
+        },
+        {
+          "name": "is_inference",
+          "type": "INTEGER"
+        },
+        {
+          "name": "confidence",
+          "type": "REAL"
+        },
+        {
+          "name": "extracted_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "origin",
+          "type": "TEXT"
+        },
+        {
+          "name": "source_title",
+          "type": "TEXT"
+        },
+        {
+          "name": "content_hash",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER"
+        }
+      ],
+      "rows": []
+    },
+    "growth_memories": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "theme",
+          "type": "TEXT"
+        },
+        {
+          "name": "content",
+          "type": "TEXT"
+        },
+        {
+          "name": "is_inference",
+          "type": "INTEGER"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "signal_ids_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "source_diary_ids_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "user_corrected",
+          "type": "INTEGER"
+        },
+        {
+          "name": "version",
+          "type": "INTEGER"
+        },
+        {
+          "name": "confidence",
+          "type": "REAL"
+        },
+        {
+          "name": "insufficient",
+          "type": "INTEGER"
+        },
+        {
+          "name": "recent_change",
+          "type": "TEXT"
+        },
+        {
+          "name": "fingerprint",
+          "type": "TEXT"
+        },
+        {
+          "name": "deleted_at",
+          "type": "INTEGER"
+        }
+      ],
+      "rows": []
+    },
+    "insight_reports": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "data_version",
+          "type": "TEXT"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "summary",
+          "type": "TEXT"
+        },
+        {
+          "name": "facts_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "insights_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "period_start",
+          "type": "INTEGER"
+        },
+        {
+          "name": "period_end",
+          "type": "INTEGER"
+        },
+        {
+          "name": "generated_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "error",
+          "type": "TEXT"
+        },
+        {
+          "name": "model",
+          "type": "TEXT"
+        }
+      ],
+      "rows": []
+    },
+    "weekly_reviews": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "period_key",
+          "type": "TEXT"
+        },
+        {
+          "name": "period_start",
+          "type": "INTEGER"
+        },
+        {
+          "name": "period_end",
+          "type": "INTEGER"
+        },
+        {
+          "name": "generated_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "version",
+          "type": "INTEGER"
+        },
+        {
+          "name": "data_version",
+          "type": "TEXT"
+        },
+        {
+          "name": "ai_consent_version",
+          "type": "TEXT"
+        },
+        {
+          "name": "facts_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "sections_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "notified_at",
+          "type": "INTEGER"
+        }
+      ],
+      "rows": []
+    },
+    "weekly_ai_reviews": {
+      "columns": [
+        {
+          "name": "period_key",
+          "type": "TEXT"
+        },
+        {
+          "name": "local_data_version",
+          "type": "TEXT"
+        },
+        {
+          "name": "ai_consent_version",
+          "type": "TEXT"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "generated_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "summary",
+          "type": "TEXT"
+        },
+        {
+          "name": "highlights_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "suggestion",
+          "type": "TEXT"
+        },
+        {
+          "name": "fact_ids_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "categories",
+          "type": "TEXT"
+        },
+        {
+          "name": "error",
+          "type": "TEXT"
+        },
+        {
+          "name": "model",
+          "type": "TEXT"
+        },
+        {
+          "name": "config_hash",
+          "type": "TEXT"
+        }
+      ],
+      "rows": []
+    }
+  },
+  "app_meta": [],
+  "logcat": "",
+  "ui": "<?xml version='1.0' encoding='UTF-8' standalone='yes' ?><hierarchy rotation=\"0\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.widget.FrameLayout\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.widget.LinearLayout\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"1\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"android:id/content\" class=\"android.widget.FrameLayout\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"2\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"androidx.compose.ui.platform.ComposeView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"1\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[72,72][1128,2536]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"正在完成安全恢复\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[344,1188][856,1275]\" drawing-order=\"0\" hint=\"\" /><node index=\"1\" text=\"数据恢复或安全重置尚未收敛。为避免产生不一致，暂不能使用应用；请保持应用打开，重启后会继续完成。\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[72,1311][1128,1421]\" drawing-order=\"0\" hint=\"\" /></node></node></node></node></node></node></hierarchy>"
+}

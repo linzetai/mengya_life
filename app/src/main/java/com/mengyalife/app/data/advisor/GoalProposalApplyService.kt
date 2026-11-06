@@ -2,6 +2,7 @@ package com.mengyalife.app.data.advisor
 
 import androidx.room.withTransaction
 import com.mengyalife.app.data.local.MengyaDatabase
+import com.mengyalife.app.data.restore.RestoreWriteBarrier
 import com.mengyalife.app.data.local.proposal.GoalProposalDao
 import com.mengyalife.app.data.repository.GoalDraft
 import com.mengyalife.app.data.repository.GoalRepository
@@ -58,11 +59,18 @@ class GoalProposalApplyService(
     private val proposalDao: GoalProposalDao,
     private val goalRepository: GoalRepository,
     private val now: () -> Long = System::currentTimeMillis,
+    private val canWrite: () -> Boolean = { true },
+    private val writeBarrier: RestoreWriteBarrier? = null,
 ) : GoalProposalApply {
     private val mutex = Mutex()
 
     override suspend fun apply(proposalId: String, selectedTempIds: Set<String>): ProposalApplyResult =
+        if (writeBarrier != null) writeBarrier.withWrite { applyLocked(proposalId, selectedTempIds) }
+        else applyLocked(proposalId, selectedTempIds)
+
+    private suspend fun applyLocked(proposalId: String, selectedTempIds: Set<String>): ProposalApplyResult =
         mutex.withLock {
+            if (!canWrite()) return@withLock ProposalApplyResult.Failure("恢复维护中，禁止应用草案")
             try {
                 database.withTransaction {
                     val entity = proposalDao.findById(proposalId)
@@ -151,7 +159,12 @@ class GoalProposalApplyService(
             }
         }
 
-    override suspend fun undo(proposalId: String): ProposalUndoResult = mutex.withLock {
+    override suspend fun undo(proposalId: String): ProposalUndoResult =
+        if (writeBarrier != null) writeBarrier.withWrite { undoLocked(proposalId) }
+        else undoLocked(proposalId)
+
+    private suspend fun undoLocked(proposalId: String): ProposalUndoResult = mutex.withLock {
+        if (!canWrite()) return@withLock ProposalUndoResult.Failure("恢复维护中，禁止撤销草案")
         try {
             database.withTransaction {
                 val entity = proposalDao.findById(proposalId)

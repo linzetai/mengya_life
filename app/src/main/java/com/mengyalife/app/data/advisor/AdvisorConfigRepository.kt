@@ -4,6 +4,7 @@ import com.mengyalife.app.BuildConfig
 import com.mengyalife.app.domain.advisor.AdvisorRuntimeConfig
 import com.mengyalife.app.domain.advisor.AdvisorRules
 import com.mengyalife.app.domain.advisor.AiConfigState
+import com.mengyalife.app.data.restore.RestoreWriteBarrier
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -39,6 +40,7 @@ class DataStoreAdvisorConfigRepository(
     private val storage: AiConfigStorage,
     private val cipher: SecretCipher,
     private val allowFakeEngine: Boolean = BuildConfig.QA_BUILD,
+    private val writeBarrier: RestoreWriteBarrier? = null,
 ) : AdvisorConfigRepository {
 
     override val state: Flow<AiConfigState> = storage.observe().map {
@@ -50,7 +52,10 @@ class DataStoreAdvisorConfigRepository(
         )
     }
 
-    override suspend fun save(
+    override suspend fun save(endpoint: String, model: String, apiKey: String?): AiConfigSaveResult =
+        guarded { saveUnlocked(endpoint, model, apiKey) }
+
+    private suspend fun saveUnlocked(
         endpoint: String,
         model: String,
         apiKey: String?,
@@ -84,22 +89,22 @@ class DataStoreAdvisorConfigRepository(
         return AiConfigSaveResult(true)
     }
 
-    override suspend fun deleteKey() {
+    override suspend fun deleteKey() = guarded {
         val existing = storage.load()
         storage.save(existing.copy(encryptedKey = null))
         // 同时删除 Keystore 条目：旧密文即使被恢复也无法再解。
         cipher.deleteKey()
     }
 
-    override suspend fun deleteKeyConfirmed(): KeyDeleteResult {
+    override suspend fun deleteKeyConfirmed(): KeyDeleteResult = guarded {
         val existing = storage.load()
         val confirmed = cipher.deleteKeyConfirmed()
-        if (!confirmed) return KeyDeleteResult.FAILED
+        if (!confirmed) return@guarded KeyDeleteResult.FAILED
         storage.save(existing.copy(encryptedKey = null))
-        return if (existing.encryptedKey.isNullOrBlank()) KeyDeleteResult.ALREADY_ABSENT else KeyDeleteResult.DELETED
+        if (existing.encryptedKey.isNullOrBlank()) KeyDeleteResult.ALREADY_ABSENT else KeyDeleteResult.DELETED
     }
 
-    override suspend fun restoreEndpointAndModel(endpoint: String, model: String) {
+    override suspend fun restoreEndpointAndModel(endpoint: String, model: String) = guarded {
         val existing = storage.load()
         storage.save(existing.copy(endpoint = endpoint.trim(), model = model.trim(), encryptedKey = null))
     }
@@ -114,9 +119,12 @@ class DataStoreAdvisorConfigRepository(
         return AdvisorRuntimeConfig(endpoint = endpoint, model = model, apiKey = key)
     }
 
-    override suspend fun setUseFakeEngine(enabled: Boolean) {
-        if (!allowFakeEngine) return
+    override suspend fun setUseFakeEngine(enabled: Boolean) = guarded {
+        if (!allowFakeEngine) return@guarded
         val existing = storage.load()
         storage.save(existing.copy(useFakeEngine = enabled))
     }
+
+    private suspend fun <T> guarded(block: suspend () -> T): T =
+        writeBarrier?.withWrite { block() } ?: block()
 }

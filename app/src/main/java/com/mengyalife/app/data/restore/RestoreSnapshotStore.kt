@@ -6,6 +6,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.security.SecureRandom
 import java.util.Base64
+import android.os.StatFs
 
 /**
  * 恢复前保护快照：v2 加密备份 + 独立 Keystore alias 保护的随机口令。
@@ -15,8 +16,15 @@ class RestoreSnapshotStore(
     private val dir: File,
     private val exporter: BackupExporter,
     private val keyCipher: SecretCipher,
+    private val availableBytes: () -> Long = { StatFs(dir.absolutePath).availableBytes },
 ) {
     private val random = SecureRandom()
+
+    fun requireSpace(sourceBackupBytes: Long) {
+        if (sourceBackupBytes <= 0) throw RestoreException("SPACE_INPUT", "备份文件大小无效")
+        val free = availableBytes()
+        requireAvailableSpace(sourceBackupBytes, free)
+    }
 
     suspend fun create(attemptId: String): File {
         dir.mkdirs()
@@ -63,6 +71,19 @@ class RestoreSnapshotStore(
         if (!tmp.renameTo(file)) {
             tmp.delete()
             throw RestoreException("SNAPSHOT_WRITE", "无法写入保护快照")
+        }
+    }
+
+    companion object {
+        const val MIN_MARGIN_BYTES = 16L * 1024 * 1024
+        fun requiredBytes(sourceBackupBytes: Long): Long =
+            sourceBackupBytes * 2 + maxOf(MIN_MARGIN_BYTES, sourceBackupBytes / 5)
+
+        fun requireAvailableSpace(sourceBackupBytes: Long, available: Long) {
+            val required = requiredBytes(sourceBackupBytes)
+            if (available < required) {
+                throw RestoreException("SPACE_LOW", "可用空间不足，至少需要 $required 字节")
+            }
         }
     }
 }

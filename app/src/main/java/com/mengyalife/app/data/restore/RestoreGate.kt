@@ -10,6 +10,8 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.longOrNull
 import java.io.File
 import java.io.FileOutputStream
+import android.system.Os
+import android.system.OsConstants
 
 enum class RestoreGatePhase { ARMED, RESET_PENDING, SETTINGS_PENDING, READY_TO_RELEASE }
 
@@ -22,7 +24,7 @@ data class RestoreGateState(
 )
 
 /** noBackupFilesDir/restore/gate.json；临时文件 + fsync + rename。 */
-class RestoreGate(private val dir: File) {
+class RestoreGate(private val dir: File, private val syncParent: (File) -> Unit = ::syncParentDirectory) {
     private val file = File(dir, "gate.json")
     private val json = Json
 
@@ -51,12 +53,28 @@ class RestoreGate(private val dir: File) {
         }
         val bytes = obj.toString().toByteArray(Charsets.UTF_8)
         val tmp = File(dir, "gate.json.tmp")
-        FileOutputStream(tmp).use { out -> out.write(bytes); out.flush(); runCatching { out.fd.sync() } }
-        if (!tmp.renameTo(file)) {
+        try {
+            FileOutputStream(tmp).use { out -> out.write(bytes); out.flush(); out.fd.sync() }
+            if (!tmp.renameTo(file)) throw RestoreException("GATE_WRITE", "无法持久化恢复门禁")
+            syncParent(dir)
+        } catch (e: RestoreException) {
+            throw e
+        } catch (e: Exception) {
             tmp.delete()
-            throw RestoreException("GATE_WRITE", "无法持久化恢复门禁")
+            throw RestoreException("GATE_WRITE", "无法持久化恢复门禁", e)
         }
     }
 
-    fun clear() { runCatching { file.delete() } }
+    fun clear() {
+        if (!file.exists()) return
+        if (!file.delete()) throw RestoreException("GATE_CLEAR", "无法删除恢复门禁")
+        syncParent(dir)
+    }
+
+    companion object {
+        private fun syncParentDirectory(dir: File) {
+            val fd = Os.open(dir.absolutePath, OsConstants.O_RDONLY, 0)
+            try { Os.fsync(fd) } finally { Os.close(fd) }
+        }
+    }
 }

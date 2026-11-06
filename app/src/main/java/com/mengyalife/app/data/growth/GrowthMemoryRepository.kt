@@ -5,6 +5,7 @@ import com.mengyalife.app.data.local.JournalEntryEntity
 import com.mengyalife.app.data.local.growth.GrowthMemoryDao
 import com.mengyalife.app.data.local.growth.GrowthMemoryEntity
 import com.mengyalife.app.data.local.growth.GrowthSignalDao
+import com.mengyalife.app.data.restore.RestoreWriteBarrier
 import com.mengyalife.app.data.local.growth.GrowthSignalEntity
 import com.mengyalife.app.domain.growth.GrowthMemory
 import com.mengyalife.app.domain.growth.GrowthMemoryIds
@@ -23,6 +24,7 @@ class GrowthMemoryRepository(
     private val signalDao: GrowthSignalDao,
     private val journalDao: JournalEntryDao,
     private val now: () -> Long = System::currentTimeMillis,
+    private val writeBarrier: RestoreWriteBarrier? = null,
 ) {
     fun observeAll(): Flow<List<GrowthMemory>> =
         memoryDao.observeAll().map { list -> list.map(::toDomain) }
@@ -37,12 +39,18 @@ class GrowthMemoryRepository(
     }
 
     suspend fun correct(id: String, content: String): Boolean {
+        val generation = writeBarrier?.generation()
         val clean = content.trim()
         if (clean.isEmpty() || clean.length > 2_000) return false
-        return memoryDao.correct(id, clean, now()) > 0
+        val write: suspend () -> Boolean = { memoryDao.correct(id, clean, now()) > 0 }
+        return writeBarrier?.withWrite(generation) { write() } ?: write()
     }
 
-    suspend fun delete(id: String): Boolean = memoryDao.softDelete(id, now()) > 0
+    suspend fun delete(id: String): Boolean {
+        val generation = writeBarrier?.generation()
+        val write: suspend () -> Boolean = { memoryDao.softDelete(id, now()) > 0 }
+        return writeBarrier?.withWrite(generation) { write() } ?: write()
+    }
 
     fun toDomain(entity: GrowthMemoryEntity): GrowthMemory = GrowthMemory(
         id = entity.id,

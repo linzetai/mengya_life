@@ -74,6 +74,8 @@ class AppContainer(context: Context) {
             growthSignalDao = database.growthSignalDao(),
             transaction = { block -> database.withTransaction { block() } },
             onSignalsChanged = { growthMemoryService.rebuildAll() },
+            canWrite = { !restoreCoordinator.isGateActive() },
+            writeBarrier = restoreWriteBarrier,
         )
     }
 
@@ -83,6 +85,8 @@ class AppContainer(context: Context) {
             signalDao = database.growthSignalDao(),
             memoryDao = database.growthMemoryDao(),
             transaction = { block -> database.withTransaction { block() } },
+            canWrite = { !restoreCoordinator.isGateActive() },
+            writeBarrier = restoreWriteBarrier,
         )
     }
 
@@ -90,6 +94,7 @@ class AppContainer(context: Context) {
         GrowthSignalRepository(
             dao = database.growthSignalDao(),
             onChanged = { growthMemoryService.rebuildAll() },
+            writeBarrier = restoreWriteBarrier,
         )
     }
 
@@ -102,6 +107,7 @@ class AppContainer(context: Context) {
             fakeEngine = fakeAdvisorEngine,
             dao = database.insightReportDao(),
             beforeWrite = { if (restoreCoordinator.isGateActive()) throw IllegalStateException("恢复维护中") },
+            writeBarrier = restoreWriteBarrier,
         )
     }
 
@@ -110,6 +116,7 @@ class AppContainer(context: Context) {
             memoryDao = database.growthMemoryDao(),
             signalDao = database.growthSignalDao(),
             journalDao = database.journalEntryDao(),
+            writeBarrier = restoreWriteBarrier,
         )
     }
 
@@ -124,15 +131,16 @@ class AppContainer(context: Context) {
             transaction = { block -> database.withTransaction { block() } },
             onSignalsChanged = { growthMemoryService.rebuildAll() },
             beforeWrite = { if (restoreCoordinator.isGateActive()) throw IllegalStateException("恢复维护中") },
+            writeBarrier = restoreWriteBarrier,
         )
     }
 
     val goalRepository: GoalRepository by lazy {
-        GoalRepository(database.goalDao())
+        GoalRepository(database.goalDao(), canWrite = { !restoreCoordinator.isGateActive() }, writeBarrier = restoreWriteBarrier)
     }
 
     val weeklyReviewPreferences: WeeklyReviewPreferences by lazy {
-        WeeklyReviewPreferences(appContext)
+        WeeklyReviewPreferences(appContext, restoreWriteBarrier)
     }
 
     val weeklyReviewScheduler: WeeklyReviewScheduler by lazy {
@@ -157,6 +165,8 @@ class AppContainer(context: Context) {
             dataRepository = weeklyReviewDataRepository,
             dao = database.weeklyReviewDao(),
             consentRepository = aiConsentRepository,
+            canWrite = { !restoreCoordinator.isGateActive() },
+            writeBarrier = restoreWriteBarrier,
         )
     }
 
@@ -169,7 +179,9 @@ class AppContainer(context: Context) {
             fakeEngine = fakeAdvisorEngine,
             dao = database.weeklyAiDao(),
             autoEnabled = { weeklyReviewPreferences.enabled.first() && weeklyReviewPreferences.aiEnabled.first() },
+            beforeRequest = { if (restoreCoordinator.isGateActive()) throw IllegalStateException("恢复维护中") },
             beforeComplete = { if (restoreCoordinator.isGateActive()) throw IllegalStateException("恢复维护中") },
+            writeBarrier = restoreWriteBarrier,
         )
     }
 
@@ -177,24 +189,33 @@ class AppContainer(context: Context) {
     val databaseWeeklyReviewDao get() = database.weeklyReviewDao()
 
     /** 仅 QA：清空本周 AI 结果行，便于状态机用例独立重跑（正式包 no-op）。 */
-    fun qaClearWeeklyAi() {
+    suspend fun qaClearWeeklyAi() {
         if (!BuildConfig.QA_BUILD) return
-        database.openHelper.writableDatabase.execSQL("DELETE FROM weekly_ai_reviews")
+        check(restoreCoordinator.awaitReady()) { "恢复尚未就绪，QA清理未执行" }
+        restoreWriteBarrier.withWrite { database.openHelper.writableDatabase.execSQL("DELETE FROM weekly_ai_reviews") }
+    }
+
+    suspend fun qaSeedRestoreSecurity() {
+        if (!BuildConfig.QA_BUILD) return
+        check(restoreCoordinator.awaitReady()) { "恢复尚未就绪，QA security fixture未写入" }
+        com.mengyalife.app.data.qa.QaRestoreSecuritySeeder.seed(this)
     }
 
     /** G4A-1.1 QA-only：10 表全字段非空夹具；正式包忽略。 */
     suspend fun qaSeedBackupFixture() {
         if (!BuildConfig.QA_BUILD) return
+        check(restoreCoordinator.awaitReady()) { "恢复尚未就绪，QA fixture未写入" }
         com.mengyalife.app.data.qa.QaBackupFixtureSeeder.seed(database)
     }
 
     suspend fun qaSeedBackupFixtureB() {
         if (!BuildConfig.QA_BUILD) return
+        check(restoreCoordinator.awaitReady()) { "恢复尚未就绪，QA fixture未写入" }
         com.mengyalife.app.data.qa.QaBackupFixtureSeeder.seedVariantB(database)
     }
 
     val themePreferences: ThemePreferences by lazy {
-        ThemePreferences(appContext)
+        ThemePreferences(appContext, restoreWriteBarrier)
     }
 
     private val secretCipher: SecretCipher by lazy {
@@ -205,15 +226,16 @@ class AppContainer(context: Context) {
         DataStoreAdvisorConfigRepository(
             storage = DataStoreAiConfigStorage(appContext),
             cipher = secretCipher,
+            writeBarrier = restoreWriteBarrier,
         )
     }
 
     val conversationRepository: ConversationRepository by lazy {
-        RoomConversationRepository(database.advisorMessageDao(), canWrite = { !restoreCoordinator.isGateActive() })
+        RoomConversationRepository(database.advisorMessageDao(), canWrite = { !restoreCoordinator.isGateActive() }, writeBarrier = restoreWriteBarrier)
     }
 
     val aiConsentRepository: AiConsentRepository by lazy {
-        DataStoreAiConsentRepository(appContext)
+        DataStoreAiConsentRepository(appContext, writeBarrier = restoreWriteBarrier)
     }
 
     val advisorDataRepository: AdvisorDataRepository by lazy {
@@ -226,7 +248,7 @@ class AppContainer(context: Context) {
     }
 
     val goalProposalRepository: GoalProposalRepository by lazy {
-        RoomGoalProposalRepository(database.goalProposalDao())
+        RoomGoalProposalRepository(database.goalProposalDao(), writeBarrier = restoreWriteBarrier)
     }
 
     val goalProposalApplyService: GoalProposalApplyService by lazy {
@@ -234,6 +256,8 @@ class AppContainer(context: Context) {
             database = database,
             proposalDao = database.goalProposalDao(),
             goalRepository = goalRepository,
+            canWrite = { !restoreCoordinator.isGateActive() },
+            writeBarrier = restoreWriteBarrier,
         )
     }
 
@@ -293,6 +317,8 @@ class AppContainer(context: Context) {
         RestorePlanner(RoomRestoreCurrentStateSource(database))
     }
 
+    val restoreWriteBarrier by lazy { com.mengyalife.app.data.restore.RestoreWriteBarrier(initiallyReady = false) }
+
     private val restoreDir get() = java.io.File(appContext.noBackupFilesDir, "restore")
     private val restoreGate by lazy { RestoreGate(restoreDir) }
     private val restoreJournal by lazy { RestoreJournal(restoreDir) }
@@ -319,6 +345,7 @@ class AppContainer(context: Context) {
             settingsApplier = restoreSettingsApplier,
             reader = restoreReader,
             validator = restoreValidator,
+            writeBarrier = restoreWriteBarrier,
             evidenceDir = if (BuildConfig.QA_BUILD) restoreDir else null,
             onSuccess = { message ->
                 android.os.Handler(android.os.Looper.getMainLooper()).post {

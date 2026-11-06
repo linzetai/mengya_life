@@ -1,0 +1,874 @@
+{
+  "stage": "--ez qa_restore_fail_key_delete true",
+  "assertion": "历史weekly AI未恢复",
+  "detail": "",
+  "db": {
+    "journal_entries": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "title",
+          "type": "TEXT"
+        },
+        {
+          "name": "body",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "analysis_status",
+          "type": "TEXT"
+        },
+        {
+          "name": "analysis_hash",
+          "type": "TEXT"
+        },
+        {
+          "name": "analysis_error",
+          "type": "TEXT"
+        },
+        {
+          "name": "analysis_attempts",
+          "type": "INTEGER"
+        },
+        {
+          "name": "analyzed_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "analysis_last_attempt_at",
+          "type": "INTEGER"
+        }
+      ],
+      "rows": [
+        {
+          "id": 1,
+          "title": "标题 \"引号\" / 换行\n第二行 😀",
+          "body": "正文 line1\nline2 \"quoted\" \\\\ slash \t tab 中文",
+          "created_at": 1793900000000,
+          "updated_at": 1793900000010,
+          "analysis_status": "COMPLETED",
+          "analysis_hash": "hash-qa-1",
+          "analysis_error": null,
+          "analysis_attempts": 2,
+          "analyzed_at": 1793900000011,
+          "analysis_last_attempt_at": 1793900000012
+        },
+        {
+          "id": 2,
+          "title": null,
+          "body": "失败分析的日记\n带 \\ \" 特殊字符",
+          "created_at": 1793900000020,
+          "updated_at": 1793900000021,
+          "analysis_status": "FAILED",
+          "analysis_hash": null,
+          "analysis_error": "AI 超时\n请重试",
+          "analysis_attempts": 1,
+          "analyzed_at": null,
+          "analysis_last_attempt_at": 1793900000022
+        }
+      ]
+    },
+    "goals": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "title",
+          "type": "TEXT"
+        },
+        {
+          "name": "description",
+          "type": "TEXT"
+        },
+        {
+          "name": "level",
+          "type": "TEXT"
+        },
+        {
+          "name": "parent_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "domain",
+          "type": "TEXT"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "start_date",
+          "type": "INTEGER"
+        },
+        {
+          "name": "due_date",
+          "type": "INTEGER"
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER"
+        }
+      ],
+      "rows": [
+        {
+          "id": 1,
+          "title": "长期健康 标题 \"引号\" / 换行\n第二行 😀",
+          "description": "根目标\n多行",
+          "level": "LONG_TERM",
+          "parent_id": null,
+          "domain": "HEALTH",
+          "status": "IN_PROGRESS",
+          "start_date": 1793900000000,
+          "due_date": 1796492000000,
+          "created_at": 1793900000000,
+          "updated_at": 1793900000001
+        },
+        {
+          "id": 2,
+          "title": "阶段：每周运动",
+          "description": null,
+          "level": "STAGE",
+          "parent_id": 1,
+          "domain": "HEALTH",
+          "status": "IN_PROGRESS",
+          "start_date": null,
+          "due_date": 1795109600000,
+          "created_at": 1793900000002,
+          "updated_at": 1793900000003
+        },
+        {
+          "id": 3,
+          "title": "行动：三次 30 分钟",
+          "description": "带 \"引号\" 的描述",
+          "level": "ACTION",
+          "parent_id": 2,
+          "domain": "HEALTH",
+          "status": "NOT_STARTED",
+          "start_date": 1793900000004,
+          "due_date": null,
+          "created_at": 1793900000004,
+          "updated_at": 1793900000005
+        }
+      ]
+    },
+    "goal_checkins": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "goal_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "recorded_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "note",
+          "type": "TEXT"
+        },
+        {
+          "name": "metric_value",
+          "type": "REAL"
+        },
+        {
+          "name": "metric_unit",
+          "type": "TEXT"
+        },
+        {
+          "name": "source",
+          "type": "TEXT"
+        }
+      ],
+      "rows": [
+        {
+          "id": 1,
+          "goal_id": 3,
+          "recorded_at": 1793900000100,
+          "note": "第一次打卡\n状态不错",
+          "metric_value": 3.5,
+          "metric_unit": "次/周",
+          "source": "MANUAL"
+        },
+        {
+          "id": 2,
+          "goal_id": 2,
+          "recorded_at": 1793900000200,
+          "note": "无数值打卡 \"quoted\"",
+          "metric_value": null,
+          "metric_unit": null,
+          "source": "MANUAL"
+        }
+      ]
+    },
+    "advisor_messages": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "role",
+          "type": "TEXT"
+        },
+        {
+          "name": "content",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "error_code",
+          "type": "TEXT"
+        },
+        {
+          "name": "error_message",
+          "type": "TEXT"
+        },
+        {
+          "name": "context_goal_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "context_epoch",
+          "type": "INTEGER"
+        },
+        {
+          "name": "sources_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "proposal_error",
+          "type": "TEXT"
+        },
+        {
+          "name": "proposal_mode",
+          "type": "INTEGER"
+        }
+      ],
+      "rows": [
+        {
+          "id": "qa-msg-assistant-1",
+          "role": "assistant",
+          "content": "建议先记录一周睡眠 😀\n再设阶段目标",
+          "created_at": 1793900000301,
+          "status": "SENT",
+          "error_code": null,
+          "error_message": null,
+          "context_goal_id": 1,
+          "context_epoch": 7,
+          "sources_json": "[{\"type\":\"GOAL\",\"id\":\"1\",\"title\":\"长期健康\"}]",
+          "proposal_error": null,
+          "proposal_mode": 1
+        },
+        {
+          "id": "qa-msg-failed-1",
+          "role": "assistant",
+          "content": "",
+          "created_at": 1793900000302,
+          "status": "FAILED",
+          "error_code": "TIMEOUT",
+          "error_message": "请求超时，请重试",
+          "context_goal_id": null,
+          "context_epoch": 7,
+          "sources_json": null,
+          "proposal_error": "无法解析草案",
+          "proposal_mode": 1
+        },
+        {
+          "id": "qa-msg-user-1",
+          "role": "user",
+          "content": "我想改进健康\n\"从睡眠开始\"",
+          "created_at": 1793900000300,
+          "status": "SENT",
+          "error_code": null,
+          "error_message": null,
+          "context_goal_id": 1,
+          "context_epoch": 7,
+          "sources_json": null,
+          "proposal_error": null,
+          "proposal_mode": 0
+        }
+      ]
+    },
+    "goal_proposals": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "message_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "schema_version",
+          "type": "INTEGER"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "summary",
+          "type": "TEXT"
+        },
+        {
+          "name": "assumptions_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "risks_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "nodes_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "selected_temp_ids_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "applied_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "applied_goal_ids_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "undone_at",
+          "type": "INTEGER"
+        }
+      ],
+      "rows": [
+        {
+          "id": "qa-proposal-applied",
+          "message_id": "qa-msg-assistant-1",
+          "created_at": 1793900000304,
+          "schema_version": 1,
+          "status": "APPLIED",
+          "summary": "已应用草案",
+          "assumptions_json": "[]",
+          "risks_json": "[]",
+          "nodes_json": "[{\"tempId\":\"n3\",\"title\":\"行动：拉伸\"}]",
+          "selected_temp_ids_json": "[\"n3\"]",
+          "applied_at": 1793900000305,
+          "applied_goal_ids_json": "[3]",
+          "undone_at": null
+        },
+        {
+          "id": "qa-proposal-draft",
+          "message_id": "qa-msg-assistant-1",
+          "created_at": 1793900000303,
+          "schema_version": 1,
+          "status": "DRAFT",
+          "summary": "睡眠与运动草案",
+          "assumptions_json": "[\"用户希望改善健康\"]",
+          "risks_json": "[{\"level\":\"LOW\",\"text\":\"时间不足\"}]",
+          "nodes_json": "[{\"tempId\":\"n1\",\"title\":\"阶段：睡眠\",\"children\":[{\"tempId\":\"n2\",\"title\":\"行动：23点前睡\"}]}]",
+          "selected_temp_ids_json": null,
+          "applied_at": null,
+          "applied_goal_ids_json": null,
+          "undone_at": null
+        }
+      ]
+    },
+    "growth_signals": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "source_type",
+          "type": "TEXT"
+        },
+        {
+          "name": "source_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "source_version",
+          "type": "TEXT"
+        },
+        {
+          "name": "category",
+          "type": "TEXT"
+        },
+        {
+          "name": "content",
+          "type": "TEXT"
+        },
+        {
+          "name": "evidence",
+          "type": "TEXT"
+        },
+        {
+          "name": "is_inference",
+          "type": "INTEGER"
+        },
+        {
+          "name": "confidence",
+          "type": "REAL"
+        },
+        {
+          "name": "extracted_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "origin",
+          "type": "TEXT"
+        },
+        {
+          "name": "source_title",
+          "type": "TEXT"
+        },
+        {
+          "name": "content_hash",
+          "type": "TEXT"
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER"
+        }
+      ],
+      "rows": [
+        {
+          "id": "qa-signal-active",
+          "source_type": "DIARY",
+          "source_id": 1,
+          "source_version": "v1",
+          "category": "HABIT",
+          "content": "开始记录睡眠\n有意识改变",
+          "evidence": "日记提到睡眠",
+          "is_inference": 0,
+          "confidence": 0.85,
+          "extracted_at": 1793900000400,
+          "status": "ACTIVE",
+          "origin": "AI",
+          "source_title": "标题 \"引号\" / 换行\n第二行 😀",
+          "content_hash": "qa-signal-hash-active",
+          "updated_at": 1793900000401
+        },
+        {
+          "id": "qa-signal-corrected",
+          "source_type": "DIARY",
+          "source_id": 2,
+          "source_version": "v1",
+          "category": "EMOTION",
+          "content": "用户纠正过的线索 \"quoted\"",
+          "evidence": "用户纠正",
+          "is_inference": 1,
+          "confidence": null,
+          "extracted_at": 1793900000410,
+          "status": "CORRECTED",
+          "origin": "USER",
+          "source_title": null,
+          "content_hash": "qa-signal-hash-corrected",
+          "updated_at": 1793900000411
+        },
+        {
+          "id": "qa-signal-stale",
+          "source_type": "DIARY",
+          "source_id": 1,
+          "source_version": "v0",
+          "category": "HABIT",
+          "content": "旧版本线索",
+          "evidence": "旧日记版本",
+          "is_inference": 0,
+          "confidence": 0.5,
+          "extracted_at": 1793900000420,
+          "status": "STALE",
+          "origin": "AI",
+          "source_title": "旧标题",
+          "content_hash": "qa-signal-hash-stale",
+          "updated_at": 1793900000421
+        }
+      ]
+    },
+    "growth_memories": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "theme",
+          "type": "TEXT"
+        },
+        {
+          "name": "content",
+          "type": "TEXT"
+        },
+        {
+          "name": "is_inference",
+          "type": "INTEGER"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "signal_ids_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "source_diary_ids_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "user_corrected",
+          "type": "INTEGER"
+        },
+        {
+          "name": "version",
+          "type": "INTEGER"
+        },
+        {
+          "name": "confidence",
+          "type": "REAL"
+        },
+        {
+          "name": "insufficient",
+          "type": "INTEGER"
+        },
+        {
+          "name": "recent_change",
+          "type": "TEXT"
+        },
+        {
+          "name": "fingerprint",
+          "type": "TEXT"
+        },
+        {
+          "name": "deleted_at",
+          "type": "INTEGER"
+        }
+      ],
+      "rows": [
+        {
+          "id": "qa-memory-active",
+          "theme": "健康与习惯",
+          "content": "用户重视睡眠\n希望可持续",
+          "is_inference": 0,
+          "status": "ACTIVE",
+          "created_at": 1793900000500,
+          "updated_at": 1793900000501,
+          "signal_ids_json": "[\"qa-signal-active\"]",
+          "source_diary_ids_json": "[1]",
+          "user_corrected": 1,
+          "version": 2,
+          "confidence": 0.9,
+          "insufficient": 0,
+          "recent_change": "用户补充了睡眠目标",
+          "fingerprint": "qa-memory-fp-active",
+          "deleted_at": null
+        },
+        {
+          "id": "qa-memory-deleted",
+          "theme": "职业",
+          "content": "已删除的旧记忆",
+          "is_inference": 1,
+          "status": "DELETED",
+          "created_at": 1793900000510,
+          "updated_at": 1793900000511,
+          "signal_ids_json": "[]",
+          "source_diary_ids_json": "[]",
+          "user_corrected": 0,
+          "version": 1,
+          "confidence": null,
+          "insufficient": 1,
+          "recent_change": null,
+          "fingerprint": "qa-memory-fp-deleted",
+          "deleted_at": 1793900000512
+        }
+      ]
+    },
+    "insight_reports": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "data_version",
+          "type": "TEXT"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "summary",
+          "type": "TEXT"
+        },
+        {
+          "name": "facts_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "insights_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "period_start",
+          "type": "INTEGER"
+        },
+        {
+          "name": "period_end",
+          "type": "INTEGER"
+        },
+        {
+          "name": "generated_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "error",
+          "type": "TEXT"
+        },
+        {
+          "name": "model",
+          "type": "TEXT"
+        }
+      ],
+      "rows": [
+        {
+          "id": "qa-insight-failed",
+          "data_version": "dv-full-2",
+          "status": "FAILED",
+          "summary": "失败摘要",
+          "facts_json": "[]",
+          "insights_json": "[]",
+          "period_start": 1792690400000,
+          "period_end": 1793295200000,
+          "generated_at": 1793900000601,
+          "error": "AI 失败\n可重试",
+          "model": null
+        },
+        {
+          "id": "qa-insight-ready",
+          "data_version": "dv-full-1",
+          "status": "READY",
+          "summary": "洞察摘要\n带 \"引号\" 和 😀",
+          "facts_json": "[{\"key\":\"sleep\",\"value\":3.5}]",
+          "insights_json": "[{\"title\":\"睡眠\",\"body\":\"有改善\"}]",
+          "period_start": 1793295200000,
+          "period_end": 1793900000000,
+          "generated_at": 1793900000600,
+          "error": null,
+          "model": "qa-fake"
+        }
+      ]
+    },
+    "weekly_reviews": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "period_key",
+          "type": "TEXT"
+        },
+        {
+          "name": "period_start",
+          "type": "INTEGER"
+        },
+        {
+          "name": "period_end",
+          "type": "INTEGER"
+        },
+        {
+          "name": "generated_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "version",
+          "type": "INTEGER"
+        },
+        {
+          "name": "data_version",
+          "type": "TEXT"
+        },
+        {
+          "name": "ai_consent_version",
+          "type": "TEXT"
+        },
+        {
+          "name": "facts_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "sections_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "notified_at",
+          "type": "INTEGER"
+        }
+      ],
+      "rows": [
+        {
+          "id": "qa-weekly-44",
+          "period_key": "2026-W44",
+          "period_start": 1793295200000,
+          "period_end": 1793900000000,
+          "generated_at": 1793900000710,
+          "version": 1,
+          "data_version": "dv-full-0",
+          "ai_consent_version": "cv-full-1",
+          "facts_json": "[]",
+          "sections_json": "{\"sections\":[]}",
+          "notified_at": null
+        },
+        {
+          "id": "qa-weekly-45",
+          "period_key": "2026-W45",
+          "period_start": 1793900000000,
+          "period_end": 1794504800000,
+          "generated_at": 1793900000700,
+          "version": 1,
+          "data_version": "dv-full-1",
+          "ai_consent_version": "cv-full-1",
+          "facts_json": "[{\"key\":\"week-counts\",\"value\":\"3\"}]",
+          "sections_json": "{\"sections\":[{\"title\":\"本周\",\"body\":\"有进展\"}]}",
+          "notified_at": 1793900000701
+        }
+      ]
+    },
+    "weekly_ai_reviews": {
+      "columns": [
+        {
+          "name": "period_key",
+          "type": "TEXT"
+        },
+        {
+          "name": "local_data_version",
+          "type": "TEXT"
+        },
+        {
+          "name": "ai_consent_version",
+          "type": "TEXT"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "generated_at",
+          "type": "INTEGER"
+        },
+        {
+          "name": "summary",
+          "type": "TEXT"
+        },
+        {
+          "name": "highlights_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "suggestion",
+          "type": "TEXT"
+        },
+        {
+          "name": "fact_ids_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "categories",
+          "type": "TEXT"
+        },
+        {
+          "name": "error",
+          "type": "TEXT"
+        },
+        {
+          "name": "model",
+          "type": "TEXT"
+        },
+        {
+          "name": "config_hash",
+          "type": "TEXT"
+        }
+      ],
+      "rows": [
+        {
+          "period_key": "2026-W44",
+          "local_data_version": "dv-full-0",
+          "ai_consent_version": "cv-full-1",
+          "status": "STALE",
+          "generated_at": 1793900000810,
+          "summary": "新格式 AI 周报",
+          "highlights_json": "[]",
+          "suggestion": "下周再试",
+          "fact_ids_json": "[\"week-counts\",\"goal-progress\"]",
+          "categories": "GOALS",
+          "error": "旧周报已过期",
+          "model": null,
+          "config_hash": "cfg-2"
+        },
+        {
+          "period_key": "2026-W45",
+          "local_data_version": "dv-full-1",
+          "ai_consent_version": "cv-full-1",
+          "status": "READY",
+          "generated_at": 1793900000800,
+          "summary": "旧格式 AI 周报\n带 \"引号\"",
+          "highlights_json": "[{\"type\":\"POSITIVE\",\"title\":\"睡眠\",\"body\":\"有改善\"}]",
+          "suggestion": "继续保持",
+          "fact_ids_json": "week-counts\u001fcheckin-done",
+          "categories": "GOALS",
+          "error": null,
+          "model": "qa-fake",
+          "config_hash": "cfg-1"
+        }
+      ]
+    }
+  },
+  "app_meta": [],
+  "logcat": "",
+  "ui": "<?xml version='1.0' encoding='UTF-8' standalone='yes' ?><hierarchy rotation=\"0\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.widget.FrameLayout\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.widget.LinearLayout\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"1\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"android:id/content\" class=\"android.widget.FrameLayout\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"2\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"androidx.compose.ui.platform.ComposeView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"1\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[0,0][1200,2608]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[72,72][1128,2536]\" drawing-order=\"0\" hint=\"\"><node index=\"0\" text=\"正在完成安全恢复\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[344,1188][856,1275]\" drawing-order=\"0\" hint=\"\" /><node index=\"1\" text=\"数据恢复或安全重置尚未收敛。为避免产生不一致，暂不能使用应用；请保持应用打开，重启后会继续完成。\" resource-id=\"\" class=\"android.widget.TextView\" package=\"com.mengyalife.app.qa\" content-desc=\"\" checkable=\"false\" checked=\"false\" clickable=\"false\" enabled=\"true\" focusable=\"false\" focused=\"false\" scrollable=\"false\" long-clickable=\"false\" password=\"false\" selected=\"false\" bounds=\"[72,1311][1128,1421]\" drawing-order=\"0\" hint=\"\" /></node></node></node></node></node></node></hierarchy>"
+}

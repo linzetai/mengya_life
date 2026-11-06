@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.mengyalife.app.BuildConfig
 import com.mengyalife.app.domain.advisor.AiConsentRules
+import com.mengyalife.app.data.restore.RestoreWriteBarrier
 import com.mengyalife.app.domain.advisor.AiConsentState
 import com.mengyalife.app.domain.advisor.ConsentCategory
 import kotlinx.coroutines.flow.Flow
@@ -44,6 +45,7 @@ private val Context.consentDataStore: DataStore<Preferences> by preferencesDataS
 class DataStoreAiConsentRepository(
     context: Context,
     private val now: () -> Long = System::currentTimeMillis,
+    private val writeBarrier: RestoreWriteBarrier? = null,
 ) : AiConsentRepository {
 
     private val appContext = context.applicationContext
@@ -76,7 +78,7 @@ class DataStoreAiConsentRepository(
     override suspend fun current(): AiConsentState = state.first()
 
     override suspend fun grant(recipient: String, categories: Set<ConsentCategory>) {
-        appContext.consentDataStore.edit { prefs ->
+        val write: suspend () -> Unit = { appContext.consentDataStore.edit { prefs ->
             val epoch = (prefs[epochKey] ?: 0L) + 1
             prefs[grantedKey] = 1
             prefs[textVersionKey] = AiConsentRules.TEXT_VERSION
@@ -85,23 +87,25 @@ class DataStoreAiConsentRepository(
             prefs[recipientKey] = AiConsentRules.normalizeRecipient(recipient)
             prefs[categoriesKey] = encodeCategories(categories)
             prefs[epochKey] = epoch
-        }
+        } }
+        if (writeBarrier != null) writeBarrier.withWrite { write() } else write()
     }
 
     override suspend fun setCategory(category: ConsentCategory, enabled: Boolean) {
-        appContext.consentDataStore.edit { prefs ->
+        val write: suspend () -> Unit = { appContext.consentDataStore.edit { prefs ->
             val granted = (prefs[grantedKey] ?: 0) == 1
             if (!granted) return@edit
             val current = parseCategories(prefs[categoriesKey]).toMutableSet()
             if (enabled) current.add(category) else current.remove(category)
             prefs[categoriesKey] = encodeCategories(current)
             prefs[epochKey] = (prefs[epochKey] ?: 0L) + 1
-        }
+        } }
+        if (writeBarrier != null) writeBarrier.withWrite { write() } else write()
     }
 
     override suspend fun resetAfterRestore(generation: Long): ConsentResetResult {
         var result = ConsentResetResult.RESET
-        appContext.consentDataStore.edit { prefs ->
+        val write: suspend () -> Unit = { appContext.consentDataStore.edit { prefs ->
             val last = prefs[lastResetGenerationKey] ?: 0L
             val alreadyReset = last >= generation &&
                 (prefs[grantedKey] ?: 0) == 0 &&
@@ -119,12 +123,13 @@ class DataStoreAiConsentRepository(
             prefs[categoriesKey] = ""
             prefs[epochKey] = maxOf((prefs[epochKey] ?: 0L) + 1, generation, last + 1)
             prefs[lastResetGenerationKey] = generation
-        }
+        } }
+        if (writeBarrier != null) writeBarrier.withWrite { write() } else write()
         return result
     }
 
     override suspend fun withdraw() {
-        appContext.consentDataStore.edit { prefs ->
+        val write: suspend () -> Unit = { appContext.consentDataStore.edit { prefs ->
             prefs[grantedKey] = 0
             prefs[textVersionKey] = 0
             prefs[categoriesVersionKey] = 0
@@ -132,7 +137,8 @@ class DataStoreAiConsentRepository(
             prefs[categoriesKey] = ""
             // recipient 保留用于展示「上次授权给谁」，但 granted=false 不会再发送
             prefs[epochKey] = (prefs[epochKey] ?: 0L) + 1
-        }
+        } }
+        if (writeBarrier != null) writeBarrier.withWrite { write() } else write()
     }
 
     private fun parseCategories(raw: String?): Set<ConsentCategory> =

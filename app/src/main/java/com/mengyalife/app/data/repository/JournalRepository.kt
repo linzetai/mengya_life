@@ -1,6 +1,7 @@
 package com.mengyalife.app.data.repository
 
 import com.mengyalife.app.data.local.JournalEntryDao
+import com.mengyalife.app.data.restore.RestoreWriteBarrier
 import com.mengyalife.app.data.local.growth.GrowthSignalDao
 import com.mengyalife.app.data.local.JournalEntryEntity
 import com.mengyalife.app.domain.JournalRules
@@ -22,7 +23,15 @@ class JournalRepository(
     private val growthSignalDao: GrowthSignalDao? = null,
     private val transaction: suspend (suspend () -> Unit) -> Unit = { it() },
     private val onSignalsChanged: suspend () -> Unit = {},
+    private val canWrite: () -> Boolean = { true },
+    private val writeBarrier: RestoreWriteBarrier? = null,
 ) {
+    private fun ensureWritable() {
+        if (!canWrite()) throw IllegalStateException("恢复维护中，禁止写入日记")
+    }
+
+    private suspend fun <T> guarded(expectedGeneration: Long? = writeBarrier?.generation(), block: suspend () -> T): T =
+        writeBarrier?.withWrite(expectedGeneration) { ensureWritable(); block() } ?: run { ensureWritable(); block() }
 
     fun observeEntries(): Flow<List<JournalEntryEntity>> = dao.observeAll()
 
@@ -34,11 +43,11 @@ class JournalRepository(
      * 新建日记。
      * @return 新记录的自增 id；正文非法时抛 [IllegalArgumentException]（调用方应先校验）。
      */
-    suspend fun createEntry(rawBody: String, rawTitle: String?): Long {
+    suspend fun createEntry(rawBody: String, rawTitle: String?): Long = guarded {
         val body = rawBody.trim()
         require(JournalRules.validateBody(body) == null) { "正文不能为空" }
         val timestamp = now()
-        return dao.insert(
+        return@guarded dao.insert(
             JournalEntryEntity(
                 title = normalizeTitle(rawTitle),
                 body = body,
@@ -47,16 +56,17 @@ class JournalRepository(
                 analysisStatus = "PENDING",
             ),
         )
+
     }
 
     /**
      * 更新正文与标题。`createdAt` 保持不变，`updatedAt` 刷新。
      * @return 是否命中并更新了记录。
      */
-    suspend fun updateEntry(id: Long, rawBody: String, rawTitle: String?): Boolean {
+    suspend fun updateEntry(id: Long, rawBody: String, rawTitle: String?): Boolean = guarded {
         val body = rawBody.trim()
         require(JournalRules.validateBody(body) == null) { "正文不能为空" }
-        val existing = dao.findById(id) ?: return false
+        val existing = dao.findById(id) ?: return@guarded false
         val timestamp = now()
         val newTitle = normalizeTitle(rawTitle)
         val contentChanged = existing.title != newTitle || existing.body != body
@@ -83,33 +93,39 @@ class JournalRepository(
             }
         }
         if (changed && contentChanged) runCatching { onSignalsChanged() }
-        return changed
+        changed
     }
 
     /** 删除日记时同步移除其线索，避免删除后仍参与未来上下文。 */
-    suspend fun deleteEntry(id: Long): Boolean {
+    suspend fun deleteEntry(id: Long): Boolean = guarded {
         var deleted = false
         transaction {
             deleted = dao.deleteById(id) > 0
             if (deleted) growthSignalDao?.deleteForDiary(id)
         }
         if (deleted) runCatching { onSignalsChanged() }
-        return deleted
+        deleted
     }
 
     fun observeSignals(diaryId: Long) =
         growthSignalDao?.observeForDiary(diaryId) ?: kotlinx.coroutines.flow.flowOf(emptyList())
 
-    suspend fun resetInterruptedAnalyses(): Int = dao.markInterruptedAnalyses()
+    suspend fun resetInterruptedAnalyses(): Int = guarded {
+        return@guarded dao.markInterruptedAnalyses()
 
-    suspend fun markAnalyzing(id: Long, expectedUpdatedAt: Long, hash: String): Boolean =
+    }
+
+    suspend fun markAnalyzing(id: Long, expectedUpdatedAt: Long, hash: String, expectedRestoreGeneration: Long? = null): Boolean = guarded(expectedRestoreGeneration) {
         dao.markAnalyzing(id, expectedUpdatedAt, hash, now()) > 0
+    }
 
-    suspend fun markAnalysisCompleted(id: Long, hash: String): Boolean =
+    suspend fun markAnalysisCompleted(id: Long, hash: String, expectedRestoreGeneration: Long? = null): Boolean = guarded(expectedRestoreGeneration) {
         dao.markCompleted(id, hash, now()) > 0
+    }
 
-    suspend fun markAnalysisFailed(id: Long, hash: String, error: String): Boolean =
+    suspend fun markAnalysisFailed(id: Long, hash: String, error: String, expectedRestoreGeneration: Long? = null): Boolean = guarded(expectedRestoreGeneration) {
         dao.markFailed(id, hash, error.take(300), now()) > 0
+    }
 
     private fun normalizeTitle(rawTitle: String?): String? =
         rawTitle?.trim()?.takeIf { it.isNotEmpty() }

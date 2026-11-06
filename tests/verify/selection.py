@@ -327,7 +327,14 @@ def _apply_level(map_: dict, sel: Selection, direct_modules: set[str],
                 for n in sorted(mods)
             ]
 
+    # Explicitly focused high-risk modules may satisfy a global integration prerequisite
+    # with their own end-to-end coverage. Keep the default L2 expansion unchanged.
+    focused_exclusions = set()
+    for direct in direct_modules:
+        focused_exclusions.update(mods.get(direct, {}).get("skipAlwaysModules", []))
     for mname in lv.get("alwaysModules", []) or []:
+        if mname in focused_exclusions:
+            continue
         if mname not in selected_names:
             selected_names.add(mname)
             if mname not in {m.name for m in sel.modules}:
@@ -387,7 +394,9 @@ def _apply_level(map_: dict, sel: Selection, direct_modules: set[str],
                        and (all_modules or mname in device_allowed)]
 
     # L1+ 必要的导航冒烟：只要真的要跑真机，且导航未选择
-    if run_device and level_index(sel.level) >= level_index("feature"):
+    focused_modules = [mods[name] for name in direct_modules if name in mods]
+    skip_navigation = any(m.get("skipNavigationSmoke", False) for m in focused_modules)
+    if run_device and level_index(sel.level) >= level_index("feature") and not skip_navigation:
         if "navigation" not in selected_names:
             selected_names.add("navigation")
             sel.modules.append(ModulePlan(

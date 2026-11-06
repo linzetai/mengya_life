@@ -406,6 +406,13 @@ abstract class MengyaDatabase : RoomDatabase() {
                     DATABASE_NAME,
                 )
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                    .addCallback(object : RoomDatabase.Callback() {
+                        override fun onCreate(db: SupportSQLiteDatabase) {
+                            super.onCreate(db)
+                            // Fresh v12 installations do not execute MIGRATION_11_12.
+                            db.execSQL("INSERT OR IGNORE INTO `app_meta` (`id`, `restore_generation`) VALUES (1, 0)")
+                        }
+                    })
                     .build()
                     .also { instance = it }
             }

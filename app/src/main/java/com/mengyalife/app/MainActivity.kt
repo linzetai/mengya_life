@@ -85,7 +85,7 @@ class MainActivity : ComponentActivity() {
             if (intent?.getBooleanExtra("qa_seed_restore_security", false) == true) {
                 val container = (application as MengyaApplication).container
                 kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                    com.mengyalife.app.data.qa.QaRestoreSecuritySeeder.seed(container)
+                    container.qaSeedRestoreSecurity()
                 }
             }
             if (intent?.hasExtra("qa_run_weekly_review") == true) {

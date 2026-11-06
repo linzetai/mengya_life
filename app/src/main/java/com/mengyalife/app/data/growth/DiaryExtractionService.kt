@@ -5,6 +5,8 @@ import com.mengyalife.app.data.advisor.AdvisorEngine
 import com.mengyalife.app.data.advisor.QaFaultInjector
 import com.mengyalife.app.data.consent.AiConsentRepository
 import com.mengyalife.app.data.local.growth.GrowthSignalDao
+import com.mengyalife.app.data.restore.RestoreWriteBarrier
+import com.mengyalife.app.data.restore.RestoreException
 import com.mengyalife.app.data.local.growth.GrowthSignalEntity
 import com.mengyalife.app.data.repository.JournalRepository
 import com.mengyalife.app.domain.advisor.AdvisorChatMessage
@@ -63,11 +65,13 @@ class DiaryExtractionService(
     private val transaction: suspend (suspend () -> Unit) -> Unit = { it() },
     private val onSignalsChanged: suspend () -> Unit = {},
     private val preRequestHook: suspend () -> Unit = {},
+    private val writeBarrier: RestoreWriteBarrier? = null,
 ) : DiaryExtractor {
     private val mutex = Mutex()
 
     override suspend fun extract(diaryId: Long, force: Boolean): DiaryExtractionOutcome =
         mutex.withLock {
+            val restoreGeneration = writeBarrier?.generation()
             val journal = journalRepository.getEntry(diaryId)
                 ?: return@withLock DiaryExtractionOutcome.Skipped("日记不存在")
             val hash = contentHash(journal.title, journal.body)
@@ -91,6 +95,7 @@ class DiaryExtractionService(
                 id = diaryId,
                 expectedUpdatedAt = journal.updatedAt,
                 hash = hash,
+                expectedRestoreGeneration = restoreGeneration,
             )
             if (!started) return@withLock DiaryExtractionOutcome.Busy
 
@@ -104,7 +109,7 @@ class DiaryExtractionService(
                     !boundConsent.isValidFor(boundRuntime.endpoint) ||
                     !boundConsent.enabled(ConsentCategory.JOURNAL)
                 ) {
-                    journalRepository.markAnalysisFailed(diaryId, hash, "模型服务或授权已变化")
+                    journalRepository.markAnalysisFailed(diaryId, hash, "模型服务或授权已变化", restoreGeneration)
                     return@withLock DiaryExtractionOutcome.Failed("模型服务或授权已变化，请重试")
                 }
                 val engine = if (boundConfig.useFakeEngine && fakeEngine != null) fakeEngine else networkEngine
@@ -119,38 +124,42 @@ class DiaryExtractionService(
                 currentCoroutineContext().ensureActive()
                 val bindingProblem = preRequestProblem(boundRuntime, boundConsent, diaryId, hash)
                 if (bindingProblem != null) {
-                    journalRepository.markAnalysisFailed(diaryId, hash, bindingProblem)
+                    journalRepository.markAnalysisFailed(diaryId, hash, bindingProblem, restoreGeneration)
                     return@withLock DiaryExtractionOutcome.Failed(bindingProblem)
                 }
                 val prompt = DiaryExtractionProtocol.prompt(journal.title, journal.body)
-                val result = engine.chat(
-                    config = boundRuntime,
-                    messages = listOf(
-                        AdvisorChatMessage(role = "system", content = "只输出严格 JSON；不要诊断或修改任何业务数据。"),
-                        AdvisorChatMessage(role = "user", content = prompt),
-                    ),
-                    maxTokens = 1_200,
-                )
+                val request: suspend () -> AdvisorChatResult = {
+                    engine.chat(
+                        config = boundRuntime,
+                        messages = listOf(
+                            AdvisorChatMessage(role = "system", content = "只输出严格 JSON；不要诊断或修改任何业务数据。"),
+                            AdvisorChatMessage(role = "user", content = prompt),
+                        ),
+                        maxTokens = 1_200,
+                    )
+                }
+                // 保持恢复对 AI 请求入口的串行化；请求返回后的数据写回仍用旧 generation fencing。
+                val result = if (writeBarrier != null) {
+                    writeBarrier.withWrite(restoreGeneration) { request() }
+                } else request()
                 // 请求期间授权/配置/日记变化：丢弃结果
                 val afterConfig = configRepository.state.first()
                 val afterConsent = consentRepository.current()
                 val afterJournal = journalRepository.getEntry(diaryId)
-                if (afterJournal == null ||
-                    contentHash(afterJournal.title, afterJournal.body) != hash
-                ) {
+                if (afterJournal == null || contentHash(afterJournal.title, afterJournal.body) != hash) {
                     return@withLock DiaryExtractionOutcome.Failed("日记已在分析期间变化，请重新分析")
                 }
                 if (afterConfig.endpoint != boundRuntime.endpoint ||
                     !afterConsent.isValidFor(boundRuntime.endpoint) ||
                     !afterConsent.enabled(ConsentCategory.JOURNAL)
                 ) {
-                    journalRepository.markAnalysisFailed(diaryId, hash, "授权或配置已变化")
+                    journalRepository.markAnalysisFailed(diaryId, hash, "授权或配置已变化", restoreGeneration)
                     return@withLock DiaryExtractionOutcome.Failed("授权或配置已变化，未写入线索")
                 }
                 when (result) {
                     is AdvisorChatResult.Failure -> {
                         journalRepository.markAnalysisFailed(
-                            diaryId, hash, result.error.userMessage,
+                            diaryId, hash, result.error.userMessage, restoreGeneration,
                         )
                         return@withLock DiaryExtractionOutcome.Failed(result.error.userMessage)
                     }
@@ -159,11 +168,12 @@ class DiaryExtractionService(
                             result.content, journal.title, journal.body.take(DiaryExtractionProtocol.MAX_DIARY_CHARS),
                         )) {
                             is DiaryExtractionParseResult.Failure -> {
-                                journalRepository.markAnalysisFailed(diaryId, hash, parsed.message)
+                                journalRepository.markAnalysisFailed(diaryId, hash, parsed.message, restoreGeneration)
                                 return@withLock DiaryExtractionOutcome.Failed(parsed.message)
                             }
                             is DiaryExtractionParseResult.Success -> {
                                 var inserted = 0
+                                val writeBatch: suspend () -> Unit = {
                                 transaction {
                                     // 与日记删除/编辑并发时，在事务内再次确认来源版本
                                     val inTransaction = journalRepository.getEntry(diaryId)
@@ -197,10 +207,12 @@ class DiaryExtractionService(
                                         beforeWrite()
                                         if (growthSignalDao.insertIgnore(entity) > 0) inserted++
                                     }
-                                    if (journalRepository.markAnalysisCompleted(diaryId, hash).not()) {
+                                    if (journalRepository.markAnalysisCompleted(diaryId, hash, restoreGeneration).not()) {
                                         throw StaleExtraction()
                                     }
                                 }
+                                }
+                                if (writeBarrier != null) writeBarrier.withWrite(restoreGeneration) { writeBatch() } else writeBatch()
                                 runCatching { onSignalsChanged() }
                                 DiaryExtractionOutcome.Success(inserted, parsed.signals.size)
                             }
@@ -210,11 +222,15 @@ class DiaryExtractionService(
             } catch (stale: StaleExtraction) {
                 // 旧版本结果：事务已回滚，不覆盖新状态、不写线索
                 DiaryExtractionOutcome.Superseded
+            } catch (staleRestore: RestoreException) {
+                if (staleRestore.code == "RESTORE_STALE_RESULT" || staleRestore.code == "RESTORE_BLOCKED") {
+                    DiaryExtractionOutcome.Superseded
+                } else throw staleRestore
             } catch (cancel: CancellationException) {
-                journalRepository.markAnalysisFailed(diaryId, hash, "分析已取消")
+                journalRepository.markAnalysisFailed(diaryId, hash, "分析已取消", restoreGeneration)
                 throw cancel
             } catch (error: Throwable) {
-                journalRepository.markAnalysisFailed(diaryId, hash, error.message ?: "分析失败")
+                journalRepository.markAnalysisFailed(diaryId, hash, error.message ?: "分析失败", restoreGeneration)
                 DiaryExtractionOutcome.Failed(error.message ?: "分析失败")
             }
         }

@@ -54,6 +54,14 @@ def export_current():
     return new[-1] if new else ""
 
 
+def clickable(text):
+    xml=dump()
+    for node in re.finditer(r'<node[^>]*>',xml):
+        tag=node.group(0)
+        if f'text="{text}"' in tag: return 'clickable="true"' in tag
+    return None
+
+
 def checkbox_tap():
     xml = dump()
     m = re.search(r'<node[^>]*class="android.widget.CheckBox"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml)
@@ -75,6 +83,13 @@ def restore_file(remote):
     check("恢复密码框", wait_text("输入备份口令", 10))
     tap_text("备份口令"); adb(f"shell input text '{PASS}'"); close_keyboard()
     check("预览", tap_text("校验并预览") and wait_text("恢复预览（只读）", 15))
+    check("预览10表计数", all(has_text(x) for x in [
+        "日记：2 / 2", "目标：3 / 3", "进展：2 / 2", "对话：3 / 3", "草案：2 / 2",
+        "成长线索：3 / 3", "成长记忆：2 / 2", "洞察：2 / 2", "周回顾：2 / 2",
+        "历史 AI 周报（仅归档）：2 / 2（仅归档，不恢复）",
+    ]))
+    check("预览不恢复敏感状态", all(has_text(x) for x in ["API Key", "AI 授权同意", "AI 自动发送开关", "系统通知权限"]))
+    check("未勾选前执行不可点击", clickable("确认恢复（替换本机数据）") is False)
     check("勾选风险确认", checkbox_tap()); time.sleep(.5)
     check("执行确认", tap_text("确认恢复（替换本机数据）"))
     end = time.time()+180
@@ -96,12 +111,18 @@ def main():
     time.sleep(6)
     a = stable_db("a")
     check("A夹具就绪", a is not None and all(db_counts(a)[t] > 0 for t in TABLES))
+    if a is None or not all(db_counts(a)[t] > 0 for t in TABLES):
+        sys.exit(1)
     remote = export_current()
     check("A备份文件", bool(remote), remote)
     check("B数据+安全状态", start("--ez qa_seed_backup_fixture_b true --ez qa_seed_restore_security true"))
     time.sleep(6)
     b = stable_db("b")
-    check("B与A内容不同", b["journal_entries"] != a["journal_entries"])
+    check("B夹具就绪", b is not None and all(db_counts(b)[t] > 0 for t in TABLES))
+    if b is None or not all(db_counts(b)[t] > 0 for t in TABLES):
+        sys.exit(1)
+    diffs=[t for t in TABLES if a[t]["rows"] != b[t]["rows"]]
+    check("A/B 10表均有差异", len(diffs)==10, str(diffs))
     # from settings? B start is main; open settings restore
     if not open_settings(): check("B设置页", False)
     check("A文件仍存在", adb(f"shell 'ls {remote}'").strip() != "")
@@ -110,7 +131,7 @@ def main():
     check("恢复成功提示", ok)
     core = [t for t in TABLES if t not in ("weekly_ai_reviews", "weekly_reviews")]
     check("核心8表A逐字段恢复", all(a[t] == after[t] for t in core))
-    check("周回顾已恢复", len(after["weekly_reviews"]["rows"]) == len(a["weekly_reviews"]["rows"]))
+    check("周回顾恢复后初始内容=A", after["weekly_reviews"]["rows"] == a["weekly_reviews"]["rows"])
     check("weekly AI 未恢复旧行", after["weekly_ai_reviews"]["rows"] != a["weekly_ai_reviews"]["rows"])
     check("A日记内容回来", after["journal_entries"]["rows"][0].get("title") == a["journal_entries"]["rows"][0].get("title"))
     qa = adb(f"shell run-as {PKG} cat no_backup/restore/qa-after.json 2>/dev/null").strip()

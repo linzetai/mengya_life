@@ -903,19 +903,12 @@
       "jvmTests": [
         "com.mengyalife.app.restore.BackupRestoreReaderTest",
         "com.mengyalife.app.restore.RestoreValidatorTest",
-        "com.mengyalife.app.restore.RestorePlannerTest"
+        "com.mengyalife.app.restore.RestorePlannerTest",
+        "com.mengyalife.app.restore.RestoreGateJournalTest",
+        "com.mengyalife.app.restore.RestoreWriteBarrierTest",
+        "com.mengyalife.app.restore.RestoreSnapshotSpaceTest"
       ],
       "device": [
-        {
-          "script": "verify_restore_preview.py",
-          "package": "qa",
-          "tier": "feature",
-          "assertions": 21,
-          "destructive": true,
-          "resetsQaData": true,
-          "measuredSec": 142.93,
-          "timeoutSec": 600
-        },
         {
           "script": "verify_restore_e2e.py",
           "package": "qa",
@@ -935,6 +928,16 @@
           "resetsQaData": true,
           "measuredSec": null,
           "timeoutSec": 1200
+        },
+        {
+          "script": "verify_restore_fresh_db.py",
+          "package": "qa",
+          "tier": "feature",
+          "assertions": 5,
+          "destructive": true,
+          "resetsQaData": true,
+          "measuredSec": null,
+          "timeoutSec": 180
         }
       ],
       "risk": "high",
@@ -942,9 +945,13 @@
       "needsQaBuild": true,
       "needsQaReset": true,
       "requiresProdReadonlySmoke": false,
-      "notes": "只读预览+完整恢复E2E；E2E 35/35 PASS；R2-R7失败/崩溃脚本已写但本轮 NOT RUN（设备断开）。",
+      "notes": "Restore E2E covers settings navigation/preview/confirm; R2-R7 dedicated device matrix; focused L2 retains only v12 migration prerequisite (skips generic ai-consent/g3b1 and duplicate nav/preview).",
       "estimatedSec": 30.0,
-      "measuredSec": 6.4
+      "measuredSec": 6.4,
+      "skipAlwaysModules": [
+        "ai-consent"
+      ],
+      "skipNavigationSmoke": true
     }
   },
   "impactRules": [
@@ -1258,7 +1265,7 @@
       ],
       "minLevel": "fast",
       "testLevel": "fast",
-      "reason": "编辑循环 L0；功能完成显式跑 L1 SAF 预览。"
+      "reason": "Focused restore flow: E2E covers preview and settings navigation; L1/L2 only restore E2E + R2-R7; integration still includes v12 migration."
     }
   ]
 }

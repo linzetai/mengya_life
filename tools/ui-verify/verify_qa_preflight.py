@@ -45,18 +45,16 @@ for _ in range(4):
 check("进入设置", entered or wait_tag("settings_back", 8))
 check("设置页出现", has_tag("settings_back"))
 
-seen = set()
-for _ in range(22):
-    seen |= {t for t in texts(dump()) if t.strip()}
-    if any("QA 测试构建" in t for t in seen) and "mengya-life-qa.db" in " ".join(seen):
-        break
-    adb("shell input swipe 600 1900 600 700 260")
-    time.sleep(0.8)
-
+# 通过稳定 testTag 定位，不再全页22次dump；完整内容在独立设置测试覆盖。
+check("QA 横幅定位", wait_tag("settings_qa_banner", 6))
+seen = set(texts(dump()))
+if "mengya-life-qa.db" not in " ".join(seen):
+    check("滚动至QA标识", scroll_to_tag("settings_qa_banner", 3))
+    seen |= set(texts(dump()))
 joined = " ".join(sorted(seen))
 check("显示「QA 测试构建」横幅", "QA 测试构建" in joined)
 check("显示独立 QA 库名", "mengya-life-qa.db" in joined)
-check("仅在 QA_BUILD 出现的离线测试引擎开关存在", has_tag("ai_fake_engine") or "离线测试引擎（仅 QA）" in joined)
+check("仅在 QA_BUILD 出现的离线测试引擎开关存在", scroll_to_tag("ai_fake_engine", 8))
 
 # 回到一级页，避免影响后续脚本
 adb("shell input keyevent KEYCODE_BACK")

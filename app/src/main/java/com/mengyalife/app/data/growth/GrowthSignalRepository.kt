@@ -1,6 +1,7 @@
 package com.mengyalife.app.data.growth
 
 import com.mengyalife.app.data.local.growth.GrowthSignalDao
+import com.mengyalife.app.data.restore.RestoreWriteBarrier
 import com.mengyalife.app.data.local.growth.GrowthSignalEntity
 import com.mengyalife.app.domain.growth.GrowthCategory
 import com.mengyalife.app.domain.growth.GrowthSignal
@@ -13,22 +14,31 @@ class GrowthSignalRepository(
     private val dao: GrowthSignalDao,
     private val now: () -> Long = System::currentTimeMillis,
     private val onChanged: suspend () -> Unit = {},
+    private val writeBarrier: RestoreWriteBarrier? = null,
 ) {
     fun observeForDiary(diaryId: Long): Flow<List<GrowthSignal>> =
         dao.observeForDiary(diaryId).map { rows -> rows.map(::toDomain) }
 
     suspend fun correct(id: String, content: String): Boolean {
+        val generation = writeBarrier?.generation()
         val clean = content.trim()
         if (clean.isEmpty() || clean.length > 500) return false
-        val changed = dao.correct(id, clean, now()) > 0
-        if (changed) runCatching { onChanged() }
-        return changed
+        val write: suspend () -> Boolean = {
+            val changed = dao.correct(id, clean, now()) > 0
+            if (changed) runCatching { onChanged() }
+            changed
+        }
+        return writeBarrier?.withWrite(generation) { write() } ?: write()
     }
 
     suspend fun delete(id: String): Boolean {
-        val changed = dao.softDelete(id, now()) > 0
-        if (changed) runCatching { onChanged() }
-        return changed
+        val generation = writeBarrier?.generation()
+        val write: suspend () -> Boolean = {
+            val changed = dao.softDelete(id, now()) > 0
+            if (changed) runCatching { onChanged() }
+            changed
+        }
+        return writeBarrier?.withWrite(generation) { write() } ?: write()
     }
 
     suspend fun loadForDiary(diaryId: Long): List<GrowthSignal> =

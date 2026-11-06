@@ -1,0 +1,86 @@
+
+== 测试选择（L0 Fast / all）==
+Git 基线: 3fb6781b9551（上一次 verify 运行记录）  HEAD: 3fb6781b9551  branch: master
+工作区变更 117 个（显式模块模式不参与选择）
+命中规则：
+  [force-full] --all 强制全量回归
+选择模块（21）：
+  - advisor              risk=high     JVM=9  真机=无真机
+      理由: --all 强制全量回归
+  - ai-consent           risk=high     JVM=3  真机=无真机
+      理由: --all 强制全量回归
+  - app-smoke            risk=high     JVM=0  真机=无真机
+      理由: --all 强制全量回归
+  - backup-crypto        risk=critical JVM=1  真机=无真机
+      理由: --all 强制全量回归
+  - backup-export        risk=high     JVM=4  真机=无真机
+      理由: --all 强制全量回归
+  - backup-format        risk=high     JVM=2  真机=无真机
+      理由: --all 强制全量回归
+  - backup-security      risk=critical JVM=1  真机=无真机
+      理由: --all 强制全量回归
+  - database-migration   risk=critical JVM=0  真机=无真机
+      理由: --all 强制全量回归
+  - diary                risk=medium   JVM=4  真机=无真机
+      理由: --all 强制全量回归
+  - export               risk=high     JVM=1  真机=无真机
+      理由: --all 强制全量回归
+  - goals                risk=high     JVM=3  真机=无真机
+      理由: --all 强制全量回归
+  - growth-memory        risk=high     JVM=4  真机=无真机
+      理由: --all 强制全量回归
+  - insight              risk=medium   JVM=3  真机=无真机
+      理由: --all 强制全量回归
+  - navigation           risk=medium   JVM=0  真机=无真机
+      理由: --all 强制全量回归
+  - progress             risk=high     JVM=3  真机=无真机
+      理由: --all 强制全量回归
+  - restore-validate     risk=high     JVM=6  真机=无真机
+      理由: --all 强制全量回归
+  - settings             risk=medium   JVM=0  真机=无真机
+      理由: --all 强制全量回归
+  - test-infra           risk=low      JVM=0  真机=无真机
+      理由: --all 强制全量回归
+  - trends               risk=medium   JVM=3  真机=无真机
+      理由: --all 强制全量回归
+  - weekly-ai            risk=high     JVM=4  真机=无真机
+      理由: --all 强制全量回归
+  - weekly-review        risk=high     JVM=3  真机=无真机
+      理由: --all 强制全量回归
+JVM: 全量 个类
+真机：
+  （无；本级别不启动设备）
+不运行：
+  - 真机测试: fast 级别不启动设备
+  - advisor:verify_advisor.py: 该用例层级 feature 高于当前 fast 允许的 []
+  - advisor:verify_g3b1.py: 该用例层级 integration 高于当前 fast 允许的 []
+  - advisor:verify_advisor_network.py: 该用例层级 integration 高于当前 fast 允许的 []
+  - ai-consent:verify_g3b1.py: 该用例层级 integration 高于当前 fast 允许的 []
+  - ai-consent:verify_settings.py: 该用例层级 feature 高于当前 fast 允许的 []
+  - app-smoke:verify_prod_smoke.py: 该用例层级 gate 高于当前 fast 允许的 []
+  - backup-export:verify_backup_v2.py: 该用例层级 feature 高于当前 fast 允许的 []
+  - backup-export:verify_backup_v2_full.py: 该用例层级 feature 高于当前 fast 允许的 []
+  - backup-export:verify_backup_v2_failures.py: 该用例层级 feature 高于当前 fast 允许的 []
+  - database-migration:verify_migration.py: 该用例层级 integration 高于当前 fast 允许的 []
+  - diary:verify_diary.py: 该用例层级 feature 高于当前 fast 允许的 []
+  - export:verify_export.py: 该用例层级 feature 高于当前 fast 允许的 []
+  - goals:verify_goals.py: 该用例层级 feature 高于当前 fast 允许的 []
+  - goals:verify_dates.py: 该用例层级 feature 高于当前 fast 允许的 []
+  - navigation:verify_navigation.py: 该用例层级 feature 高于当前 fast 允许的 []
+  - progress:verify_goals.py: 该用例层级 feature 高于当前 fast 允许的 []
+  - restore-validate:verify_restore_e2e.py: 该用例层级 feature 高于当前 fast 允许的 []
+  - restore-validate:verify_restore_failures.py: 该用例层级 feature 高于当前 fast 允许的 []
+  - restore-validate:verify_restore_fresh_db.py: 该用例层级 feature 高于当前 fast 允许的 []
+  - settings:verify_settings.py: 该用例层级 feature 高于当前 fast 允许的 []
+  - settings:verify_theme.py: 该用例层级 feature 高于当前 fast 允许的 []
+  - trends:verify_trends.py: 该用例层级 feature 高于当前 fast 允许的 []
+  - weekly-ai:verify_weekly_ai.py: 该用例层级 feature 高于当前 fast 允许的 []
+  - weekly-review:verify_weekly_ai.py: 该用例层级 feature 高于当前 fast 允许的 []
+
+== 结果 ==
+  PASS     静态检查（schema-contract, script-syntax, validate-map）     2.1s
+  PASS     JVM 测试（全量）                                        4.1s
+
+总耗时 6.9s | 级别 fast | 结论 PASS | 退出码 0
+报告：/root/workspace/mengya-life/docs/reports/test-runs/20261106-093126/report.json
+摘要：/root/workspace/mengya-life/docs/reports/test-runs/20261106-093126/summary.md

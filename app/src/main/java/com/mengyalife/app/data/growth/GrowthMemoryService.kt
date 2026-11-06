@@ -4,6 +4,7 @@ import com.mengyalife.app.data.local.JournalEntryDao
 import com.mengyalife.app.data.local.growth.GrowthMemoryDao
 import com.mengyalife.app.data.local.growth.GrowthMemoryEntity
 import com.mengyalife.app.data.local.growth.GrowthSignalDao
+import com.mengyalife.app.data.restore.RestoreWriteBarrier
 import com.mengyalife.app.domain.growth.DiaryContentHash
 import com.mengyalife.app.domain.growth.GrowthCategory
 import com.mengyalife.app.domain.growth.GrowthMemoryIds
@@ -26,8 +27,13 @@ class GrowthMemoryService(
     private val transaction: suspend (suspend () -> Unit) -> Unit = { it() },
     private val now: () -> Long = System::currentTimeMillis,
     private val newId: () -> String = { UUID.randomUUID().toString() },
+    private val canWrite: () -> Boolean = { true },
+    private val writeBarrier: RestoreWriteBarrier? = null,
 ) {
     suspend fun rebuildAll() {
+        val generation = writeBarrier?.generation()
+        if (!canWrite()) return
+        val work: suspend () -> Unit = {
         transaction {
             val journals = journalDao.loadAll().associateBy { it.id }
             val signals = signalDao.loadActive(300).filter { signal ->
@@ -44,6 +50,8 @@ class GrowthMemoryService(
                 .filter { it.status in setOf("ACTIVE", "CORRECTED") && it.theme !in liveThemes }
                 .forEach { memoryDao.markStaleByTheme(it.theme, now()) }
         }
+        }
+        if (writeBarrier != null) writeBarrier.withWrite(generation) { work() } else work()
     }
 
     private suspend fun rebuildTheme(

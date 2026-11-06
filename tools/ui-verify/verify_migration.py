@@ -23,8 +23,8 @@ DB = "mengya-life-qa.db"
 OLD_VERSION = 10
 
 
-def build_v10_fixture(path):
-    schema = json.load(open(os.path.join(SCHEMA_DIR, f"{OLD_VERSION}.json"), encoding="utf-8"))["database"]
+def build_fixture(path, version):
+    schema = json.load(open(os.path.join(SCHEMA_DIR, f"{version}.json"), encoding="utf-8"))["database"]
     con = sqlite3.connect(path)
     cur = con.cursor()
     for e in schema["entities"]:
@@ -57,7 +57,7 @@ def build_v10_fixture(path):
         "VALUES ('r1','2026-W44',1700000000000,1700600000000,1700000000000,1,'v10','', '[]','{}',NULL)"
     )
     con.commit()
-    cur.execute(f"PRAGMA user_version={OLD_VERSION}")
+    cur.execute(f"PRAGMA user_version={version}")
     con.commit()
     uv = cur.execute("PRAGMA user_version").fetchone()[0]
     con.close()
@@ -113,7 +113,7 @@ def snapshot(path):
 print("========== 0. 构造 v10 夹具 ==========")
 tmp = tempfile.mkdtemp(prefix="g3f-v10-")
 fixture = os.path.join(tmp, DB)
-check("生成 v10 数据库", build_v10_fixture(fixture) == 10)
+check("生成 v10 数据库", build_fixture(fixture, 10) == 10)
 con = sqlite3.connect(fixture)
 check("夹具含 2 条日记", con.execute("SELECT COUNT(*) FROM journal_entries").fetchone()[0] == 2)
 check("夹具含 1 个目标", con.execute("SELECT COUNT(*) FROM goals").fetchone()[0] == 1)
@@ -146,10 +146,22 @@ check("数据库包含 weekly_ai_reviews", "weekly_ai_reviews" in tables, str(so
 check("数据库包含 app_meta", "app_meta" in tables, str(sorted(tables)))
 check("迁移新增 config_hash 列", "config_hash" in cols, str(cols))
 
+print("========== 3. 独立 v11→v12 迁移 ==========")
+v11_fixture = os.path.join(tmp, "mengya-life-v11.db")
+check("生成 v11 数据库", build_fixture(v11_fixture, 11) == 11)
+check("写入 v11 QA 数据库", push_db(v11_fixture))
+check("v11 包启动", restart_app() and ensure_foreground())
+time.sleep(1.0)
+uv3, tables3, journals3, goals3, checkins3, weekly3, cols3 = snapshot(pull_db())
+check("user_version v11→12", uv3 == 12, f"user_version={uv3}")
+check("v11日记保持", journals3 == [(1, "MigA", "alpha v10 body"), (2, "MigB", "beta v10 body")], str(journals3))
+check("v11 app_meta默认行", sqlite3.connect(pull_db()).execute("SELECT restore_attempt_id,restore_generation FROM app_meta WHERE id=1").fetchone() == (None,0))
+check("v11周AI表/配置列", "weekly_ai_reviews" in tables3 and "config_hash" in cols3, str(cols3))
+check("v11无迁移崩溃", "com.mengyalife.app" not in adb("shell logcat -b crash -d"))
+
 # 清理本脚本产生的夹具；QA 数据由调度器/后续用例处理
-try:
-    os.remove(fixture)
-except OSError:
-    pass
+for f in (fixture, v11_fixture):
+    try: os.remove(f)
+    except OSError: pass
 
 sys.exit(0 if summary() else 1)

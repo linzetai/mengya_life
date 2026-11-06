@@ -26,7 +26,7 @@ STALE = [
 ]
 
 
-def collect_all_texts(max_swipes=20):
+def collect_all_texts(max_swipes=10):
     """从头滚到底，收集整页可见文字（避免「文字在屏幕外」造成假阴性）。"""
     seen = set()
     for _ in range(max_swipes):
@@ -77,26 +77,23 @@ expected = [
 for text in expected:
     check("包含文案：" + text, any(text in t for t in seen), text)
 
-adb("shell input keyevent KEYCODE_BACK")
-time.sleep(1.0)
-tap_tag("btn_settings")
-time.sleep(1.0)
-check("滚动到数据区", scroll_to_tag("settings_export_data", 12))
+# The full-text scan leaves the list near its bottom; return to its top in-place
+# rather than tearing down/reopening Settings (which caused an extra slow dump/retry).
+for _ in range(3):
+    adb("shell input swipe 600 700 600 1900 260")
+    time.sleep(0.3)
+check("滚动到数据区", scroll_to_tag("settings_export_data", 10))
 check("QA 构建横幅", "QA 测试构建" in " ".join(seen) and "mengya-life-qa.db" in " ".join(seen))
 check("版本号来自安装包", VERSION in " ".join(seen), "应为 " + VERSION)
 check("BYOK 状态胶囊准确", "自带密钥" in " ".join(seen))
 
 print("========== 3. 截图：数据区 ==========")
-adb("shell input keyevent KEYCODE_BACK")
-time.sleep(1.0)
-tap_tag("btn_settings")
-time.sleep(1.0)
 check("数据区可见", scroll_to_tag("settings_export_data", 10))
 check("导出入口可点击", has_tag("settings_export_data"))
 shot("01-settings-data-export")
 
 print("========== 4. 截图：主题说明 ==========")
-check("主题区可见", scroll_to_tag("theme_system", 10))
+check("主题区可见", scroll_to_tag("theme_system", 8))
 check("主题选项齐全", all(has_tag(t) for t in ("theme_system", "theme_light", "theme_dark")))
 check("主题说明包含持久化", has_text("保存在本机（DataStore）"))
 check("主题说明包含重启保持", has_text("重启后保持上次选择"))
@@ -104,8 +101,8 @@ check("主题说明包含跟随系统", has_text("随系统深浅色变化"))
 shot("02-settings-theme-note")
 
 print("========== 5. 截图：关于 ==========")
-adb("shell input swipe 600 1900 600 700 260")
-time.sleep(1.0)
+adb("shell input swipe 600 1900 600 800 260")
+time.sleep(0.5)
 check("关于区显示版本", has_text(VERSION))
 check("数据存储说明", has_text("本机（无云端同步）"))
 shot("03-settings-about")

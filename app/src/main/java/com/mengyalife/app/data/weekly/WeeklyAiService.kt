@@ -5,6 +5,7 @@ import com.mengyalife.app.data.advisor.AdvisorEngine
 import com.mengyalife.app.data.consent.AiConsentRepository
 import com.mengyalife.app.data.local.weekly.WeeklyAiDao
 import com.mengyalife.app.data.local.weekly.WeeklyAiEntity
+import com.mengyalife.app.data.restore.RestoreWriteBarrier
 import com.mengyalife.app.domain.advisor.AdvisorChatMessage
 import com.mengyalife.app.domain.advisor.AdvisorChatResult
 import com.mengyalife.app.domain.advisor.ConsentCategory
@@ -27,6 +28,7 @@ class WeeklyAiService(
     private val fakeEngine: AdvisorEngine? = null,
     private val now: () -> Long = System::currentTimeMillis,
     private val autoEnabled: suspend () -> Boolean = { true },
+    private val writeBarrier: RestoreWriteBarrier? = null,
     private val beforeRequest: suspend () -> Unit = {},
     private val beforeComplete: suspend () -> Unit = {},
 ) {
@@ -62,6 +64,7 @@ class WeeklyAiService(
     fun observeLatest() = dao.observeLatest().map { it?.toDomain() }
 
     suspend fun generateIfAllowed(autoRequest: Boolean = false): WeeklyAiReview? {
+        val restoreGeneration = writeBarrier?.generation()
         val initialConsent = consentRepository.current()
         val initialConfig = configRepository.state.first()
         val initialRuntime = configRepository.runtimeConfig()
@@ -80,7 +83,7 @@ class WeeklyAiService(
         if (existing != null) {
             // 崩溃遗留的 PENDING（未发出）可安全恢复；SENT/FAILED/READY 都消耗本周预算。
             if (existing.status == "PENDING") {
-                dao.deletePending(review.periodKey)
+                guardedWrite(restoreGeneration) { dao.deletePending(review.periodKey); Unit }
             } else {
                 return existing.toDomain()
             }
@@ -92,54 +95,57 @@ class WeeklyAiService(
             factIdsJson = "[]", categories = initialConsent.categories.joinToString(",") { it.name },
             error = null, model = null, configHash = bound.configHash,
         )
-        if (dao.insertIfAbsent(reserved) == -1L) return dao.findByPeriod(review.periodKey)?.toDomain()
+        if (guardedWrite(restoreGeneration) { dao.insertIfAbsent(reserved) } == -1L) return dao.findByPeriod(review.periodKey)?.toDomain()
         val before = try {
             beforeRequest()
             validate(bound, autoRequest)
         } catch (e: Exception) { e.message ?: "请求前状态变化" }
         if (before != null) {
             // 尚未调用 engine：撤销预算预留，允许以后安全重试。
-            dao.deletePending(review.periodKey)
+            guardedWrite(restoreGeneration) { dao.deletePending(review.periodKey); Unit }
             return null
         }
-        if (dao.markSent(review.periodKey) != 1) return dao.findByPeriod(review.periodKey)?.toDomain()
+        if (guardedWrite(restoreGeneration) { dao.markSent(review.periodKey) } != 1) return dao.findByPeriod(review.periodKey)?.toDomain()
         // markSent 之后、真正发送之前的最后临界区检查
         val afterMark = validate(bound, autoRequest)
         if (afterMark != null) {
-            complete(reserved, "FAILED", "", emptyList(), "", "发送边界状态变化，未调用引擎", initialConfig.model, bound.configHash)
+            complete(reserved, "FAILED", "", emptyList(), "", "发送边界状态变化，未调用引擎", initialConfig.model, bound.configHash, expectedGeneration = restoreGeneration)
             return dao.findByPeriod(review.periodKey)?.toDomain()
         }
         return try {
             val facts = review.facts.take(20).map { it.copy(text = it.text.take(300)) }
             val prompt = WeeklyAiParser.prompt(facts, reserved.categories)
             val engine = if (initialConfig.useFakeEngine && fakeEngine != null) fakeEngine else networkEngine
-            val result = engine.chat(
+            val chat = suspend {
+                engine.chat(
                 config = initialRuntime,
                 messages = listOf(
                     AdvisorChatMessage("system", "只输出严格 JSON；只解释给定 factIds；不编造。"),
                     AdvisorChatMessage("user", prompt),
                 ),
                 maxTokens = 900,
-            )
+                )
+            }
+            val result = writeBarrier?.withWrite(restoreGeneration) { chat() } ?: chat()
             beforeComplete()
             val after = validate(bound, autoRequest)
             if (after != null) {
-                complete(reserved, "FAILED", "", emptyList(), "", "请求后状态变化，AI 结果已丢弃", initialConfig.model, bound.configHash)
+                complete(reserved, "FAILED", "", emptyList(), "", "请求后状态变化，AI 结果已丢弃", initialConfig.model, bound.configHash, expectedGeneration = restoreGeneration)
                 return dao.findByPeriod(review.periodKey)?.toDomain()
             }
             when (result) {
-                is AdvisorChatResult.Failure -> complete(reserved, "FAILED", "", emptyList(), "", result.error.userMessage, initialConfig.model, bound.configHash)
+                is AdvisorChatResult.Failure -> complete(reserved, "FAILED", "", emptyList(), "", result.error.userMessage, initialConfig.model, bound.configHash, expectedGeneration = restoreGeneration)
                 is AdvisorChatResult.Success -> when (val parsed = WeeklyAiParser.parse(result.content, facts, reserved.categories)) {
-                    is WeeklyAiParseResult.Failure -> complete(reserved, "FAILED", "", emptyList(), "", parsed.message, initialConfig.model, bound.configHash)
-                    is WeeklyAiParseResult.Success -> complete(reserved, "READY", parsed.summary, parsed.highlights, parsed.suggestion, null, initialConfig.model, bound.configHash, parsed.factIds)
+                    is WeeklyAiParseResult.Failure -> complete(reserved, "FAILED", "", emptyList(), "", parsed.message, initialConfig.model, bound.configHash, expectedGeneration = restoreGeneration)
+                    is WeeklyAiParseResult.Success -> complete(reserved, "READY", parsed.summary, parsed.highlights, parsed.suggestion, null, initialConfig.model, bound.configHash, parsed.factIds, expectedGeneration = restoreGeneration)
                 }
             }
             dao.findByPeriod(review.periodKey)?.toDomain()
         } catch (cancelled: CancellationException) {
-            complete(reserved, "FAILED", "", emptyList(), "", "请求已取消；服务端是否接收未知，预算已占用", null, bound.configHash)
+            complete(reserved, "FAILED", "", emptyList(), "", "请求已取消；服务端是否接收未知，预算已占用", null, bound.configHash, expectedGeneration = restoreGeneration)
             throw cancelled
         } catch (e: Exception) {
-            complete(reserved, "FAILED", "", emptyList(), "", e.message ?: "AI 请求失败", null, bound.configHash)
+            complete(reserved, "FAILED", "", emptyList(), "", e.message ?: "AI 请求失败", null, bound.configHash, expectedGeneration = restoreGeneration)
             dao.findByPeriod(review.periodKey)?.toDomain()
         }
     }
@@ -179,10 +185,17 @@ class WeeklyAiService(
         highlights: List<com.mengyalife.app.domain.weekly.WeeklyAiHighlight>,
         suggestion: String, error: String?, model: String?, configHash: String,
         factIds: List<String> = emptyList(),
+        expectedGeneration: Long? = null,
     ) {
-        dao.complete(base.periodKey, status, now(), summary, WeeklyAiParser.highlightsJson(highlights),
-            suggestion, WeeklyAiParser.encodeFactIds(factIds), error, model, configHash)
+        guardedWrite(expectedGeneration) {
+            dao.complete(base.periodKey, status, now(), summary, WeeklyAiParser.highlightsJson(highlights),
+                suggestion, WeeklyAiParser.encodeFactIds(factIds), error, model, configHash)
+            Unit
+        }
     }
+
+    private suspend fun <T> guardedWrite(expectedGeneration: Long?, block: suspend () -> T): T =
+        writeBarrier?.withWrite(expectedGeneration) { block() } ?: block()
 
     private fun WeeklyAiEntity.toDomain() = WeeklyAiReview(
         periodKey, localDataVersion, aiConsentVersion, status, generatedAt, summary,

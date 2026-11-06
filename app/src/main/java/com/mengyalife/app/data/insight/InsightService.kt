@@ -5,6 +5,7 @@ import com.mengyalife.app.data.advisor.AdvisorDataRepository
 import com.mengyalife.app.data.advisor.AdvisorEngine
 import com.mengyalife.app.data.consent.AiConsentRepository
 import com.mengyalife.app.data.local.insight.InsightReportDao
+import com.mengyalife.app.data.restore.RestoreWriteBarrier
 import com.mengyalife.app.data.local.insight.InsightReportEntity
 import com.mengyalife.app.domain.advisor.AdvisorChatMessage
 import com.mengyalife.app.domain.advisor.AdvisorChatResult
@@ -44,6 +45,7 @@ class InsightService(
     private val newId: () -> String = { UUID.randomUUID().toString() },
     private val beforeRequest: suspend () -> Unit = {},
     private val beforeWrite: suspend () -> Unit = {},
+    private val writeBarrier: RestoreWriteBarrier? = null,
 ) {
     suspend fun currentInput(): InsightInput {
         val consent = consentRepository.current()
@@ -57,6 +59,7 @@ class InsightService(
     }
 
     suspend fun generate(force: Boolean = false): InsightGenerationResult {
+        val restoreGeneration = writeBarrier?.generation()
         val consent = consentRepository.current()
         val snapshot = dataRepository.snapshot(consent)
         val input = InsightRules.build(snapshot, consent, now())
@@ -73,13 +76,13 @@ class InsightService(
             !consent.enabled(ConsentCategory.GOALS) &&
             !consent.enabled(ConsentCategory.JOURNAL)
         ) {
-            return saveFailed(input, "尚未授权任何成长数据类别", null)
+            return saveFailed(input, "尚未授权任何成长数据类别", null, restoreGeneration)
         }
         if (!boundConfig.configured || boundRuntime == null ||
             boundRuntime.endpoint != boundConfig.endpoint ||
             !boundConsent.isValidFor(boundRuntime.endpoint)
         ) {
-            return saveFailed(input, "AI 服务未配置或授权已失效；已保留本地规则分析", null)
+            return saveFailed(input, "AI 服务未配置或授权已失效；已保留本地规则分析", null, restoreGeneration)
         }
 
         beforeRequest()
@@ -88,41 +91,35 @@ class InsightService(
 
         val engine = if (boundConfig.useFakeEngine && fakeEngine != null) fakeEngine else networkEngine
         val prompt = InsightParser.prompt(boundInput)
-        val result = engine.chat(
-            config = boundRuntime,
-            messages = listOf(
-                AdvisorChatMessage("system", "只输出严格 JSON；只解释给定事实，不编造。"),
-                AdvisorChatMessage("user", prompt),
-            ),
-            maxTokens = 2_500,
-        )
-        // 请求后再次校验；旧结果不得写入 READY
-        val afterProblem = preflightProblem(boundConsent, boundCategories, boundRuntime, boundInput)
-        if (afterProblem != null) {
-            return InsightGenerationResult.Failed("$afterProblem；本次 AI 结果已丢弃", null)
+        val request: suspend () -> AdvisorChatResult = {
+            engine.chat(
+                config = boundRuntime,
+                messages = listOf(
+                    AdvisorChatMessage("system", "只输出严格 JSON；只解释给定事实，不编造。"),
+                    AdvisorChatMessage("user", prompt),
+                ),
+                maxTokens = 2_500,
+            )
         }
+        // 不允许在恢复 Gate 激活后启动新请求；in-flight 请求完成后仍需generation check。
+        val result = writeBarrier?.withWrite(restoreGeneration) { request() } ?: request()
+        val afterProblem = preflightProblem(boundConsent, boundCategories, boundRuntime, boundInput)
+        if (afterProblem != null) return InsightGenerationResult.Failed("$afterProblem；本次 AI 结果已丢弃", null)
         return when (result) {
-            is AdvisorChatResult.Failure -> saveFailed(boundInput, result.error.userMessage, null)
+            is AdvisorChatResult.Failure -> saveFailed(boundInput, result.error.userMessage, null, restoreGeneration)
             is AdvisorChatResult.Success -> when (val parsed = InsightParser.parse(
                 result.content, boundInput.facts, boundInput.allowedSources, newId,
             )) {
-                is InsightParseResult.Failure -> saveFailed(boundInput, "洞察解析失败：${parsed.message}", null)
+                is InsightParseResult.Failure -> saveFailed(boundInput, "洞察解析失败：${parsed.message}", null, restoreGeneration)
                 is InsightParseResult.Success -> {
                     val report = InsightReport(
-                        id = newId(),
-                        dataVersion = boundInput.dataVersion,
-                        status = InsightReportStatus.READY,
-                        summary = parsed.summary,
-                        facts = boundInput.facts,
-                        insights = parsed.insights,
-                        periodStart = boundInput.periodStart,
-                        periodEnd = boundInput.periodEnd,
-                        generatedAt = now(),
-                        error = null,
-                        model = null,
+                        id = newId(), dataVersion = boundInput.dataVersion,
+                        status = InsightReportStatus.READY, summary = parsed.summary,
+                        facts = boundInput.facts, insights = parsed.insights,
+                        periodStart = boundInput.periodStart, periodEnd = boundInput.periodEnd,
+                        generatedAt = now(), error = null, model = null,
                     )
-                    beforeWrite()
-                    dao.insert(report.toEntity())
+                    writeReport(restoreGeneration) { dao.insert(report.toEntity()) }
                     InsightGenerationResult.Ready(report)
                 }
             }
@@ -154,6 +151,7 @@ class InsightService(
         input: InsightInput,
         message: String,
         model: String?,
+        restoreGeneration: Long? = null,
     ): InsightGenerationResult {
         val report = InsightReport(
             id = newId(),
@@ -168,9 +166,13 @@ class InsightService(
             error = message.take(300),
             model = model,
         )
-        beforeWrite()
-        dao.insert(report.toEntity())
+        writeReport(restoreGeneration) { dao.insert(report.toEntity()) }
         return InsightGenerationResult.Failed(message, report)
+    }
+
+    private suspend fun writeReport(expectedGeneration: Long?, block: suspend () -> Unit) {
+        beforeWrite()
+        if (writeBarrier != null) writeBarrier.withWrite(expectedGeneration) { block() } else block()
     }
 
     private fun InsightReport.toEntity() = InsightReportEntity(

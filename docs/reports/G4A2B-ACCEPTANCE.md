@@ -2,10 +2,9 @@
 
 ## 1. Gate 状态
 
-**功能主链路 PASS；G4A-2B 最终 Gate：CONDITIONAL / NOT PASS。**
+**最终代码：G4A-2B Gate NOT PASS。** 旧构建主链路/失败矩阵曾PASS；WriteBarrier/generation和fresh-database修复后，QA设备offline，最终L1/L2未执行。以 `G4A2B-CLOSURE-ACCEPTANCE.md` 为最终状态。
 
-已实际完成 A→导出→B→恢复→A 的 QA 真机恢复（35/35），数据库事务、app_meta、Key/consent 重置、快照、重启可用均通过。
-但 **R2/R3/R4/R5/R6/R7 失败与崩溃路径未执行**，L1/L2 的 `verify.sh` 集成也未跑；按“未执行不得报 PASS”，不能把 G4A-2B 标为完整 PASS。
+旧版本曾完成 A→导出→B→恢复→A 35/35及R2-R7 59/59；这些日志生成于最终WriteBarrier/generation变更前，**不构成最终源码证据**。最终focused L2因设备offline NOT RUN。
 
 ## 2. 已完成的主链路证据
 

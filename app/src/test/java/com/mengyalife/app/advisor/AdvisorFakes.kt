@@ -208,7 +208,7 @@ class FakeAdvisorDataRepository(var snapshot: AdvisorContextSnapshot = AdvisorCo
 class FakeGoalProposalRepository : GoalProposalRepository {
     private val flow = MutableStateFlow<List<StoredGoalProposal>>(emptyList())
     override fun observeAll(): Flow<List<StoredGoalProposal>> = flow
-    override suspend fun save(messageId: String, draft: GoalProposalDraft): StoredGoalProposal {
+    override suspend fun save(messageId: String, draft: GoalProposalDraft, expectedRestoreGeneration: Long?): StoredGoalProposal {
         val proposal = StoredGoalProposal(
             "p-$messageId", messageId, 1L, draft, "DRAFT",
             selectedTempIds = draft.nodes.map { it.tempId }.toSet(),

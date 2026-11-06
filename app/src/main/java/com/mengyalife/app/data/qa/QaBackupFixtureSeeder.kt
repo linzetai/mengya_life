@@ -249,9 +249,16 @@ object QaBackupFixtureSeeder {
         seed(database)
         database.withTransaction {
             val db = database.openHelper.writableDatabase
-            db.execSQL("UPDATE journal_entries SET title='B 变体日记', body='B body after export' WHERE id=(SELECT MIN(id) FROM journal_entries)")
-            db.execSQL("UPDATE goals SET title='B 变体目标' WHERE level='LONG_TERM'")
-            db.execSQL("UPDATE growth_memories SET content='B 变体记忆' WHERE status='ACTIVE'")
+            db.execSQL("UPDATE journal_entries SET title='B 变体日记', body='B body after export'")
+            db.execSQL("UPDATE goals SET title='B ' || title")
+            db.execSQL("UPDATE goal_checkins SET note='B ' || note")
+            db.execSQL("UPDATE advisor_messages SET content='B ' || content")
+            db.execSQL("UPDATE goal_proposals SET summary='B ' || summary")
+            db.execSQL("UPDATE growth_signals SET content='B ' || content")
+            db.execSQL("UPDATE growth_memories SET content='B ' || content")
+            db.execSQL("UPDATE insight_reports SET summary='B ' || summary")
+            db.execSQL("UPDATE weekly_reviews SET facts_json='[]', sections_json='{\"sections\":[]}'")
+            db.execSQL("UPDATE weekly_ai_reviews SET summary='B ' || summary")
         }
     }
 }

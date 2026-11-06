@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.mengyalife.app.BuildConfig
 import com.mengyalife.app.ui.theme.ThemeMode
+import com.mengyalife.app.data.restore.RestoreWriteBarrier
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
@@ -35,7 +36,7 @@ private val Context.settingsDataStore: DataStore<Preferences> by preferencesData
  * 读取失败（例如文件损坏）时回落到「跟随系统」，并把 IOException 吃掉，
  * 不让一个坏掉的偏好文件把整个 App 打崩。
  */
-class ThemePreferences(private val context: Context) {
+class ThemePreferences(private val context: Context, private val writeBarrier: RestoreWriteBarrier? = null) {
 
     private val themeKey = stringPreferencesKey("theme_mode")
 
@@ -49,8 +50,7 @@ class ThemePreferences(private val context: Context) {
         }
 
     suspend fun setThemeMode(mode: ThemeMode) {
-        context.settingsDataStore.edit { preferences ->
-            preferences[themeKey] = mode.name
-        }
+        val write: suspend () -> Unit = { context.settingsDataStore.edit { preferences -> preferences[themeKey] = mode.name } }
+        if (writeBarrier != null) writeBarrier.withWrite { write() } else write()
     }
 }

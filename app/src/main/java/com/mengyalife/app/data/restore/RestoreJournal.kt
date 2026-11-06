@@ -9,6 +9,8 @@ import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import java.io.File
 import java.io.FileOutputStream
+import android.system.Os
+import android.system.OsConstants
 
 enum class RestoreJournalPhase { PREPARED, DB_COMMITTED, SECURITY_RESET, SETTINGS_APPLIED, DONE }
 
@@ -21,7 +23,7 @@ data class RestoreJournalState(
 )
 
 /** 仅辅助收敛；绝不作为 DB 是否提交的依据。 */
-class RestoreJournal(private val dir: File) {
+class RestoreJournal(private val dir: File, private val syncParent: (File) -> Unit = ::syncParentDirectory) {
     private val file = File(dir, "journal.json")
     private val json = Json
 
@@ -46,15 +48,31 @@ class RestoreJournal(private val dir: File) {
             put("updatedAt", state.updatedAt)
         }
         val tmp = File(dir, "journal.json.tmp")
-        FileOutputStream(tmp).use { out ->
-            out.write(obj.toString().toByteArray(Charsets.UTF_8)); out.flush()
-            runCatching { out.fd.sync() }
-        }
-        if (!tmp.renameTo(file)) {
+        try {
+            FileOutputStream(tmp).use { out ->
+                out.write(obj.toString().toByteArray(Charsets.UTF_8)); out.flush()
+                out.fd.sync()
+            }
+            if (!tmp.renameTo(file)) throw RestoreException("JOURNAL_WRITE", "无法写恢复日志")
+            syncParent(dir)
+        } catch (e: RestoreException) {
+            throw e
+        } catch (e: Exception) {
             tmp.delete()
-            throw RestoreException("JOURNAL_WRITE", "无法写恢复日志")
+            throw RestoreException("JOURNAL_WRITE", "无法写恢复日志", e)
         }
     }
 
-    fun clear() { runCatching { file.delete() } }
+    fun clear(): Boolean {
+        if (!file.exists()) return true
+        if (!file.delete()) return false
+        return runCatching { syncParent(dir); true }.getOrDefault(false)
+    }
+
+    companion object {
+        private fun syncParentDirectory(dir: File) {
+            val fd = Os.open(dir.absolutePath, OsConstants.O_RDONLY, 0)
+            try { Os.fsync(fd) } finally { Os.close(fd) }
+        }
+    }
 }

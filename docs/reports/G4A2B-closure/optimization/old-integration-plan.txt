@@ -1,0 +1,44 @@
+
+== 测试选择（L2 Integration / module）==
+Git 基线: 3fb6781b9551（上一次 verify 运行记录）  HEAD: 3fb6781b9551  branch: master
+工作区变更 34 个（显式模块模式不参与选择）
+命中规则：
+  [explicit-module] 用户显式指定模块
+选择模块（4）：
+  - ai-consent           risk=high     JVM=3  真机=verify_g3b1.py(integration), verify_settings.py(feature)
+      理由: integration 级别强制包含高风险模块
+  - database-migration   risk=critical JVM=0  真机=verify_migration.py(integration)
+      理由: integration 级别强制包含高风险模块
+  - navigation           risk=medium   JVM=0  真机=无真机
+      理由: L1+ 必要导航冒烟（跨页面回归）
+  - restore-validate     risk=high     JVM=4  真机=verify_restore_preview.py(feature), verify_restore_e2e.py(feature), verify_restore_failures.py(feature)
+      理由: 显式指定 --module restore-validate
+JVM: 7 个类
+真机：
+  - [qa] verify_g3b1.py  tier=integration  modules=ai-consent
+  - [qa] verify_migration.py  tier=integration  modules=database-migration
+  - [qa] verify_navigation.py  tier=feature  modules=navigation
+  - [qa] verify_restore_e2e.py  tier=feature  modules=restore-validate
+  - [qa] verify_restore_failures.py  tier=feature  modules=restore-validate
+  - [qa] verify_restore_preview.py  tier=feature  modules=restore-validate
+  - [qa] verify_settings.py  tier=feature  modules=ai-consent
+未选择的模块（17）：
+  - diary: 未命中变更路径，也不是被选模块的上游依赖
+  - goals: 未命中变更路径，也不是被选模块的上游依赖
+  - progress: 未命中变更路径，也不是被选模块的上游依赖
+  - trends: 未命中变更路径，也不是被选模块的上游依赖
+  - advisor: 未命中变更路径，也不是被选模块的上游依赖
+  - growth-memory: 未命中变更路径，也不是被选模块的上游依赖
+  - insight: 未命中变更路径，也不是被选模块的上游依赖
+  - weekly-review: 未命中变更路径，也不是被选模块的上游依赖
+  - weekly-ai: 未命中变更路径，也不是被选模块的上游依赖
+  - settings: 未命中变更路径，也不是被选模块的上游依赖
+  - export: 未命中变更路径，也不是被选模块的上游依赖
+  - app-smoke: 未命中变更路径，也不是被选模块的上游依赖
+  - test-infra: 未命中变更路径，也不是被选模块的上游依赖
+  - backup-format: 未命中变更路径，也不是被选模块的上游依赖
+  - backup-crypto: 未命中变更路径，也不是被选模块的上游依赖
+  - backup-export: 未命中变更路径，也不是被选模块的上游依赖
+  - backup-security: 未命中变更路径，也不是被选模块的上游依赖
+
+[计划] 未执行任何测试。计划已写入 /root/workspace/mengya-life/docs/reports/test-runs/20261106-020009/report.json

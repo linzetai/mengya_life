@@ -3,6 +3,7 @@ package com.mengyalife.app.data.repository
 import com.mengyalife.app.data.local.goal.GoalCheckinEntity
 import com.mengyalife.app.data.local.goal.GoalCheckinStat
 import com.mengyalife.app.data.local.goal.GoalDao
+import com.mengyalife.app.data.restore.RestoreWriteBarrier
 import com.mengyalife.app.data.local.goal.GoalEntity
 import com.mengyalife.app.domain.goals.CheckinSource
 import com.mengyalife.app.domain.goals.GoalDomain
@@ -107,8 +108,16 @@ sealed interface GoalResult<out T> {
  */
 class GoalRepository(
     private val dao: GoalDao,
+    private val canWrite: () -> Boolean = { true },
+    private val writeBarrier: RestoreWriteBarrier? = null,
     private val now: () -> Long = System::currentTimeMillis,
 ) : AdvisorContextSource {
+    private fun ensureWritable() {
+        if (!canWrite()) throw IllegalStateException("恢复维护中，禁止写入目标")
+    }
+
+    private suspend fun <T> guarded(expectedGeneration: Long? = writeBarrier?.generation(), block: suspend () -> T): T =
+        writeBarrier?.withWrite(expectedGeneration) { ensureWritable(); block() } ?: run { ensureWritable(); block() }
 
     fun observeSnapshot(): Flow<GoalSnapshot> =
         combine(dao.observeGoals(), dao.observeCheckinStats()) { goals, stats ->
@@ -138,16 +147,16 @@ class GoalRepository(
         level: GoalLevel,
         parentId: Long?,
         draft: GoalDraft,
-    ): GoalResult<Long> {
+    ): GoalResult<Long> = guarded {
         val parent = parentId?.let { dao.findGoal(it) }
-        if (parentId != null && parent == null) return GoalResult.Error(GoalRules.ERROR_PARENT_MISSING)
+        if (parentId != null && parent == null) return@guarded GoalResult.Error(GoalRules.ERROR_PARENT_MISSING)
 
         GoalRules.validateParent(
             level = level,
             parent = parent?.let { GoalRef(it.id, it.level, it.parentId) },
-        )?.let { return GoalResult.Error(it) }
+        )?.let { return@guarded GoalResult.Error(it) }
 
-        validateDraft(draft)?.let { return GoalResult.Error(it) }
+        validateDraft(draft)?.let { return@guarded GoalResult.Error(it) }
 
         val timestamp = now()
         val id = dao.insertGoal(
@@ -164,14 +173,15 @@ class GoalRepository(
                 updatedAt = timestamp,
             ),
         )
-        return GoalResult.Ok(id)
+        return@guarded GoalResult.Ok(id)
+
     }
 
     // ---------------------------------------------------------------- 编辑
 
-    suspend fun updateGoal(id: Long, draft: GoalDraft): GoalResult<Unit> {
-        val existing = dao.findGoal(id) ?: return GoalResult.Error("目标不存在")
-        validateDraft(draft)?.let { return GoalResult.Error(it) }
+    suspend fun updateGoal(id: Long, draft: GoalDraft): GoalResult<Unit> = guarded {
+        val existing = dao.findGoal(id) ?: return@guarded GoalResult.Error("目标不存在")
+        validateDraft(draft)?.let { return@guarded GoalResult.Error(it) }
 
         dao.updateGoal(
             existing.copy(
@@ -184,13 +194,15 @@ class GoalRepository(
                 updatedAt = now(),
             ),
         )
-        return GoalResult.Ok(Unit)
+        return@guarded GoalResult.Ok(Unit)
+
     }
 
-    suspend fun changeStatus(id: Long, status: GoalStatus): GoalResult<Unit> {
-        val existing = dao.findGoal(id) ?: return GoalResult.Error("目标不存在")
+    suspend fun changeStatus(id: Long, status: GoalStatus): GoalResult<Unit> = guarded {
+        val existing = dao.findGoal(id) ?: return@guarded GoalResult.Error("目标不存在")
         dao.updateGoal(existing.copy(status = status, updatedAt = now()))
-        return GoalResult.Ok(Unit)
+        return@guarded GoalResult.Ok(Unit)
+
     }
 
     // ---------------------------------------------------------------- 删除
@@ -213,13 +225,14 @@ class GoalRepository(
      * 删除目标及其全部子目标与进展记录。
      * 只在用户**明确确认影响范围**后调用（UI 会先展示 [assessDeleteImpact] 的结果）。
      */
-    suspend fun deleteGoalTree(id: Long): GoalResult<DeleteImpact> {
+    suspend fun deleteGoalTree(id: Long): GoalResult<DeleteImpact> = guarded {
         val all = dao.loadAllGoals()
         val subtree = collectSubtreeIds(id, all)
-        if (subtree.isEmpty()) return GoalResult.Error("目标不存在")
+        if (subtree.isEmpty()) return@guarded GoalResult.Error("目标不存在")
         val impact = assessDeleteImpact(id)
         dao.deleteGoalTree(subtree)
-        return GoalResult.Ok(impact)
+        return@guarded GoalResult.Ok(impact)
+
     }
 
     // ---------------------------------------------------------------- 进展
@@ -229,13 +242,13 @@ class GoalRepository(
         note: String,
         metricValue: Double?,
         metricUnit: String?,
-    ): GoalResult<Long> {
-        dao.findGoal(goalId) ?: return GoalResult.Error("目标不存在")
-        GoalRules.validateCheckinNote(note)?.let { return GoalResult.Error(it) }
+    ): GoalResult<Long> = guarded {
+        dao.findGoal(goalId) ?: return@guarded GoalResult.Error("目标不存在")
+        GoalRules.validateCheckinNote(note)?.let { return@guarded GoalResult.Error(it) }
         // 数据层兜底：NaN / Infinity / 超出范围一律拒绝，不依赖界面先校验。
         // 即使以后接导入、脚本或其它入口，也无法把非法数值写进 goal_checkins。
-        GoalRules.validateMetricValue(metricValue)?.let { return GoalResult.Error(it) }
-        GoalRules.validateUnit(metricUnit)?.let { return GoalResult.Error(it) }
+        GoalRules.validateMetricValue(metricValue)?.let { return@guarded GoalResult.Error(it) }
+        GoalRules.validateUnit(metricUnit)?.let { return@guarded GoalResult.Error(it) }
 
         val id = dao.insertCheckin(
             GoalCheckinEntity(
@@ -252,7 +265,8 @@ class GoalRepository(
         if (goal != null && goal.status == GoalStatus.NOT_STARTED) {
             dao.updateGoal(goal.copy(status = GoalStatus.IN_PROGRESS, updatedAt = now()))
         }
-        return GoalResult.Ok(id)
+        return@guarded GoalResult.Ok(id)
+
     }
 
     // ---------------------------------------------------------------- 顾问上下文

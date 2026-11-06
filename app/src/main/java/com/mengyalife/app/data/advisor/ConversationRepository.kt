@@ -22,13 +22,14 @@ import java.util.UUID
 
 interface ConversationRepository {
     fun observeMessages(): Flow<List<AdvisorMessage>>
-    suspend fun appendUser(content: String, contextGoalId: Long?, contextEpoch: Long = 0): AdvisorMessage
+    suspend fun appendUser(content: String, contextGoalId: Long?, contextEpoch: Long = 0, expectedRestoreGeneration: Long? = null): AdvisorMessage
     suspend fun appendAssistant(
         content: String,
         contextEpoch: Long,
         sources: List<AdvisorSource> = emptyList(),
         proposalError: String? = null,
         proposalMode: Boolean = false,
+        expectedRestoreGeneration: Long? = null,
     ): AdvisorMessage
 
     suspend fun appendFailure(
@@ -36,6 +37,7 @@ interface ConversationRepository {
         cancelled: Boolean,
         contextEpoch: Long = 0,
         proposalMode: Boolean = false,
+        expectedRestoreGeneration: Long? = null,
     ): AdvisorMessage
     suspend fun deleteMessage(id: String)
     suspend fun loadAll(): List<AdvisorMessage>
@@ -47,6 +49,7 @@ class RoomConversationRepository(
     private val now: () -> Long = System::currentTimeMillis,
     private val newId: () -> String = { UUID.randomUUID().toString() },
     private val canWrite: () -> Boolean = { true },
+    private val writeBarrier: com.mengyalife.app.data.restore.RestoreWriteBarrier? = null,
 ) : ConversationRepository {
 
     override fun observeMessages(): Flow<List<AdvisorMessage>> =
@@ -56,6 +59,7 @@ class RoomConversationRepository(
         content: String,
         contextGoalId: Long?,
         contextEpoch: Long,
+        expectedRestoreGeneration: Long?,
     ): AdvisorMessage =
         insert(
             AdvisorMessageEntity(
@@ -66,7 +70,7 @@ class RoomConversationRepository(
                 status = AdvisorMessageStatus.SENT.name,
                 contextGoalId = contextGoalId,
                 contextEpoch = contextEpoch,
-            ),
+            ), expectedRestoreGeneration,
         )
 
     override suspend fun appendAssistant(
@@ -75,6 +79,7 @@ class RoomConversationRepository(
         sources: List<AdvisorSource>,
         proposalError: String?,
         proposalMode: Boolean,
+        expectedRestoreGeneration: Long?,
     ): AdvisorMessage =
         insert(
             AdvisorMessageEntity(
@@ -87,7 +92,7 @@ class RoomConversationRepository(
                 sourcesJson = encodeSources(sources),
                 proposalError = proposalError,
                 proposalMode = proposalMode,
-            ),
+            ), expectedRestoreGeneration,
         )
 
     override suspend fun appendFailure(
@@ -95,6 +100,7 @@ class RoomConversationRepository(
         cancelled: Boolean,
         contextEpoch: Long,
         proposalMode: Boolean,
+        expectedRestoreGeneration: Long?,
     ): AdvisorMessage =
         insert(
             AdvisorMessageEntity(
@@ -108,11 +114,13 @@ class RoomConversationRepository(
                 errorMessage = error.userMessage,
                 contextEpoch = contextEpoch,
                 proposalMode = proposalMode,
-            ),
+            ), expectedRestoreGeneration,
         )
 
     override suspend fun deleteMessage(id: String) {
-        dao.deleteById(id)
+        val write: suspend () -> Unit = { dao.deleteById(id); Unit }
+        if (!canWrite()) throw IllegalStateException("恢复维护中，禁止删除对话")
+        if (writeBarrier != null) writeBarrier.withWrite { write() } else write()
     }
 
     override suspend fun loadAll(): List<AdvisorMessage> = dao.loadAll().map(::toDomain)
@@ -123,10 +131,14 @@ class RoomConversationRepository(
         return maxOf(now(), max + 1)
     }
 
-    private suspend fun insert(entity: AdvisorMessageEntity): AdvisorMessage {
+    private suspend fun insert(entity: AdvisorMessageEntity, expectedGeneration: Long?): AdvisorMessage {
         if (!canWrite()) throw IllegalStateException("恢复维护中，禁止写入对话")
-        dao.insert(entity)
-        return toDomain(entity)
+        val write: suspend () -> AdvisorMessage = {
+            if (!canWrite()) throw IllegalStateException("恢复维护中，禁止写入对话")
+            dao.insert(entity)
+            toDomain(entity)
+        }
+        return writeBarrier?.withWrite(expectedGeneration) { write() } ?: write()
     }
 
     private fun toDomain(entity: AdvisorMessageEntity): AdvisorMessage = AdvisorMessage(
