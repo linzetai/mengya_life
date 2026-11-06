@@ -36,7 +36,7 @@
 
 | 脚本 | 覆盖 | 断言数 | 清 QA 数据 | 改数据 | 最近一次结果 |
 |---|---|---|---|---|---|
-| `verify_settings.py` | 设置文案、导出入口、QA 标识、版本 | 38 | 是 | 否 | 38/38 |
+| `verify_settings.py` | 设置文案、导出/备份/恢复入口、QA 标识、版本 | 40 | 是 | 否 | 最近历史38/38（新增2个入口断言待真机确认） |
 | `verify_diary.py` | 空态/空正文/新建/编辑/重启/删除 | 25 | 是 | 是（日记） | 25/25 |
 | `verify_theme.py` | 浅/深/跟随系统/重启保持 | 11 | 否 | 主题偏好 | 11/11 |
 | `verify_navigation.py` | 五页切换、设置进出、返回、崩溃 | 28 | 否 | 否 | 28/28 |
@@ -46,9 +46,11 @@
 | `verify_export.py` | SAF、JSON 完整性、与库一致、清理 | 49 | 是 | 是 + 写 Downloads | 49/49 |
 | `verify_advisor.py` | 假引擎对话、401/429/超时/离线/取消、密钥安全 | 59 | 是 | 是（AI 配置/对话） | 59/59 |
 | `verify_g3b1.py` | 授权、类别开关、撤回、上下文来源 | 47 | 是 | 是（授权/目标/日记） | 47/47 |
-| `verify_advisor_network.py` | 真实网络 401（无效测试 Key） | 10 | 是 | 是（AI 配置） | 9/10（历史上曾失败） |
+| `verify_advisor_network.py` | 真实网络 401（gate层，外网无效测试 Key） | 10 | 是 | 是（AI 配置） | 9/10（历史上曾失败） |
 | `verify_prod_smoke.py` | 正式包旧数据/冷启动/文案/只读导出 | 50 | 否 | 只读 + 临时导出文件 | 50/50 |
 
+> 运行时间优化：`--profile dev` 提供无设备的本地开发回路；多模块一次执行共享构建/安装并按 `(script, package)` 去重。`verify_backup_v2_full.py` 已覆盖旧基础脚本的SAF/解密/计数断言，默认不再重复跑 `verify_backup_v2.py`。详见 `TEST-RUNNER-DESIGN.md`。
+>
 > 本轮新增（基线之后）：`verify_weekly_ai.py`、`verify_migration.py`、`verify_qa_preflight.py`，详见 `TEST-MODULE-MAP.md`。
 
 ## 2. 各测试覆盖的业务功能

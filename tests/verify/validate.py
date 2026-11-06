@@ -38,6 +38,11 @@ def validate_map(map_: dict) -> list[str]:
         for dep in m.get("dependsOn", []):
             if dep not in mods:
                 issues.append(f"模块 {mname} 的上游依赖不存在：{dep}")
+        if not isinstance(m.get("skipNavigationSmoke", False), bool):
+            issues.append(f"模块 {mname} 的 skipNavigationSmoke 必须是 bool")
+        for excluded in m.get("skipAlwaysModules", []):
+            if excluded not in mods:
+                issues.append(f"模块 {mname} 的 skipAlwaysModules 引用了不存在的模块：{excluded}")
         for d in m.get("device", []):
             p = DEVICE_ROOT / d["script"]
             if not p.exists():
@@ -53,6 +58,12 @@ def validate_map(map_: dict) -> list[str]:
             for key in ("tier", "assertions", "destructive", "resetsQaData"):
                 if key not in d:
                     issues.append(f"{mname}/{d['script']} 缺少字段 {key}")
+            if d.get("smokeEnvVar"):
+                smoke_levels = d.get("smokeLevels", ["feature"])
+                if not smoke_levels or any(level not in map_.get("levels", {}) for level in smoke_levels):
+                    issues.append(f"{mname}/{d['script']} 的 smokeLevels 无效")
+                if not d.get("smokeAssertions") or not d.get("measuredFullSec"):
+                    issues.append(f"{mname}/{d['script']} 有 smokeEnvVar 但缺少 smoke/full 覆盖元数据")
     for rule in map_.get("impactRules", []):
         for mname in rule.get("modules", []):
             if mname not in mods:
@@ -71,7 +82,96 @@ def validate_map(map_: dict) -> list[str]:
         for p in pat.get("patterns", []):
             if not p.strip():
                 issues.append(f"规则 {pat['id']} 有空 pattern")
+    issues.extend(validate_selection_policy(map_))
     return issues
+
+
+def validate_selection_policy(map_: dict) -> list[str]:
+    """Self-test duplicate collapse and the explicit local-only dev profile."""
+    try:
+        from .selection import apply_execution_profile, device_run_mode, select
+        sample = select(map_, None, ["advisor", "ai-consent", "settings"], "integration")
+        keys = [(d["script"], d["package"]) for d in sample.device_scripts]
+        if len(keys) != len(set(keys)):
+            return ["真机选择器未按 script+package 去重"]
+        for expected_once in ("verify_g3b1.py", "verify_settings.py"):
+            if sum(1 for d in sample.device_scripts if d["script"] == expected_once) != 1:
+                return [f"跨模块共享脚本未合并为一次运行：{expected_once}"]
+        if any(d["script"] == "verify_navigation.py" for d in sample.device_scripts):
+            return ["所有直接模块均有自身UI覆盖时仍重复加入导航冒烟"]
+        jvm_before = list(sample.jvm_classes)
+        apply_execution_profile(sample, "dev")
+        if sample.device_scripts:
+            return ["dev profile 仍然计划执行真机"]
+        if len(sample.deferred_device_scripts) != len(keys):
+            return ["dev profile 未完整记录被延期的设备脚本"]
+        if sample.jvm_classes != jvm_before:
+            return ["dev profile 改变了受影响 JVM 用例集合"]
+        if not sample.deferred_device_scripts and keys:
+            return ["dev profile 丢失设备延期清单"]
+
+        goals = select(map_, None, ["goals"], "feature")
+        if any(d["script"] == "verify_navigation.py" for d in goals.device_scripts):
+            return ["goals已有专属UI用例，不应重复跑全局导航冒烟"]
+
+        from .changes import Change, ChangeSet
+        shared_change = ChangeSet(
+            base="(self-test)", base_reason="policy self-test",
+            changes=[Change("app/src/main/java/com/mengyalife/app/MengyaLifeApp.kt", "M", "self-test")],
+            commit="self-test", branch="self-test",
+        )
+        shared = select(map_, shared_change, None, "feature")
+        if not any(d["script"] == "verify_navigation.py" for d in shared.device_scripts):
+            return ["导航/共享UI变更必须保留跨页导航冒烟"]
+
+        weekly_l2 = select(map_, None, ["weekly-ai"], "integration")
+        weekly_entry = next((d for d in weekly_l2.device_scripts if d["script"] == "verify_weekly_ai.py"), None)
+        if weekly_entry is None or device_run_mode(weekly_entry, weekly_l2.level) != "smoke":
+            return ["weekly-ai L2 应跑成功冒烟，不应误跑Gate全矩阵"]
+        weekly_gate = select(map_, None, ["weekly-ai"], "gate")
+        weekly_gate_entry = next((d for d in weekly_gate.device_scripts if d["script"] == "verify_weekly_ai.py"), None)
+        if weekly_gate_entry is None or device_run_mode(weekly_gate_entry, weekly_gate.level) != "full":
+            return ["weekly-ai Gate/Release 必须保留完整状态矩阵"]
+
+        backup_l2 = select(map_, None, ["backup-export"], "integration")
+        backup_scripts = {d["script"] for d in backup_l2.device_scripts}
+        if "verify_g3b1.py" in backup_scripts or "verify_navigation.py" in backup_scripts:
+            return ["独立备份模块L2不应重复运行无关AI授权/导航用例"]
+        if "verify_migration.py" not in backup_scripts:
+            return ["备份模块L2仍需保留数据库迁移前置"]
+        from .changes import Change, ChangeSet
+        writer_change = ChangeSet(
+            base="(self-test)", base_reason="policy self-test",
+            changes=[Change("app/src/main/java/com/mengyalife/app/data/backup/BackupFileWriter.kt", "M", "self-test")],
+            commit="self-test", branch="self-test",
+        )
+        backup_fault = select(map_, writer_change, None, None)
+        fault_scripts = {d["script"] for d in backup_fault.device_scripts}
+        if backup_fault.level != "integration" or "verify_backup_v2_failures.py" not in fault_scripts:
+            return ["备份写入故障代码改动必须升级L2并选择故障矩阵"]
+        if "verify_g3b1.py" in fault_scripts or "verify_navigation.py" in fault_scripts:
+            return ["备份L2不应捎带无关授权或全局导航用例"]
+
+        backup_ui_change = ChangeSet(
+            base="(self-test)", base_reason="policy self-test",
+            changes=[Change("app/src/main/java/com/mengyalife/app/ui/settings/BackupSection.kt", "M", "self-test")],
+            commit="self-test", branch="self-test",
+        )
+        backup_ui = select(map_, backup_ui_change, None, "feature")
+        backup_ui_scripts = {d["script"] for d in backup_ui.device_scripts}
+        if "backup-export" not in backup_ui.module_names() or "settings" in backup_ui.module_names():
+            return ["BackupSection 改动应只命中备份模块，不应触发整页设置重复测试"]
+        if "verify_backup_v2_full.py" not in backup_ui_scripts or any(
+            x in backup_ui_scripts for x in ("verify_settings.py", "verify_theme.py", "verify_navigation.py")
+        ):
+            return ["备份Section L1 应只跑全字段导出用例，不重复跑设置/导航"]
+
+        backup_gate = select(map_, None, ["backup-export"], "gate")
+        if "verify_g3b1.py" not in {d["script"] for d in backup_gate.device_scripts}:
+            return ["全量Gate不能因backup模块的focused exclusion漏掉AI授权"]
+    except Exception as exc:
+        return [f"选择器策略自检失败：{type(exc).__name__}: {exc}"]
+    return []
 
 
 def validate_schema_contract(map_: dict) -> list[str]:

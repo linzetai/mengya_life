@@ -1,0 +1,74 @@
+
+== 测试选择（L3 Gate / module / profile=standard）==
+Git 基线: efa8607a59f3（上一次 verify 运行记录）  HEAD: efa8607a59f3  branch: master
+工作区变更 36 个（显式模块模式不参与选择）
+命中规则：
+  [explicit-module] 用户显式指定模块
+选择模块（21）：
+  - advisor              risk=high     JVM=9  真机=verify_advisor.py(feature), verify_g3b1.py(integration), verify_advisor_network.py(gate)
+      理由: gate 级别要求全模块回归
+  - ai-consent           risk=high     JVM=3  真机=verify_g3b1.py(integration), verify_settings.py(feature)
+      理由: gate 级别要求全模块回归
+  - app-smoke            risk=high     JVM=0  真机=verify_prod_smoke.py(gate)
+      理由: gate 级别要求全模块回归
+  - backup-crypto        risk=critical JVM=1  真机=无真机
+      理由: gate 级别要求全模块回归
+  - backup-export        risk=high     JVM=4  真机=verify_backup_v2_full.py(feature), verify_backup_v2_failures.py(feature)
+      理由: gate 级别要求全模块回归
+  - backup-format        risk=high     JVM=2  真机=无真机
+      理由: gate 级别要求全模块回归
+  - backup-security      risk=critical JVM=1  真机=无真机
+      理由: gate 级别要求全模块回归
+  - database-migration   risk=critical JVM=0  真机=verify_migration.py(integration)
+      理由: gate 级别要求全模块回归
+  - diary                risk=medium   JVM=4  真机=verify_diary.py(feature)
+      理由: gate 级别要求全模块回归
+  - export               risk=high     JVM=1  真机=verify_export.py(feature)
+      理由: gate 级别要求全模块回归
+  - goals                risk=high     JVM=3  真机=verify_goals.py(feature), verify_dates.py(feature)
+      理由: gate 级别要求全模块回归
+  - growth-memory        risk=high     JVM=4  真机=无真机
+      理由: gate 级别要求全模块回归
+  - insight              risk=medium   JVM=3  真机=无真机
+      理由: gate 级别要求全模块回归
+  - navigation           risk=medium   JVM=0  真机=verify_navigation.py(feature)
+      理由: gate 级别要求全模块回归
+  - progress             risk=high     JVM=3  真机=verify_goals.py(feature)
+      理由: gate 级别要求全模块回归
+  - restore-validate     risk=high     JVM=6  真机=verify_restore_e2e.py(feature), verify_restore_failures.py(feature), verify_restore_fresh_db.py(feature)
+      理由: gate 级别要求全模块回归
+  - settings             risk=medium   JVM=0  真机=verify_settings.py(feature), verify_theme.py(feature)
+      理由: gate 级别要求全模块回归
+  - test-infra           risk=low      JVM=0  真机=无真机
+      理由: gate 级别要求全模块回归
+  - trends               risk=medium   JVM=3  真机=verify_trends.py(feature)
+      理由: gate 级别要求全模块回归
+  - weekly-ai            risk=high     JVM=4  真机=verify_weekly_ai.py(feature/full)
+      理由: gate 级别要求全模块回归
+  - weekly-review        risk=high     JVM=3  真机=verify_weekly_ai.py(feature/full)
+      理由: gate 级别要求全模块回归
+JVM: 全量 个类
+真机：
+  唯一脚本 19 个；估算脚本耗时 5390s（按当前 smoke/full 模式；不含构建/前置与设备空闲）
+  去重：模块注册 23 次 → 实际按 script+package 执行 19 次
+  - [prod] verify_prod_smoke.py  tier=gate  modules=app-smoke
+  - [qa] verify_advisor.py  tier=feature  modules=advisor
+  - [qa] verify_advisor_network.py  tier=gate  modules=advisor
+  - [qa] verify_backup_v2_failures.py  tier=feature  modules=backup-export
+  - [qa] verify_backup_v2_full.py  tier=feature  modules=backup-export
+  - [qa] verify_dates.py  tier=feature  modules=goals
+  - [qa] verify_diary.py  tier=feature  modules=diary
+  - [qa] verify_export.py  tier=feature  modules=export
+  - [qa] verify_g3b1.py  tier=integration  modules=ai-consent,advisor
+  - [qa] verify_goals.py  tier=feature  modules=goals,progress
+  - [qa] verify_migration.py  tier=integration  modules=database-migration
+  - [qa] verify_navigation.py  tier=feature  modules=navigation
+  - [qa] verify_restore_e2e.py  tier=feature  modules=restore-validate
+  - [qa] verify_restore_failures.py  tier=feature  modules=restore-validate
+  - [qa] verify_restore_fresh_db.py  tier=feature  modules=restore-validate
+  - [qa] verify_settings.py  tier=feature  modules=ai-consent,settings
+  - [qa] verify_theme.py  tier=feature  modules=settings
+  - [qa] verify_trends.py  tier=feature  modules=trends
+  - [qa] verify_weekly_ai.py  tier=feature  mode=full  modules=weekly-review,weekly-ai
+
+[计划] 未执行任何测试。计划已写入 /root/workspace/mengya-life/docs/reports/test-runs/20261106-101406/report.json

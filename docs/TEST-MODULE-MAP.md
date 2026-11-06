@@ -3,9 +3,10 @@
 > 机器可读的权威定义：`tests/test-map.json`。本文件是它的可读摘要；两者不一致时以 JSON 为准，并由 `./scripts/verify.sh --dry-run` 的注册表校验兜底。
 
 - Gate：3F
-- 模块数：16；执行级别：fast, feature, integration, gate, release
+- 模块数：21；执行级别：fast, feature, integration, gate, release。
 - 设计原则：**逻辑模块化**，不拆 Gradle 多模块；源码路径 → 模块 → JVM/真机入口 → 级别，全部可审计。
-- 耗时为本轮真机实测（同一设备、串行）；`—` 表示该模块没有真机覆盖或尚未实测。
+- 注册表19个唯一真机资产（18个QA + 1个prod；23处模块引用）；共享脚本按 `(script, package)` 合并，只跑一次。
+- 耗时为历史真机数据/估算；仅在本轮实测后回填，`—` 表示无真机覆盖或未测。
 
 ## 模块总表
 
@@ -15,15 +16,20 @@
 | `goals` | 目标 | high | feature | database-migration | GoalRulesTest<br>GoalRepositoryTest<br>TimestampsTest | `verify_goals.py` (feature, qa)<br>`verify_dates.py` (feature, qa) | 是 | 是 | — | 563s |
 | `progress` | 进展与打卡 | high | feature | goals | GoalRepositoryTest<br>GoalTrendsTest<br>TimestampsTest | `verify_goals.py` (feature, qa) | 是 | 是 | — | 470s |
 | `trends` | 趋势 | medium | feature | goals, progress, diary | GoalTrendsTest<br>MetricFormatTest<br>TimestampsTest | `verify_trends.py` (feature, qa) | 是 | 是 | — | 475s |
-| `advisor` | AI 顾问 | high | feature | ai-consent | AdvisorContextAssemblerTest<br>AdvisorRulesTest<br>AdvisorViewModelTest<br>AdvisorRequestBudgetTest<br>NetworkAdvisorEngineTest<br>GoalProposalApplyRulesTest<br>GoalProposalIdsTest<br>GoalProposalParserTest<br>QaFaultInjectorTest | `verify_advisor.py` (feature, qa)<br>`verify_g3b1.py` (integration, qa)<br>`verify_advisor_network.py` (integration, qa) | 是 | 是 | — | 897s |
-| `ai-consent` | AI 授权与配置 | high | integration | database-migration | AiConsentRulesTest<br>AdvisorConfigTest<br>InsightServiceTest | `verify_g3b1.py` (integration, qa)<br>`verify_settings.py` (feature, qa) | 是 | 是 | — | 598s |
+| `advisor` | AI 顾问 | high | feature | ai-consent | AdvisorContextAssemblerTest<br>AdvisorRulesTest<br>AdvisorViewModelTest<br>AdvisorRequestBudgetTest<br>NetworkAdvisorEngineTest<br>GoalProposalApplyRulesTest<br>GoalProposalIdsTest<br>GoalProposalParserTest<br>QaFaultInjectorTest | `verify_advisor.py` (feature, qa)<br>`verify_g3b1.py` (integration, qa)<br>`verify_advisor_network.py` (gate, qa) | 是 | 是 | — | 897s |
+| `ai-consent` | AI 授权与配置 | high | integration | database-migration | AiConsentRulesTest<br>AdvisorConfigTest<br>InsightServiceTest | `verify_g3b1.py` (integration, qa)<br>`verify_settings.py` (feature, qa) | 是 | 是 | — | 539s；与 advisor/settings 同轮时共享脚本只跑一次 |
 | `growth-memory` | 成长记忆与日记提取 | high | feature | diary, database-migration | GrowthMemoryTest<br>GrowthMemoryValidityTest<br>DiaryExtractionTest<br>DiaryExtractionProtocolTest | —（覆盖缺口） | 是 | 否 | — | — |
 | `insight` | 成长洞察 | medium | feature | advisor, ai-consent, growth-memory, diary, goals | InsightParserTest<br>InsightRulesTest<br>InsightServiceTest | —（覆盖缺口） | 是 | 否 | — | — |
 | `weekly-review` | 每周成长回顾（本地） | high | feature | goals, diary, growth-memory | WeeklyReviewRulesTest<br>WeeklyReviewServiceTest<br>TimestampsTest | `verify_weekly_ai.py` (feature, qa) | 是 | 是 | — | 308s |
 | `weekly-ai` | 每周 AI 增强 | high | feature | weekly-review, ai-consent, advisor, goals, diary, trends | WeeklyAiTest<br>AdvisorRequestBudgetTest<br>WeeklyAiFakeEngineTest | `verify_weekly_ai.py` (feature, qa) | 是 | 是 | — | 308s |
-| `settings` | 设置与主题 | medium | feature | — | — | `verify_settings.py` (feature, qa)<br>`verify_theme.py` (feature, qa) | 是 | 是 | — | 349s |
+| `settings` | 设置与主题 | medium | feature | — | — | `verify_settings.py` (feature, qa)<br>`verify_theme.py` (feature, qa) | 是 | 是 | — | 290s；`verify_settings` 与 ai-consent 共用一次 |
 | `export` | 数据导出 | high | feature | diary, goals, database-migration | ExportTest | `verify_export.py` (feature, qa) | 是 | 是 | — | 195s |
-| `database-migration` | Room Schema / DAO / Migration | critical | integration | — | — | `verify_migration.py` (integration, qa) | 是 | 是 | — | 28s |
+| `backup-format` | 备份格式/校验 | high | fast | database-migration | CanonicalJsonTest<br>BackupFormatV2Test | 无真机 | 否 | 否 | — | JVM |
+| `backup-crypto` | 备份加密 | critical | fast | — | BackupCryptoTest | 无真机 | 否 | 否 | — | JVM |
+| `backup-export` | 完整备份导出 | high | feature | backup-format, backup-crypto | BackupExporterTest<br>BackupFileWriterTest<br>BackupArtifactMetricsTest<br>FileBackupTempStoreTest | `verify_backup_v2_full.py` + `verify_backup_v2_failures.py` | 是 | 是 | — | 384s历史估时 |
+| `backup-security` | 系统备份排除 | critical | integration | — | BackupManifestSecurityTest | 无真机 | 否 | 否 | — | JVM |
+| `restore-validate` | 完整备份恢复/预览 | high | fast | backup-format, backup-crypto | Reader/Validator/Planner/Gate/Barrier tests | `verify_restore_e2e.py`, `verify_restore_failures.py`, `verify_restore_fresh_db.py` | 是 | 是 | — | ~926s估算 |
+| `database-migration` | Room Schema / DAO / Migration | critical | integration | — | — | `verify_migration.py` (integration, qa) | 是 | 是 | — | ~34s估算 |
 | `navigation` | 导航与共享 UI | medium | feature | — | — | `verify_navigation.py` (feature, qa) | 是 | 否 | — | 124s |
 | `app-smoke` | 应用启动与正式包冒烟 | high | integration | database-migration | — | `verify_prod_smoke.py` (gate, prod) | 是 | 否 | 是 | 181s |
 | `test-infra` | 测试体系自身 | low | fast | — | — | —（覆盖缺口） | 否 | 否 | — | — |
@@ -33,16 +39,21 @@
 | 脚本 | 断言数 | 层级 | 实测 | 清库 | 改数据 | 说明 |
 |---|---|---|---|---|---|---|
 | `verify_advisor.py` | 59 | feature | 368s | 是 | 是 | QA 隔离 |
-| `verify_advisor_network.py` | 10 | integration | 102s | 是 | 是 | 需外网；无网 SKIPPED，不报 PASS |
+| `verify_advisor_network.py` | 10 | gate | 102s | 是 | 是 | 外网真实401探针；移到Gate/Release，L2用JVM网络模拟 |
 | `verify_dates.py` | 17 | feature | 93s | 是 | 是 | QA 隔离 |
 | `verify_diary.py` | 25 | feature | 161s | 是 | 是 | QA 隔离 |
 | `verify_export.py` | 49 | feature | 195s | 是 | 是 | QA 隔离 |
 | `verify_g3b1.py` | 47 | integration | 427s | 是 | 是 | QA 隔离 |
 | `verify_goals.py` | 64 | feature | 470s | 是 | 是 | QA 隔离 |
-| `verify_migration.py` | 17 | integration | 28s | 是 | 是 | QA 隔离 |
+| `verify_migration.py` | 26 | integration | 34s | 是 | 是 | v10/v11→v12迁移；最新schema演进时跑 |
+| `verify_backup_v2_full.py` | 19 | feature | 55s | 是 | 是 | 默认全字段备份验收；已覆盖旧 `verify_backup_v2.py` 的基本SAF/解密/计数，不重复跑旧脚本 |
+| `verify_backup_v2_failures.py` | 45 | feature | 329s | 是 | 是 | SAF写/读/清理故障路径，低频/合并运行 |
+| `verify_restore_e2e.py` | 35 | feature | ~393s估算 | 是 | 是 | 含预览/确认/还原，不另跑重复preview |
+| `verify_restore_failures.py` | 59 | feature | ~518s历史 | 是 | 是 | R2-R7仅最终集成验收或碰恢复代码时跑 |
+| `verify_restore_fresh_db.py` | 5 | feature | 15s | 是 | 是 | fresh v12 app_meta初始化 |
 | `verify_navigation.py` | 28 | feature | 124s | 否 | 否 | QA 隔离 |
 | `verify_prod_smoke.py` | 50 | gate | 181s | 否 | 否 | 正式包只读 |
-| `verify_settings.py` | 38 | feature | 171s | 是 | 是 | QA 隔离 |
+| `verify_settings.py` | 40 | feature | 112s | 是 | 是 | 文案/QA标识/备份与恢复入口；设置屏改动时检测核心入口可见 |
 | `verify_theme.py` | 11 | feature | 178s | 否 | 否 | QA 隔离 |
 | `verify_trends.py` | 73 | feature | 475s | 是 | 是 | QA 隔离 |
 | `verify_weekly_ai.py` | 95 | feature | 308s | 是 | 是 | L1 冒烟 22 条；完整 95 条 |
@@ -166,7 +177,7 @@ app/src/main/java/com/mengyalife/app/domain/weekly/**
 
 ```
 app/src/main/java/com/mengyalife/app/ui/screens/SettingsScreen.kt
-app/src/main/java/com/mengyalife/app/ui/settings/**
+app/src/main/java/com/mengyalife/app/ui/settings/ThemeViewModel.kt
 app/src/main/java/com/mengyalife/app/data/preferences/ThemePreferences.kt
 app/src/main/java/com/mengyalife/app/ui/theme/**
 ```
@@ -186,7 +197,7 @@ app/src/main/java/com/mengyalife/app/ui/settings/ExportViewModel.kt
 app/src/main/java/com/mengyalife/app/data/local/**
 app/schemas/**
 ```
-JVM 无 Room 仪器测试；本轮新增 verify_migration.py 用 v10 夹具在 QA 包上升级到 v11。
+JVM 无 Room 仪器测试；verify_migration.py 分别用v10/v11夹具在QA包上迁移到v12并校验保留。
 
 ### `navigation` · 导航与共享 UI
 
@@ -372,7 +383,7 @@ app/src/test/**
 
 - **L0 fast**：编译 + 受影响 JVM；不启动设备、不安装 APK。
   - 真机层级：不启动设备
-- **L1 feature**：受影响 JVM + 对应模块 QA 真机功能测试 + 导航冒烟（若被映射）。
+- **L1 feature**：受影响 JVM + 对应模块 QA 真机功能测试；只有通用UI覆盖不足时附加导航冒烟，模块可声明已有UI脚本覆盖。
   - 真机层级：feature
 - **L2 integration**：跨模块依赖 + 数据库/迁移 + AI 隐私/授权 + 后台 Worker 高风险路径。
   - 真机层级：feature, integration
@@ -382,9 +393,12 @@ app/src/test/**
 - **L4 release**：Gate 全部内容 + 严格要求设备/APK 哈希校验，不允许环境性跳过。
   - 真机层级：feature, integration, gate
 
+开发迭代请用 `./scripts/verify.sh --profile dev --changed`：只跑变更影响到的静态/JVM或必要编译，真机脚本逐条报告为延期，结果显示 `LOCAL PASS (device deferred)`，不能当作L1/L2/Gate PASS。合并前仍需standard L1/L2；最终发版跑L4。
+同一命令可传多个 `--module`，调度器只构建/安装一次，并按 `(script, package)` 折叠跨模块的重复脚本。
+
 ## 说明
 
-- `verify_weekly_ai.py` 在 L1 只跑成功冒烟（22 条，约 308s），L2/Gate 跑完整状态机（95 条，约 1160s）。
+- `verify_weekly_ai.py` 在 L1/L2 跑22条READY成功冒烟（约308s）；Gate/Release跑95条完整状态机（历史约1160s）。JVM状态机用例在所有级别照常执行。
 - `verify_g3b1.py` 为 integration 层：授权/撤回/类别属于 AI 隐私高风险路径，L1 不强制。
-- `verify_migration.py` 用仓库 `app/schemas/10.json` 生成 v10 夹具，在 QA 包上让 Room 执行 10→11。
+- `verify_migration.py` 用仓库schema生成v10与v11夹具，分别验证QA包升级到v12及用户数据保留。
 - 正式包冒烟依赖正式库的 2 条 v1 迁移日记；调度器只校验、不写入。

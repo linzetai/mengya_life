@@ -34,9 +34,12 @@ adb -s "$DEV" install -r -t app/build/outputs/apk/qa/app-qa.apk
 推荐使用统一入口（Gate 3F）：
 
 ```sh
-./scripts/verify.sh --changed          # 按 Git 影响选择
-./scripts/verify.sh --level gate       # 全量 QA + 正式包只读冒烟
+./scripts/verify.sh --profile dev --changed  # 日常本地快回路：静态/JVM/必要编译，不连真机
+./scripts/verify.sh --changed                # standard：按 Git 影响执行要求的 QA 真机
+./scripts/verify.sh --level gate             # 全量 QA + 正式包只读冒烟
 ```
+
+`dev` 报告为 `LOCAL PASS (device deferred)`，`fullLevelSatisfied=false`；它只加快开发反馈，不能代替 L1/L2/Gate。
 
 兼容入口（等价于 `--all --level gate`）：
 

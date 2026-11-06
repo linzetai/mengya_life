@@ -74,6 +74,8 @@ class ModulePlan:
 class Selection:
     level: str
     mode: str  # changed / module / all / explicit
+    profile: str = "standard"  # standard / dev (local-only, never a Gate PASS)
+    deferred_device_scripts: list[dict] = field(default_factory=list)
     modules: list[ModulePlan] = field(default_factory=list)
     device_scripts: list[dict] = field(default_factory=list)
     jvm_classes: list[str] = field(default_factory=list)
@@ -97,10 +99,14 @@ class Selection:
         return {
             "level": self.level,
             "mode": self.mode,
+            "profile": self.profile,
             "modules": [m.as_dict() for m in self.modules],
             "jvmClasses": self.jvm_classes,
             "fullJvm": self.full_jvm,
-            "deviceScripts": self.device_scripts,
+            "deviceScripts": [dict(d, runMode=device_run_mode(d, self.level)) for d in self.device_scripts],
+            "deferredDeviceScripts": [
+                dict(d, runMode=device_run_mode(d, self.level)) for d in self.deferred_device_scripts
+            ],
             "rulesHit": self.rules_hit,
             "unknownFiles": self.unknown_files,
             "docsOnly": self.docs_only,
@@ -282,6 +288,33 @@ def select(map_: dict, cs: ChangeSet | None, modules: list[str] | None,
     return sel
 
 
+def device_run_mode(entry: dict, level: str) -> str | None:
+    if not entry.get("smokeEnvVar"):
+        return None
+    return "smoke" if level in entry.get("smokeLevels", ["feature"]) else "full"
+
+
+def apply_execution_profile(sel: Selection, profile: str) -> Selection:
+    """Apply an explicit local-only profile without weakening standard selection.
+
+    The dev profile preserves the required level/JVM set, records every planned
+    device script as deferred, and never claims full-level acceptance.
+    """
+    if profile not in ("standard", "dev"):
+        raise SystemExit(f"未知执行 profile：{profile}（可选：standard, dev）")
+    sel.profile = profile
+    if profile == "dev":
+        sel.deferred_device_scripts = list(sel.device_scripts)
+        for d in sel.deferred_device_scripts:
+            sel.not_run.append({
+                "item": f"{d['package']}:{d['script']}",
+                "reason": "--profile dev：只做本地静态/JVM/编译，延期到 standard/feature/integration 验收",
+            })
+        sel.device_scripts = []
+        sel.device_required = False
+    return sel
+
+
 def _select_full(map_: dict, level_name: str, mode: str, reason: str) -> Selection:
     mods = map_["modules"]
     sel = Selection(level=level_name, mode=mode)
@@ -395,7 +428,13 @@ def _apply_level(map_: dict, sel: Selection, direct_modules: set[str],
 
     # L1+ 必要的导航冒烟：只要真的要跑真机，且导航未选择
     focused_modules = [mods[name] for name in direct_modules if name in mods]
-    skip_navigation = any(m.get("skipNavigationSmoke", False) for m in focused_modules)
+    # A global navigation sweep is redundant only when every direct module
+    # selected for this run declares its own UI/device coverage. Shared-nav
+    # rules include the navigation module (which does not opt out), so they
+    # continue to run the cross-page sweep.
+    skip_navigation = bool(focused_modules) and all(
+        m.get("skipNavigationSmoke", False) for m in focused_modules
+    )
     if run_device and level_index(sel.level) >= level_index("feature") and not skip_navigation:
         if "navigation" not in selected_names:
             selected_names.add("navigation")
@@ -407,7 +446,7 @@ def _apply_level(map_: dict, sel: Selection, direct_modules: set[str],
             device_scripts[("verify_navigation.py", "qa")] = {
                 "script": "verify_navigation.py", "package": "qa", "tier": "feature",
                 "assertions": 28, "destructive": False, "resetsQaData": False,
-                "measuredSec": None, "modules": ["navigation"],
+                "measuredSec": 124, "estimatedSec": 124, "modules": ["navigation"],
                 "reason": "L1+ 必要导航冒烟",
             }
 

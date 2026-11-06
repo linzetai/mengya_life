@@ -4,13 +4,15 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .selection import Selection
+from .selection import Selection, device_run_mode
 from .util import ROOT, ensure_dir, write_text
 
 
 def print_plan(map_: dict, sel: Selection, cs, argv: list[str]) -> None:
     lv = map_["levels"][sel.level]
-    print(f"\n== 测试选择（{lv['id']} {lv['title']} / {sel.mode}）==")
+    print(f"\n== 测试选择（{lv['id']} {lv['title']} / {sel.mode} / profile={sel.profile}）==")
+    if sel.profile == "dev":
+        print("开发快回路：只执行静态/JVM/必要编译；延期真机用例不计 Gate PASS。")
     if cs is not None:
         print(f"Git 基线: {cs.base[:12]}（{cs.base_reason}）  HEAD: {cs.commit[:12]}  branch: {cs.branch}")
         if sel.mode == "changed":
@@ -33,16 +35,38 @@ def print_plan(map_: dict, sel: Selection, cs, argv: list[str]) -> None:
                 print(f"      文件: {', '.join(r['files'][:6])}")
     print(f"选择模块（{len(sel.modules)}）：")
     for m in sel.modules:
-        devs = ", ".join(f"{d['script']}({d['tier']})" for d in m.device) or "无真机"
+        devs = ", ".join(
+            f"{d['script']}({d['tier']}{('/' + device_run_mode(d, sel.level)) if device_run_mode(d, sel.level) else ''})"
+            for d in m.device
+        ) or "无真机"
         print(f"  - {m.name:<20} risk={m.risk:<8} JVM={len(m.jvm):<2} 真机={devs}")
         for reason in m.reasons:
             print(f"      理由: {reason}")
     print(f"JVM: {'全量' if sel.full_jvm else len(sel.jvm_classes)} 个类")
     print("真机：")
+    planned_device = sel.device_scripts or sel.deferred_device_scripts
+    if planned_device:
+        declarations = sum(len(m.device) for m in sel.modules)
+        def script_estimate(d: dict) -> float:
+            # Feature smoke variables (e.g. weekly AI) expand to the full matrix at L2+.
+            if d.get("smokeEnvVar") and sel.level not in d.get("smokeLevels", ["feature"]):
+                return float(d.get("measuredFullSec") or d.get("estimatedSec") or d.get("measuredSec") or 0)
+            return float(d.get("estimatedSec") or d.get("measuredSec") or 0)
+        estimated = sum(script_estimate(d) for d in planned_device)
+        print(f"  唯一脚本 {len(planned_device)} 个；估算脚本耗时 {estimated:.0f}s（按当前 smoke/full 模式；不含构建/前置与设备空闲）")
+        if declarations > len(planned_device):
+            print(f"  去重：模块注册 {declarations} 次 → 实际按 script+package 执行 {len(planned_device)} 次")
     for d in sel.device_scripts:
-        print(f"  - [{d['package']}] {d['script']}  tier={d['tier']}  modules={','.join(d.get('modules', []))}")
+        mode = device_run_mode(d, sel.level)
+        suffix = f"  mode={mode}" if mode else ""
+        print(f"  - [{d['package']}] {d['script']}  tier={d['tier']}{suffix}  modules={','.join(d.get('modules', []))}")
     if not sel.device_scripts:
-        print("  （无；本级别不启动设备）")
+        if sel.deferred_device_scripts:
+            print("  （本次不启动设备；以下是标准 profile 延期用例）")
+            for d in sel.deferred_device_scripts:
+                print(f"  - {d['package']}:{d['script']} [{d['tier']}] modules={','.join(d.get('modules', []))}")
+        else:
+            print("  （无；本级别不启动设备）")
     if sel.not_run:
         print("不运行：")
         for n in sel.not_run:
@@ -79,6 +103,7 @@ def render_markdown(d: dict) -> str:
         f"- 结束：{d['finishedAt']}",
         f"- 总耗时：**{d['durationSec']:.1f}s**",
         f"- 级别：**{d['level']}**（{d['levelTitle']}）",
+        f"- 执行 profile：**{d.get('profile', 'standard')}**",
         f"- 模式：{d['mode']}",
         f"- 结论：**{s['verdict']}**",
         f"- 退出码：{s['exitCode']}",
@@ -135,11 +160,11 @@ def render_markdown(d: dict) -> str:
     lines.append("")
 
     if d.get("deviceSteps"):
-        lines += ["## 真机用例明细", "", "| 包 | 脚本 | 状态 | 断言 | 耗时 |", "|---|---|---|---|---|"]
+        lines += ["## 真机用例明细", "", "| 包 | 脚本 | 模式 | 状态 | 断言 | 耗时 |", "|---|---|---|---|---|---|"]
         for x in d["deviceSteps"]:
             lines.append(
-                f"| {x['package']} | {x['script']} | {_status_badge(x['status'])} | "
-                f"{x['assertionsPassed']}/{x['assertionsTotal']} | {x['durationSec']}s |")
+                f"| {x['package']} | {x['script']} | {x.get('runMode') or '—'} | "
+                f"{_status_badge(x['status'])} | {x['assertionsPassed']}/{x['assertionsTotal']} | {x['durationSec']}s |")
         lines.append("")
 
     lines += ["## 未运行与原因", ""]
@@ -165,6 +190,8 @@ def render_markdown(d: dict) -> str:
         "## 级别验收",
         "",
         f"- 满足当前级别：**{'是' if s['levelSatisfied'] else '否'}**",
+        f"- 本 profile 检查满足：**{'是' if s.get('profileSatisfied', s['levelSatisfied']) else '否'}**",
+        f"- 完整级别验收满足：**{'是' if s.get('fullLevelSatisfied', s['levelSatisfied']) else '否'}**",
     ]
     for n in s.get("levelNotes", []):
         lines.append(f"- {n}")

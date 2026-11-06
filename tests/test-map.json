@@ -156,7 +156,8 @@
       "requiresProdReadonlySmoke": false,
       "notes": "QA 包清库后走新建/编辑/重启/删除全流程。",
       "estimatedSec": 161,
-      "measuredSec": 161
+      "measuredSec": 161,
+      "skipNavigationSmoke": true
     },
     "goals": {
       "title": "目标",
@@ -206,7 +207,8 @@
       "requiresProdReadonlySmoke": false,
       "notes": "verify_goals 含三层目标/禁止跳级/进展/状态/编辑/删除/统计；verify_dates 覆盖截止日期与 UTC 零点。",
       "estimatedSec": 563,
-      "measuredSec": 563
+      "measuredSec": 563,
+      "skipNavigationSmoke": true
     },
     "progress": {
       "title": "进展与打卡",
@@ -242,7 +244,8 @@
       "requiresProdReadonlySmoke": false,
       "notes": "无独立脚本；进展面板与计数由 verify_goals 覆盖，图表由 verify_trends 覆盖。",
       "estimatedSec": 470,
-      "measuredSec": 470
+      "measuredSec": 470,
+      "skipNavigationSmoke": true
     },
     "trends": {
       "title": "趋势",
@@ -281,7 +284,8 @@
       "requiresProdReadonlySmoke": false,
       "notes": "依赖目标进展数据；空/单点/多点/多单位/非法数值。",
       "estimatedSec": 475,
-      "measuredSec": 475
+      "measuredSec": 475,
+      "skipNavigationSmoke": true
     },
     "advisor": {
       "title": "AI 顾问",
@@ -329,7 +333,7 @@
         {
           "script": "verify_advisor_network.py",
           "package": "qa",
-          "tier": "integration",
+          "tier": "gate",
           "assertions": 10,
           "destructive": true,
           "resetsQaData": true,
@@ -343,9 +347,10 @@
       "needsQaBuild": true,
       "needsQaReset": true,
       "requiresProdReadonlySmoke": false,
-      "notes": "verify_advisor 用 QA 假引擎（不联网）；verify_advisor_network 用无效测试 Key 验证真实 401，需外网。",
+      "notes": "verify_advisor 用 QA 假引擎（不联网）；真实网络401移至gate层的verify_advisor_network（外网可用时）。L2运行JVM网络模拟与离线顾问流程，不每次重复外网握手。",
       "estimatedSec": 897,
-      "measuredSec": 897
+      "measuredSec": 897,
+      "skipNavigationSmoke": true
     },
     "ai-consent": {
       "title": "AI 授权与配置",
@@ -377,16 +382,6 @@
           "resetsQaData": true,
           "measuredSec": 427,
           "estimatedSec": 427
-        },
-        {
-          "script": "verify_settings.py",
-          "package": "qa",
-          "tier": "feature",
-          "assertions": 38,
-          "destructive": true,
-          "resetsQaData": true,
-          "measuredSec": 171,
-          "estimatedSec": 171
         }
       ],
       "risk": "high",
@@ -394,9 +389,10 @@
       "needsQaBuild": true,
       "needsQaReset": true,
       "requiresProdReadonlySmoke": false,
-      "notes": "授权、类别、撤回、密钥不回显/不入库/不进日志由 verify_g3b1 与 verify_settings 覆盖。",
-      "estimatedSec": 598,
-      "measuredSec": 598
+      "notes": "授权、类别、撤回、密钥不回显/不入库/不进日志由 verify_g3b1 覆盖；完整设置文案/主题只由 settings 模块验收，不在AI变更时重复扫描。",
+      "estimatedSec": 539,
+      "measuredSec": 598,
+      "skipNavigationSmoke": true
     },
     "growth-memory": {
       "title": "成长记忆与日记提取",
@@ -489,6 +485,10 @@
           "resetsQaData": true,
           "measuredSec": 308,
           "smokeEnvVar": "MENGYA_WEEKLY_SMOKE",
+          "smokeLevels": [
+            "feature",
+            "integration"
+          ],
           "estimatedSec": 308,
           "smokeAssertions": 22,
           "measuredFullSec": 1160,
@@ -500,9 +500,10 @@
       "needsQaBuild": true,
       "needsQaReset": true,
       "requiresProdReadonlySmoke": false,
-      "notes": "本轮新增 verify_weekly_ai.py，覆盖本地回顾 + AI 状态机。",
+      "notes": "feature/integration只跑22条READY成功冒烟；95条失败/超时/中断/STALE/撤权全状态机移至Gate/Release，失败路径由JVM回归维持开发反馈。",
       "estimatedSec": 308,
-      "measuredSec": 308
+      "measuredSec": 308,
+      "skipNavigationSmoke": true
     },
     "weekly-ai": {
       "title": "每周 AI 增强",
@@ -536,6 +537,10 @@
           "resetsQaData": true,
           "measuredSec": 308,
           "smokeEnvVar": "MENGYA_WEEKLY_SMOKE",
+          "smokeLevels": [
+            "feature",
+            "integration"
+          ],
           "estimatedSec": 308,
           "smokeAssertions": 22,
           "measuredFullSec": 1160,
@@ -547,15 +552,16 @@
       "needsQaBuild": true,
       "needsQaReset": true,
       "requiresProdReadonlySmoke": false,
-      "notes": "本轮新增真机用例：成功/失败/超时/中断/STALE/撤权/自动开关；仅 QA 假引擎。",
+      "notes": "L1/L2只跑22条READY成功冒烟；完整95条状态机在Gate/Release执行；仅QA假引擎。",
       "estimatedSec": 308,
-      "measuredSec": 308
+      "measuredSec": 308,
+      "skipNavigationSmoke": true
     },
     "settings": {
       "title": "设置与主题",
       "sourcePaths": [
         "app/src/main/java/com/mengyalife/app/ui/screens/SettingsScreen.kt",
-        "app/src/main/java/com/mengyalife/app/ui/settings/**",
+        "app/src/main/java/com/mengyalife/app/ui/settings/ThemeViewModel.kt",
         "app/src/main/java/com/mengyalife/app/data/preferences/ThemePreferences.kt",
         "app/src/main/java/com/mengyalife/app/ui/theme/**"
       ],
@@ -566,11 +572,11 @@
           "script": "verify_settings.py",
           "package": "qa",
           "tier": "feature",
-          "assertions": 38,
+          "assertions": 40,
           "destructive": true,
           "resetsQaData": true,
-          "measuredSec": 171,
-          "estimatedSec": 171
+          "measuredSec": 112,
+          "estimatedSec": 112
         },
         {
           "script": "verify_theme.py",
@@ -589,8 +595,9 @@
       "needsQaReset": true,
       "requiresProdReadonlySmoke": false,
       "notes": "文案漂移与主题持久化；不涉及数据库内容。",
-      "estimatedSec": 349,
-      "measuredSec": 349
+      "estimatedSec": 290,
+      "measuredSec": 349,
+      "skipNavigationSmoke": true
     },
     "export": {
       "title": "数据导出",
@@ -625,7 +632,8 @@
       "requiresProdReadonlySmoke": false,
       "notes": "导出 JSON 与库逐项一致；写设备 Downloads（测试文件名带时间戳）。",
       "estimatedSec": 195,
-      "measuredSec": 195
+      "measuredSec": 195,
+      "skipNavigationSmoke": true
     },
     "database-migration": {
       "title": "Room Schema / DAO / Migration",
@@ -640,11 +648,11 @@
           "script": "verify_migration.py",
           "package": "qa",
           "tier": "integration",
-          "assertions": 17,
+          "assertions": 26,
           "destructive": true,
           "resetsQaData": true,
           "measuredSec": 28,
-          "estimatedSec": 28
+          "estimatedSec": 34
         }
       ],
       "risk": "critical",
@@ -652,9 +660,10 @@
       "needsQaBuild": true,
       "needsQaReset": true,
       "requiresProdReadonlySmoke": false,
-      "notes": "JVM 无 Room 仪器测试；本轮新增 verify_migration.py 用 v10 夹具在 QA 包上升级到 v11。",
-      "estimatedSec": 28,
-      "measuredSec": 28
+      "notes": "JVM 无 Room 仪器测试；verify_migration.py分别用v10与v11夹具升级到v12；新加v11场景后的34s为估算，旧单场景曾用28s。",
+      "estimatedSec": 34,
+      "measuredSec": 28,
+      "skipNavigationSmoke": true
     },
     "navigation": {
       "title": "导航与共享 UI",
@@ -767,7 +776,11 @@
       "requiresProdReadonlySmoke": false,
       "notes": "格式/校验 JVM；编辑循环 L0，不启动设备。",
       "estimatedSec": 10.0,
-      "measuredSec": 10.0
+      "measuredSec": 10.0,
+      "skipNavigationSmoke": true,
+      "skipAlwaysModules": [
+        "ai-consent"
+      ]
     },
     "backup-crypto": {
       "title": "备份加密",
@@ -786,7 +799,11 @@
       "requiresProdReadonlySmoke": false,
       "notes": "KDF/AEAD 向量与参数边界；参数变更由规则升级到 integration。",
       "estimatedSec": 8.3,
-      "measuredSec": 8.3
+      "measuredSec": 8.3,
+      "skipNavigationSmoke": true,
+      "skipAlwaysModules": [
+        "ai-consent"
+      ]
     },
     "backup-export": {
       "title": "完整备份导出",
@@ -814,33 +831,25 @@
       ],
       "device": [
         {
-          "script": "verify_backup_v2.py",
-          "package": "qa",
-          "tier": "feature",
-          "assertions": 28,
-          "destructive": true,
-          "resetsQaData": true,
-          "measuredSec": 18.06,
-          "timeoutSec": 600
-        },
-        {
           "script": "verify_backup_v2_full.py",
           "package": "qa",
           "tier": "feature",
           "assertions": 19,
           "destructive": true,
           "resetsQaData": true,
-          "measuredSec": 18.07,
+          "measuredSec": 55.1,
+          "estimatedSec": 55.1,
           "timeoutSec": 600
         },
         {
           "script": "verify_backup_v2_failures.py",
           "package": "qa",
-          "tier": "feature",
+          "tier": "integration",
           "assertions": 45,
           "destructive": true,
           "resetsQaData": true,
-          "measuredSec": 327.21,
+          "measuredSec": 329.2,
+          "estimatedSec": 329.2,
           "timeoutSec": 900
         }
       ],
@@ -849,9 +858,13 @@
       "needsQaBuild": true,
       "needsQaReset": true,
       "requiresProdReadonlySmoke": false,
-      "notes": "v2 导出/SAF/回读；JVM 10.0s；QA 全表 19/19（120/120 列）18.07s；失败路径 45/45 326.72s；L1/L2 PASS。",
-      "estimatedSec": 10.0,
-      "measuredSec": 10.0
+      "notes": "默认只跑 verify_backup_v2_full（覆盖早期 verify_backup_v2 的 SAF/解密/计数并追加120列逐字段比较），避免同一轮重复导出；失败场景单独 verify_backup_v2_failures。旧 verify_backup_v2.py 保留供手动兼容复验，不纳入默认L1。",
+      "estimatedSec": 384.3,
+      "measuredSec": 384.3,
+      "skipNavigationSmoke": true,
+      "skipAlwaysModules": [
+        "ai-consent"
+      ]
     },
     "backup-security": {
       "title": "备份安全",
@@ -871,7 +884,11 @@
       "requiresProdReadonlySmoke": false,
       "notes": "系统备份排除策略；Manifest/规则变更升级 L2。",
       "estimatedSec": 9.3,
-      "measuredSec": 9.3
+      "measuredSec": 9.3,
+      "skipNavigationSmoke": true,
+      "skipAlwaysModules": [
+        "ai-consent"
+      ]
     },
     "restore-validate": {
       "title": "恢复只读校验/预览",
@@ -917,16 +934,18 @@
           "destructive": true,
           "resetsQaData": true,
           "measuredSec": 346.84,
+          "estimatedSec": 393,
           "timeoutSec": 900
         },
         {
           "script": "verify_restore_failures.py",
           "package": "qa",
           "tier": "feature",
-          "assertions": 0,
+          "assertions": 59,
           "destructive": true,
           "resetsQaData": true,
-          "measuredSec": null,
+          "measuredSec": 518.4,
+          "estimatedSec": 518.4,
           "timeoutSec": 1200
         },
         {
@@ -936,7 +955,8 @@
           "assertions": 5,
           "destructive": true,
           "resetsQaData": true,
-          "measuredSec": null,
+          "measuredSec": 14.5,
+          "estimatedSec": 14.5,
           "timeoutSec": 180
         }
       ],
@@ -1233,7 +1253,22 @@
       ],
       "minLevel": "feature",
       "testLevel": "feature",
-      "reason": "功能完成跑 L1 导出；QA 真机验证 SAF/回读。"
+      "reason": "普通导出/UI变化跑L1全字段成功路径；写入/回读/清理边界由专项规则抬到L2。"
+    },
+    {
+      "id": "K-backup-failure-paths",
+      "description": "备份文件写入/回读/临时清理故障路径",
+      "patterns": [
+        "app/src/main/java/com/mengyalife/app/data/backup/BackupFileWriter.kt",
+        "app/src/main/java/com/mengyalife/app/data/backup/AndroidBackupStorage.kt",
+        "app/src/main/java/com/mengyalife/app/data/backup/FileBackupTempStore.kt",
+        "app/src/main/java/com/mengyalife/app/data/backup/QaBackupFaultInjector.kt"
+      ],
+      "modules": ["backup-export"],
+      "deviceModules": ["backup-export"],
+      "minLevel": "integration",
+      "testLevel": "integration",
+      "reason": "L1保持快速成功导出；写入/回读/临时清理故障路径在L2跑verify_backup_v2_failures.py。"
     },
     {
       "id": "K-backup-security",

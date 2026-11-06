@@ -28,6 +28,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
   ./scripts/verify.sh --module weekly-ai
   ./scripts/verify.sh --level fast
   ./scripts/verify.sh --level feature --module diary
+  ./scripts/verify.sh --profile dev --changed    # 本地快回路：静态/JVM，真机延期
   ./scripts/verify.sh --level integration --changed
   ./scripts/verify.sh --level gate
   ./scripts/verify.sh --all --level release
@@ -38,6 +39,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     g.add_argument("--module", action="append", metavar="NAME", help="显式指定模块（可重复）")
     g.add_argument("--all", action="store_true", help="强制全量回归（等同 --level gate）")
     p.add_argument("--level", choices=LEVEL_CHOICES, help="执行级别：fast/feature/integration/gate/release")
+    p.add_argument("--profile", choices=("standard", "dev"), default="standard",
+                   help="standard 按级别完整执行；dev 只跑静态/JVM/必要编译，延后真机且不算 Gate PASS")
     p.add_argument("--base", help="--changed 的 Git 基线（默认见文档）")
     p.add_argument("--files", action="append", metavar="PATH",
                    help="模拟变更文件（用于验收选择器；不影响真实 Git）")
@@ -55,8 +58,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--timeout-jvm", type=int, default=2400, help="Gradle 测试超时秒数")
     p.add_argument("--strict", action="store_true", help="把 SKIPPED 也视为级别不满足")
     args = p.parse_args(argv)
+    if args.profile == "dev" and args.strict:
+        p.error("--strict 与 --profile dev 冲突；dev profile 明确延后真机，不是 Gate 验收")
+    if args.profile == "dev" and args.no_device:
+        p.error("--profile dev 已延期真机，不要同时指定 --no-device")
     if not (args.changed or args.module or args.all or args.list_modules):
-        # 默认按 --changed 处理，符合「小改动默认 L0」
+        # 默认按 changed/standard 处理；业务规则可升级到 feature+。
+        # 要求每轮只做本地快检时，显式使用 --profile dev。
         args.changed = True
     return args
 
@@ -139,6 +147,7 @@ def main(argv: list[str]) -> int:
                            all_flag=args.all)
     original_device = bool(sel.device_scripts)
     sel.device_required_original = original_device
+    selection.apply_execution_profile(sel, args.profile)
     if args.no_device:
         for d in sel.device_scripts:
             sel.not_run.append({"item": f"{d['package']}:{d['script']}", "reason": "--no-device 显式跳过"})
@@ -333,19 +342,43 @@ def main(argv: list[str]) -> int:
     else:
         jvm_result = {"status": STATUS_SKIP, "tests": 0, "classes": {}, "failures": 0,
                       "durationSec": 0, "failuresDetail": [], "log": ""}
-        steps.append({"name": "JVM 测试", "status": STATUS_SKIP, "durationSec": 0.0,
-                      "counts": {}, "detail": "所选模块没有 JVM 测试"})
+        changed_paths = cs.paths if cs else []
+        compile_roots = (
+            "app/src/main/", "app/schemas/", "app/build.gradle", "app/build.gradle.kts",
+            "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts",
+            "gradle.properties", "gradle/",
+        )
+        needs_main_compile = sel.mode != "changed" or any(
+            path == root or path.startswith(root) for path in changed_paths for root in compile_roots
+        )
+        if sel.profile == "dev" and not sel.docs_only and needs_main_compile:
+            c = gradle.compile_main(logs_dir, timeout=args.timeout_jvm, offline=not args.online)
+            steps.append({
+                "name": "Gradle app 编译（dev profile 无 JVM 类）",
+                "status": c["status"], "durationSec": c["durationSec"],
+                "counts": {"tasks": len(c["tasks"])}, "log": c["log"],
+                "detail": "只编译主源码；不构建/安装 APK、不启动设备",
+            })
+            if c["status"] != STATUS_PASS:
+                failures.append({"module": "compile", "name": "compileDebugKotlin",
+                                 "detail": "主源码编译失败，见 " + c["log"]})
+        else:
+            reason = "测试/注册表/文档变化不影响 Android 源码" if sel.profile == "dev" else "所选模块没有 JVM 测试"
+            steps.append({"name": "JVM 测试", "status": STATUS_SKIP, "durationSec": 0.0,
+                          "counts": {}, "detail": reason})
 
     # ---------- 真机 ----------
     device_steps: list[dict] = []
     for d in sel.device_scripts:
         pkg = map_["packages"][d["package"]]["applicationId"]
         entry = dict(d)
+        run_mode = selection.device_run_mode(d, sel.level)
+        entry["runMode"] = run_mode
         if d.get("requiresNetwork") and serial:
             if not device.network_available(serial):
                 device_steps.append({
                     "script": d["script"], "package": d["package"], "status": STATUS_SKIP,
-                    "exitCode": 0, "durationSec": 0.0,
+                    "runMode": run_mode, "exitCode": 0, "durationSec": 0.0,
                     "assertionsPassed": 0, "assertionsTotal": d.get("assertions", 0),
                     "failures": ["设备无网络，跳过真实网络用例（不报告 PASS）"],
                     "log": "", "tail": "",
@@ -356,7 +389,7 @@ def main(argv: list[str]) -> int:
             "MENGYA_EXPECTED_VERSION": gradle.expected_version(),
             "MENGYA_EXPECTED_SCHEMA": str(gradle.expected_schema()),
         }
-        if d.get("smokeEnvVar") and sel.level == "feature":
+        if d.get("smokeEnvVar") and run_mode == "smoke":
             extra_env[d["smokeEnvVar"]] = "1"
         status = device.run_device_script(
             serial, d["script"], pkg, logs_dir, shots_dir, export_dir,
@@ -365,9 +398,10 @@ def main(argv: list[str]) -> int:
         )
         status["modules"] = d.get("modules", [])
         status["tier"] = d.get("tier", "")
+        status["runMode"] = run_mode
         device_steps.append(status)
         steps.append({
-            "name": f"真机 {d['script']}",
+            "name": f"真机 {d['script']}" + (f" [{run_mode}]" if run_mode else ""),
             "status": status["status"], "durationSec": status["durationSec"],
             "counts": {"assertions": f"{status['assertionsPassed']}/{status['assertionsTotal']}"},
             "log": status["log"], "detail": "; ".join(status["failures"])[:300],
@@ -448,9 +482,11 @@ def finish(args, map_, sel, cs, started, run_id, report_dir, steps, device_steps
         required_device = True
     if not args.no_device and sel.device_required_original and not dev_info:
         required_device = True
-    missing_device = bool(dev_info) is False and required_device
+    missing_device = bool(dev_info) is False and required_device and sel.profile != "dev"
 
     level_satisfied = not failed_steps and not notrun_steps and not missing_device
+    full_level_satisfied = False
+    profile_satisfied = False
     level_notes: list[str] = []
     if sel.docs_only:
         level_notes.append("仅文档变化：没有需要执行的 Android 测试，符合规则 G。")
@@ -479,10 +515,26 @@ def finish(args, map_, sel, cs, started, run_id, report_dir, steps, device_steps
     if skipped_modules:
         level_notes.append("fast 级别未覆盖以下模块（需 L1+）：" + ", ".join(skipped_modules))
 
+    full_level_satisfied = level_satisfied
+    profile_satisfied = level_satisfied
+    if sel.profile == "dev":
+        local_steps = [
+            s for s in steps
+            if s["name"].startswith(("静态检查", "JVM 测试", "Gradle app 编译"))
+            and s["status"] != STATUS_SKIP
+        ]
+        profile_satisfied = bool(local_steps) and all(s["status"] == STATUS_PASS for s in local_steps)
+        if sel.deferred_device_scripts:
+            level_satisfied = False
+            level_notes.append("dev profile 只验证本地静态/JVM/编译；所有选中真机用例延期，不能作为L1/L2/Gate PASS。")
+
     total = round(finished - started, 1)
     if failed_steps:
         verdict = "FAIL"
         exit_code = 1
+    elif sel.profile == "dev":
+        verdict = "LOCAL PASS (device deferred)" if profile_satisfied else "LOCAL FAIL"
+        exit_code = 0 if profile_satisfied else 1
     elif not level_satisfied:
         verdict = "INCOMPLETE"
         exit_code = 2
@@ -502,6 +554,7 @@ def finish(args, map_, sel, cs, started, run_id, report_dir, steps, device_steps
         "durationSec": total,
         "level": sel.level,
         "levelTitle": lv["id"] + " " + lv["title"],
+        "profile": sel.profile,
         "mode": sel.mode,
         "git": cs.as_dict() if cs else {},
         "device": dev_info,
@@ -516,11 +569,14 @@ def finish(args, map_, sel, cs, started, run_id, report_dir, steps, device_steps
             "verdict": verdict,
             "exitCode": exit_code,
             "levelSatisfied": level_satisfied,
+            "fullLevelSatisfied": full_level_satisfied,
+            "profileSatisfied": profile_satisfied,
+            "profile": sel.profile,
             "levelNotes": level_notes,
             "pass": sum(1 for s in steps if s["status"] == STATUS_PASS),
             "fail": len(failed_steps),
             "skipped": len(skipped_steps),
-            "notRun": len(notrun_steps) + len(not_run_global),
+            "notRun": len(notrun_steps) + len(sel.not_run) + len(not_run_global),
         },
         "artifacts": {
             "dir": str(report_dir),

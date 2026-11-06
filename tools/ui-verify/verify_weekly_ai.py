@@ -388,7 +388,7 @@ logs = adb(f"logcat -d --pid={pid}") if pid else ""
 check("进程日志不含 Key", KEY not in logs)
 
 if os.environ.get("MENGYA_WEEKLY_SMOKE") == "1":
-    print("\n[SMOKE] L1 只跑成功路径；完整状态机在 L2/Gate 执行。")
+    print("\n[SMOKE] L1/L2 只跑 READY 成功路径；完整95条状态机在 Gate/Release 执行。")
     sys.exit(0 if summary() else 1)
 
 # ================= 2. 失败 =================

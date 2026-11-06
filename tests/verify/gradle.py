@@ -151,6 +151,16 @@ def run_jvm(classes: list[str], full: bool, log_dir: Path, timeout: int = 2400,
     }
 
 
+def compile_main(log_dir: Path, timeout: int = 2400, offline: bool = True) -> dict:
+    """Compile app Kotlin when a selected module has no JVM test classes."""
+    ensure_dir(log_dir)
+    log_path = log_dir / "gradle-compileDebugKotlin.log"
+    code, dur = _gradle([":app:compileDebugKotlin"], log_path, timeout, offline)
+    return {"status": STATUS_PASS if code == 0 else STATUS_FAIL,
+            "exitCode": code, "durationSec": round(dur, 1), "log": str(log_path),
+            "tasks": [":app:compileDebugKotlin"]}
+
+
 def build_apks(kinds: list[str], log_dir: Path, timeout: int = 2400,
                offline: bool = True) -> dict:
     ensure_dir(log_dir)

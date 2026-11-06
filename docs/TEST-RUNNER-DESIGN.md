@@ -12,8 +12,9 @@
 ## 2. 命令
 
 ```sh
-./scripts/verify.sh --changed                     # 按 Git 变更自动选择（默认 L0，规则命中会升级）
-./scripts/verify.sh --changed --dry-run --explain # 只看计划、选择和未运行原因
+./scripts/verify.sh --changed                     # standard：按 Git 变更自动选择，执行要求的真机
+./scripts/verify.sh --profile dev --changed       # 每轮开发快回路：静态/JVM/编译，真机延期
+./scripts/verify.sh --changed --dry-run --explain # 只看计划、估算、选择和未运行原因
 ./scripts/verify.sh --module weekly-ai            # 显式模块（默认该模块 defaultLevel）
 ./scripts/verify.sh --level fast                  # 只编译 + 受影响 JVM
 ./scripts/verify.sh --level feature --module diary
@@ -37,7 +38,8 @@ DEV=192.168.x.x:PORT MENGYA_PKG=com.mengyalife.app.qa \
 | `--changed` | 读取 Git：已提交范围 + 暂存 + 未暂存 + 未跟踪 |
 | `--base REF` | 指定 `--changed` 基线；默认见第 3 节 |
 | `--module NAME` | 显式模块，可重复；不自动扩散到上游，显式级别决定真机范围 |
-| `--level fast/feature/integration/gate/release` | 执行级别；规则可以抬高，不能被业务规则要求的级别压低 |
+| `--level fast/feature/integration/gate/release` | 验收等级；规则可以抬高，不能被业务规则要求的级别压低 |
+| `--profile standard/dev` | standard（默认）按级别完整运行；dev 延后全部真机，只跑静态/JVM或主源码编译，报告 `LOCAL PASS` 且 `fullLevelSatisfied=false`，不算Gate PASS |
 | `--files PATH` | 仅用于选择器验收：模拟变更文件，不修改 Git 工作区 |
 | `--dry-run` | 只生成计划报告，不编译、不安装、不跑测试 |
 | `--explain` | 输出每个模块的选择理由与未运行原因 |
@@ -106,20 +108,20 @@ JVM = 所选模块 jvmTests 并集（gate/release 为全量）
 | F-build-manifest-di | Gradle/Manifest/Application/DI | app-smoke、navigation + 全量 JVM | integration |
 | G-docs-only | 文档 | 无 | fast |
 | H-test-infra | 测试脚本/注册表 | test-infra | fast |
-| I-ui-screen | `ui/**` 页面 | 命中的页面模块 + 导航冒烟 | feature |
+| I-ui-screen | `ui/**` 页面 | 命中的页面模块；按模块策略判断是否另加导航冒烟 | feature |
 
 ## 5. 分层执行
 
 | 级别 | 编译/静态 | JVM | QA 真机 | 正式包 | 迁移/隐私 |
 |---|---|---|---|---|---|
 | L0 fast | 注册表校验 + 依赖 Gradle 编译 | 受影响类 | 不启动设备 | — | — |
-| L1 feature | 同上 | 受影响类 | 模块 feature 用例 + 导航冒烟；周回顾只跑成功冒烟 | — | 规则 A 时含设置页 |
-| L2 integration | 同上 + schema 契约 | 受影响类 | feature + integration 用例；强制含数据库/授权 | — | `verify_migration` + `verify_g3b1` + 完整周回顾 95 条 |
+| L1 feature | 同上 | 受影响类 | 模块 feature 用例；仅当所有直接模块未声明专属UI覆盖时附加通用导航冒烟 | — | 规则 A 时含设置页 |
+| L2 integration | 同上 + schema 契约 | 受影响类 | feature + integration 用例；强制含数据库/授权 | — | `verify_migration` + `verify_g3b1` + 周AI READY smoke；完整95条周AI矩阵留Gate/Release |
 | L3 gate | 同上 | 全量 242+ | 全部 QA 脚本 | 只读冒烟 | 迁移 + 隐私 + 导出 |
 | L4 release | 同 L3 | 全量 | 同 L3，禁止环境性跳过 | 只读冒烟 | 同 L3 |
 
 - 静态检查包括：注册表完整性、JVM 测试类存在、真机脚本存在且具备 `require_qa/require_prod`、Room schema 编号连续且无 `fallbackToDestructiveMigration`、脚本语法。
-- 周回顾真机用例在 L1 以 `MENGYA_WEEKLY_SMOKE=1` 只跑成功路径（22 条）；L2/Gate 跑完整 95 条状态机（超时上限由注册表的 `timeoutSec` 提到 2100s）。
+- 周回顾真机用例在 L1/L2 以 `MENGYA_WEEKLY_SMOKE=1` 跑22条 READY 成功冒烟；Gate/Release跑完整95条状态机（超时上限由注册表的 `timeoutSec` 提到2100s）。测试模式写进选择计划和deviceSteps报告。
 - `L2` 的 `alwaysModules` 固定为 `database-migration`、`ai-consent`：高风险变更不能绕开数据库与授权。
 
 ## 6. 构建与安装复用
@@ -132,6 +134,24 @@ JVM = 所选模块 jvmTests 并集（gate/release 为全量）
   4. `--force-build`。
 - 是否需要安装：拉取设备上已安装 APK 的 SHA256，与本地 APK 比对；一致则复用，不一致才 `adb install -r -t`。**从不卸载任何包。**
 - 正式包安装一律 `-r`（保留数据），且永不 `pm clear`。
+
+## 6.1 开发快回路与去重
+
+日常改动使用显式本地 profile：
+
+```sh
+./scripts/verify.sh --profile dev --changed
+# 批量改多个模块时一次选完，设备脚本按 (script, package) 去重
+./scripts/verify.sh --profile dev --module advisor --module ai-consent --module settings
+```
+
+- `dev` 保留相同的源码影响分析、静态校验及受影响 JVM；若模块没有 JVM 测试且变更触及 Android/Gradle 源码，则运行 `:app:compileDebugKotlin`。仅测试脚本/注册表/文档变化时跳过无关 app 编译。
+- 不构建/安装 APK、不启动设备；标准 profile 下会执行的设备脚本写入 `deferredDeviceScripts`/`NOT RUN`。
+- 本地通过退出码为0，但报告使用 `LOCAL PASS (device deferred)`，并保持 `fullLevelSatisfied=false`。不得用它充当 L1/L2/Gate/Release。
+- `standard` 是默认且未改变的验收行为。合并前按风险运行 `--level feature`/`integration`；发版仍用 `--all --level release`。
+- 一次命令传多个 `--module` 会共用构建、安装、QA前置与清理；相同 `(script, package)` 即使被多个模块引用，也只执行一次并在计划中报告折叠数量。
+- 各破坏性脚本仍独立清 QA 数据，保证隔离；不为省时把故障场景共享状态串成不可复现的一条长测试。
+- 完整全字段备份 `verify_backup_v2_full.py` 已覆盖旧 count-smoke 的SAF/解密/计数，默认L1不再重复运行 `verify_backup_v2.py`；旧脚本保留手动复验。
 
 ## 7. 安全闸门
 
