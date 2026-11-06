@@ -33,7 +33,8 @@
 6. **单故障case独立重跑**
    - restore failure matrix支持 `R2`–`R7`；backup failure suite支持 `CANCEL/WRITE/TRUNCATE/READ/TEMP-CLEANUP/DELETE`；weekly AI完整矩阵支持 `READY/FAILED_401/TIMEOUT/INTERRUPT/STALE/CATEGORIES/WITHDRAW/AUTO_DISABLED` 单case。
    - `--case R7` 只选择R7脚本case，其余用例标记NOT RUN；case成功显示 `CASE PASS (suite deferred)`并退出0，但 `fullLevelSatisfied=false`，不伪称L2 PASS。
-   - 静态策略自检确认单case映射；R7曾在full matrix中setup失败，单独 `--case R7` 仅dry-run验证，未在手机实测；需先修好setup断言并获用户同意。
+   - 静态策略自检确认单case映射；R7曾在full matrix中setup失败，后在port 34707单独 `--case R7` 真机16/16 PASS。
+   - 当前case ID覆盖restore R2-R7、backup故障和weekly AI状态矩阵；其他模块可按 `--module` 单脚本重跑，但advisor/goals等脚本内部阶段尚未全部拆成case ID。
 
 7. **周AI L2 smoke / full 分层**
    - `verify_weekly_ai.py` 的 L1/L2 只跑READY成功路径22项；95项失败/超时/中断/STALE/撤权全状态矩阵保留在 Gate/Release。
