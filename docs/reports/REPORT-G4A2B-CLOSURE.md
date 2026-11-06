@@ -1,6 +1,6 @@
 # G4A-2B P0 修复与验收收口报告
 
-> Base HEAD：`3fb6781b955163994d891b98ff5f1d12c30692fc`（master；工作区有本轮未提交改动）。
+> Base HEAD：`3fb6781b955163994d891b98ff5f1d12c30692fc`；最终提交：`472524652aae1bf9e1d68f9a36bc45e9030f7ed3`（master，worktree clean）。
 > 最终状态：P0代码修复与JVM通过；最终源码L1/L2设备验收因QA设备离线**NOT RUN**，最终Gate **NOT PASS**。
 
 ## 1. P0 修复

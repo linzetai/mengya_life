@@ -28,4 +28,4 @@
 
 ## 工作区/交付
 
-最终HEAD/clean状态待提交后回填；本报告提交前Git status仍有本轮代码/文档改动。设备恢复后跑focused L2，通过再提交/归档最终PASS。
+最终HEAD `472524652aae1bf9e1d68f9a36bc45e9030f7ed3`；Git worktree clean。设备恢复后跑focused L2，通过后再更新验收状态为PASS。
