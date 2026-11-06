@@ -10,7 +10,8 @@ if scenario and scenario != "FRESH_V12":
 
 clear_qa_data()
 check("冷启动应用", restart_app())
-check("设置页可用（未误入维护）", tap_tag("btn_settings") and wait_tag("settings_back", 10))
+check("fresh数据库完成初始化后离开维护态", wait_tag("tab_overview", 20))
+check("设置页可用", tap_tag("btn_settings") and wait_tag("settings_back", 10))
 root = tempfile.mkdtemp(prefix="g4a2b-fresh-")
 local = os.path.join(root, "mengya-life-qa.db")
 for name in ("mengya-life-qa.db", "mengya-life-qa.db-wal", "mengya-life-qa.db-shm"):
