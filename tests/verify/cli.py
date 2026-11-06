@@ -29,6 +29,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
   ./scripts/verify.sh --level fast
   ./scripts/verify.sh --level feature --module diary
   ./scripts/verify.sh --profile dev --changed    # 本地快回路：静态/JVM，真机延期
+  ./scripts/verify.sh --module restore-validate --level integration --case R7 # 仅重跑单个故障场景
   ./scripts/verify.sh --level integration --changed
   ./scripts/verify.sh --level gate
   ./scripts/verify.sh --all --level release
@@ -41,6 +42,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--level", choices=LEVEL_CHOICES, help="执行级别：fast/feature/integration/gate/release")
     p.add_argument("--profile", choices=("standard", "dev"), default="standard",
                    help="standard 按级别完整执行；dev 只跑静态/JVM/必要编译，延后真机且不算 Gate PASS")
+    p.add_argument("--case", help="只重跑注册表标记的一个设备scenario（例如 R7）；其余用例显式NOT RUN")
     p.add_argument("--base", help="--changed 的 Git 基线（默认见文档）")
     p.add_argument("--files", action="append", metavar="PATH",
                    help="模拟变更文件（用于验收选择器；不影响真实 Git）")
@@ -62,6 +64,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         p.error("--strict 与 --profile dev 冲突；dev profile 明确延后真机，不是 Gate 验收")
     if args.profile == "dev" and args.no_device:
         p.error("--profile dev 已延期真机，不要同时指定 --no-device")
+    if args.case and (args.profile != "standard" or args.no_device or args.strict):
+        p.error("--case 必须使用 standard profile，并且不能与 --no-device/--strict 同用")
     if not (args.changed or args.module or args.all or args.list_modules):
         # 默认按 changed/standard 处理；业务规则可升级到 feature+。
         # 要求每轮只做本地快检时，显式使用 --profile dev。
@@ -147,6 +151,8 @@ def main(argv: list[str]) -> int:
                            all_flag=args.all)
     original_device = bool(sel.device_scripts)
     sel.device_required_original = original_device
+    if args.case:
+        selection.apply_case_filter(sel, args.case)
     selection.apply_execution_profile(sel, args.profile)
     if args.no_device:
         for d in sel.device_scripts:
@@ -372,7 +378,7 @@ def main(argv: list[str]) -> int:
     for d in sel.device_scripts:
         pkg = map_["packages"][d["package"]]["applicationId"]
         entry = dict(d)
-        run_mode = selection.device_run_mode(d, sel.level)
+        run_mode = f"case:{args.case}" if args.case else selection.device_run_mode(d, sel.level)
         entry["runMode"] = run_mode
         if d.get("requiresNetwork") and serial:
             if not device.network_available(serial):
@@ -391,6 +397,8 @@ def main(argv: list[str]) -> int:
         }
         if d.get("smokeEnvVar") and run_mode == "smoke":
             extra_env[d["smokeEnvVar"]] = "1"
+        if args.case and d.get("scenarioEnvVar"):
+            extra_env[d["scenarioEnvVar"]] = args.case
         status = device.run_device_script(
             serial, d["script"], pkg, logs_dir, shots_dir, export_dir,
             timeout=d.get("timeoutSec") or args.timeout_device,
@@ -399,9 +407,10 @@ def main(argv: list[str]) -> int:
         status["modules"] = d.get("modules", [])
         status["tier"] = d.get("tier", "")
         status["runMode"] = run_mode
+        status["scenario"] = args.case
         device_steps.append(status)
         steps.append({
-            "name": f"真机 {d['script']}" + (f" [{run_mode}]" if run_mode else ""),
+            "name": f"真机 {d['script']}" + (f" [case={args.case}]" if args.case else (f" [{run_mode}]" if run_mode else "")),
             "status": status["status"], "durationSec": status["durationSec"],
             "counts": {"assertions": f"{status['assertionsPassed']}/{status['assertionsTotal']}"},
             "log": status["log"], "detail": "; ".join(status["failures"])[:300],
@@ -528,10 +537,20 @@ def finish(args, map_, sel, cs, started, run_id, report_dir, steps, device_steps
             level_satisfied = False
             level_notes.append("dev profile 只验证本地静态/JVM/编译；所有选中真机用例延期，不能作为L1/L2/Gate PASS。")
 
+    case_satisfied = False
+    if sel.case_filter:
+        case_steps = [d for d in device_steps if d.get("scenario") == sel.case_filter]
+        case_satisfied = len(case_steps) == 1 and case_steps[0]["status"] == STATUS_PASS and not failed_steps
+        level_satisfied = False
+        level_notes.append(f"仅运行case {sel.case_filter}；其他L2用例延期，不视为完整级别PASS。")
+
     total = round(finished - started, 1)
     if failed_steps:
         verdict = "FAIL"
         exit_code = 1
+    elif sel.case_filter:
+        verdict = f"CASE PASS (suite deferred): {sel.case_filter}" if case_satisfied else f"CASE FAIL: {sel.case_filter}"
+        exit_code = 0 if case_satisfied else 1
     elif sel.profile == "dev":
         verdict = "LOCAL PASS (device deferred)" if profile_satisfied else "LOCAL FAIL"
         exit_code = 0 if profile_satisfied else 1
@@ -555,6 +574,7 @@ def finish(args, map_, sel, cs, started, run_id, report_dir, steps, device_steps
         "level": sel.level,
         "levelTitle": lv["id"] + " " + lv["title"],
         "profile": sel.profile,
+        "caseFilter": sel.case_filter,
         "mode": sel.mode,
         "git": cs.as_dict() if cs else {},
         "device": dev_info,
@@ -572,6 +592,8 @@ def finish(args, map_, sel, cs, started, run_id, report_dir, steps, device_steps
             "fullLevelSatisfied": full_level_satisfied,
             "profileSatisfied": profile_satisfied,
             "profile": sel.profile,
+            "caseFilter": sel.case_filter,
+            "caseSatisfied": case_satisfied,
             "levelNotes": level_notes,
             "pass": sum(1 for s in steps if s["status"] == STATUS_PASS),
             "fail": len(failed_steps),

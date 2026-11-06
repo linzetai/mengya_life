@@ -40,6 +40,7 @@ DEV=192.168.x.x:PORT MENGYA_PKG=com.mengyalife.app.qa \
 | `--module NAME` | 显式模块，可重复；不自动扩散到上游，显式级别决定真机范围 |
 | `--level fast/feature/integration/gate/release` | 验收等级；规则可以抬高，不能被业务规则要求的级别压低 |
 | `--profile standard/dev` | standard（默认）按级别完整运行；dev 延后全部真机，只跑静态/JVM或主源码编译，报告 `LOCAL PASS` 且 `fullLevelSatisfied=false`，不算Gate PASS |
+| `--case ID` | 只跑注册表中标记的一个失败场景；其它选中用例列为NOT RUN，case PASS不等于完整L2 PASS |
 | `--files PATH` | 仅用于选择器验收：模拟变更文件，不修改 Git 工作区 |
 | `--dry-run` | 只生成计划报告，不编译、不安装、不跑测试 |
 | `--explain` | 输出每个模块的选择理由与未运行原因 |
@@ -143,6 +144,11 @@ JVM = 所选模块 jvmTests 并集（gate/release 为全量）
 ./scripts/verify.sh --profile dev --changed
 # 批量改多个模块时一次选完，设备脚本按 (script, package) 去重
 ./scripts/verify.sh --profile dev --module advisor --module ai-consent --module settings
+
+# R2-R7中只重跑失败场景；其他脚本明确NOT RUN，结果不是完整L2 PASS
+./scripts/verify.sh --module restore-validate --level integration --case R7
+./scripts/verify.sh --module backup-export --level integration --case WRITE
+./scripts/verify.sh --module weekly-ai --level integration --case FAILED_401
 ```
 
 - `dev` 保留相同的源码影响分析、静态校验及受影响 JVM；若模块没有 JVM 测试且变更触及 Android/Gradle 源码，则运行 `:app:compileDebugKotlin`。仅测试脚本/注册表/文档变化时跳过无关 app 编译。
@@ -151,6 +157,7 @@ JVM = 所选模块 jvmTests 并集（gate/release 为全量）
 - `standard` 是默认且未改变的验收行为。合并前按风险运行 `--level feature`/`integration`；发版仍用 `--all --level release`。
 - 一次命令传多个 `--module` 会共用构建、安装、QA前置与清理；相同 `(script, package)` 即使被多个模块引用，也只执行一次并在计划中报告折叠数量。
 - 各破坏性脚本仍独立清 QA 数据，保证隔离；不为省时把故障场景共享状态串成不可复现的一条长测试。
+- 注册了 `scenarios` 的失败脚本支持 `--case`：脚本为该case重新建立自己的QA基线，只跑该场景；同一selection中的其他设备脚本明确标为NOT RUN，返回 `CASE PASS (suite deferred)`而不是L2 PASS。目前覆盖恢复R2-R7与备份失败case，后续多场景脚本按同样契约逐步接入。
 - 完整全字段备份 `verify_backup_v2_full.py` 已覆盖旧 count-smoke 的SAF/解密/计数，默认L1不再重复运行 `verify_backup_v2.py`；旧脚本保留手动复验。
 
 ## 7. 安全闸门

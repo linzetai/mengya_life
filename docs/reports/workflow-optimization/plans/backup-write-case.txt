@@ -1,0 +1,44 @@
+
+== 测试选择（L2 Integration / module / profile=standard）==
+Git 基线: f8672bffa2a7（上一次 verify 运行记录）  HEAD: f8672bffa2a7  branch: master
+工作区变更 16 个（显式模块模式不参与选择）
+单场景重跑：WRITE；剩余 2 个设备脚本延期，不计完整级别PASS。
+命中规则：
+  [explicit-module] 用户显式指定模块
+选择模块（2）：
+  - backup-export        risk=high     JVM=4  真机=verify_backup_v2_full.py(feature), verify_backup_v2_failures.py(integration)
+      理由: 显式指定 --module backup-export
+  - database-migration   risk=critical JVM=0  真机=verify_migration.py(integration)
+      理由: integration 级别强制包含高风险模块
+JVM: 4 个类
+真机：
+  唯一case脚本 1 个；该case尚未单独标定时长，不套用整套脚本耗时
+  去重：模块注册 3 次 → 实际按 script+package 执行 1 次
+  - [qa] verify_backup_v2_failures.py  tier=integration  mode=case:WRITE  modules=backup-export
+  - [deferred] qa:verify_backup_v2_full.py [feature]
+  - [deferred] qa:verify_migration.py [integration]
+不运行：
+  - qa:verify_backup_v2_full.py: --case WRITE：只重跑单个scenario；其他用例保留为NOT RUN
+  - qa:verify_migration.py: --case WRITE：只重跑单个scenario；其他用例保留为NOT RUN
+未选择的模块（19）：
+  - diary: 未命中变更路径，也不是被选模块的上游依赖
+  - goals: 未命中变更路径，也不是被选模块的上游依赖
+  - progress: 未命中变更路径，也不是被选模块的上游依赖
+  - trends: 未命中变更路径，也不是被选模块的上游依赖
+  - advisor: 未命中变更路径，也不是被选模块的上游依赖
+  - ai-consent: 未命中变更路径，也不是被选模块的上游依赖
+  - growth-memory: 未命中变更路径，也不是被选模块的上游依赖
+  - insight: 未命中变更路径，也不是被选模块的上游依赖
+  - weekly-review: 未命中变更路径，也不是被选模块的上游依赖
+  - weekly-ai: 未命中变更路径，也不是被选模块的上游依赖
+  - settings: 未命中变更路径，也不是被选模块的上游依赖
+  - export: 未命中变更路径，也不是被选模块的上游依赖
+  - navigation: 未命中变更路径，也不是被选模块的上游依赖
+  - app-smoke: 未命中变更路径，也不是被选模块的上游依赖
+  - test-infra: 未命中变更路径，也不是被选模块的上游依赖
+  - backup-format: 未命中变更路径，也不是被选模块的上游依赖
+  - backup-crypto: 未命中变更路径，也不是被选模块的上游依赖
+  - backup-security: 未命中变更路径，也不是被选模块的上游依赖
+  - restore-validate: 未命中变更路径，也不是被选模块的上游依赖
+
+[计划] 未执行任何测试。计划已写入 /root/workspace/mengya-life/docs/reports/test-runs/20261106-145650/report.json

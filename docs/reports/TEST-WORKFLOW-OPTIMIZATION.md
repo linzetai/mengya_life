@@ -30,11 +30,16 @@
    - `verify_advisor_network.py` 的外网 401 探针从每次 L2 integration 移到 gate tier；L2仍跑 `NetworkAdvisorEngineTest` 与离线假引擎流程。Gate会尝试真实外网验收，Release不允许环境性跳过。
    - 再配合模块自身UI脚本跳过通用导航后，advisor + ai-consent + settings 的standard L2从7个唯一脚本降到5个，估时1345s→1119s（省约226s）；标准共享导航改动仍会跑导航冒烟。
 
-6. **周AI L2 smoke / full 分层**
+6. **单故障case独立重跑**
+   - restore failure matrix支持 `R2`–`R7`；backup failure suite支持 `CANCEL/WRITE/TRUNCATE/READ/TEMP-CLEANUP/DELETE`；weekly AI完整矩阵支持 `READY/FAILED_401/TIMEOUT/INTERRUPT/STALE/CATEGORIES/WITHDRAW/AUTO_DISABLED` 单case。
+   - `--case R7` 只选择R7脚本case，其余用例标记NOT RUN；case成功显示 `CASE PASS (suite deferred)`并退出0，但 `fullLevelSatisfied=false`，不伪称L2 PASS。
+   - 静态策略自检确认单case映射；R7曾在full matrix中setup失败，单独 `--case R7` 仅dry-run验证，未在手机实测；需先修好setup断言并获用户同意。
+
+7. **周AI L2 smoke / full 分层**
    - `verify_weekly_ai.py` 的 L1/L2 只跑READY成功路径22项；95项失败/超时/中断/STALE/撤权全状态矩阵保留在 Gate/Release。
    - JVM状态机测试仍在每次受影响本地循环运行；L2保留端到端成功调用，减少约852s（历史全矩阵1160s→成功冒烟约308s）；Gate仍跑完整矩阵。
 
-7. **时间估算**
+8. **时间估算**
    - 计划输出按唯一设备脚本和当前 smoke/full 模式累加估时，并明确不含构建/前置/设备空闲；未知用例时长不伪造精确值。
    - `verify_settings.py` 历史38/38用时112s；本轮只增加“完整备份”和“恢复预览”入口可见两项断言到40项（UI源文件不变），脚本静态通过，未重跑真机。估时暂沿用112s。
 
@@ -45,7 +50,10 @@
 | `--profile dev --module restore-validate --level integration` | **4.5s LOCAL PASS** | 6个JVM类，0真机；fullLevelSatisfied=false |
 | `--profile dev --module settings --level feature` | **3.8s LOCAL PASS** | 没有JVM类时实际执行 app Kotlin 编译；0真机 |
 | `--profile dev --changed`（本轮测试体系/文档改动） | **3.1s LOCAL PASS** | 静态脚本检查；跳过无关app编译/JVM/真机 |
-| `--all --level fast` | **历史 5.9s / 299/299 PASS** | barrier/space最后两项P0修复前；修复后 restore-validate L0 6类/24 tests PASS，19.4s |
+| restore `--case R7 --dry-run` | **1个脚本，3个延期** | 只调度R7故障脚本，不重跑E2E/迁移/fresh DB |
+| backup `--case WRITE --dry-run` | **1个脚本，2个延期** | 只调度写失败case，不重跑全字段备份/迁移 |
+| weekly `--case FAILED_401 --dry-run` | **1个脚本，2个延期** | 只重跑401状态，不重放migration/g3b1/READY前序 |
+| `--all --level fast` | **最终静态+299 JVM PASS，6.0s** | no-device；包含R2-R7/备份scenario过滤策略自检 |
 | 标准L2 dry-run advisor + ai-consent + settings | **7→5 唯一脚本** | 网络401移Gate，已覆盖UI模块跳过导航；g3b1/settings共享声明折叠 |
 | weekly-ai integration dry-run | **smoke 22条，估时881s总链路** | 包含迁移/授权/settings；95条全矩阵仅Gate/Release，静态策略自测确认模式 |
 | 备份模块 dry-run | **4→2个设备脚本** | 移除重复基础导出+通用导航，保留full字段校验+失败矩阵；历史估计省约233s |
@@ -66,6 +74,10 @@
 
 # 手工批量模块，不要拆成多次启动（脚本会按package+script去重）
 ./scripts/verify.sh --profile dev --module advisor --module ai-consent --module settings
+
+# 某个故障case失败时只重跑该case，不重放前序R2-R6
+./scripts/verify.sh --module restore-validate --level integration --case R7
+./scripts/verify.sh --module backup-export --level integration --case WRITE
 
 # 发布验收：不允许用dev profile
 ./scripts/verify.sh --all --level release

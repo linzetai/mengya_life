@@ -75,6 +75,7 @@ class Selection:
     level: str
     mode: str  # changed / module / all / explicit
     profile: str = "standard"  # standard / dev (local-only, never a Gate PASS)
+    case_filter: str | None = None
     deferred_device_scripts: list[dict] = field(default_factory=list)
     modules: list[ModulePlan] = field(default_factory=list)
     device_scripts: list[dict] = field(default_factory=list)
@@ -100,10 +101,14 @@ class Selection:
             "level": self.level,
             "mode": self.mode,
             "profile": self.profile,
+            "caseFilter": self.case_filter,
             "modules": [m.as_dict() for m in self.modules],
             "jvmClasses": self.jvm_classes,
             "fullJvm": self.full_jvm,
-            "deviceScripts": [dict(d, runMode=device_run_mode(d, self.level)) for d in self.device_scripts],
+            "deviceScripts": [
+                dict(d, runMode=f"case:{self.case_filter}" if self.case_filter else device_run_mode(d, self.level))
+                for d in self.device_scripts
+            ],
             "deferredDeviceScripts": [
                 dict(d, runMode=device_run_mode(d, self.level)) for d in self.deferred_device_scripts
             ],
@@ -292,6 +297,32 @@ def device_run_mode(entry: dict, level: str) -> str | None:
     if not entry.get("smokeEnvVar"):
         return None
     return "smoke" if level in entry.get("smokeLevels", ["feature"]) else "full"
+
+
+def apply_case_filter(sel: Selection, case: str) -> Selection:
+    """Keep exactly one registered device scenario; defer all sibling suites."""
+    normalized = case.strip().upper()
+    matches = [d for d in sel.device_scripts if normalized in d.get("scenarios", [])]
+    if len(matches) != 1:
+        available = sorted({c for d in sel.device_scripts for c in d.get("scenarios", [])})
+        raise SystemExit(
+            f"case {normalized!r} 未唯一匹配当前选择；可用case: {', '.join(available) or '无'}"
+        )
+    target = matches[0]
+    min_level = target.get("scenarioMinLevel")
+    if min_level and level_index(sel.level) < level_index(min_level):
+        raise SystemExit(f"case {normalized} 要求至少 {min_level}，当前级别为 {sel.level}")
+    deferred = [d for d in sel.device_scripts if d is not target]
+    sel.case_filter = normalized
+    sel.deferred_device_scripts.extend(deferred)
+    for d in deferred:
+        sel.not_run.append({
+            "item": f"{d['package']}:{d['script']}",
+            "reason": f"--case {normalized}：只重跑单个scenario；其他用例保留为NOT RUN",
+        })
+    sel.device_scripts = [target]
+    sel.device_required = True
+    return sel
 
 
 def apply_execution_profile(sel: Selection, profile: str) -> Selection:

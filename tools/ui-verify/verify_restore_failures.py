@@ -147,11 +147,96 @@ def after_restart():
 def gate_exists():
     return bool(adb(f"shell run-as {PKG} ls no_backup/restore/gate.json 2>/dev/null").strip())
 
+
+def wait_status_label(label, timeout=35):
+    end = time.time() + timeout
+    while time.time() < end:
+        if status().get("label") == label:
+            return True
+        time.sleep(.5)
+    return False
+
+
+def assert_recovered_after_restart(scenario, db, state):
+    check(f"{scenario} 重启后A核心数据", tables_equal(EXPECTED_A, db, CORE))
+    check(f"{scenario} 历史weekly AI未恢复", len(db["weekly_ai_reviews"]["rows"]) == 0)
+    check(f"{scenario} 重启后Key删除", state.get("keyPresent") is False, str(state))
+    check(f"{scenario} 重启后consent撤销", state.get("consentGranted") is False, str(state))
+    check(f"{scenario} 重启后自动AI关闭", state.get("aiEnabled") is False, str(state))
+    check(f"{scenario} 重启后Gate释放", not gate_exists())
+
+
+def run_single_scenario(scenario):
+    """Run one isolated fault case without replaying earlier R2-R6 cases."""
+    scenario = scenario.upper()
+    started = time.time()
+    allowed = {"R2", "R3", "R4", "R5", "R6", "R7"}
+    if scenario not in allowed:
+        check("case名称有效", False, f"{scenario}; allowed={sorted(allowed)}")
+        restore_chrome(); sys.exit(1)
+    wrong = json.loads(json.dumps(EXPECTED_A))
+    wrong["journal_entries"]["rows"][0]["title"] = "WRONG_EXPECTATION"
+    check("自测：错误预期会被比较捕获", table_differences(wrong, EXPECTED_A, CORE) == ["journal_entries"])
+
+    if scenario == "R2":
+        before_b = do_restore("--ez qa_restore_fail_transaction true")
+        check("R2事务失败到达", wait_status_label("FAILED_BEFORE_COMMIT"))
+        db = dump_db(pull_db("/tmp/g4a2b-r2-single")); state = status()
+        check("R2失败后10表全部仍是B", tables_equal(before_b, db, TABLES))
+        check("R2 Key保留", state.get("keyPresent") is True, str(state))
+        check("R2 consent保留", state.get("consentGranted") is True, str(state))
+        check("R2 Gate清理", not gate_exists())
+    elif scenario == "R3":
+        do_restore("--ez qa_restore_fail_key_delete true")
+        check("R3提交后Key删除失败", wait_status_label("COMMITTED_NEEDS_CONVERGENCE"))
+        db = dump_db(pull_db("/tmp/g4a2b-r3-single")); state = status()
+        check("R3 DB已提交A", tables_equal(EXPECTED_A, db, CORE))
+        check("R3历史weekly AI未恢复", len(db["weekly_ai_reviews"]["rows"]) == 0)
+        check("R3 Gate保持", gate_exists())
+        check("R3 Key仍在", state.get("keyPresent") is True, str(state))
+        check("R3 consent已撤销", state.get("consentGranted") is False, str(state))
+        start(); time.sleep(12)
+        assert_recovered_after_restart("R3", dump_db(pull_db("/tmp/g4a2b-r3-single-restart")), qa_after())
+    elif scenario in ("R4", "R5"):
+        phase = "DB_COMMITTED" if scenario == "R4" else "CONSENT_DONE"
+        extra = "--ez qa_restore_pause_after_commit_ms 30000" if scenario == "R4" else "--ez qa_restore_pause_after_consent_ms 30000"
+        do_restore(extra)
+        check(f"{scenario}到达{phase}", wait_phase(phase))
+        adb(f"shell am force-stop {PKG}"); time.sleep(1)
+        start(); check(f"{scenario}重启收敛", wait_ready())
+        tag = scenario.lower() + "-single-restart"
+        assert_recovered_after_restart(scenario, dump_db(pull_db(f"/tmp/g4a2b-{tag}")), qa_after())
+    elif scenario in ("R6", "R7"):
+        do_restore("--ez qa_restore_pause_after_commit_ms 30000")
+        check(f"{scenario}到达DB_COMMITTED", wait_phase("DB_COMMITTED"))
+        adb(f"shell am force-stop {PKG}"); time.sleep(1)
+        if scenario == "R6":
+            adb(f"shell run-as {PKG} rm -f no_backup/restore/journal.json")
+        else:
+            adb(f"shell run-as {PKG} rm -f no_backup/restore/gate.json")
+        start(); check(f"{scenario}重启收敛", wait_ready())
+        tag = scenario.lower() + "-single-restart"
+        assert_recovered_after_restart(scenario, dump_db(pull_db(f"/tmp/g4a2b-{tag}")), qa_after())
+
+    adb(f"shell rm -f {REMOTE}")
+    elapsed = time.time() - started
+    json.dump({"scenario": scenario, "seconds": elapsed, "passed": summary()},
+              open(os.path.join(EVIDENCE, f"failure-{scenario}-result.json"), "w"),
+              ensure_ascii=False, indent=2)
+    print(f"QA_FAILURE_{scenario}_SECONDS={elapsed:.2f}")
+    restore_chrome()
+    sys.exit(0 if summary() else 1)
+
+
 def main():
     started=time.time()
     wrong=json.loads(json.dumps(EXPECTED_A))
     wrong["journal_entries"]["rows"][0]["title"]="WRONG_EXPECTATION"
-    check("自测：错误预期会被比较捕获", wrong["journal_entries"] != EXPECTED_A["journal_entries"])
+    check("自测：错误预期会被比较捕获", table_differences(wrong, EXPECTED_A, CORE) == ["journal_entries"])
+    scenario = os.environ.get("MENGYA_RESTORE_SCENARIO", "").strip().upper()
+    if scenario:
+        run_single_scenario(scenario)
+        return
     # R2 transaction fail
     beforeB=do_restore("--ez qa_restore_fail_transaction true")
     deadline=time.time()+30

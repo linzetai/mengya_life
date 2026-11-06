@@ -23,6 +23,8 @@ def print_plan(map_: dict, sel: Selection, cs, argv: list[str]) -> None:
                 print(f"  ... 其余 {len(cs.changes) - 60} 个")
         else:
             print(f"工作区变更 {len(cs.paths)} 个（显式模块模式不参与选择）")
+    if sel.case_filter:
+        print(f"单场景重跑：{sel.case_filter}；剩余 {len(sel.deferred_device_scripts)} 个设备脚本延期，不计完整级别PASS。")
     if sel.unknown_files:
         print("! 无法映射的路径（保守升级）：")
         for p in sel.unknown_files:
@@ -52,14 +54,25 @@ def print_plan(map_: dict, sel: Selection, cs, argv: list[str]) -> None:
             if d.get("smokeEnvVar") and sel.level not in d.get("smokeLevels", ["feature"]):
                 return float(d.get("measuredFullSec") or d.get("estimatedSec") or d.get("measuredSec") or 0)
             return float(d.get("estimatedSec") or d.get("measuredSec") or 0)
-        estimated = sum(script_estimate(d) for d in planned_device)
-        print(f"  唯一脚本 {len(planned_device)} 个；估算脚本耗时 {estimated:.0f}s（按当前 smoke/full 模式；不含构建/前置与设备空闲）")
+        if sel.case_filter and any(
+            sel.case_filter not in (d.get("scenarioEstimatedSec") or {}) for d in planned_device
+        ):
+            print(f"  唯一case脚本 {len(planned_device)} 个；该case尚未单独标定时长，不套用整套脚本耗时")
+        else:
+            if sel.case_filter:
+                estimated = sum(float((d.get("scenarioEstimatedSec") or {}).get(sel.case_filter, 0)) for d in planned_device)
+            else:
+                estimated = sum(script_estimate(d) for d in planned_device)
+            print(f"  唯一脚本 {len(planned_device)} 个；估算脚本耗时 {estimated:.0f}s（按当前case/smoke/full模式；不含构建/前置与设备空闲）")
         if declarations > len(planned_device):
             print(f"  去重：模块注册 {declarations} 次 → 实际按 script+package 执行 {len(planned_device)} 次")
     for d in sel.device_scripts:
-        mode = device_run_mode(d, sel.level)
+        mode = f"case:{sel.case_filter}" if sel.case_filter else device_run_mode(d, sel.level)
         suffix = f"  mode={mode}" if mode else ""
         print(f"  - [{d['package']}] {d['script']}  tier={d['tier']}{suffix}  modules={','.join(d.get('modules', []))}")
+    if sel.case_filter:
+        for d in sel.deferred_device_scripts:
+            print(f"  - [deferred] {d['package']}:{d['script']} [{d['tier']}]")
     if not sel.device_scripts:
         if sel.deferred_device_scripts:
             print("  （本次不启动设备；以下是标准 profile 延期用例）")

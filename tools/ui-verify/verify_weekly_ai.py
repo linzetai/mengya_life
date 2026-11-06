@@ -16,6 +16,14 @@ from harness import *
 
 require_qa("verify_weekly_ai.py")
 
+WEEKLY_SCENARIOS = {"READY", "FAILED_401", "TIMEOUT", "INTERRUPT", "STALE", "CATEGORIES", "WITHDRAW", "AUTO_DISABLED"}
+WEEKLY_CASE = os.environ.get("MENGYA_WEEKLY_SCENARIO", "").strip().upper()
+if WEEKLY_CASE and WEEKLY_CASE not in WEEKLY_SCENARIOS:
+    raise SystemExit(f"未知weekly scenario {WEEKLY_CASE}; allowed={sorted(WEEKLY_SCENARIOS)}")
+
+def should_run_scenario(name):
+    return not WEEKLY_CASE or WEEKLY_CASE == name
+
 PKG_QA = QA_PKG
 DB = "mengya-life-qa.db"
 KEY = "sk-qa-weekly-fake-0001"
@@ -355,192 +363,203 @@ scroll_to_tag("weekly_review_generate", 6)
 tap_tag("weekly_review_generate")
 check("本地回顾已生成", wait_text("周期", 12) or has_text("本周变化"))
 
-# ================= 1. 成功 =================
-print("========== 1. AI 成功（READY） ==========")
-check("AI 入口可见", scroll_to_tag("weekly_generate_ai", 8))
-check("点击 AI 增强", tap_generate_ai())
-check("状态 READY", wait_status("READY", 30))
-check("显示 QA 假引擎摘要", has_text("QA 离线测试引擎"))
-rows = ai_rows()
-check("恰好 1 条 AI 结果", len(rows) == 1, str(rows))
-row = rows[0] if rows else ("", "", "", "", "", "", "[]", "[]")
-check("DB 状态 READY", row[1] == "READY", row[1])
-check("模型记录为 qa-fake", row[4] == "qa-fake", str(row[4]))
-check("授权类别非空", bool(row[5]) and "GOALS" in row[5], row[5])
-raw_fact_ids = (row[6] or "").strip()
-if raw_fact_ids.startswith("["):
-    fact_ids = json.loads(raw_fact_ids)
-else:
-    fact_ids = [x for x in raw_fact_ids.split(",") if x]
-check("factIds 非空", len(fact_ids) > 0, str(fact_ids))
-highlights = json.loads(row[7] or "[]")
-sources = [s for h in highlights for s in (h.get("sources") or [])]
-check("来源由客户端 factIds 构造", len(sources) > 0, str(highlights)[:200])
-check("来源类型合法", all(s.get("type") in ("GOAL", "CHECKIN", "MEMORY") for s in sources), str(sources)[:200])
+if should_run_scenario("READY"):
+    # ================= 1. 成功 =================
+    print("========== 1. AI 成功（READY） ==========")
+    check("AI 入口可见", scroll_to_tag("weekly_generate_ai", 8))
+    check("点击 AI 增强", tap_generate_ai())
+    check("状态 READY", wait_status("READY", 30))
+    check("显示 QA 假引擎摘要", has_text("QA 离线测试引擎"))
+    rows = ai_rows()
+    check("恰好 1 条 AI 结果", len(rows) == 1, str(rows))
+    row = rows[0] if rows else ("", "", "", "", "", "", "[]", "[]")
+    check("DB 状态 READY", row[1] == "READY", row[1])
+    check("模型记录为 qa-fake", row[4] == "qa-fake", str(row[4]))
+    check("授权类别非空", bool(row[5]) and "GOALS" in row[5], row[5])
+    raw_fact_ids = (row[6] or "").strip()
+    if raw_fact_ids.startswith("["):
+        fact_ids = json.loads(raw_fact_ids)
+    else:
+        fact_ids = [x for x in raw_fact_ids.split(",") if x]
+    check("factIds 非空", len(fact_ids) > 0, str(fact_ids))
+    highlights = json.loads(row[7] or "[]")
+    sources = [s for h in highlights for s in (h.get("sources") or [])]
+    check("来源由客户端 factIds 构造", len(sources) > 0, str(highlights)[:200])
+    check("来源类型合法", all(s.get("type") in ("GOAL", "CHECKIN", "MEMORY") for s in sources), str(sources)[:200])
 
-prefs = subprocess.run(
-    f"adb -s {DEV} exec-out run-as {PKG} cat files/datastore/mengya_ai_qa.preferences_pb",
-    shell=True, capture_output=True,
-).stdout
-check("DataStore 不含明文 Key", KEY.encode() not in prefs)
-pid = adb(f"shell pidof {PKG}").strip()
-logs = adb(f"logcat -d --pid={pid}") if pid else ""
-check("进程日志不含 Key", KEY not in logs)
+    prefs = subprocess.run(
+        f"adb -s {DEV} exec-out run-as {PKG} cat files/datastore/mengya_ai_qa.preferences_pb",
+        shell=True, capture_output=True,
+    ).stdout
+    check("DataStore 不含明文 Key", KEY.encode() not in prefs)
+    pid = adb(f"shell pidof {PKG}").strip()
+    logs = adb(f"logcat -d --pid={pid}") if pid else ""
+    check("进程日志不含 Key", KEY not in logs)
 
-if os.environ.get("MENGYA_WEEKLY_SMOKE") == "1":
-    print("\n[SMOKE] L1/L2 只跑 READY 成功路径；完整95条状态机在 Gate/Release 执行。")
-    sys.exit(0 if summary() else 1)
+    if os.environ.get("MENGYA_WEEKLY_SMOKE") == "1" and not WEEKLY_CASE:
+        print("\n[SMOKE] L1/L2 只跑 READY 成功路径；完整95条状态机在 Gate/Release 执行。")
+        restore_chrome()
+        sys.exit(0 if summary() else 1)
 
-# ================= 2. 失败 =================
-print("========== 2. AI 失败（401） ==========")
-check("重置 AI 结果", clear_ai_rows())
-check("切换失败模型", set_ai_model("qa-fake-401"))
-restart_app()
-check("重新打开周回顾", open_weekly())
-check("AI 入口可见", scroll_to_tag("weekly_generate_ai", 8))
-check("点击 AI", tap_generate_ai())
-check("状态 FAILED", wait_status("FAILED", 30))
-check("显示授权失败文案", has_text("API Key 无效或已过期"))
-rows = ai_rows()
-check("DB 记录 FAILED", len(rows) == 1 and rows[0][1] == "FAILED", str(rows))
-check("失败时 summary 为空", bool(rows) and rows[0][2] == "", str(rows)[:160])
-check("失败保留错误信息", bool(rows) and bool(rows[0][3]), str(rows)[:160])
-check("本地回顾仍可见", has_text("本周变化") or has_text("周期"))
+if should_run_scenario("FAILED_401"):
+    # ================= 2. 失败 =================
+    print("========== 2. AI 失败（401） ==========")
+    check("重置 AI 结果", clear_ai_rows())
+    check("切换失败模型", set_ai_model("qa-fake-401"))
+    restart_app()
+    check("重新打开周回顾", open_weekly())
+    check("AI 入口可见", scroll_to_tag("weekly_generate_ai", 8))
+    check("点击 AI", tap_generate_ai())
+    check("状态 FAILED", wait_status("FAILED", 30))
+    check("显示授权失败文案", has_text("API Key 无效或已过期"))
+    rows = ai_rows()
+    check("DB 记录 FAILED", len(rows) == 1 and rows[0][1] == "FAILED", str(rows))
+    check("失败时 summary 为空", bool(rows) and rows[0][2] == "", str(rows)[:160])
+    check("失败保留错误信息", bool(rows) and bool(rows[0][3]), str(rows)[:160])
+    check("本地回顾仍可见", has_text("本周变化") or has_text("周期"))
 
-# ================= 3. 超时 =================
-print("========== 3. AI 超时 ==========")
-check("重置 AI 结果", clear_ai_rows())
-check("切换超时模型", set_ai_model("qa-fake-timeout"))
-restart_app()
-check("重新打开周回顾", open_weekly())
-check("AI 入口可见", scroll_to_tag("weekly_generate_ai", 8))
-check("点击 AI", tap_generate_ai())
-check("状态 FAILED（超时）", wait_status("FAILED", 40))
-check("显示超时文案", has_text("请求超时"))
-rows = ai_rows()
-check("DB 记录超时错误", len(rows) == 1 and rows[0][1] == "FAILED" and "超时" in (rows[0][3] or ""), str(rows)[:160])
+if should_run_scenario("TIMEOUT"):
+    # ================= 3. 超时 =================
+    print("========== 3. AI 超时 ==========")
+    check("重置 AI 结果", clear_ai_rows())
+    check("切换超时模型", set_ai_model("qa-fake-timeout"))
+    restart_app()
+    check("重新打开周回顾", open_weekly())
+    check("AI 入口可见", scroll_to_tag("weekly_generate_ai", 8))
+    check("点击 AI", tap_generate_ai())
+    check("状态 FAILED（超时）", wait_status("FAILED", 40))
+    check("显示超时文案", has_text("请求超时"))
+    rows = ai_rows()
+    check("DB 记录超时错误", len(rows) == 1 and rows[0][1] == "FAILED" and "超时" in (rows[0][3] or ""), str(rows)[:160])
 
-# ================= 4. 中断 / generating 恢复 =================
-print("========== 4. 请求中断后的 generating 恢复 ==========")
-check("重置 AI 结果", clear_ai_rows())
-check("切换慢速模型", set_ai_model("qa-fake-slow"))
-restart_app()
-check("重新打开周回顾", open_weekly())
-check("AI 入口可见", scroll_to_tag("weekly_generate_ai", 8))
-check("点击慢速 AI", tap_generate_ai())
-time.sleep(3.5)
-adb(f"shell am force-stop {PKG}")
-time.sleep(1.0)
-restart_app()
-check("中断后可重新进入周回顾", open_weekly())
-check("没有残留 generating 文案", not has_text("本地整理中…"))
-check("未显示可重复请求的 AI 按钮", not has_tag("weekly_generate_ai"))
-check("显示额度已预留/处理中", has_text("AI 已预留本周额度") or has_text("处理中"))
-rows = ai_rows()
-check("中断只占 1 次额度", len(rows) == 1, str(rows))
-check("中断后状态为 SENT/FAILED（不伪造 READY）", bool(rows) and rows[0][1] in ("SENT", "FAILED"), str(rows[:1]))
-check("中断不删除本地回顾", has_text("周期") or has_text("本周变化"))
-
-# ================= 5. READY -> STALE（数据变化） =================
-print("========== 5. READY -> STALE（数据变化） ==========")
-check("重置 AI 结果", clear_ai_rows())
-check("切回成功模型", set_ai_model("qa-fake"))
-restart_app()
-check("重新打开周回顾", open_weekly())
-check("AI 入口可见", scroll_to_tag("weekly_generate_ai", 8))
-check("再次生成 READY", tap_generate_ai() and wait_status("READY", 30))
-check("数据变化（新增日记）", create_diary("WeeklyStaleDiary", "stale%strigger"))
-restart_app()
-check("重新打开周回顾", open_weekly())
-check("状态变为 STALE", wait_status("STALE", 20))
-check("显示缓存失效原因", has_text("本周数据/授权/模型已变化"))
-rows = ai_rows()
-check("STALE 不删除原 READY 行", len(rows) == 1 and rows[0][1] == "READY", str(rows[:1]))
-
-# ================= 6. 修改类别 =================
-print("========== 6. 修改类别后失效 ==========")
-check("重置 AI 结果", clear_ai_rows())
-restart_app()
-check("重新打开周回顾", open_weekly())
-check("AI 入口可见", scroll_to_tag("weekly_generate_ai", 8))
-check("生成 READY", tap_generate_ai() and wait_status("READY", 30))
-check("进入设置", open_settings())
-scroll_top()
-for _ in range(24):
-    if has_tag("ai_category_JOURNAL"):
-        break
-    adb("shell input swipe 600 1900 600 700 240")
-    time.sleep(0.6)
-check("找到 JOURNAL 类别开关", has_tag("ai_category_JOURNAL"))
-check("关闭 JOURNAL 类别", tap_safe("ai_category_JOURNAL"))
-time.sleep(1.2)
-check("类别已关闭", not checked("ai_category_JOURNAL"))
-restart_app()
-check("重新打开周回顾", open_weekly())
-check("改类别后 STALE", wait_status("STALE", 20))
-
-# ================= 7. 撤回授权 =================
-print("========== 7. 撤回授权后不再发送 ==========")
-check("重置 AI 结果", clear_ai_rows())
-check("进入设置", open_settings())
-scroll_top()
-for _ in range(24):
-    if has_tag("ai_withdraw"):
-        break
-    adb("shell input swipe 600 1900 600 700 240")
-    time.sleep(0.6)
-check("找到撤回入口", has_tag("ai_withdraw"))
-check("点击撤回", tap_safe("ai_withdraw"))
-check("撤回确认框", wait_tag("ai_withdraw_dialog", 8))
-check("确认撤回", tap_tag("ai_withdraw_confirm"))
-check("授权状态变为未授权", wait_text("未授权", 10) or has_tag("ai_consent_status_none"))
-restart_app()
-check("撤回后可打开周回顾", open_weekly())
-check("本地回顾仍可用", has_text("周期") or has_text("本周变化"))
-check("AI 入口存在但不会发送", has_tag("weekly_generate_ai"))
-check("点击 AI（应被拒绝）", tap_generate_ai())
-time.sleep(3.0)
-check("撤回后 DB 无 AI 行", len(ai_rows()) == 0, str(ai_rows()[:1]))
-
-# ================= 8. 自动开关 =================
-print("========== 8. 自动开关关闭后停止后台发送 ==========")
-check("重新授权", grant_consent())
-if not open_settings():
-    check("进入设置", False)
-scroll_top()
-for _ in range(24):
-    if has_tag("settings_weekly_ai_toggle"):
-        break
-    adb("shell input swipe 600 1900 600 700 240")
-    time.sleep(0.6)
-if not checked("settings_weekly_ai_toggle"):
-    tap_tag("settings_weekly_ai_toggle")
+if should_run_scenario("INTERRUPT"):
+    # ================= 4. 中断 / generating 恢复 =================
+    print("========== 4. 请求中断后的 generating 恢复 ==========")
+    check("重置 AI 结果", clear_ai_rows())
+    check("切换慢速模型", set_ai_model("qa-fake-slow"))
+    restart_app()
+    check("重新打开周回顾", open_weekly())
+    check("AI 入口可见", scroll_to_tag("weekly_generate_ai", 8))
+    check("点击慢速 AI", tap_generate_ai())
+    time.sleep(3.5)
+    adb(f"shell am force-stop {PKG}")
     time.sleep(1.0)
-check("AI 自动开关已开", checked("settings_weekly_ai_toggle"))
-check("重置 AI 结果", clear_ai_rows())
-trigger_worker()
-rows = wait_ai_rows(45)
-check("自动路径确实会发送（正对照）", len(rows) == 1, str(rows[:1]))
-check("自动结果 READY", bool(rows) and rows[0][1] == "READY", str(rows[:1]))
+    restart_app()
+    check("中断后可重新进入周回顾", open_weekly())
+    check("没有残留 generating 文案", not has_text("本地整理中…"))
+    check("未显示可重复请求的 AI 按钮", not has_tag("weekly_generate_ai"))
+    check("显示额度已预留/处理中", has_text("AI 已预留本周额度") or has_text("处理中"))
+    rows = ai_rows()
+    check("中断只占 1 次额度", len(rows) == 1, str(rows))
+    check("中断后状态为 SENT/FAILED（不伪造 READY）", bool(rows) and rows[0][1] in ("SENT", "FAILED"), str(rows[:1]))
+    check("中断不删除本地回顾", has_text("周期") or has_text("本周变化"))
 
-check("重置 AI 结果", clear_ai_rows())
-if not open_settings():
-    check("进入设置", False)
-scroll_top()
-for _ in range(24):
-    if has_tag("settings_weekly_ai_toggle"):
-        break
-    adb("shell input swipe 600 1900 600 700 240")
-    time.sleep(0.6)
-check("关闭 AI 自动开关", tap_safe("settings_weekly_ai_toggle"))
-time.sleep(1.0)
-check("AI 自动开关已关", not checked("settings_weekly_ai_toggle"))
-trigger_worker()
-time.sleep(20)
-rows = ai_rows()
-check("自动关闭后不再发送（负对照）", len(rows) == 0, str(rows[:1]))
+if should_run_scenario("STALE"):
+    # ================= 5. READY -> STALE（数据变化） =================
+    print("========== 5. READY -> STALE（数据变化） ==========")
+    check("重置 AI 结果", clear_ai_rows())
+    check("切回成功模型", set_ai_model("qa-fake"))
+    restart_app()
+    check("重新打开周回顾", open_weekly())
+    check("AI 入口可见", scroll_to_tag("weekly_generate_ai", 8))
+    check("再次生成 READY", tap_generate_ai() and wait_status("READY", 30))
+    check("数据变化（新增日记）", create_diary("WeeklyStaleDiary", "stale%strigger"))
+    restart_app()
+    check("重新打开周回顾", open_weekly())
+    check("状态变为 STALE", wait_status("STALE", 20))
+    check("显示缓存失效原因", has_text("本周数据/授权/模型已变化"))
+    rows = ai_rows()
+    check("STALE 不删除原 READY 行", len(rows) == 1 and rows[0][1] == "READY", str(rows[:1]))
+
+if should_run_scenario("CATEGORIES"):
+    # ================= 6. 修改类别 =================
+    print("========== 6. 修改类别后失效 ==========")
+    check("重置 AI 结果", clear_ai_rows())
+    restart_app()
+    check("重新打开周回顾", open_weekly())
+    check("AI 入口可见", scroll_to_tag("weekly_generate_ai", 8))
+    check("生成 READY", tap_generate_ai() and wait_status("READY", 30))
+    check("进入设置", open_settings())
+    scroll_top()
+    for _ in range(24):
+        if has_tag("ai_category_JOURNAL"):
+            break
+        adb("shell input swipe 600 1900 600 700 240")
+        time.sleep(0.6)
+    check("找到 JOURNAL 类别开关", has_tag("ai_category_JOURNAL"))
+    check("关闭 JOURNAL 类别", tap_safe("ai_category_JOURNAL"))
+    time.sleep(1.2)
+    check("类别已关闭", not checked("ai_category_JOURNAL"))
+    restart_app()
+    check("重新打开周回顾", open_weekly())
+    check("改类别后 STALE", wait_status("STALE", 20))
+
+if should_run_scenario("WITHDRAW"):
+    # ================= 7. 撤回授权 =================
+    print("========== 7. 撤回授权后不再发送 ==========")
+    check("重置 AI 结果", clear_ai_rows())
+    check("进入设置", open_settings())
+    scroll_top()
+    for _ in range(24):
+        if has_tag("ai_withdraw"):
+            break
+        adb("shell input swipe 600 1900 600 700 240")
+        time.sleep(0.6)
+    check("找到撤回入口", has_tag("ai_withdraw"))
+    check("点击撤回", tap_safe("ai_withdraw"))
+    check("撤回确认框", wait_tag("ai_withdraw_dialog", 8))
+    check("确认撤回", tap_tag("ai_withdraw_confirm"))
+    check("授权状态变为未授权", wait_text("未授权", 10) or has_tag("ai_consent_status_none"))
+    restart_app()
+    check("撤回后可打开周回顾", open_weekly())
+    check("本地回顾仍可用", has_text("周期") or has_text("本周变化"))
+    check("AI 入口存在但不会发送", has_tag("weekly_generate_ai"))
+    check("点击 AI（应被拒绝）", tap_generate_ai())
+    time.sleep(3.0)
+    check("撤回后 DB 无 AI 行", len(ai_rows()) == 0, str(ai_rows()[:1]))
+
+if should_run_scenario("AUTO_DISABLED"):
+    # ================= 8. 自动开关 =================
+    print("========== 8. 自动开关关闭后停止后台发送 ==========")
+    check("重新授权", grant_consent())
+    if not open_settings():
+        check("进入设置", False)
+    scroll_top()
+    for _ in range(24):
+        if has_tag("settings_weekly_ai_toggle"):
+            break
+        adb("shell input swipe 600 1900 600 700 240")
+        time.sleep(0.6)
+    if not checked("settings_weekly_ai_toggle"):
+        tap_tag("settings_weekly_ai_toggle")
+        time.sleep(1.0)
+    check("AI 自动开关已开", checked("settings_weekly_ai_toggle"))
+    check("重置 AI 结果", clear_ai_rows())
+    trigger_worker()
+    rows = wait_ai_rows(45)
+    check("自动路径确实会发送（正对照）", len(rows) == 1, str(rows[:1]))
+    check("自动结果 READY", bool(rows) and rows[0][1] == "READY", str(rows[:1]))
+
+    check("重置 AI 结果", clear_ai_rows())
+    if not open_settings():
+        check("进入设置", False)
+    scroll_top()
+    for _ in range(24):
+        if has_tag("settings_weekly_ai_toggle"):
+            break
+        adb("shell input swipe 600 1900 600 700 240")
+        time.sleep(0.6)
+    check("关闭 AI 自动开关", tap_safe("settings_weekly_ai_toggle"))
+    time.sleep(1.0)
+    check("AI 自动开关已关", not checked("settings_weekly_ai_toggle"))
+    trigger_worker()
+    time.sleep(20)
+    rows = ai_rows()
+    check("自动关闭后不再发送（负对照）", len(rows) == 0, str(rows[:1]))
 
 crash = adb("shell logcat -b crash -d")
 check("无应用崩溃记录", "com.mengyalife.app" not in crash)
+if WEEKLY_CASE:
+    print(f"WEEKLY_SCENARIO={WEEKLY_CASE}")
 
 sys.exit(0 if summary() else 1)

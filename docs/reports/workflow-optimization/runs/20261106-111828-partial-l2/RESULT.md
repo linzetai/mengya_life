@@ -23,3 +23,13 @@
 2. 恢复的 exclusive barrier 将 `ready=false` 检查放在授权 Permit 前，导致恢复内部 reset/config/settings 写也被拒绝；现改为允许继承 exclusive permit 的收敛写，并加 barrier 单测。
 
 修复后 A→B→A E2E 39/39 与 R2-R6通过；R7及剩余项目没有最终完整报告，整轮仍为 **INCOMPLETE / NOT PASS**。原始日志在本目录 `logs/`。
+
+## 下一轮提速措施
+
+现在可以单独运行：
+
+```sh
+./scripts/verify.sh --module restore-validate --level integration --case R7
+```
+
+该case只执行R7，明确延期迁移/E2E/fresh DB，不会重放已通过的R2-R6。backup的WRITE、weekly的FAILED_401等也有单case入口。case PASS会报告`CASE PASS (suite deferred)`，并保持`fullLevelSatisfied=false`；目前这些case只完成dry-run和静态策略自检，没有在设备上复跑。

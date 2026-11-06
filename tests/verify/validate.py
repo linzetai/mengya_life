@@ -64,6 +64,14 @@ def validate_map(map_: dict) -> list[str]:
                     issues.append(f"{mname}/{d['script']} 的 smokeLevels 无效")
                 if not d.get("smokeAssertions") or not d.get("measuredFullSec"):
                     issues.append(f"{mname}/{d['script']} 有 smokeEnvVar 但缺少 smoke/full 覆盖元数据")
+            if d.get("scenarios"):
+                if not d.get("scenarioEnvVar"):
+                    issues.append(f"{mname}/{d['script']} 有 scenarios 但缺少 scenarioEnvVar")
+                if len(d["scenarios"]) != len(set(d["scenarios"])):
+                    issues.append(f"{mname}/{d['script']} scenarios 有重复值")
+                min_level = d.get("scenarioMinLevel")
+                if min_level and min_level not in map_.get("levels", {}):
+                    issues.append(f"{mname}/{d['script']} scenarioMinLevel 无效：{min_level}")
     for rule in map_.get("impactRules", []):
         for mname in rule.get("modules", []):
             if mname not in mods:
@@ -89,7 +97,7 @@ def validate_map(map_: dict) -> list[str]:
 def validate_selection_policy(map_: dict) -> list[str]:
     """Self-test duplicate collapse and the explicit local-only dev profile."""
     try:
-        from .selection import apply_execution_profile, device_run_mode, select
+        from .selection import apply_case_filter, apply_execution_profile, device_run_mode, select
         sample = select(map_, None, ["advisor", "ai-consent", "settings"], "integration")
         keys = [(d["script"], d["package"]) for d in sample.device_scripts]
         if len(keys) != len(set(keys)):
@@ -132,6 +140,10 @@ def validate_selection_policy(map_: dict) -> list[str]:
         weekly_gate_entry = next((d for d in weekly_gate.device_scripts if d["script"] == "verify_weekly_ai.py"), None)
         if weekly_gate_entry is None or device_run_mode(weekly_gate_entry, weekly_gate.level) != "full":
             return ["weekly-ai Gate/Release 必须保留完整状态矩阵"]
+        weekly_case = select(map_, None, ["weekly-ai"], "integration")
+        apply_case_filter(weekly_case, "FAILED_401")
+        if len(weekly_case.device_scripts) != 1 or weekly_case.device_scripts[0]["script"] != "verify_weekly_ai.py":
+            return ["weekly-ai 失败场景case应可单独选择"]
 
         backup_l2 = select(map_, None, ["backup-export"], "integration")
         backup_scripts = {d["script"] for d in backup_l2.device_scripts}
@@ -151,6 +163,17 @@ def validate_selection_policy(map_: dict) -> list[str]:
             return ["备份写入故障代码改动必须升级L2并选择故障矩阵"]
         if "verify_g3b1.py" in fault_scripts or "verify_navigation.py" in fault_scripts:
             return ["备份L2不应捎带无关授权或全局导航用例"]
+        backup_case = select(map_, writer_change, None, None)
+        apply_case_filter(backup_case, "write")
+        if len(backup_case.device_scripts) != 1 or backup_case.device_scripts[0]["script"] != "verify_backup_v2_failures.py":
+            return ["backup --case write 应只选择一个故障scenario"]
+
+        restore_case = select(map_, None, ["restore-validate"], "integration")
+        apply_case_filter(restore_case, "R7")
+        if len(restore_case.device_scripts) != 1 or restore_case.device_scripts[0]["script"] != "verify_restore_failures.py":
+            return ["restore --case R7 应只选择故障矩阵脚本"]
+        if len(restore_case.deferred_device_scripts) != 3:
+            return ["restore --case R7 必须明确延期其余三个脚本"]
 
         backup_ui_change = ChangeSet(
             base="(self-test)", base_reason="policy self-test",
