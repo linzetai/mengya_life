@@ -229,14 +229,14 @@ def run_single_scenario(scenario):
 
 
 def main():
-    started=time.time()
-    wrong=json.loads(json.dumps(EXPECTED_A))
-    wrong["journal_entries"]["rows"][0]["title"]="WRONG_EXPECTATION"
-    check("自测：错误预期会被比较捕获", table_differences(wrong, EXPECTED_A, CORE) == ["journal_entries"])
     scenario = os.environ.get("MENGYA_RESTORE_SCENARIO", "").strip().upper()
     if scenario:
         run_single_scenario(scenario)
         return
+    started=time.time()
+    wrong=json.loads(json.dumps(EXPECTED_A))
+    wrong["journal_entries"]["rows"][0]["title"]="WRONG_EXPECTATION"
+    check("自测：错误预期会被比较捕获", table_differences(wrong, EXPECTED_A, CORE) == ["journal_entries"])
     # R2 transaction fail
     beforeB=do_restore("--ez qa_restore_fail_transaction true")
     deadline=time.time()+30

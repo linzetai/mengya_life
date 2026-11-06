@@ -22,7 +22,22 @@
 1. 快照空间预检在 `noBackup/restore` 尚未创建时直接 `StatFs`，新设备返回 ENOENT；现改为查询最近存在的父目录，并加 JVM 路径测试。
 2. 恢复的 exclusive barrier 将 `ready=false` 检查放在授权 Permit 前，导致恢复内部 reset/config/settings 写也被拒绝；现改为允许继承 exclusive permit 的收敛写，并加 barrier 单测。
 
-修复后 A→B→A E2E 39/39 与 R2-R6通过；R7及剩余项目没有最终完整报告，整轮仍为 **INCOMPLETE / NOT PASS**。原始日志在本目录 `logs/`。
+修复后 A→B→A E2E 39/39 与 R2-R6通过；该轮R7及剩余项目没有总报告，整轮当时为 **INCOMPLETE**。原始日志在本目录 `logs/`。
+
+## R7 独立复跑
+
+用户后来提供端口34707后，执行：
+
+```sh
+./scripts/verify.sh --module restore-validate --level integration --case R7
+```
+
+- **R7 16/16 PASS，90.9s**；总计125.6s（含静态、6类JVM和QA前置）。
+- `fullLevelSatisfied=false`，迁移/E2E/fresh DB均延期，不伪称完整L2 PASS。
+- R2-R6已由前一次partial L2实测通过；R7单独复跑没有重跑前序场景。
+- QA清理PASS；生产包/数据未触碰。
+
+R7单case summary已归档在 `../20261106-151302/RESULT.md`。
 
 ## 下一轮提速措施
 

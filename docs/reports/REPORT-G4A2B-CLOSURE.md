@@ -1,7 +1,7 @@
 # G4A-2B P0 修复与验收收口报告
 
 > Base HEAD：`3fb6781b955163994d891b98ff5f1d12c30692fc`；P0实现提交：`472524652aae1bf9e1d68f9a36bc45e9030f7ed3`；现场复测修复提交：`63e49ad`。
-> 最终状态：两项P0已修复；34225真机L2部分通过后用户暂停，R7 setup失败且余下项NOT RUN；整体Gate **NOT PASS**。
+> 最终状态：两项P0已修复；34225 combined L2被用户暂停，随后R7单case 16/16 PASS；fresh DB/weekly smoke和完整combined报告仍未完成，Gate **NOT PASS**。
 
 ## 1. P0 修复
 
@@ -36,7 +36,7 @@
 
 设置脚本从全页多轮dump改为 tag定位/单次滚动，单独实测 **38/38 PASS，112s**（旧失败运行452.1s）。
 
-Port 34225 实际启动 combined L2（restore-validate + weekly-ai），估算约28–29分钟。约23分钟后用户要求暂停：已完成 QA 前置、迁移、g3b1、E2E和R2-R6；R7 setup断言失败，fresh DB/weekly smoke未执行。Runner被SIGTERM，**没有总报告；本轮L2标记INCOMPLETE**。
+Port 34225 combined L2（restore-validate + weekly-ai）运行约23分钟后用户要求暂停：preflight、迁移、g3b1、E2E及R2-R6通过，R7 bulk setup断言失败，fresh DB/weekly smoke未到达。用户随后给出port 34707，R7单case复跑16/16 PASS（90.9s）。Combined L2无最终总报告且fresh/weekly未跑，整体仍**INCOMPLETE**。
 
 ## 3. 最终可执行证据
 
@@ -50,13 +50,13 @@ Port 34225 实际启动 combined L2（restore-validate + weekly-ai），估算�
 | g3b1授权/隐私 | **47/47 PASS** |
 | 最终代码 A→B→A E2E | **39/39 PASS，379.77s** |
 | R2-R6故障/崩溃矩阵 | **逐项PASS**；包含R3收敛和R4-R6重启路径 |
-| R7 Gate缺失 | **INCOMPLETE**：启动B场景断言失败（B夹具10表已存在）；R7恢复断言未跑完 |
+| R7 Gate缺失 | **PASS 16/16（单case，90.9s）**；bulk run首次setup断言失败，单case复跑通过 |
 | Fresh DB / weekly L2 smoke | **NOT RUN**：用户暂停在R7 setup之后 |
 | Combined L2整体 | **INCOMPLETE / NOT PASS**：约23分钟后SIGTERM，无最终report.json |
 
 ## 4. 剩余P0与风险
 
-**严格验收尚未关闭**：最终源码已在设备上通过E2E、迁移及R2-R6，但R7 setup断言失败、R7主体及fresh/weekly用例未执行。当前不应重跑整套长L2；应先分析R7 `wait_app_ui()` 假阴性/启动条件，再只复验R7和剩余用例。
+**严格验收尚未关闭**：最终源码的E2E、迁移、R2-R7已独立PASS；但combined L2被用户暂停，fresh DB/weekly smoke和完整runner summary未完成。后续不重跑整个matrix，只跑未完成项；`--case`可避免重复已通过场景。
 
 其他待补：
 

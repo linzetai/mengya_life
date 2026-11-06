@@ -51,6 +51,7 @@
 | `--profile dev --module settings --level feature` | **3.8s LOCAL PASS** | 没有JVM类时实际执行 app Kotlin 编译；0真机 |
 | `--profile dev --changed`（本轮测试体系/文档改动） | **3.1s LOCAL PASS** | 静态脚本检查；跳过无关app编译/JVM/真机 |
 | restore `--case R7 --dry-run` | **1个脚本，3个延期** | 只调度R7故障脚本，不重跑E2E/迁移/fresh DB |
+| restore `--case R7` on port 34707 | **16/16 PASS，90.9s** | runner总125.6s；`fullLevelSatisfied=false`，仅case PASS |
 | backup `--case WRITE --dry-run` | **1个脚本，2个延期** | 只调度写失败case，不重跑全字段备份/迁移 |
 | weekly `--case FAILED_401 --dry-run` | **1个脚本，2个延期** | 只重跑401状态，不重放migration/g3b1/READY前序 |
 | `--all --level fast` | **最终静态+299 JVM PASS，6.0s** | no-device；包含R2-R7/备份scenario过滤策略自检 |
@@ -60,7 +61,7 @@
 
 旧 broad integration 实测 **2043.5s（34.1分钟）**。G4A-2B focused L2 按迁移34s + E2E估算393s + R2-R7历史518s + fresh DB 14.5s，脚本约960s；加QA前置/JVM后预计约16–17分钟（约少一半），这是估算，未声称最终设备PASS。
 
-复验报告和dry-run计划已整理在 `docs/reports/workflow-optimization/`。本轮使用port 34225做了combined L2：QA preflight 11/11、migration 26/26、g3b1 47/47、E2E 39/39、R2-R6 PASS；R7 setup断言失败时用户要求暂停，fresh DB/weekly smoke未到达，SIGTERM前无总report.json。整体L2为INCOMPLETE，不是PASS。原始部分日志见 `runs/20261106-111828-partial-l2/`。
+复验报告和dry-run计划已整理在 `docs/reports/workflow-optimization/`。port 34225 combined L2 的preflight 11/11、migration 26/26、g3b1 47/47、E2E 39/39和R2-R6通过；bulk中的R7 setup断言失败，用户暂停后fresh DB/weekly smoke未到达、总report未生成。之后port34707单独复跑R7为16/16 PASS（90.9s）。原combined L2仍INCOMPLETE，不冒充完整PASS；原始日志见 `runs/20261106-111828-partial-l2/` 与 `runs/20261106-151302/`。
 
 ## 推荐节奏
 

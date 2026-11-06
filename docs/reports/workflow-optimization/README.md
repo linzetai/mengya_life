@@ -4,7 +4,8 @@
 - `runs/20261106-102658/`: historical full fast profile 299/299 before the two final P0 fixes; not final-source full-JVM evidence.
 - `runs/20261106-101701/`: earlier full fast profile before adding two settings-entry assertions.
 - `runs/20261106-101716/`: dev-profile restore loop; LOCAL PASS with four device tests deferred and `fullLevelSatisfied=false`.
-- `runs/20261106-111828-partial-l2/`: port 34225 L2 partial logs; E2E/R2-R6 pass, R7 setup failed, user paused before fresh/weekly and report cleanup.
+- `runs/20261106-111828-partial-l2/`: port 34225 combined L2 partial logs; E2E/R2-R6 pass, R7 setup failed, user paused before fresh/weekly.
+- `runs/20261106-151302/`: port 34707 isolated R7 **16/16 PASS** in 90.9s; fullLevelSatisfied=false, sibling suites explicitly deferred.
 - `runs/20261106-150118/`: latest offline L0 after restore/backup/weekly case selectors; static/schema/script-map and 299 JVM PASS; no device.
 - `runs/20261106-145819/`: prior scenario-filter L0, retained for comparison.
 - `runs/20261106-145527/`: earlier scenario-filter L0; retained for comparison.
