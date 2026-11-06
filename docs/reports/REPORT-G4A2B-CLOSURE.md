@@ -1,6 +1,6 @@
 # G4A-2B P0 修复与验收收口报告
 
-> Base HEAD：`3fb6781b955163994d891b98ff5f1d12c30692fc`；P0实现提交：`472524652aae1bf9e1d68f9a36bc45e9030f7ed3`。
+> Base HEAD：`3fb6781b955163994d891b98ff5f1d12c30692fc`；P0实现提交：`472524652aae1bf9e1d68f9a36bc45e9030f7ed3`；现场复测修复提交：`63e49ad`。
 > 最终状态：两项P0已修复；34225真机L2部分通过后用户暂停，R7 setup失败且余下项NOT RUN；整体Gate **NOT PASS**。
 
 ## 1. P0 修复

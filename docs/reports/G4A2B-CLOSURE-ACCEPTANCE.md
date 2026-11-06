@@ -31,4 +31,4 @@
 
 ## 工作区/交付
 
-P0实现提交 `472524652aae1bf9e1d68f9a36bc45e9030f7ed3`；报告提交后worktree clean。设备恢复后跑focused L2，通过后再更新验收状态为PASS。
+基础P0实现提交 `472524652aae1bf9e1d68f9a36bc45e9030f7ed3`；snapshot空间/Barrier收敛修复提交 `63e49ad`；当前worktree clean。R7 setup修复并按用户同意恢复设备后，只复跑R7及fresh/weekly未完成项，再决定是否PASS。
