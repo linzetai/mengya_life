@@ -110,11 +110,10 @@ private fun BottomBarItem(
                 .background(if (selected) colors.selectedNav else colors.card),
             contentAlignment = Alignment.Center,
         ) {
-            MorrowGlyph(
+            MorrowIcon(
                 kind = tab.glyph,
                 tint = tint,
-                modifier = Modifier.size(19.dp),
-                strokeWidth = if (selected) 1.7.dp else 1.4.dp,
+                modifier = Modifier.size(20.dp),
             )
         }
         Text(

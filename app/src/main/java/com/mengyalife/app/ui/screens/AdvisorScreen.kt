@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -37,6 +38,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,16 +60,19 @@ import com.mengyalife.app.ui.advisor.AdvisorUiState
 import com.mengyalife.app.ui.advisor.GoalProposalReviewDialog
 import com.mengyalife.app.ui.components.GentleEmptyCard
 import com.mengyalife.app.ui.components.InlineNote
-import com.mengyalife.app.ui.components.MorrowGlyph
-import com.mengyalife.app.ui.components.MorrowGlyphKind
+import com.mengyalife.app.ui.components.MorrowIcon
+import com.mengyalife.app.ui.components.MorrowIconKind
+import com.mengyalife.app.ui.components.MorrowIconColors
 import com.mengyalife.app.ui.components.MorrowPrimaryButton
-import com.mengyalife.app.ui.components.MorrowQuietButton
+import com.mengyalife.app.ui.components.MorrowSecondaryButton
+import com.mengyalife.app.ui.components.MorrowTertiaryButton
 import com.mengyalife.app.ui.components.MorrowTextField
 import com.mengyalife.app.ui.components.MorrowTopBar
 import com.mengyalife.app.ui.components.ScreenPadding
 import com.mengyalife.app.ui.components.StatusPill
 import com.mengyalife.app.ui.theme.MorrowTheme
 import com.mengyalife.app.ui.theme.MorrowType
+import com.mengyalife.app.ui.theme.isDarkTheme
 import com.mengyalife.app.util.Timestamps
 
 private val STARTER_PROMPTS = listOf(
@@ -93,6 +98,7 @@ fun AdvisorScreen(
     val colors = MorrowTheme.colors
     var sourceDialogFor by remember { mutableStateOf<AdvisorMessage?>(null) }
     var proposalDialogFor by remember { mutableStateOf<StoredGoalProposal?>(null) }
+    var statusExpanded by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(state.messages.size, state.sending) {
         if (state.messages.isNotEmpty() || state.sending) {
@@ -117,54 +123,65 @@ fun AdvisorScreen(
                     style = MorrowType.SheetTitle,
                     color = colors.textPrimary,
                 )
-                Spacer(Modifier.height(7.dp))
-                Text(
-                    text = if (state.configured) {
-                        "模型：${state.config.model} · ${safeEndpointLabel(state.config.endpoint)}"
-                    } else {
-                        "尚未配置模型服务"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.textSecondary,
+                Spacer(Modifier.height(12.dp))
+                AdvisorStatusCard(
+                    state = state,
+                    expanded = statusExpanded,
+                    onToggle = { statusExpanded = !statusExpanded },
+                    onOpenSettings = onOpenSettings,
                 )
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    StatusPill(text = if (state.configured) "已配置" else "未配置")
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        text = "模型设置",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = colors.forest,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable(onClick = onOpenSettings)
-                            .padding(horizontal = 6.dp, vertical = 6.dp)
-                            .testTag("advisor_open_settings"),
-                    )
-                }
+                Spacer(Modifier.height(12.dp))
             }
 
             when {
-                !state.configured -> NotConfiguredPanel(onOpenSettings)
-                !state.consentValid -> ConsentPanel(state = state, onAction = onAction)
+                !state.configured -> Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    NotConfiguredPanel(onOpenSettings)
+                }
+
+                !state.consentValid -> Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                ) {
+                    ConsentPanel(state = state, onAction = onAction)
+                }
+
                 else -> {
-                    ConsentSummaryRow(state = state, onOpenSettings = onOpenSettings)
-                    LazyColumn(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                        state = listState,
-                        contentPadding = PaddingValues(
-                            start = 22.dp,
-                            end = 22.dp,
-                            top = 10.dp,
-                            bottom = 12.dp,
-                        ),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        if (state.messages.isEmpty()) {
-                            item { EmptyConversation(onPick = { onAction(AdvisorAction.InputChange(it)) }) }
-                        } else {
+                    val hasAssistantReply = state.messages.any {
+                        it.role == AdvisorRole.ASSISTANT && it.status == AdvisorMessageStatus.SENT
+                    }
+                    if (state.messages.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                        ) {
+                            EmptyConversation(
+                                onPick = { onAction(AdvisorAction.InputChange(it)) },
+                                modifier = Modifier
+                                    .align(Alignment.Center)
+                                    .padding(horizontal = 22.dp),
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                            state = listState,
+                            contentPadding = PaddingValues(
+                                start = 22.dp,
+                                end = 22.dp,
+                                top = 4.dp,
+                                bottom = 12.dp,
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
                             items(state.messages.size) { index ->
                                 val message = state.messages[index]
                                 val lastWithSources = message.sources.isNotEmpty() &&
@@ -188,47 +205,47 @@ fun AdvisorScreen(
                                     onOpenProposal = { proposalDialogFor = it },
                                 )
                             }
-                        }
 
-                        if (state.sending) {
-                            item {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .testTag("advisor_waiting"),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(
-                                        text = "正在等你选定的模型回复…",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = colors.textSecondary,
-                                        modifier = Modifier.weight(1f),
-                                    )
-                                    TextButton(
-                                        onClick = { onAction(AdvisorAction.CancelRequest) },
-                                        modifier = Modifier.testTag("advisor_cancel"),
-                                    ) { Text("取消", color = colors.forest) }
+                            if (state.sending) {
+                                item {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("advisor_waiting"),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            text = "正在等你选定的模型回复…",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = colors.textSecondary,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        TextButton(
+                                            onClick = { onAction(AdvisorAction.CancelRequest) },
+                                            modifier = Modifier.testTag("advisor_cancel"),
+                                        ) { Text("取消", color = colors.forest) }
+                                    }
                                 }
                             }
-                        }
-                        state.errorMessage?.let { error ->
-                            item {
-                                Text(
-                                    text = error,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = colors.danger,
-                                    modifier = Modifier.testTag("advisor_error"),
-                                )
+                            state.errorMessage?.let { error ->
+                                item {
+                                    Text(
+                                        text = error,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = colors.danger,
+                                        modifier = Modifier.testTag("advisor_error"),
+                                    )
+                                }
                             }
-                        }
-                        state.infoMessage?.let { info ->
-                            item {
-                                Text(
-                                    text = info,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = colors.textSecondary,
-                                    modifier = Modifier.testTag("advisor_info"),
-                                )
+                            state.infoMessage?.let { info ->
+                                item {
+                                    Text(
+                                        text = info,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = colors.textSecondary,
+                                        modifier = Modifier.testTag("advisor_info"),
+                                    )
+                                }
                             }
                         }
                     }
@@ -236,6 +253,7 @@ fun AdvisorScreen(
                     Composer(
                         state = state,
                         onAction = onAction,
+                        canPropose = hasAssistantReply,
                     )
                 }
             }
@@ -263,53 +281,246 @@ fun AdvisorScreen(
 }
 
 @Composable
-private fun EmptyConversation(onPick: (String) -> Unit) {
+private fun AdvisorStatusCard(
+    state: AdvisorUiState,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
     val colors = MorrowTheme.colors
-    Column {
+    val title = when {
+        !state.configured -> "还没有配置模型"
+        !state.consentValid -> "模型已配置 · 等待授权"
+        else -> "已连接 · ${state.config.model}"
+    }
+    val subtitle = when {
+        !state.configured -> "配置你自己的服务后，才可能开始对话"
+        !state.consentValid -> "先确认允许分享的记录，再开始"
+        else -> "可读取：${AiConsentRules.categoriesSummary(state.consent.categories)}"
+    }
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(15.dp))
+            .clickable(onClick = onToggle),
+        shape = RoundedCornerShape(15.dp),
+        color = colors.nested,
+        border = BorderStroke(1.dp, colors.hairline),
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(colors.card),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    MorrowIcon(
+                        kind = MorrowIconKind.SPARKLE,
+                        tint = MorrowIconColors.Active,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                Spacer(Modifier.width(11.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = colors.textPrimary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.textSecondary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = if (state.configured && state.consentValid) {
+                            Modifier.testTag("advisor_consent_summary")
+                        } else {
+                            Modifier
+                        },
+                    )
+                }
+                Spacer(Modifier.width(6.dp))
+                Box(
+                    modifier = Modifier.size(40.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    MorrowIcon(
+                        kind = if (expanded) MorrowIconKind.CHEVRON_UP else MorrowIconKind.CHEVRON_DOWN,
+                        tint = colors.textTertiary,
+                        modifier = Modifier.size(18.dp),
+                        contentDescription = if (expanded) "收起状态详情" else "展开状态详情",
+                    )
+                }
+            }
+
+            if (expanded) {
+                Spacer(Modifier.height(10.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(colors.hairline),
+                )
+                Spacer(Modifier.height(8.dp))
+                StatusDetailRow(
+                    label = "服务",
+                    value = if (state.configured) safeEndpointLabel(state.config.endpoint) else "尚未配置",
+                )
+                StatusDetailRow(
+                    label = "模型",
+                    value = state.config.model.ifBlank { "尚未选择" },
+                )
+                StatusDetailRow(
+                    label = "授权",
+                    value = if (state.consentValid) {
+                        AiConsentRules.categoriesSummary(state.consent.categories)
+                    } else {
+                        "尚未授权"
+                    },
+                )
+            }
+
+            Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                MorrowTertiaryButton(
+                    text = "模型设置",
+                    onClick = onOpenSettings,
+                    showArrow = true,
+                    testTag = "advisor_open_settings",
+                )
+                if (state.configured) {
+                    Spacer(Modifier.width(2.dp))
+                    Text("·", color = colors.textTertiary, style = MaterialTheme.typography.labelSmall)
+                    Spacer(Modifier.width(2.dp))
+                    MorrowTertiaryButton(
+                        text = "授权管理",
+                        onClick = onOpenSettings,
+                        showArrow = true,
+                        testTag = "advisor_consent_manage",
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusDetailRow(label: String, value: String) {
+    val colors = MorrowTheme.colors
+    Row(
+        modifier = Modifier.padding(vertical = 3.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
         Text(
-            text = "可以先从一句还不太确定的话开始。",
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = colors.textTertiary,
+            modifier = Modifier.width(42.dp),
+        )
+        Text(
+            text = value,
             style = MaterialTheme.typography.bodySmall,
             color = colors.textSecondary,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
-        Spacer(Modifier.height(12.dp))
-        STARTER_PROMPTS.forEachIndexed { index, prompt ->
-            if (index > 0) Spacer(Modifier.height(8.dp))
+    }
+}
+
+private data class AdvisorPrompt(val icon: MorrowIconKind, val title: String)
+
+private val ADVISOR_PROMPTS = listOf(
+    AdvisorPrompt(MorrowIconKind.COMPASS, "我还不知道未来想做什么"),
+    AdvisorPrompt(MorrowIconKind.TREND, "最近的变化值得关注吗"),
+    AdvisorPrompt(MorrowIconKind.BRANCH, "帮我想清楚一个决定"),
+)
+
+@Composable
+private fun EmptyConversation(
+    onPick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MorrowTheme.colors
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = "如果你愿意，可以从这里开始。",
+            style = MorrowType.CardTitle,
+            color = colors.textPrimary,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "不需要先想清楚。先从一句真实的话开始。",
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.textSecondary,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+        Spacer(Modifier.height(20.dp))
+        ADVISOR_PROMPTS.forEachIndexed { index, prompt ->
+            if (index > 0) Spacer(Modifier.height(9.dp))
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .defaultMinSize(minHeight = 58.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .clickable { onPick(prompt) }
+                    .clickable { onPick(prompt.title) }
                     .testTag("advisor_suggestion_$index"),
                 shape = RoundedCornerShape(14.dp),
                 color = colors.card,
                 border = BorderStroke(1.dp, colors.hairline),
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 15.dp, vertical = 13.dp),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    MorrowGlyph(
-                        kind = MorrowGlyphKind.SPARKLE,
-                        tint = colors.accent,
-                        modifier = Modifier.size(15.dp),
-                    )
-                    Spacer(Modifier.width(10.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(colors.nested),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        MorrowIcon(
+                            kind = prompt.icon,
+                            tint = MorrowIconColors.Active,
+                            modifier = Modifier.size(17.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(11.dp))
                     Text(
-                        text = prompt,
+                        text = prompt.title,
                         style = MaterialTheme.typography.bodyMedium,
                         color = colors.textPrimary,
                         modifier = Modifier.weight(1f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
-                    MorrowGlyph(
-                        kind = MorrowGlyphKind.ARROW,
+                    Spacer(Modifier.width(8.dp))
+                    MorrowIcon(
+                        kind = MorrowIconKind.ARROW_RIGHT,
                         tint = colors.textTertiary,
-                        modifier = Modifier.size(14.dp),
+                        modifier = Modifier.size(16.dp),
                     )
                 }
             }
         }
-        Spacer(Modifier.height(12.dp))
-        InlineNote("系统只会按你授权的类别检索目标、进展和日记，并在回复下方标注来源。")
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = "系统只会按你授权的类别检索目标、进展和日记，并在回复下方标注来源。",
+            style = MaterialTheme.typography.labelSmall,
+            color = colors.textTertiary,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
     }
 }
 
@@ -400,7 +611,7 @@ private fun ConsentPanel(
                 )
             }
             Box(modifier = Modifier.weight(1f)) {
-                MorrowQuietButton(
+                MorrowSecondaryButton(
                     text = "暂不使用",
                     onClick = { onAction(AdvisorAction.DeclineConsent) },
                     testTag = "advisor_consent_decline",
@@ -423,79 +634,39 @@ private fun ConsentPanel(
 }
 
 @Composable
-private fun ConsentSummaryRow(
-    state: AdvisorUiState,
-    onOpenSettings: () -> Unit,
-) {
-    val colors = MorrowTheme.colors
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 22.dp, vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "已授权：${AiConsentRules.categoriesSummary(state.consent.categories)}",
-                style = MaterialTheme.typography.labelSmall,
-                color = colors.textSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.testTag("advisor_consent_summary"),
-            )
-            Text(
-                text = "系统按需检索，回复下方会标注实际来源。",
-                style = MaterialTheme.typography.labelSmall,
-                color = colors.textTertiary,
-            )
-        }
-        Text(
-            text = "管理",
-            style = MaterialTheme.typography.labelMedium,
-            color = colors.forest,
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .clickable(onClick = onOpenSettings)
-                .padding(horizontal = 8.dp, vertical = 6.dp)
-                .testTag("advisor_consent_manage"),
-        )
-    }
-}
-
-@Composable
 private fun Composer(
     state: AdvisorUiState,
     onAction: (AdvisorAction) -> Unit,
+    canPropose: Boolean,
 ) {
     val colors = MorrowTheme.colors
+    val dark = isDarkTheme()
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "整理为目标草案",
-                style = MaterialTheme.typography.labelMedium,
-                color = if (state.sending || !state.consentValid) colors.textTertiary else colors.forest,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(enabled = !state.sending && state.consentValid) {
-                        onAction(AdvisorAction.RequestProposal)
-                    }
-                    .padding(horizontal = 4.dp, vertical = 7.dp)
-                    .testTag("advisor_make_proposal"),
-            )
-            Spacer(Modifier.weight(1f))
-            Text(
-                text = "草案不会保存为正式目标",
-                style = MaterialTheme.typography.labelSmall,
-                color = colors.textTertiary,
-            )
+        if (canPropose) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                MorrowTertiaryButton(
+                    text = "整理为目标草案",
+                    onClick = { onAction(AdvisorAction.RequestProposal) },
+                    enabled = !state.sending && state.consentValid,
+                    testTag = "advisor_make_proposal",
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = "草案不会保存为正式目标",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textTertiary,
+                )
+            }
+            Spacer(Modifier.height(2.dp))
         }
-        Spacer(Modifier.height(4.dp))
         Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-            verticalAlignment = Alignment.Bottom,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = if (canPropose) 0.dp else 4.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(modifier = Modifier.weight(1f)) {
                 MorrowTextField(
@@ -507,10 +678,10 @@ private fun Composer(
                     testTag = "advisor_input",
                 )
             }
-            Spacer(Modifier.size(8.dp))
+            Spacer(Modifier.size(10.dp))
             if (state.sending) {
-                Box(modifier = Modifier.width(72.dp)) {
-                    MorrowQuietButton(
+                Box(modifier = Modifier.width(76.dp)) {
+                    MorrowSecondaryButton(
                         text = "取消",
                         onClick = { onAction(AdvisorAction.CancelRequest) },
                         testTag = "advisor_cancel_button",
@@ -522,16 +693,22 @@ private fun Composer(
                     modifier = Modifier
                         .size(48.dp)
                         .clip(CircleShape)
-                        .background(if (canSend) colors.forest else colors.nested)
+                        .background(
+                            if (canSend) {
+                                if (dark) colors.insightCard else colors.forest
+                            } else {
+                                colors.nested
+                            },
+                        )
                         .clickable(enabled = canSend) { onAction(AdvisorAction.Send) }
                         .testTag("advisor_send"),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Send,
+                    MorrowIcon(
+                        kind = MorrowIconKind.SEND,
+                        tint = if (canSend) colors.insightText else colors.textDisabled,
+                        modifier = Modifier.size(20.dp),
                         contentDescription = "发送",
-                        tint = if (canSend) colors.insightText else colors.textTertiary,
-                        modifier = Modifier.size(19.dp),
                     )
                 }
             }
@@ -551,6 +728,7 @@ private fun MessageRow(
     onOpenProposal: (StoredGoalProposal) -> Unit,
 ) {
     val colors = MorrowTheme.colors
+    val dark = isDarkTheme()
     val isUser = message.role == AdvisorRole.USER
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -567,7 +745,11 @@ private fun MessageRow(
                     bottomStart = if (isUser) 18.dp else 5.dp,
                     bottomEnd = if (isUser) 5.dp else 18.dp,
                 ),
-                color = if (isUser) colors.forest else colors.card,
+                color = if (isUser) {
+                    if (dark) colors.insightCard else colors.forest
+                } else {
+                    colors.card
+                },
                 border = if (isUser) null else BorderStroke(1.dp, colors.hairline),
             ) {
                 Text(
@@ -601,12 +783,12 @@ private fun MessageRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.textSecondary,
                 )
-                TextButton(
+                MorrowTertiaryButton(
+                    text = "重试",
                     onClick = onRetry,
-                    modifier = Modifier.testTag(
-                        if (lastFailed) "advisor_retry_button_last" else "advisor_retry_button",
-                    ),
-                ) { Text("重试", color = colors.forest) }
+                    showArrow = true,
+                    testTag = if (lastFailed) "advisor_retry_button_last" else "advisor_retry_button",
+                )
             }
         }
 

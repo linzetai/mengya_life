@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
@@ -49,10 +50,11 @@ import com.mengyalife.app.domain.growth.DiaryAnalysisStatus
 import com.mengyalife.app.domain.growth.GrowthSignal
 import com.mengyalife.app.ui.components.GentleEmptyCard
 import com.mengyalife.app.ui.components.InlineNote
-import com.mengyalife.app.ui.components.MorrowGlyph
-import com.mengyalife.app.ui.components.MorrowGlyphKind
+import com.mengyalife.app.ui.components.MorrowIcon
+import com.mengyalife.app.ui.components.MorrowIconKind
 import com.mengyalife.app.ui.components.MorrowPrimaryButton
 import com.mengyalife.app.ui.components.MorrowTextField
+import com.mengyalife.app.ui.components.MorrowTertiaryButton
 import com.mengyalife.app.ui.components.MorrowTopBar
 import com.mengyalife.app.ui.components.ScreenPadding
 import com.mengyalife.app.ui.components.StatusPill
@@ -131,6 +133,10 @@ fun DiaryScreen(
             NewEntryCard(onClick = { onAction(DiaryAction.NewEntry) })
         }
 
+        item {
+            InlineNote("日记只保存在本机；只有在单篇详情里主动触发、且你已授权时，才会请求 AI 线索。")
+        }
+
         when {
             state.readError != null -> item {
                 GentleEmptyCard(
@@ -168,7 +174,7 @@ fun DiaryScreen(
                         ) {
                             Text(
                                 text = MONTH_LABEL.format(month),
-                                style = MaterialTheme.typography.titleSmall,
+                                style = MorrowType.SectionTitle,
                                 color = colors.textPrimary,
                                 modifier = Modifier.weight(1f),
                             )
@@ -190,9 +196,7 @@ fun DiaryScreen(
         }
 
         item {
-            Spacer(Modifier.height(4.dp))
-            InlineNote("日记不会自动发送给任何模型。只有在单篇详情里主动触发、且你已授权时，才会请求 AI 线索。")
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
         }
     }
 
@@ -266,6 +270,7 @@ private fun NewEntryCard(onClick: () -> Unit) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .defaultMinSize(minHeight = 80.dp)
             .clip(RoundedCornerShape(17.dp))
             .clickable(onClick = onClick)
             .testTag("diary_new"),
@@ -283,10 +288,10 @@ private fun NewEntryCard(onClick: () -> Unit) {
                     .background(colors.card),
                 contentAlignment = Alignment.Center,
             ) {
-                MorrowGlyph(
-                    kind = MorrowGlyphKind.PEN,
+                MorrowIcon(
+                    kind = MorrowIconKind.PENCIL,
                     tint = colors.forest,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(19.dp),
                 )
             }
             Spacer(Modifier.width(13.dp))
@@ -303,8 +308,8 @@ private fun NewEntryCard(onClick: () -> Unit) {
                     color = colors.textSecondary,
                 )
             }
-            MorrowGlyph(
-                kind = MorrowGlyphKind.ARROW,
+            MorrowIcon(
+                kind = MorrowIconKind.ARROW_RIGHT,
                 tint = colors.textTertiary,
                 modifier = Modifier.size(16.dp),
             )
@@ -465,12 +470,11 @@ private fun JournalEditorSheet(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextButton(
+                MorrowTertiaryButton(
+                    text = "取消",
                     onClick = onDismiss,
                     enabled = !editor.saving,
-                ) {
-                    Text("取消", color = colors.textSecondary)
-                }
+                )
                 Spacer(Modifier.size(8.dp))
                 Box(modifier = Modifier.width(126.dp)) {
                     MorrowPrimaryButton(

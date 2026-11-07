@@ -45,8 +45,8 @@ import com.mengyalife.app.ui.components.GentleEmptyCard
 import com.mengyalife.app.ui.components.InlineNote
 import com.mengyalife.app.ui.components.MetricTrendChart
 import com.mengyalife.app.ui.components.MorrowChoicePill
-import com.mengyalife.app.ui.components.MorrowGlyph
-import com.mengyalife.app.ui.components.MorrowGlyphKind
+import com.mengyalife.app.ui.components.MorrowIcon
+import com.mengyalife.app.ui.components.MorrowIconKind
 import com.mengyalife.app.ui.components.MorrowPrimaryButton
 import com.mengyalife.app.ui.components.MorrowTopBar
 import com.mengyalife.app.ui.components.ScreenPadding
@@ -473,10 +473,10 @@ private fun EvidenceCard(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.width(8.dp))
-                MorrowGlyph(
-                    kind = MorrowGlyphKind.ARROW,
+                MorrowIcon(
+                    kind = MorrowIconKind.ARROW_RIGHT,
                     tint = colors.textTertiary,
-                    modifier = Modifier.size(14.dp),
+                    modifier = Modifier.size(16.dp),
                 )
             }
         }
@@ -525,10 +525,10 @@ private fun EvidenceCard(
                             color = colors.textTertiary,
                         )
                     }
-                    MorrowGlyph(
-                        kind = MorrowGlyphKind.ARROW,
+                    MorrowIcon(
+                        kind = MorrowIconKind.ARROW_RIGHT,
                         tint = colors.textTertiary,
-                        modifier = Modifier.size(14.dp),
+                        modifier = Modifier.size(16.dp),
                     )
                 }
             }
@@ -549,10 +549,10 @@ private fun EvidenceCard(
                     color = colors.forest,
                     modifier = Modifier.weight(1f),
                 )
-                MorrowGlyph(
-                    kind = MorrowGlyphKind.ARROW,
+                MorrowIcon(
+                    kind = MorrowIconKind.ARROW_RIGHT,
                     tint = colors.forest,
-                    modifier = Modifier.size(14.dp),
+                    modifier = Modifier.size(16.dp),
                 )
             }
         }

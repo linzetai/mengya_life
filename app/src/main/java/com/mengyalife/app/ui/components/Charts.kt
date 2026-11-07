@@ -24,6 +24,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mengyalife.app.data.DemoData
 import com.mengyalife.app.util.MetricFormat
+import kotlin.math.pow
+import kotlin.math.roundToInt
 
 /**
  * 极简折线图（自绘 Canvas，不引入第三方图表库）。
@@ -144,7 +146,7 @@ fun Sparkline(
 // ---------------------------------------------------------------------------
 
 /** 纵轴刻度标签宽度，与下方时间标签对齐用。 */
-private val TrendAxisWidth = 58.dp
+private val TrendAxisWidth = 54.dp
 
 @Composable
 fun MetricTrendChart(
@@ -159,10 +161,11 @@ fun MetricTrendChart(
     val values = points.map { it.value }
     val lo = values.min()
     val hi = values.max()
-    val pad = ((hi - lo) * 0.15).takeIf { it > 0.0 }
+    val pad = ((hi - lo) * 0.10).takeIf { it > 0.0 }
         ?: (kotlin.math.abs(hi) * 0.1).coerceAtLeast(1.0)
-    val yMin = lo - pad
-    val yMax = hi + pad
+    val scale = niceYScale(lo - pad, hi + pad)
+    val yMin = scale.min
+    val yMax = scale.max
     val span = (yMax - yMin).coerceAtLeast(1e-9)
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     val dotColor = MaterialTheme.colorScheme.surface
@@ -176,9 +179,9 @@ fun MetricTrendChart(
                 verticalArrangement = Arrangement.SpaceBetween,
                 horizontalAlignment = Alignment.End,
             ) {
-                AxisLabel(axisText(yMax, span))
-                AxisLabel(axisText((yMax + yMin) / 2, span))
-                AxisLabel(axisText(yMin, span))
+                AxisLabel(axisText(yMax, scale.step))
+                AxisLabel(axisText((yMax + yMin) / 2, scale.step))
+                AxisLabel(axisText(yMin, scale.step))
             }
             Spacer(Modifier.width(6.dp))
             Canvas(
@@ -188,10 +191,10 @@ fun MetricTrendChart(
             ) {
                 if (size.width <= 0f || size.height <= 0f) return@Canvas
 
-                val padTop = 5.dp.toPx()
-                val padBottom = 5.dp.toPx()
-                val padLeft = 4.dp.toPx()
-                val padRight = 8.dp.toPx()
+                val padTop = 7.dp.toPx()
+                val padBottom = 7.dp.toPx()
+                val padLeft = 0f
+                val padRight = 10.dp.toPx()
                 val plotLeft = padLeft
                 val plotWidth = (size.width - padLeft - padRight).coerceAtLeast(1f)
                 val plotTop = padTop
@@ -209,7 +212,7 @@ fun MetricTrendChart(
                 fun yAt(v: Double): Float =
                     plotTop + plotHeight * (1f - ((v - yMin) / span).toFloat())
 
-                // 3 条横向参考线（与左侧刻度对应）
+                // 3 条自然刻度参考线（与左侧刻度一一对应）
                 for (i in 0..2) {
                     val y = plotTop + plotHeight * i / 2f
                     drawLine(
@@ -266,30 +269,65 @@ fun MetricTrendChart(
             }
         }
 
-        Spacer(Modifier.height(6.dp))
-        Row(modifier = Modifier.fillMaxWidth()) {
-            Spacer(Modifier.width(TrendAxisWidth + 6.dp))
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(end = 4.dp),
+        ) {
+            Spacer(Modifier.width(TrendAxisWidth + 8.dp))
             Text(
                 text = chartAxisLabel(points.first().recordedAt),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
             )
             Spacer(Modifier.weight(1f))
             Text(
                 text = chartAxisLabel(points.last().recordedAt),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                textAlign = androidx.compose.ui.text.style.TextAlign.End,
             )
         }
     }
 }
 
-/** 坐标轴刻度：按跨度控制小数位，避免 14.875 这类运算噪声。 */
-private fun axisText(value: Double, span: Double): String {
+private data class YScale(val min: Double, val max: Double, val step: Double)
+
+/** 选择自然、容易读的纵轴刻度，并保证 3 条刻度中的中间值也是整齐值。 */
+private fun niceYScale(rawMin: Double, rawMax: Double): YScale {
+    val safeSpan = (rawMax - rawMin).takeIf { it.isFinite() && it > 0.0 } ?: 1.0
+    val rawStep = safeSpan / 2.0
+    val magnitude = 10.0.pow(kotlin.math.floor(kotlin.math.log10(rawStep)))
+    val fraction = rawStep / magnitude
+    val niceFraction = when {
+        fraction <= 1.0 -> 1.0
+        fraction <= 2.0 -> 2.0
+        fraction <= 2.5 -> 2.5
+        fraction <= 5.0 -> 5.0
+        else -> 10.0
+    }
+    val step = niceFraction * magnitude
+    var min = kotlin.math.floor(rawMin / step) * step
+    var max = kotlin.math.ceil(rawMax / step) * step
+    var steps = ((max - min) / step).roundToInt()
+    if (steps < 2) {
+        max = min + 2 * step
+        steps = 2
+    } else if (steps % 2 != 0) {
+        max += step
+        steps += 1
+    }
+    return YScale(min = min, max = max, step = step)
+}
+
+/** 坐标轴刻度：按 step 精度格式化，去掉尾随零。 */
+private fun axisText(value: Double, step: Double): String {
     val decimals = when {
-        span >= 20.0 -> 0
-        span >= 1.0 -> 1
-        span >= 0.1 -> 2
+        step >= 1.0 -> 1
+        step >= 0.1 -> 2
         else -> 3
     }
     return java.math.BigDecimal.valueOf(value)

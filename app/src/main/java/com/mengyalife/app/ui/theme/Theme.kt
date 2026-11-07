@@ -1,5 +1,6 @@
 package com.mengyalife.app.ui.theme
 
+import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -9,9 +10,12 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
 
 /**
  * 主题模式。用户选择由 [com.mengyalife.app.data.preferences.ThemePreferences]
@@ -32,8 +36,10 @@ data class MorrowPalette(
     val textPrimary: Color,
     val textSecondary: Color,
     val textTertiary: Color,
+    val textDisabled: Color,
     val forest: Color,
     val forestPressed: Color,
+    val primaryPressed: Color,
     val accent: Color,
     val hairline: Color,
     val insightCard: Color,
@@ -50,8 +56,10 @@ private val LightPalette = MorrowPalette(
     textPrimary = MorrowLight.TextPrimary,
     textSecondary = MorrowLight.TextSecondary,
     textTertiary = MorrowLight.TextTertiary,
+    textDisabled = MorrowLight.TextDisabled,
     forest = MorrowLight.Forest,
     forestPressed = MorrowLight.ForestPressed,
+    primaryPressed = Color(0xFF274A3A),
     accent = MorrowLight.Accent,
     hairline = MorrowLight.Hairline,
     insightCard = MorrowLight.InsightCard,
@@ -68,8 +76,10 @@ private val DarkPalette = MorrowPalette(
     textPrimary = MorrowDark.TextPrimary,
     textSecondary = MorrowDark.TextSecondary,
     textTertiary = MorrowDark.TextTertiary,
+    textDisabled = MorrowDark.TextDisabled,
     forest = MorrowDark.Forest,
     forestPressed = MorrowDark.ForestPressed,
+    primaryPressed = Color(0xFF365947),
     accent = MorrowDark.Accent,
     hairline = MorrowDark.Hairline,
     insightCard = MorrowDark.InsightCard,
@@ -92,6 +102,12 @@ object MorrowSpacing {
     val InsightRadius = 22.dp
     val PillRadius = 999.dp
     val MinTouch = 48.dp
+    val ButtonRadius = 14.dp
+    val ButtonHeight = 52.dp
+    val SecondaryHeight = 50.dp
+    val ButtonGap = 10.dp
+    val IconSize = 20.dp
+    val IconSmall = 16.dp
 }
 
 /** 取当前主题的品牌令牌。 */
@@ -171,6 +187,16 @@ fun MengyaLifeTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as? Activity)?.window ?: return@SideEffect
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !darkTheme
+                isAppearanceLightNavigationBars = !darkTheme
+            }
+        }
+    }
     androidx.compose.runtime.CompositionLocalProvider(
         LocalMorrowPalette provides if (darkTheme) DarkPalette else LightPalette,
     ) {

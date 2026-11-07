@@ -1,30 +1,45 @@
 package com.mengyalife.app.ui.weekly
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mengyalife.app.domain.weekly.WeeklyFact
 import com.mengyalife.app.ui.components.InlineNote
+import com.mengyalife.app.ui.components.MorrowIcon
+import com.mengyalife.app.ui.components.MorrowIconKind
 import com.mengyalife.app.ui.components.MorrowPrimaryButton
-import com.mengyalife.app.ui.components.MorrowQuietButton
+import com.mengyalife.app.ui.components.MorrowTertiaryButton
 import com.mengyalife.app.ui.components.MorrowTopBar
 import com.mengyalife.app.ui.components.ScreenPadding
-import com.mengyalife.app.ui.components.SectionCard
+import com.mengyalife.app.ui.components.StatusPill
+import com.mengyalife.app.ui.theme.MorrowSpacing
 import com.mengyalife.app.ui.theme.MorrowTheme
 import com.mengyalife.app.ui.theme.MorrowType
 import com.mengyalife.app.util.Timestamps
@@ -39,17 +54,20 @@ fun WeeklyReviewScreen(
     onDiscuss: (String) -> Unit,
     onOpenSettings: () -> Unit = {},
 ) {
+    val colors = MorrowTheme.colors
+    val review = state.review
+    val ai = state.aiReview
     Surface(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding(),
-        color = MorrowTheme.colors.canvas,
+        color = colors.canvas,
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().testTag("weekly_review_screen"),
             contentPadding = ScreenPadding,
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item {
                 Column {
@@ -63,89 +81,170 @@ fun WeeklyReviewScreen(
                     Text(
                         text = "这一周，\n留下了什么。",
                         style = MorrowType.PageTitle,
-                        color = MorrowTheme.colors.textPrimary,
+                        color = colors.textPrimary,
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(9.dp))
                     Text(
-                        "本地回顾不发送；可选 AI 增强会按当前授权发送事实；「和顾问聊聊」进入现有顾问授权流程。",
+                        text = "用本机记录整理这一周。可选 AI 增强只在授权后发送事实，" +
+                            "不会改写你的目标或日记。",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MorrowTheme.colors.textSecondary,
+                        color = colors.textSecondary,
                     )
                 }
             }
+
             item {
-                SectionCard(title = "本周回顾", subtitle = "轻量、可核验；数据不足会直接说明") {
-                    val review = state.review
-                    if (review == null) {
-                        InlineNote("还没有生成回顾。打开下方按钮，用本机记录整理这一周。")
-                    } else {
-                        Text(
-                            "周期 ${review.periodKey} · ${Timestamps.formatDate(review.periodStart)} – ${Timestamps.formatDate(review.periodEnd)}",
-                            style = MaterialTheme.typography.labelSmall,
-                        )
-                        Text(
-                            "生成于 ${Timestamps.formatDateTime(review.generatedAt)} · v${review.version}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    MorrowPrimaryButton(
-                        text = if (state.generating) "本地整理中…" else "生成本周回顾",
-                        onClick = onGenerate,
-                        enabled = !state.generating,
-                        testTag = "weekly_review_generate",
-                    )
-                    state.error?.let {
-                        Spacer(Modifier.height(6.dp))
-                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-            }
-            val ai = state.aiReview
-            if (ai != null) {
-                item {
-                    SectionCard(title = "AI 增强（可选）", subtitle = "只解释本轮规则事实；状态：${ai.status}") {
-                        if (ai.status == "READY") {
-                            Text(ai.summary, style = MaterialTheme.typography.titleSmall)
-                            ai.highlights.take(3).forEach {
-                                Text("• ${it.title}：${it.body}", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 2.dp))
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(MorrowSpacing.CardRadius)),
+                    shape = RoundedCornerShape(MorrowSpacing.CardRadius),
+                    color = colors.card,
+                    border = BorderStroke(1.dp, colors.hairline),
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = review?.periodKey ?: "本周回顾",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = colors.textPrimary,
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = if (review == null) {
+                                        "还没有生成这一周的回顾"
+                                    } else {
+                                        "${Timestamps.formatDate(review.periodStart)} – " +
+                                            "${Timestamps.formatDate(review.periodEnd)} · " +
+                                            "生成于 ${Timestamps.formatDateTime(review.generatedAt)}"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = colors.textSecondary,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
                             }
-                            Text("建议：${ai.suggestion}", style = MaterialTheme.typography.bodySmall)
+                            Spacer(Modifier.width(10.dp))
+                            if (review == null) {
+                                StatusPill(text = "未生成")
+                            }
+                        }
+
+                        if (review == null) {
+                            Spacer(Modifier.height(14.dp))
                             Text(
-                                "类别：${ai.categories} · 生成于 ${Timestamps.formatDateTime(ai.generatedAt)}",
-                                style = MaterialTheme.typography.labelSmall,
+                                text = "回顾只读取你的目标进展、日记线索和成长记忆，不会联网，也不会补写内容。",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.textSecondary,
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            MorrowPrimaryButton(
+                                text = if (state.generating) "本地整理中…" else "生成本周回顾",
+                                onClick = onGenerate,
+                                enabled = !state.generating,
+                                loading = state.generating,
+                                testTag = "weekly_review_generate",
                             )
                         } else {
-                            Text(ai.error ?: "AI 增强未完成；本地回顾仍然有效。", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            Spacer(Modifier.height(6.dp))
+                            WeeklyBlock(
+                                title = "本周变化",
+                                facts = review.sections.changes,
+                                onOpenGoal = onOpenGoal,
+                            )
+                            BlockDivider()
+                            WeeklyBlock(
+                                title = "值得肯定",
+                                facts = review.sections.wins,
+                                onOpenGoal = onOpenGoal,
+                            )
+                            BlockDivider()
+                            WeeklyBlock(
+                                title = "值得关注",
+                                facts = review.sections.attention,
+                                onOpenGoal = onOpenGoal,
+                            )
+                            if (review.sections.nextSteps.isNotEmpty()) {
+                                BlockDivider()
+                                WeeklyBlock(
+                                    title = "建议下一步",
+                                    facts = review.sections.nextSteps,
+                                    onOpenGoal = onOpenGoal,
+                                )
+                            }
+                        }
+
+                        state.error?.let {
+                            Spacer(Modifier.height(10.dp))
+                            Text(
+                                text = it,
+                                color = colors.danger,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                         }
                     }
                 }
             }
-            item {
-                val ai = state.aiReview
-                if (ai == null) {
-                    MorrowQuietButton(
-                        text = "尝试 AI 增强（每周最多一次）",
-                        onClick = onGenerateAi,
-                        enabled = !state.generating,
-                        testTag = "weekly_generate_ai",
-                    )
-                } else if (ai.status == "PENDING" || ai.status == "SENT") {
-                    Text("AI 已预留本周额度，正在处理；不会重复请求。", style = MaterialTheme.typography.labelSmall)
-                } else if (ai.status == "FAILED" || ai.status == "STALE") {
-                    Text("本周 AI 已尝试，额度已用尽；本地回顾仍有效。", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
-                }
-            }
-            val review = state.review
+
             if (review != null) {
-                item { WeeklySection("本周变化", review.sections.changes, onOpenGoal) }
-                item { WeeklySection("值得肯定", review.sections.wins, onOpenGoal) }
-                item { WeeklySection("值得关注", review.sections.attention, onOpenGoal) }
-                item { WeeklySection("建议下一步", review.sections.nextSteps, onOpenGoal) }
+                if (ai == null) {
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            MorrowTertiaryButton(
+                                text = "尝试 AI 增强",
+                                onClick = onGenerateAi,
+                                enabled = !state.generating,
+                                showArrow = true,
+                                testTag = "weekly_generate_ai",
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "每周最多一次",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.textTertiary,
+                            )
+                            Spacer(Modifier.weight(1f))
+                            MorrowTertiaryButton(
+                                text = if (state.generating) "整理中…" else "重新整理",
+                                onClick = onGenerate,
+                                enabled = !state.generating,
+                                showArrow = true,
+                                testTag = "weekly_review_refresh",
+                            )
+                        }
+                    }
+                } else {
+                    item {
+                        AiReviewBlock(
+                            status = ai.status,
+                            summary = ai.summary,
+                            highlights = ai.highlights.map { it.title to it.body },
+                            suggestion = ai.suggestion,
+                            error = ai.error,
+                            meta = "类别：${ai.categories} · ${Timestamps.formatDateTime(ai.generatedAt)}",
+                        )
+                    }
+                    item {
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            Spacer(Modifier.weight(1f))
+                            MorrowTertiaryButton(
+                                text = if (state.generating) "整理中…" else "重新整理",
+                                onClick = onGenerate,
+                                enabled = !state.generating,
+                                showArrow = true,
+                                testTag = "weekly_review_refresh_ai",
+                            )
+                        }
+                    }
+                }
+
                 if (review.sections.nextSteps.isNotEmpty()) {
                     item {
-                        MorrowQuietButton(
+                        MorrowPrimaryButton(
                             text = "和顾问聊聊",
                             onClick = {
                                 onDiscuss(
@@ -158,36 +257,170 @@ fun WeeklyReviewScreen(
                     }
                 }
             }
+
+            item {
+                InlineNote(
+                    "回顾由本机记录生成；AI 增强是可选动作，只在你明确触发且授权有效时发生。",
+                )
+                Spacer(Modifier.height(10.dp))
+            }
         }
     }
 }
 
 @Composable
-private fun WeeklySection(
+private fun WeeklyBlock(
     title: String,
     facts: List<WeeklyFact>,
     onOpenGoal: (Long) -> Unit,
 ) {
-    SectionCard(title = title) {
+    val colors = MorrowTheme.colors
+    Column(modifier = Modifier.padding(vertical = 13.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            color = colors.textPrimary,
+        )
+        Spacer(Modifier.height(8.dp))
         if (facts.isEmpty()) {
-            InlineNote("这一项暂时没有可核验的内容。")
+            Text(
+                text = "这一项暂时没有可核验的内容。",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary,
+            )
         } else {
-            facts.forEach { fact ->
-                Text(
-                    "• ${fact.text}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(vertical = 3.dp),
-                )
-                fact.sources.filter { it.type == "GOAL" }.forEach { source ->
-                    val id = source.recordId.toLongOrNull()
-                    if (id != null) {
-                        TextButton(
-                            onClick = { onOpenGoal(id) },
-                            modifier = Modifier.testTag("weekly_source_goal_${source.recordId}"),
-                        ) { Text("查看目标：${source.label}") }
+            facts.forEachIndexed { index, fact ->
+                if (index > 0) Spacer(Modifier.height(11.dp))
+                Row(verticalAlignment = Alignment.Top) {
+                    Box(
+                        modifier = Modifier
+                            .padding(top = 8.dp)
+                            .size(4.dp)
+                            .background(colors.accent, CircleShape),
+                    )
+                    Spacer(Modifier.width(9.dp))
+                    Column {
+                        Text(
+                            text = fact.text,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.textPrimary,
+                        )
+
                     }
                 }
             }
+            val goalSource = facts
+                .flatMap { it.sources }
+                .filter { it.type == "GOAL" }
+                .distinctBy { it.recordId }
+                .firstOrNull()
+            val sourceId = goalSource?.recordId?.toLongOrNull()
+            if (sourceId != null) {
+                Spacer(Modifier.height(7.dp))
+                Row(
+                    modifier = Modifier
+                        .defaultMinSize(minHeight = 48.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onOpenGoal(sourceId) }
+                        .padding(vertical = 4.dp, horizontal = 2.dp)
+                        .testTag("weekly_source_goal_${goalSource.recordId}"),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "查看相关目标：${goalSource.label}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.forest,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    MorrowIcon(
+                        kind = MorrowIconKind.ARROW_RIGHT,
+                        tint = colors.forest,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BlockDivider() {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(1.dp)
+            .background(MorrowTheme.colors.hairline),
+    )
+}
+
+@Composable
+private fun AiReviewBlock(
+    status: String,
+    summary: String,
+    highlights: List<Pair<String, String>>,
+    suggestion: String,
+    error: String?,
+    meta: String,
+) {
+    val colors = MorrowTheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(15.dp))
+            .background(colors.nested)
+            .padding(17.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "AI 增强",
+                style = MaterialTheme.typography.titleSmall,
+                color = colors.textPrimary,
+            )
+            Spacer(Modifier.width(8.dp))
+            StatusPill(text = status)
+        }
+        Spacer(Modifier.height(7.dp))
+        if (status == "READY") {
+            Text(
+                text = summary,
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.textPrimary,
+            )
+            highlights.take(3).forEach { (title, body) ->
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.textPrimary,
+                )
+                Text(
+                    text = body,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary,
+                )
+            }
+            if (suggestion.isNotBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "建议：$suggestion",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textPrimary,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = meta,
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.textTertiary,
+            )
+        } else {
+            Text(
+                text = error ?: "AI 增强尚未完成；本地回顾仍然有效。",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.danger,
+            )
         }
     }
 }

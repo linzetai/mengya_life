@@ -1,11 +1,15 @@
 package com.mengyalife.app.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -40,11 +45,14 @@ import androidx.compose.material3.TextFieldColors
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -111,24 +119,23 @@ fun MorrowTopBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = MorrowSpacing.PageHorizontal, vertical = 10.dp),
+            .padding(start = MorrowSpacing.PageHorizontal, end = 16.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (onBack != null) {
             IconButton(
                 onClick = onBack,
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(48.dp)
                     .testTag(backTestTag),
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "返回",
+                MorrowIcon(
+                    kind = MorrowIconKind.ARROW_LEFT,
                     tint = colors.textSecondary,
                     modifier = Modifier.size(20.dp),
                 )
             }
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(2.dp))
         }
         Text(
             text = label,
@@ -162,10 +169,8 @@ fun SettingsAvatar(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = MorrowTheme.colors
     Box(
         modifier = modifier
-            .size(36.dp)
+            .size(48.dp)
             .clip(CircleShape)
-            .background(colors.nested)
-            .border(1.dp, colors.hairline, CircleShape)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -176,15 +181,24 @@ fun SettingsAvatar(onClick: () -> Unit, modifier: Modifier = Modifier) {
             .testTag("btn_settings"),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = "芽",
-            style = TextStyle(
-                fontFamily = MorrowType.Brand.fontFamily,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-            ),
-            color = colors.forest,
-        )
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(colors.nested)
+                .border(1.dp, colors.hairline, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "芽",
+                style = TextStyle(
+                    fontFamily = MorrowType.Brand.fontFamily,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                ),
+                color = colors.forest,
+            )
+        }
     }
 }
 
@@ -241,9 +255,10 @@ fun SectionHeading(
         if (actionLabel != null && onAction != null) {
             Row(
                 modifier = Modifier
+                    .defaultMinSize(minHeight = 48.dp)
                     .clip(RoundedCornerShape(10.dp))
                     .clickable(onClick = onAction)
-                    .padding(horizontal = 4.dp, vertical = 6.dp)
+                    .padding(start = 8.dp, end = 2.dp, top = 8.dp, bottom = 8.dp)
                     .then(if (testTag != null) Modifier.testTag(testTag) else Modifier),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -252,11 +267,11 @@ fun SectionHeading(
                     style = MaterialTheme.typography.labelMedium,
                     color = MorrowTheme.colors.textSecondary,
                 )
-                Spacer(Modifier.width(4.dp))
-                MorrowGlyph(
-                    kind = MorrowGlyphKind.ARROW,
+                Spacer(Modifier.width(5.dp))
+                MorrowIcon(
+                    kind = MorrowIconKind.ARROW_RIGHT,
                     tint = MorrowTheme.colors.textSecondary,
-                    modifier = Modifier.size(14.dp),
+                    modifier = Modifier.size(16.dp),
                 )
             }
         }
@@ -327,7 +342,7 @@ fun StatusPill(
     }
 }
 
-/** 可点击的选项药丸：用于时间范围、领域选择等。 */
+/** 可点击的选项药丸：外层 48dp 触摸区，内部 36dp 视觉高度。 */
 @Composable
 fun MorrowChoicePill(
     text: String,
@@ -338,56 +353,84 @@ fun MorrowChoicePill(
     val colors = MorrowTheme.colors
     val dark = isDarkTheme()
     val selectedContainer = if (dark) colors.insightCard else colors.forest
-    Surface(
+    Box(
         modifier = modifier
+            .defaultMinSize(minHeight = 48.dp)
             .clip(CircleShape)
             .clickable(onClick = onClick),
-        shape = CircleShape,
-        color = if (selected) selectedContainer else colors.card,
-        contentColor = if (selected) colors.insightText else colors.textSecondary,
-        border = BorderStroke(1.dp, if (selected) selectedContainer else colors.hairline),
+        contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier
-                .defaultMinSize(minHeight = 34.dp)
-                .padding(horizontal = 15.dp, vertical = 8.dp),
-        )
+        Surface(
+            shape = CircleShape,
+            color = if (selected) selectedContainer else colors.card,
+            contentColor = if (selected) colors.insightText else colors.textSecondary,
+            border = BorderStroke(1.dp, if (selected) selectedContainer else colors.hairline),
+        ) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp),
+            )
+        }
     }
 }
 
-/** 主按钮：森林绿、低阴影、圆角 16dp。 */
+/** Primary：森林绿填充、52dp 高、14dp 圆角，用于页面唯一主行动。 */
 @Composable
 fun MorrowPrimaryButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    loading: Boolean = false,
     testTag: String? = null,
 ) {
     val colors = MorrowTheme.colors
     val dark = isDarkTheme()
-    Surface(
-        modifier = modifier
-            .defaultMinSize(minHeight = 50.dp)
-            .then(if (testTag != null) Modifier.testTag(testTag) else Modifier)
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        color = when {
-            !enabled -> colors.nested
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val container by animateColorAsState(
+        targetValue = when {
+            !enabled || loading -> colors.nested
+            pressed -> colors.primaryPressed
             dark -> colors.insightCard
             else -> colors.forest
         },
-        contentColor = if (enabled) colors.insightText else colors.textTertiary,
+        animationSpec = tween(durationMillis = 120),
+        label = "primaryContainer",
+    )
+    val content = if (enabled && !loading) colors.insightText else colors.textDisabled
+    Surface(
+        modifier = modifier
+            .defaultMinSize(minHeight = 52.dp)
+            .then(if (testTag != null) Modifier.testTag(testTag) else Modifier)
+            .clip(RoundedCornerShape(MorrowSpacing.ButtonRadius))
+            .clickable(
+                interactionSource = interaction,
+                indication = LocalIndication.current,
+                enabled = enabled && !loading,
+                role = Role.Button,
+                onClick = onClick,
+            ),
+        shape = RoundedCornerShape(MorrowSpacing.ButtonRadius),
+        color = container,
+        contentColor = content,
     ) {
-        Box(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 18.dp, vertical = 14.dp),
-            contentAlignment = Alignment.Center,
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (loading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    color = content,
+                    strokeWidth = 1.8.dp,
+                )
+                Spacer(Modifier.width(9.dp))
+            }
             Text(
                 text = text,
                 style = MaterialTheme.typography.labelLarge,
@@ -397,9 +440,9 @@ fun MorrowPrimaryButton(
     }
 }
 
-/** 次按钮：纸色底 + 细线。 */
+/** Secondary：纸色/描边、50dp 高、与 Primary 同圆角。 */
 @Composable
-fun MorrowQuietButton(
+fun MorrowSecondaryButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -407,15 +450,32 @@ fun MorrowQuietButton(
     testTag: String? = null,
 ) {
     val colors = MorrowTheme.colors
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val container by animateColorAsState(
+        targetValue = when {
+            !enabled -> Color.Transparent
+            pressed -> colors.nested
+            else -> colors.card
+        },
+        animationSpec = tween(durationMillis = 120),
+        label = "secondaryContainer",
+    )
     Surface(
         modifier = modifier
-            .defaultMinSize(minHeight = 48.dp)
+            .defaultMinSize(minHeight = 50.dp)
             .then(if (testTag != null) Modifier.testTag(testTag) else Modifier)
-            .clip(RoundedCornerShape(15.dp))
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
-        shape = RoundedCornerShape(15.dp),
-        color = Color.Transparent,
-        contentColor = colors.textPrimary,
+            .clip(RoundedCornerShape(MorrowSpacing.ButtonRadius))
+            .clickable(
+                interactionSource = interaction,
+                indication = LocalIndication.current,
+                enabled = enabled,
+                role = Role.Button,
+                onClick = onClick,
+            ),
+        shape = RoundedCornerShape(MorrowSpacing.ButtonRadius),
+        color = container,
+        contentColor = if (enabled) colors.textPrimary else colors.textDisabled,
         border = BorderStroke(1.dp, colors.hairline),
     ) {
         Box(
@@ -432,6 +492,60 @@ fun MorrowQuietButton(
         }
     }
 }
+
+/** Tertiary：无卡片背景的文字操作，可带右箭头；触摸区仍为 48dp。 */
+@Composable
+fun MorrowTertiaryButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    showArrow: Boolean = false,
+    testTag: String? = null,
+) {
+    val colors = MorrowTheme.colors
+    val tint = if (enabled) colors.forest else colors.textDisabled
+    Row(
+        modifier = modifier
+            .defaultMinSize(minHeight = 48.dp)
+            .then(if (testTag != null) Modifier.testTag(testTag) else Modifier)
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelLarge,
+            color = tint,
+        )
+        if (showArrow) {
+            Spacer(Modifier.width(6.dp))
+            MorrowIcon(
+                kind = MorrowIconKind.ARROW_RIGHT,
+                tint = tint,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+    }
+}
+
+/** 兼容旧调用：Quiet = Secondary。 */
+@Composable
+fun MorrowQuietButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    testTag: String? = null,
+) = MorrowSecondaryButton(
+    text = text,
+    onClick = onClick,
+    modifier = modifier,
+    enabled = enabled,
+    testTag = testTag,
+)
 
 /** 设置页统一输入框配色。 */
 @Composable
@@ -667,14 +781,14 @@ fun ThinProgressBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(4.dp)
+            .height(3.dp)
             .background(MorrowTheme.colors.nested, CircleShape),
         horizontalArrangement = Arrangement.Start,
     ) {
         Spacer(
             Modifier
                 .fillMaxWidth(clamped)
-                .height(4.dp)
+                .height(3.dp)
                 .background(color, CircleShape),
         )
     }
@@ -739,7 +853,7 @@ fun GentleEmptyCard(
         }
         if (secondaryLabel != null && onSecondary != null) {
             Spacer(Modifier.height(10.dp))
-            MorrowQuietButton(text = secondaryLabel, onClick = onSecondary)
+            MorrowSecondaryButton(text = secondaryLabel, onClick = onSecondary)
         }
     }
 }
@@ -757,119 +871,241 @@ fun MetaLine(text: String, modifier: Modifier = Modifier) {
     )
 }
 
-/** 品牌细线图标类型。 */
-enum class MorrowGlyphKind { HOME, CHART, BOOK, SPARKLE, PEN, COMPASS, FORK, ARROW }
+/** 统一线性图标的语义集合。 */
+enum class MorrowIconKind {
+    HOME, TREND, BOOK, SPARKLE, WALLET, BRIEFCASE, LEAF, HEART,
+    COMPASS, PENCIL, BRANCH, ARROW_RIGHT, ARROW_LEFT,
+    CHEVRON_DOWN, CHEVRON_UP, MORE, PLUS, SEND,
+}
+
+/** 图标在默认、选中、弱化和禁用状态下的统一取色。 */
+object MorrowIconColors {
+    val Default: Color
+        @Composable get() = MorrowTheme.colors.textSecondary
+    val Active: Color
+        @Composable get() = MorrowTheme.colors.forest
+    val Muted: Color
+        @Composable get() = MorrowTheme.colors.textTertiary
+    val Disabled: Color
+        @Composable get() = MorrowTheme.colors.textDisabled
+    val OnDark: Color
+        @Composable get() = MorrowTheme.colors.insightText
+}
 
 /**
- * 统一的细线图标（Canvas 绘制）。
- * 不引入 material-icons-extended，避免为了几个图标显著增加包体。
+ * 统一线性图标。
+ *
+ * 24×24 逻辑画布、2.1 单位描边、圆头圆角；所有图标共用同一套绘制规则，
+ * 不引入 material-icons-extended，也不使用汉字/Emoji 占位。
  */
 @Composable
-fun MorrowGlyph(
-    kind: MorrowGlyphKind,
+fun MorrowIcon(
+    kind: MorrowIconKind,
     tint: Color,
     modifier: Modifier = Modifier,
-    strokeWidth: Dp = 1.5.dp,
+    contentDescription: String? = null,
 ) {
-    Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
-        if (w <= 0f || h <= 0f) return@Canvas
-        val sw = strokeWidth.toPx()
-        val stroke = Stroke(width = sw, cap = StrokeCap.Round, join = StrokeJoin.Round)
-        fun p(x: Float, y: Float) = Offset(w * x, h * y)
+    val semanticsModifier = if (contentDescription != null) {
+        Modifier.semantics { this.contentDescription = contentDescription }
+    } else {
+        Modifier
+    }
+    Canvas(modifier.then(semanticsModifier)) {
+        val scale = minOf(size.width, size.height) / 24f
+        if (scale <= 0f) return@Canvas
+        val ox = (size.width - 24f * scale) / 2f
+        val oy = (size.height - 24f * scale) / 2f
+        fun p(x: Float, y: Float) = Offset(ox + x * scale, oy + y * scale)
+        fun path(block: Path.() -> Unit): Path = Path().apply(block)
+        val stroke = Stroke(width = 2.1f * scale, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        fun line(x1: Float, y1: Float, x2: Float, y2: Float) =
+            drawLine(tint, p(x1, y1), p(x2, y2), stroke.width, StrokeCap.Round)
 
         when (kind) {
-            MorrowGlyphKind.HOME -> {
-                val path = Path().apply {
-                    moveTo(w * 0.18f, h * 0.46f)
-                    lineTo(w * 0.5f, h * 0.2f)
-                    lineTo(w * 0.82f, h * 0.46f)
-                    lineTo(w * 0.82f, h * 0.8f)
-                    lineTo(w * 0.18f, h * 0.8f)
+            MorrowIconKind.HOME -> {
+                drawPath(path {
+                    moveTo(ox + 3.8f * scale, oy + 10.4f * scale)
+                    lineTo(ox + 12f * scale, oy + 3.6f * scale)
+                    lineTo(ox + 20.2f * scale, oy + 10.4f * scale)
+                }, tint, style = stroke)
+                drawPath(path {
+                    moveTo(ox + 6f * scale, oy + 9.4f * scale)
+                    lineTo(ox + 6f * scale, oy + 20.2f * scale)
+                    lineTo(ox + 18f * scale, oy + 20.2f * scale)
+                    lineTo(ox + 18f * scale, oy + 9.4f * scale)
+                }, tint, style = stroke)
+                line(10.4f, 20.2f, 10.4f, 14.6f)
+                line(10.4f, 14.6f, 13.6f, 14.6f)
+                line(13.6f, 14.6f, 13.6f, 20.2f)
+            }
+
+            MorrowIconKind.TREND -> {
+                drawPath(path {
+                    moveTo(ox + 3.4f * scale, oy + 17.2f * scale)
+                    lineTo(ox + 8.8f * scale, oy + 11.4f * scale)
+                    lineTo(ox + 12.6f * scale, oy + 14.2f * scale)
+                    lineTo(ox + 20.4f * scale, oy + 6.2f * scale)
+                }, tint, style = stroke)
+                line(16.4f, 6.2f, 20.4f, 6.2f)
+                line(20.4f, 6.2f, 20.4f, 10.2f)
+            }
+
+            MorrowIconKind.BOOK -> {
+                drawPath(path {
+                    moveTo(ox + 12f * scale, oy + 7f * scale)
+                    cubicTo(ox + 9.4f * scale, oy + 5.3f * scale, ox + 5.3f * scale, oy + 5.2f * scale, ox + 4f * scale, oy + 6.4f * scale)
+                    lineTo(ox + 4f * scale, oy + 18.2f * scale)
+                    cubicTo(ox + 7.2f * scale, oy + 16.8f * scale, ox + 10f * scale, oy + 17.2f * scale, ox + 12f * scale, oy + 18.6f * scale)
+                }, tint, style = stroke)
+                drawPath(path {
+                    moveTo(ox + 12f * scale, oy + 7f * scale)
+                    cubicTo(ox + 14.6f * scale, oy + 5.3f * scale, ox + 18.7f * scale, oy + 5.2f * scale, ox + 20f * scale, oy + 6.4f * scale)
+                    lineTo(ox + 20f * scale, oy + 18.2f * scale)
+                    cubicTo(ox + 16.8f * scale, oy + 16.8f * scale, ox + 14f * scale, oy + 17.2f * scale, ox + 12f * scale, oy + 18.6f * scale)
+                }, tint, style = stroke)
+                line(12f, 7f, 12f, 18.6f)
+            }
+
+            MorrowIconKind.SPARKLE -> {
+                drawPath(path {
+                    moveTo(ox + 12f * scale, oy + 3.2f * scale)
+                    quadraticTo(ox + 13.2f * scale, oy + 10.2f * scale, ox + 20.6f * scale, oy + 12f * scale)
+                    quadraticTo(ox + 13.2f * scale, oy + 13.8f * scale, ox + 12f * scale, oy + 20.8f * scale)
+                    quadraticTo(ox + 10.8f * scale, oy + 13.8f * scale, ox + 3.4f * scale, oy + 12f * scale)
+                    quadraticTo(ox + 10.8f * scale, oy + 10.2f * scale, ox + 12f * scale, oy + 3.2f * scale)
                     close()
-                }
-                drawPath(path, tint, style = stroke)
+                }, tint, style = stroke)
             }
 
-            MorrowGlyphKind.CHART -> {
-                val path = Path().apply {
-                    moveTo(w * 0.14f, h * 0.72f)
-                    lineTo(w * 0.38f, h * 0.46f)
-                    lineTo(w * 0.56f, h * 0.58f)
-                    lineTo(w * 0.84f, h * 0.27f)
-                }
-                drawPath(path, tint, style = stroke)
-                drawLine(tint, p(0.14f, 0.86f), p(0.86f, 0.86f), sw, StrokeCap.Round)
+            MorrowIconKind.WALLET -> {
+                drawRoundRect(
+                    color = tint,
+                    topLeft = p(3.2f, 6.4f),
+                    size = Size(17.6f * scale, 13.2f * scale),
+                    cornerRadius = CornerRadius(2.6f * scale),
+                    style = stroke,
+                )
+                line(3.2f, 10.2f, 20.8f, 10.2f)
+                drawCircle(tint, radius = 1.35f * scale, center = p(16.8f, 15f))
             }
 
-            MorrowGlyphKind.BOOK -> {
-                val left = Path().apply {
-                    moveTo(w * 0.5f, h * 0.27f)
-                    cubicTo(w * 0.38f, h * 0.2f, w * 0.22f, h * 0.2f, w * 0.15f, h * 0.26f)
-                    lineTo(w * 0.15f, h * 0.77f)
-                    cubicTo(w * 0.26f, h * 0.72f, w * 0.4f, h * 0.73f, w * 0.5f, h * 0.8f)
-                }
-                val right = Path().apply {
-                    moveTo(w * 0.5f, h * 0.27f)
-                    cubicTo(w * 0.62f, h * 0.2f, w * 0.78f, h * 0.2f, w * 0.85f, h * 0.26f)
-                    lineTo(w * 0.85f, h * 0.77f)
-                    cubicTo(w * 0.74f, h * 0.72f, w * 0.6f, h * 0.73f, w * 0.5f, h * 0.8f)
-                }
-                drawPath(left, tint, style = stroke)
-                drawPath(right, tint, style = stroke)
+            MorrowIconKind.BRIEFCASE -> {
+                drawRoundRect(
+                    color = tint,
+                    topLeft = p(3.2f, 7.6f),
+                    size = Size(17.6f * scale, 12.4f * scale),
+                    cornerRadius = CornerRadius(2.4f * scale),
+                    style = stroke,
+                )
+                line(9f, 7.6f, 9f, 5.2f)
+                line(9f, 5.2f, 15f, 5.2f)
+                line(15f, 5.2f, 15f, 7.6f)
+                line(3.2f, 12.2f, 20.8f, 12.2f)
             }
 
-            MorrowGlyphKind.SPARKLE -> {
-                val path = Path().apply {
-                    moveTo(w * 0.5f, h * 0.12f)
-                    quadraticBezierTo(w * 0.56f, h * 0.44f, w * 0.88f, h * 0.5f)
-                    quadraticBezierTo(w * 0.56f, h * 0.56f, w * 0.5f, h * 0.88f)
-                    quadraticBezierTo(w * 0.44f, h * 0.56f, w * 0.12f, h * 0.5f)
-                    quadraticBezierTo(w * 0.44f, h * 0.44f, w * 0.5f, h * 0.12f)
+            MorrowIconKind.LEAF -> {
+                drawPath(path {
+                    moveTo(ox + 4.8f * scale, oy + 19.2f * scale)
+                    cubicTo(ox + 3.6f * scale, oy + 11.8f * scale, ox + 8.2f * scale, oy + 4.6f * scale, ox + 19.4f * scale, oy + 4.4f * scale)
+                    cubicTo(ox + 19.6f * scale, oy + 14f * scale, ox + 13f * scale, oy + 19.2f * scale, ox + 4.8f * scale, oy + 19.2f * scale)
                     close()
-                }
-                drawPath(path, tint, style = Stroke(width = sw * 0.85f, join = StrokeJoin.Round))
+                }, tint, style = stroke)
+                drawPath(path {
+                    moveTo(ox + 5.2f * scale, oy + 18.8f * scale)
+                    cubicTo(ox + 8f * scale, oy + 14.2f * scale, ox + 11.8f * scale, oy + 9.8f * scale, ox + 16.6f * scale, oy + 7.2f * scale)
+                }, tint, style = stroke)
             }
 
-            MorrowGlyphKind.PEN -> {
-                val path = Path().apply {
-                    moveTo(w * 0.24f, h * 0.76f)
-                    lineTo(w * 0.32f, h * 0.5f)
-                    lineTo(w * 0.68f, h * 0.14f)
-                    lineTo(w * 0.86f, h * 0.32f)
-                    lineTo(w * 0.5f, h * 0.68f)
+            MorrowIconKind.HEART -> {
+                drawPath(path {
+                    moveTo(ox + 12f * scale, oy + 20f * scale)
+                    cubicTo(ox + 10.2f * scale, oy + 18.2f * scale, ox + 3.8f * scale, oy + 14.2f * scale, ox + 3.8f * scale, oy + 9.2f * scale)
+                    cubicTo(ox + 3.8f * scale, oy + 6.2f * scale, ox + 5.8f * scale, oy + 4.4f * scale, ox + 8.2f * scale, oy + 4.4f * scale)
+                    cubicTo(ox + 10.2f * scale, oy + 4.4f * scale, ox + 11.4f * scale, oy + 5.8f * scale, ox + 12f * scale, oy + 7.2f * scale)
+                    cubicTo(ox + 12.6f * scale, oy + 5.8f * scale, ox + 13.8f * scale, oy + 4.4f * scale, ox + 15.8f * scale, oy + 4.4f * scale)
+                    cubicTo(ox + 18.2f * scale, oy + 4.4f * scale, ox + 20.2f * scale, oy + 6.2f * scale, ox + 20.2f * scale, oy + 9.2f * scale)
+                    cubicTo(ox + 20.2f * scale, oy + 14.2f * scale, ox + 13.8f * scale, oy + 18.2f * scale, ox + 12f * scale, oy + 20f * scale)
                     close()
-                }
-                drawPath(path, tint, style = stroke)
-                drawLine(tint, p(0.24f, 0.76f), p(0.38f, 0.86f), sw, StrokeCap.Round)
-                drawLine(tint, p(0.38f, 0.86f), p(0.44f, 0.7f), sw, StrokeCap.Round)
+                }, tint, style = stroke)
             }
 
-            MorrowGlyphKind.COMPASS -> {
-                drawCircle(tint, radius = w * 0.36f, style = stroke)
-                val needle = Path().apply {
-                    moveTo(w * 0.62f, h * 0.38f)
-                    lineTo(w * 0.44f, h * 0.44f)
-                    lineTo(w * 0.38f, h * 0.62f)
-                    lineTo(w * 0.56f, h * 0.56f)
+            MorrowIconKind.COMPASS -> {
+                drawCircle(tint, radius = 8.4f * scale, center = p(12f, 12f), style = stroke)
+                drawPath(path {
+                    moveTo(ox + 15.6f * scale, oy + 8.4f * scale)
+                    lineTo(ox + 13.4f * scale, oy + 13.4f * scale)
+                    lineTo(ox + 8.4f * scale, oy + 15.6f * scale)
+                    lineTo(ox + 10.6f * scale, oy + 10.6f * scale)
                     close()
-                }
-                drawPath(needle, tint, style = Stroke(width = sw * 0.9f, join = StrokeJoin.Round))
+                }, tint, style = stroke)
             }
 
-            MorrowGlyphKind.FORK -> {
-                drawLine(tint, p(0.5f, 0.84f), p(0.5f, 0.52f), sw, StrokeCap.Round)
-                drawLine(tint, p(0.5f, 0.52f), p(0.28f, 0.26f), sw, StrokeCap.Round)
-                drawLine(tint, p(0.5f, 0.52f), p(0.72f, 0.26f), sw, StrokeCap.Round)
-                drawCircle(tint, radius = sw * 1.15f, center = p(0.28f, 0.26f))
-                drawCircle(tint, radius = sw * 1.15f, center = p(0.72f, 0.26f))
+            MorrowIconKind.PENCIL -> {
+                drawPath(path {
+                    moveTo(ox + 4f * scale, oy + 20f * scale)
+                    lineTo(ox + 5.2f * scale, oy + 15.2f * scale)
+                    lineTo(ox + 16f * scale, oy + 4.4f * scale)
+                    lineTo(ox + 19.6f * scale, oy + 8f * scale)
+                    lineTo(ox + 8.8f * scale, oy + 18.8f * scale)
+                    close()
+                }, tint, style = stroke)
+                line(4f, 20f, 8.8f, 18.8f)
+                line(16f, 4.4f, 19.6f, 8f)
             }
 
-            MorrowGlyphKind.ARROW -> {
-                drawLine(tint, p(0.18f, 0.5f), p(0.82f, 0.5f), sw, StrokeCap.Round)
-                drawLine(tint, p(0.62f, 0.3f), p(0.82f, 0.5f), sw, StrokeCap.Round)
-                drawLine(tint, p(0.82f, 0.5f), p(0.62f, 0.7f), sw, StrokeCap.Round)
+            MorrowIconKind.BRANCH -> {
+                line(8f, 19f, 8f, 8f)
+                drawCircle(tint, radius = 1.6f * scale, center = p(8f, 5.8f), style = stroke)
+                drawCircle(tint, radius = 1.6f * scale, center = p(8f, 19.2f), style = stroke)
+                drawPath(path {
+                    moveTo(ox + 8f * scale, oy + 12f * scale)
+                    cubicTo(ox + 15.6f * scale, oy + 12f * scale, ox + 16f * scale, oy + 9f * scale, ox + 16f * scale, oy + 7.4f * scale)
+                }, tint, style = stroke)
+                drawCircle(tint, radius = 1.6f * scale, center = p(16f, 5.8f), style = stroke)
+            }
+
+            MorrowIconKind.ARROW_RIGHT -> {
+                line(4f, 12f, 20f, 12f)
+                line(15.4f, 7.4f, 20f, 12f)
+                line(20f, 12f, 15.4f, 16.6f)
+            }
+
+            MorrowIconKind.ARROW_LEFT -> {
+                line(20f, 12f, 4f, 12f)
+                line(8.6f, 7.4f, 4f, 12f)
+                line(4f, 12f, 8.6f, 16.6f)
+            }
+
+            MorrowIconKind.CHEVRON_DOWN -> {
+                line(7f, 9.6f, 12f, 14.6f)
+                line(12f, 14.6f, 17f, 9.6f)
+            }
+
+            MorrowIconKind.CHEVRON_UP -> {
+                line(7f, 14.4f, 12f, 9.4f)
+                line(12f, 9.4f, 17f, 14.4f)
+            }
+
+            MorrowIconKind.MORE -> {
+                drawCircle(tint, radius = 1.35f * scale, center = p(6f, 12f))
+                drawCircle(tint, radius = 1.35f * scale, center = p(12f, 12f))
+                drawCircle(tint, radius = 1.35f * scale, center = p(18f, 12f))
+            }
+
+            MorrowIconKind.PLUS -> {
+                line(12f, 5f, 12f, 19f)
+                line(5f, 12f, 19f, 12f)
+            }
+
+            MorrowIconKind.SEND -> {
+                drawPath(path {
+                    moveTo(ox + 3.5f * scale, oy + 11.5f * scale)
+                    lineTo(ox + 20.5f * scale, oy + 4f * scale)
+                    lineTo(ox + 13.5f * scale, oy + 20.5f * scale)
+                    lineTo(ox + 10.8f * scale, oy + 13.2f * scale)
+                    close()
+                }, tint, style = stroke)
+                line(10.8f, 13.2f, 20.5f, 4f)
             }
         }
     }

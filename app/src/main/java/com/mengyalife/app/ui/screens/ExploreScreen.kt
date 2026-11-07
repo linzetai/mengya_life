@@ -38,10 +38,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.mengyalife.app.domain.goals.GoalDomain
 import com.mengyalife.app.ui.components.InlineNote
-import com.mengyalife.app.ui.components.MorrowGlyph
-import com.mengyalife.app.ui.components.MorrowGlyphKind
+import com.mengyalife.app.ui.components.MorrowIcon
+import com.mengyalife.app.ui.components.MorrowIconKind
 import com.mengyalife.app.ui.components.MorrowPrimaryButton
-import com.mengyalife.app.ui.components.MorrowQuietButton
+import com.mengyalife.app.ui.components.MorrowSecondaryButton
+import com.mengyalife.app.ui.components.MorrowTertiaryButton
 import com.mengyalife.app.ui.components.MorrowTextField
 import com.mengyalife.app.ui.components.MorrowTopBar
 import com.mengyalife.app.ui.components.SectionHeading
@@ -283,10 +284,11 @@ private fun StepHope(
         testTag = "explore_next",
     )
     Spacer(Modifier.height(10.dp))
-    MorrowQuietButton(
+    MorrowTertiaryButton(
         text = "暂时想不到，先跳过",
         onClick = onSkip,
         testTag = "explore_skip",
+        modifier = Modifier.fillMaxWidth(),
     )
 }
 
@@ -316,9 +318,10 @@ private fun StepDifficulty(
         testTag = "explore_draft",
     )
     Spacer(Modifier.height(10.dp))
-    MorrowQuietButton(
+    MorrowTertiaryButton(
         text = "上一步",
         onClick = onBack,
+        modifier = Modifier.fillMaxWidth(),
     )
 }
 
@@ -344,8 +347,8 @@ private fun StepDraft(
             .testTag("explore_draft_card"),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            MorrowGlyph(
-                kind = MorrowGlyphKind.SPARKLE,
+            MorrowIcon(
+                kind = MorrowIconKind.SPARKLE,
                 tint = colors.accent,
                 modifier = Modifier.size(16.dp),
             )
@@ -380,15 +383,16 @@ private fun StepDraft(
         testTag = "explore_save",
     )
     Spacer(Modifier.height(10.dp))
-    MorrowQuietButton(
+    MorrowSecondaryButton(
         text = "和顾问继续聊",
         onClick = onDiscuss,
         testTag = "explore_discuss",
     )
-    Spacer(Modifier.height(10.dp))
-    MorrowQuietButton(
+    Spacer(Modifier.height(2.dp))
+    MorrowTertiaryButton(
         text = "重新想一想",
         onClick = onRestart,
         testTag = "explore_restart",
+        modifier = Modifier.fillMaxWidth(),
     )
 }

@@ -336,7 +336,7 @@ class AdvisorViewModel(
                         expectedRestoreGeneration = expectedRestoreGeneration,
                     )
                 }
-                local.update { it.copy(sending = false) }
+                local.update { it.copy(sending = false, infoMessage = null) }
             } catch (cancelled: CancellationException) {
                 withContext(NonCancellable) {
                     conversations.appendFailure(

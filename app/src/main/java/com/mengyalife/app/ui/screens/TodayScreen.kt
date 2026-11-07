@@ -46,8 +46,9 @@ import com.mengyalife.app.domain.goals.GoalStatus
 import com.mengyalife.app.domain.insight.GrowthInsight
 import com.mengyalife.app.domain.insight.InsightReportStatus
 import com.mengyalife.app.domain.insight.InsightType
-import com.mengyalife.app.ui.components.MorrowGlyph
-import com.mengyalife.app.ui.components.MorrowGlyphKind
+import com.mengyalife.app.ui.components.MorrowIcon
+import com.mengyalife.app.ui.components.MorrowIconKind
+import com.mengyalife.app.ui.components.goalDomainIcon
 import com.mengyalife.app.ui.components.MorrowTopBar
 import com.mengyalife.app.ui.components.ScreenPadding
 import com.mengyalife.app.ui.components.SectionHeading
@@ -179,7 +180,7 @@ fun TodayScreen(
                     DirectionEmptyRow(onClick = onOpenPanorama)
                 } else {
                     goals.roots.take(3).forEachIndexed { index, node ->
-                        if (index > 0) Spacer(Modifier.height(10.dp))
+                        if (index > 0) Spacer(Modifier.height(8.dp))
                         DirectionRow(
                             node = node,
                             onClick = { onOpenGoal(node.goal.id) },
@@ -195,8 +196,14 @@ fun TodayScreen(
                             .testTag("today_add_direction"),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        MorrowIcon(
+                            kind = MorrowIconKind.PLUS,
+                            tint = MorrowTheme.colors.textSecondary,
+                            modifier = Modifier.size(15.dp),
+                        )
+                        Spacer(Modifier.width(8.dp))
                         Text(
-                            text = "＋  添加一个方向",
+                            text = "添加一个方向",
                             style = MaterialTheme.typography.labelMedium,
                             color = MorrowTheme.colors.textSecondary,
                         )
@@ -214,21 +221,21 @@ fun TodayScreen(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     ActionTile(
-                        glyph = MorrowGlyphKind.COMPASS,
+                        glyph = MorrowIconKind.COMPASS,
                         label = "探索\n人生方向",
                         testTag = "today_explore",
                         onClick = onOpenExplore,
                         modifier = Modifier.weight(1f),
                     )
                     ActionTile(
-                        glyph = MorrowGlyphKind.PEN,
+                        glyph = MorrowIconKind.PENCIL,
                         label = "写一篇\n日记",
                         testTag = "today_write_diary",
                         onClick = onWriteDiary,
                         modifier = Modifier.weight(1f),
                     )
                     ActionTile(
-                        glyph = MorrowGlyphKind.FORK,
+                        glyph = MorrowIconKind.BRANCH,
                         label = "讨论\n一个决定",
                         testTag = "today_decide",
                         onClick = onOpenDecision,
@@ -388,11 +395,10 @@ private fun InsightCard(
         }
         Column(modifier = Modifier.padding(22.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                MorrowGlyph(
-                    kind = MorrowGlyphKind.SPARKLE,
+                MorrowIcon(
+                    kind = MorrowIconKind.SPARKLE,
                     tint = colors.insightMuted,
                     modifier = Modifier.size(15.dp),
-                    strokeWidth = 1.2.dp,
                 )
                 Spacer(Modifier.width(7.dp))
                 Text(
@@ -423,11 +429,10 @@ private fun InsightCard(
                     color = colors.insightText,
                     modifier = Modifier.weight(1f),
                 )
-                MorrowGlyph(
-                    kind = MorrowGlyphKind.ARROW,
+                MorrowIcon(
+                    kind = MorrowIconKind.ARROW_RIGHT,
                     tint = colors.insightText,
                     modifier = Modifier.size(16.dp),
-                    strokeWidth = 1.4.dp,
                 )
             }
         }
@@ -466,7 +471,11 @@ private fun DirectionRow(
         color = colors.card,
         border = androidx.compose.foundation.BorderStroke(1.dp, colors.hairline),
     ) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp)) {
+        Column(
+            modifier = Modifier
+                .defaultMinSize(minHeight = 78.dp)
+                .padding(horizontal = 14.dp, vertical = 11.dp),
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
@@ -475,10 +484,10 @@ private fun DirectionRow(
                         .background(colors.nested),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        text = domainGlyph(goal.domain.label),
-                        style = MorrowType.Brand.copy(fontSize = 14.sp, lineHeight = 18.sp),
-                        color = colors.forest,
+                    MorrowIcon(
+                        kind = goalDomainIcon(goal.domain),
+                        tint = colors.forest,
+                        modifier = Modifier.size(19.dp),
                     )
                 }
                 Spacer(Modifier.width(12.dp))
@@ -487,10 +496,10 @@ private fun DirectionRow(
                         text = "${goal.domain.label} · ${goal.title}",
                         style = MaterialTheme.typography.bodyLarge,
                         color = colors.textPrimary,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Spacer(Modifier.height(3.dp))
+                    Spacer(Modifier.height(4.dp))
                     Text(
                         text = subtitle,
                         style = MaterialTheme.typography.bodySmall,
@@ -499,16 +508,18 @@ private fun DirectionRow(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Spacer(Modifier.width(8.dp))
-                MorrowGlyph(
-                    kind = MorrowGlyphKind.ARROW,
+                Spacer(Modifier.width(10.dp))
+                MorrowIcon(
+                    kind = MorrowIconKind.ARROW_RIGHT,
                     tint = colors.textTertiary,
-                    modifier = Modifier.size(15.dp),
+                    modifier = Modifier.size(16.dp),
                 )
             }
+            Spacer(Modifier.height(9.dp))
             if (node.children.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
                 ThinProgressBar(progress = progress, color = colors.accent)
+            } else {
+                Spacer(Modifier.height(3.dp))
             }
         }
     }
@@ -537,10 +548,10 @@ private fun DirectionEmptyRow(onClick: () -> Unit) {
                     .background(colors.nested),
                 contentAlignment = Alignment.Center,
             ) {
-                MorrowGlyph(
-                    kind = MorrowGlyphKind.SPARKLE,
+                MorrowIcon(
+                    kind = MorrowIconKind.LEAF,
                     tint = colors.forest,
-                    modifier = Modifier.size(17.dp),
+                    modifier = Modifier.size(18.dp),
                 )
             }
             Spacer(Modifier.width(12.dp))
@@ -557,21 +568,13 @@ private fun DirectionEmptyRow(onClick: () -> Unit) {
                     color = colors.textSecondary,
                 )
             }
-            MorrowGlyph(
-                kind = MorrowGlyphKind.ARROW,
+            MorrowIcon(
+                kind = MorrowIconKind.ARROW_RIGHT,
                 tint = colors.textTertiary,
-                modifier = Modifier.size(15.dp),
+                modifier = Modifier.size(16.dp),
             )
         }
     }
-}
-
-private fun domainGlyph(label: String): String = when (label) {
-    "健康" -> "健"
-    "职业" -> "职"
-    "财富" -> "财"
-    "学习" -> "学"
-    else -> "生"
 }
 
 // ---------------------------------------------------------------------------
@@ -580,7 +583,7 @@ private fun domainGlyph(label: String): String = when (label) {
 
 @Composable
 private fun ActionTile(
-    glyph: MorrowGlyphKind,
+    glyph: MorrowIconKind,
     label: String,
     testTag: String,
     onClick: () -> Unit,
@@ -589,35 +592,35 @@ private fun ActionTile(
     val colors = MorrowTheme.colors
     Column(
         modifier = modifier
-            .defaultMinSize(minHeight = 98.dp)
+            .height(110.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(colors.card)
             .border(1.dp, colors.hairline, RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
             .testTag(testTag)
-            .padding(horizontal = 12.dp, vertical = 13.dp),
+            .padding(horizontal = 14.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
         Box(
             modifier = Modifier
-                .size(30.dp)
+                .size(32.dp)
                 .clip(CircleShape)
                 .background(colors.nested),
             contentAlignment = Alignment.Center,
         ) {
-            MorrowGlyph(
+            MorrowIcon(
                 kind = glyph,
                 tint = colors.forest,
-                modifier = Modifier.size(17.dp),
-                strokeWidth = 1.4.dp,
+                modifier = Modifier.size(18.dp),
             )
         }
-        Spacer(Modifier.height(12.dp))
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,
             color = colors.textPrimary,
             fontWeight = FontWeight.Medium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -670,10 +673,10 @@ private fun GoodThingsCard(
                 color = colors.forest,
             )
             Spacer(Modifier.width(5.dp))
-            MorrowGlyph(
-                kind = MorrowGlyphKind.ARROW,
+            MorrowIcon(
+                kind = MorrowIconKind.ARROW_RIGHT,
                 tint = colors.forest,
-                modifier = Modifier.size(14.dp),
+                modifier = Modifier.size(16.dp),
             )
         }
     }

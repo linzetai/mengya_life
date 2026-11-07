@@ -36,10 +36,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.mengyalife.app.data.repository.GoalSnapshot
 import com.mengyalife.app.ui.components.InlineNote
-import com.mengyalife.app.ui.components.MorrowGlyph
-import com.mengyalife.app.ui.components.MorrowGlyphKind
+import com.mengyalife.app.ui.components.MorrowIcon
+import com.mengyalife.app.ui.components.MorrowIconKind
 import com.mengyalife.app.ui.components.MorrowPrimaryButton
-import com.mengyalife.app.ui.components.MorrowQuietButton
+import com.mengyalife.app.ui.components.MorrowSecondaryButton
+import com.mengyalife.app.ui.components.MorrowTertiaryButton
 import com.mengyalife.app.ui.components.MorrowTextField
 import com.mengyalife.app.ui.components.MorrowTopBar
 import com.mengyalife.app.ui.components.SectionHeading
@@ -167,52 +168,61 @@ fun DecisionScreen(
                 Spacer(Modifier.height(12.dp))
                 SectionHeading(title = "可以这样看这件事")
                 Spacer(Modifier.height(10.dp))
-                FrameworkCard(
-                    title = "可能的短期影响",
-                    body = buildString {
-                        append("先看它对你接下来 1–3 个月的时间、精力和现金流的占用。")
-                        if (constraints.isNotBlank()) append("\n你写下的约束：${constraints.trim()}")
-                    },
-                    testTag = "decision_short_term",
-                )
-                Spacer(Modifier.height(10.dp))
-                FrameworkCard(
-                    title = "和长期方向的关系",
-                    body = if (directions.isNotBlank()) {
-                        "你现在在意的方向是：$directions。\n问自己：这个决定会让其中一个方向更清楚，还是只是更忙？"
-                    } else {
-                        "你还没有设定长期方向。可以先问自己：这个决定会让我更了解自己想要什么吗？"
-                    },
-                    testTag = "decision_long_term",
-                )
-                Spacer(Modifier.height(10.dp))
-                FrameworkCard(
-                    title = "还不确定的因素",
-                    body = buildString {
-                        if (options.isNotBlank()) append("你已经写下的选项：${options.trim()}\n")
-                        append("哪一项最不可逆？有没有一个信息，是你在决定前必须补上的？")
-                    },
-                    testTag = "decision_uncertain",
-                )
-                Spacer(Modifier.height(10.dp))
-                FrameworkCard(
-                    title = "可以先验证的小行动",
-                    body = "在做出承诺前，先做一个可逆的小验证：找一位做过这件事的人聊 30 分钟，" +
-                        "或先试一个月。" +
-                        if (timing.isNotBlank()) "\n你写下的时间：${timing.trim()}" else "",
-                    testTag = "decision_action",
-                )
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp)),
+                    shape = RoundedCornerShape(18.dp),
+                    color = colors.card,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, colors.hairline),
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
+                        FrameworkRow(
+                            index = "01",
+                            title = "可能的短期影响",
+                            body = buildString {
+                                append("先看它对你接下来 1–3 个月的时间、精力和现金流的占用。")
+                                if (constraints.isNotBlank()) append("\n你写下的约束：${constraints.trim()}")
+                            },
+                            testTag = "decision_short_term",
+                        )
+                        FrameworkDivider()
+                        FrameworkRow(
+                            index = "02",
+                            title = "和长期方向的关系",
+                            body = if (directions.isNotBlank()) {
+                                "你现在在意的方向是：$directions。\n问自己：这个决定会让其中一个方向更清楚，还是只是更忙？"
+                            } else {
+                                "你还没有设定长期方向。可以先问自己：这个决定会让我更了解自己想要什么吗？"
+                            },
+                            testTag = "decision_long_term",
+                        )
+                        FrameworkDivider()
+                        FrameworkRow(
+                            index = "03",
+                            title = "还不确定的因素",
+                            body = buildString {
+                                if (options.isNotBlank()) append("你已经写下的选项：${options.trim()}\n")
+                                append("哪一项最不可逆？有没有一个信息，是你在决定前必须补上的？")
+                            },
+                            testTag = "decision_uncertain",
+                        )
+                        FrameworkDivider()
+                        FrameworkRow(
+                            index = "04",
+                            title = "可以先验证的小行动",
+                            body = "在做出承诺前，先做一个可逆的小验证：找一位做过这件事的人聊 30 分钟，" +
+                                "或先试一个月。" +
+                                if (timing.isNotBlank()) "\n你写下的时间：${timing.trim()}" else "",
+                            testTag = "decision_action",
+                        )
+                    }
+                }
                 if (involvesMoney) {
                     Spacer(Modifier.height(12.dp))
                     InlineNote("你提到了金额相关的内容。这里没有做财务模拟或收益预测，只保留你写下的假设。")
                 }
-                Spacer(Modifier.height(18.dp))
-                MorrowQuietButton(
-                    text = "修改刚才的输入",
-                    onClick = { showFramework = false },
-                    testTag = "decision_edit",
-                )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(20.dp))
                 MorrowPrimaryButton(
                     text = "和顾问继续讨论",
                     onClick = {
@@ -220,12 +230,19 @@ fun DecisionScreen(
                     },
                     testTag = "decision_discuss",
                 )
-                Spacer(Modifier.height(10.dp))
-                MorrowQuietButton(
+                Spacer(Modifier.height(8.dp))
+                MorrowSecondaryButton(
+                    text = "修改刚才的输入",
+                    onClick = { showFramework = false },
+                    testTag = "decision_edit",
+                )
+                Spacer(Modifier.height(2.dp))
+                MorrowTertiaryButton(
                     text = "先不决定，回到今天",
                     onClick = onBack,
+                    modifier = Modifier.fillMaxWidth(),
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(10.dp))
                 InlineNote(
                     "「和顾问继续讨论」只会把你刚才写下的内容带到对话框；" +
                         "是否发送、发送哪些类别，仍由你在顾问页确认。",
@@ -246,49 +263,53 @@ private fun FieldLabel(text: String) {
 }
 
 @Composable
-private fun FrameworkCard(
+private fun FrameworkRow(
+    index: String,
     title: String,
     body: String,
     testTag: String,
 ) {
     val colors = MorrowTheme.colors
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(colors.card)
-            .padding(18.dp)
+            .padding(vertical = 14.dp)
             .testTag(testTag),
+        verticalAlignment = Alignment.Top,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(26.dp)
-                    .clip(CircleShape)
-                    .background(colors.nested),
-                contentAlignment = Alignment.Center,
-            ) {
-                MorrowGlyph(
-                    kind = MorrowGlyphKind.SPARKLE,
-                    tint = colors.accent,
-                    modifier = Modifier.size(13.dp),
-                )
-            }
-            Spacer(Modifier.width(9.dp))
+        Text(
+            text = index,
+            style = MaterialTheme.typography.labelSmall,
+            color = colors.accent,
+            modifier = Modifier.width(28.dp),
+        )
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleSmall,
                 color = colors.textPrimary,
             )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = body,
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.textSecondary,
+            )
         }
-        Spacer(Modifier.height(9.dp))
-        Text(
-            text = body,
-            style = MaterialTheme.typography.bodyMedium,
-            color = colors.textSecondary,
-        )
     }
 }
+
+@Composable
+private fun FrameworkDivider() {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(start = 28.dp)
+            .height(1.dp)
+            .background(MorrowTheme.colors.hairline),
+    )
+}
+
 
 private fun buildAdvisorPrompt(
     decision: String,

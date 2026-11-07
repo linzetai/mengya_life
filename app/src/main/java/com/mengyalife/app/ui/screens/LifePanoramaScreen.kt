@@ -2,6 +2,7 @@ package com.mengyalife.app.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,9 +51,12 @@ import com.mengyalife.app.domain.goals.GoalLevel
 import com.mengyalife.app.domain.goals.GoalStatus
 import com.mengyalife.app.ui.components.GentleEmptyCard
 import com.mengyalife.app.ui.components.InlineNote
-import com.mengyalife.app.ui.components.MorrowGlyph
-import com.mengyalife.app.ui.components.MorrowGlyphKind
-import com.mengyalife.app.ui.components.MorrowQuietButton
+import com.mengyalife.app.ui.components.MorrowIcon
+import com.mengyalife.app.ui.components.MorrowIconKind
+import com.mengyalife.app.ui.components.MorrowPrimaryButton
+import com.mengyalife.app.ui.components.MorrowSecondaryButton
+import com.mengyalife.app.ui.components.MorrowTertiaryButton
+import com.mengyalife.app.ui.components.goalDomainIcon
 import com.mengyalife.app.ui.components.MorrowTopBar
 import com.mengyalife.app.ui.components.ScreenPadding
 import com.mengyalife.app.ui.components.SectionHeading
@@ -196,10 +200,10 @@ fun LifePanoramaScreen(
                                 .background(colors.nested),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text(
-                                text = domainGlyph(domain.label),
-                                style = MorrowType.Brand.copy(fontSize = 12.sp, lineHeight = 16.sp),
-                                color = colors.forest,
+                            MorrowIcon(
+                                kind = goalDomainIcon(domain),
+                                tint = colors.forest,
+                                modifier = Modifier.size(17.dp),
                             )
                         }
                         Spacer(Modifier.width(10.dp))
@@ -235,15 +239,18 @@ fun LifePanoramaScreen(
 
         item {
             Column(modifier = Modifier.padding(top = 10.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    MorrowQuietButton(
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(MorrowSpacing.ButtonGap),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    MorrowPrimaryButton(
                         text = "新增长期目标",
                         onClick = { onAction(GoalAction.NewGoal(GoalLevel.LONG_TERM, null)) },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1.25f),
                         testTag = "goal_new_long_term",
                     )
-                    Spacer(Modifier.width(10.dp))
-                    MorrowQuietButton(
+                    MorrowSecondaryButton(
                         text = "探索方向",
                         onClick = onOpenExplore,
                         modifier = Modifier.weight(1f),
@@ -254,14 +261,6 @@ fun LifePanoramaScreen(
             }
         }
     }
-}
-
-private fun domainGlyph(label: String): String = when (label) {
-    "健康" -> "健"
-    "职业" -> "职"
-    "财富" -> "财"
-    "学习" -> "学"
-    else -> "生"
 }
 
 @Composable
@@ -277,6 +276,7 @@ private fun GoalNodeCard(
     val hasChildren = node.children.isNotEmpty()
     val done = node.children.count { it.goal.status == GoalStatus.DONE }
     val progress = if (node.children.isEmpty()) 0f else done.toFloat() / node.children.size
+    val radius = RoundedCornerShape(if (depth == 0) 17.dp else 14.dp)
 
     Column(
         modifier = Modifier
@@ -287,42 +287,22 @@ private fun GoalNodeCard(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(if (depth == 0) 17.dp else 14.dp)),
-            shape = RoundedCornerShape(if (depth == 0) 17.dp else 14.dp),
-            color = if (depth == 0) colors.card else colors.nested.copy(alpha = 0.55f),
-            border = if (depth == 0) BorderStroke(1.dp, colors.hairline) else null,
+                .clip(radius)
+                .clickable { onAction(GoalAction.ToggleExpand(goal.id)) },
+            shape = radius,
+            color = if (depth == 0) colors.card else colors.nested,
+            border = BorderStroke(1.dp, colors.hairline),
         ) {
-            Column(modifier = Modifier.padding(horizontal = 15.dp, vertical = 13.dp)) {
+            Column(
+                modifier = Modifier.padding(
+                    start = 16.dp,
+                    end = 12.dp,
+                    top = 13.dp,
+                    bottom = 13.dp,
+                ),
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (hasChildren) {
-                        IconButton(
-                            onClick = { onAction(GoalAction.ToggleExpand(goal.id)) },
-                            modifier = Modifier
-                                .size(30.dp)
-                                .testTag("goal_expand_${goal.id}"),
-                        ) {
-                            Icon(
-                                imageVector = if (expanded) Icons.Filled.KeyboardArrowDown
-                                else Icons.Filled.KeyboardArrowRight,
-                                contentDescription = if (expanded) "收起" else "展开",
-                                tint = colors.textSecondary,
-                                modifier = Modifier.size(19.dp),
-                            )
-                        }
-                        Spacer(Modifier.width(3.dp))
-                    }
-
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable {
-                                if (hasChildren) {
-                                    onAction(GoalAction.ToggleExpand(goal.id))
-                                } else {
-                                    onAction(GoalAction.OpenCheckin(goal))
-                                }
-                            },
-                    ) {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = goal.title,
                             style = if (depth == 0) MaterialTheme.typography.bodyLarge
@@ -331,11 +311,11 @@ private fun GoalNodeCard(
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(5.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             StatusChip(goal.status)
                             if (node.checkinCount > 0) {
-                                Spacer(Modifier.width(7.dp))
+                                Spacer(Modifier.width(8.dp))
                                 Text(
                                     text = "${node.checkinCount} 次进展",
                                     style = MaterialTheme.typography.labelSmall,
@@ -343,7 +323,7 @@ private fun GoalNodeCard(
                                 )
                             }
                             goal.dueDate?.let {
-                                Spacer(Modifier.width(7.dp))
+                                Spacer(Modifier.width(8.dp))
                                 Text(
                                     text = "截止 " + Timestamps.formatDateUtc(it),
                                     style = MaterialTheme.typography.labelSmall,
@@ -352,8 +332,20 @@ private fun GoalNodeCard(
                             }
                         }
                     }
-
-                    GoalActionsMenu(goal = goal, depth = depth, onAction = onAction)
+                    Spacer(Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .testTag("goal_expand_${goal.id}"),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        MorrowIcon(
+                            kind = if (expanded) MorrowIconKind.CHEVRON_UP else MorrowIconKind.CHEVRON_DOWN,
+                            tint = colors.textTertiary,
+                            modifier = Modifier.size(18.dp),
+                            contentDescription = if (expanded) "收起目标" else "展开目标",
+                        )
+                    }
                 }
 
                 if (depth == 0) {
@@ -368,7 +360,7 @@ private fun GoalNodeCard(
                         )
                     }
                     if (node.children.isNotEmpty()) {
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(11.dp))
                         ThinProgressBar(progress = progress, color = colors.accent)
                         Spacer(Modifier.height(5.dp))
                         Text(
@@ -381,90 +373,136 @@ private fun GoalNodeCard(
             }
         }
 
-        if (expanded && hasChildren) {
+        if (expanded) {
             Spacer(Modifier.height(8.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                node.children.forEach { child ->
-                    GoalNodeCard(
-                        node = child,
-                        depth = depth + 1,
-                        expandedIds = expandedIds,
-                        onAction = onAction,
-                    )
+            if (hasChildren) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    node.children.forEach { child ->
+                        GoalNodeCard(
+                            node = child,
+                            depth = depth + 1,
+                            expandedIds = expandedIds,
+                            onAction = onAction,
+                        )
+                    }
                 }
+                Spacer(Modifier.height(4.dp))
             }
+            GoalExpandedActions(
+                goal = goal,
+                depth = depth,
+                onAction = onAction,
+                modifier = Modifier.padding(start = if (depth == 0) 0.dp else 12.dp),
+            )
         }
     }
 }
 
 @Composable
-private fun GoalActionsMenu(
+private fun GoalExpandedActions(
     goal: GoalEntity,
     depth: Int,
     onAction: (GoalAction) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = MorrowTheme.colors
     var menuOpen by remember { mutableStateOf(false) }
-    Box {
-        IconButton(
-            onClick = { menuOpen = true },
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.card)
+            .border(1.dp, colors.hairline, RoundedCornerShape(12.dp))
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        MorrowTertiaryButton(
+            text = "记录进展",
+            onClick = { onAction(GoalAction.OpenCheckin(goal)) },
+            modifier = Modifier.weight(1f),
+            testTag = "goal_checkin_${goal.id}",
+        )
+        Box(
             modifier = Modifier
-                .size(32.dp)
-                .testTag("goal_menu_${goal.id}"),
-        ) {
-            Icon(
-                imageVector = Icons.Filled.MoreVert,
-                contentDescription = "更多操作",
-                tint = colors.textTertiary,
-                modifier = Modifier.size(19.dp),
-            )
-        }
-        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            DropdownMenuItem(
-                text = { Text("记录进展") },
-                onClick = { menuOpen = false; onAction(GoalAction.OpenCheckin(goal)) },
-                modifier = Modifier.testTag("goal_checkin_${goal.id}"),
-            )
-            DropdownMenuItem(
-                text = { Text("进展历史") },
-                onClick = { menuOpen = false; onAction(GoalAction.OpenHistory(goal)) },
-                modifier = Modifier.testTag("goal_history_${goal.id}"),
-            )
-            DropdownMenuItem(
-                text = { Text("修改状态") },
-                onClick = { menuOpen = false; onAction(GoalAction.RequestStatusChange(goal)) },
-                modifier = Modifier.testTag("goal_status_${goal.id}"),
-            )
-            DropdownMenuItem(
-                text = { Text("编辑") },
-                onClick = { menuOpen = false; onAction(GoalAction.EditGoal(goal)) },
-                modifier = Modifier.testTag("goal_edit_${goal.id}"),
-            )
-            if (depth == 0) {
-                DropdownMenuItem(
-                    text = { Text("新建阶段目标") },
-                    onClick = {
-                        menuOpen = false
-                        onAction(GoalAction.NewGoal(GoalLevel.STAGE, goal.id, goal.title))
-                    },
-                    modifier = Modifier.testTag("goal_add_stage_${goal.id}"),
+                .width(1.dp)
+                .height(18.dp)
+                .background(colors.hairline),
+        )
+        MorrowTertiaryButton(
+            text = "编辑",
+            onClick = { onAction(GoalAction.EditGoal(goal)) },
+            modifier = Modifier.weight(1f),
+            testTag = "goal_edit_${goal.id}",
+        )
+        Box(
+            modifier = Modifier
+                .width(1.dp)
+                .height(18.dp)
+                .background(colors.hairline),
+        )
+        Box {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable { menuOpen = true }
+                    .testTag("goal_menu_${goal.id}"),
+                contentAlignment = Alignment.Center,
+            ) {
+                MorrowIcon(
+                    kind = MorrowIconKind.MORE,
+                    tint = colors.textSecondary,
+                    modifier = Modifier.size(19.dp),
+                    contentDescription = "更多操作",
                 )
             }
-            if (depth == 1) {
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                 DropdownMenuItem(
-                    text = { Text("新建短期行动") },
-                    onClick = {
-                        menuOpen = false
-                        onAction(GoalAction.NewGoal(GoalLevel.ACTION, goal.id, goal.title))
-                    },
-                    modifier = Modifier.testTag("goal_add_action_${goal.id}"),
+                    text = { Text("记录进展") },
+                    onClick = { menuOpen = false; onAction(GoalAction.OpenCheckin(goal)) },
+                    modifier = Modifier.testTag("goal_checkin_menu_${goal.id}"),
+                )
+                DropdownMenuItem(
+                    text = { Text("进展历史") },
+                    onClick = { menuOpen = false; onAction(GoalAction.OpenHistory(goal)) },
+                    modifier = Modifier.testTag("goal_history_${goal.id}"),
+                )
+                DropdownMenuItem(
+                    text = { Text("修改状态") },
+                    onClick = { menuOpen = false; onAction(GoalAction.RequestStatusChange(goal)) },
+                    modifier = Modifier.testTag("goal_status_${goal.id}"),
+                )
+                DropdownMenuItem(
+                    text = { Text("编辑") },
+                    onClick = { menuOpen = false; onAction(GoalAction.EditGoal(goal)) },
+                    modifier = Modifier.testTag("goal_edit_menu_${goal.id}"),
+                )
+                if (depth == 0) {
+                    DropdownMenuItem(
+                        text = { Text("新建阶段目标") },
+                        onClick = {
+                            menuOpen = false
+                            onAction(GoalAction.NewGoal(GoalLevel.STAGE, goal.id, goal.title))
+                        },
+                        modifier = Modifier.testTag("goal_add_stage_${goal.id}"),
+                    )
+                }
+                if (depth == 1) {
+                    DropdownMenuItem(
+                        text = { Text("新建短期行动") },
+                        onClick = {
+                            menuOpen = false
+                            onAction(GoalAction.NewGoal(GoalLevel.ACTION, goal.id, goal.title))
+                        },
+                        modifier = Modifier.testTag("goal_add_action_${goal.id}"),
+                    )
+                }
+                DropdownMenuItem(
+                    text = { Text("删除", color = colors.danger) },
+                    onClick = { menuOpen = false; onAction(GoalAction.RequestDelete(goal)) },
+                    modifier = Modifier.testTag("goal_delete_${goal.id}"),
                 )
             }
-            DropdownMenuItem(
-                text = { Text("删除", color = colors.danger) },
-                onClick = { menuOpen = false; onAction(GoalAction.RequestDelete(goal)) },
-                modifier = Modifier.testTag("goal_delete_${goal.id}"),
-            )
         }
     }
 }
