@@ -21,20 +21,18 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -42,8 +40,6 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldColors
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -58,6 +54,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -101,25 +98,30 @@ fun DemoTag(modifier: Modifier = Modifier) {
 }
 
 /**
- * 轻量顶栏：左侧是品牌或页面名，右侧统一保留设置入口。
+ * 轻量顶栏：左侧品牌/页面名，右侧「演示数据」（仅 QA）与纯文字「设置」。
  *
- * 首页传 [brand] = true 显示「萌芽.」；二级页可传 [onBack] 显示返回。
+ * 顶栏高度 56dp，页面左右边距 22dp；设置文字不包按钮背景、不带图标，
+ * 通过 48dp 触控区保证可点击。
  */
 @Composable
 fun MorrowTopBar(
     label: String,
-    onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
+    onSettingsClick: (() -> Unit)? = null,
     brand: Boolean = false,
     showDemoTag: Boolean = false,
     backTestTag: String = "page_back",
+    settingsTestTag: String = "btn_settings",
+    horizontalPadding: Dp = 0.dp,
 ) {
     val colors = MorrowTheme.colors
+    val fontScale = LocalDensity.current.fontScale
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = MorrowSpacing.PageHorizontal, end = 16.dp, top = 6.dp, bottom = 6.dp),
+            .height(56.dp)
+            .padding(horizontal = horizontalPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (onBack != null) {
@@ -139,7 +141,7 @@ fun MorrowTopBar(
         }
         Text(
             text = label,
-            style = if (brand) MorrowType.Brand else MaterialTheme.typography.titleSmall,
+            style = if (brand) MorrowType.Brand else MorrowType.SectionTitle,
             color = colors.textPrimary,
             modifier = Modifier.weight(1f),
             maxLines = 1,
@@ -147,57 +149,37 @@ fun MorrowTopBar(
         )
         if (showDemoTag) {
             Surface(
+                modifier = if (fontScale <= 1.1f) Modifier.offset(x = 10.dp) else Modifier,
                 shape = CircleShape,
                 color = colors.nested,
                 contentColor = colors.textSecondary,
             ) {
                 Text(
                     text = "演示数据",
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
                 )
             }
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(4.dp))
         }
-        SettingsAvatar(onClick = onSettingsClick)
-    }
-}
-
-/** 圆形文字头像；它同时是设置入口，保留 btn_settings 供自动化定位。 */
-@Composable
-fun SettingsAvatar(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val colors = MorrowTheme.colors
-    Box(
-        modifier = modifier
-            .size(48.dp)
-            .clip(CircleShape)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                role = Role.Button,
-                onClick = onClick,
-            )
-            .semantics { contentDescription = "设置" }
-            .testTag("btn_settings"),
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(colors.nested)
-                .border(1.dp, colors.hairline, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = "芽",
-                style = TextStyle(
-                    fontFamily = MorrowType.Brand.fontFamily,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                ),
-                color = colors.forest,
-            )
+        if (onSettingsClick != null) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable(
+                        role = Role.Button,
+                        onClick = onSettingsClick,
+                    )
+                    .testTag(settingsTestTag),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                Text(
+                    text = "设置",
+                    style = MorrowType.HeaderAction,
+                    color = colors.forest,
+                )
+            }
         }
     }
 }
@@ -349,6 +331,7 @@ fun MorrowChoicePill(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     val colors = MorrowTheme.colors
     val dark = isDarkTheme()
@@ -357,14 +340,29 @@ fun MorrowChoicePill(
         modifier = modifier
             .defaultMinSize(minHeight = 48.dp)
             .clip(CircleShape)
-            .clickable(onClick = onClick),
+            .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Surface(
             shape = CircleShape,
-            color = if (selected) selectedContainer else colors.card,
-            contentColor = if (selected) colors.insightText else colors.textSecondary,
-            border = BorderStroke(1.dp, if (selected) selectedContainer else colors.hairline),
+            color = when {
+                !enabled -> colors.nested
+                selected -> selectedContainer
+                else -> colors.card
+            },
+            contentColor = when {
+                !enabled -> colors.textDisabled
+                selected -> colors.insightText
+                else -> colors.textSecondary
+            },
+            border = BorderStroke(
+                1.dp,
+                when {
+                    !enabled -> colors.hairline
+                    selected -> selectedContainer
+                    else -> colors.hairline
+                },
+            ),
         ) {
             Text(
                 text = text,
@@ -502,9 +500,10 @@ fun MorrowTertiaryButton(
     enabled: Boolean = true,
     showArrow: Boolean = false,
     testTag: String? = null,
+    contentColor: Color? = null,
 ) {
     val colors = MorrowTheme.colors
-    val tint = if (enabled) colors.forest else colors.textDisabled
+    val tint = if (enabled) contentColor ?: colors.forest else colors.textDisabled
     Row(
         modifier = modifier
             .defaultMinSize(minHeight = 48.dp)
@@ -736,40 +735,6 @@ fun GroupDivider(modifier: Modifier = Modifier) {
 
 /** 顶部栏（兼容旧调用）：右侧统一是设置入口。 */
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AppTopBar(
-    title: String,
-    onSettingsClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    TopAppBar(
-        modifier = modifier,
-        title = {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
-                color = MorrowTheme.colors.textPrimary,
-            )
-        },
-        actions = {
-            IconButton(
-                onClick = onSettingsClick,
-                modifier = Modifier.testTag("btn_settings"),
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Settings,
-                    contentDescription = "设置",
-                    tint = MorrowTheme.colors.textSecondary,
-                )
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MorrowTheme.colors.canvas,
-            actionIconContentColor = MorrowTheme.colors.textSecondary,
-        ),
-    )
-}
-
 /** 一个很细的横向进度条。 */
 @Composable
 fun ThinProgressBar(

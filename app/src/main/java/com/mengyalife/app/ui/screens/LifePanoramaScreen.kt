@@ -129,7 +129,7 @@ fun LifePanoramaScreen(
             Column {
                 MorrowTopBar(
                     label = "人生全景",
-                    onSettingsClick = onOpenSettings,
+                    onSettingsClick = null,
                     onBack = onBack,
                 )
                 Spacer(Modifier.height(16.dp))
@@ -410,36 +410,21 @@ private fun GoalExpandedActions(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(colors.card)
-            .border(1.dp, colors.hairline, RoundedCornerShape(12.dp))
-            .padding(horizontal = 8.dp, vertical = 2.dp),
+            .padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         MorrowTertiaryButton(
             text = "记录进展",
             onClick = { onAction(GoalAction.OpenCheckin(goal)) },
-            modifier = Modifier.weight(1f),
             testTag = "goal_checkin_${goal.id}",
-        )
-        Box(
-            modifier = Modifier
-                .width(1.dp)
-                .height(18.dp)
-                .background(colors.hairline),
         )
         MorrowTertiaryButton(
             text = "编辑",
             onClick = { onAction(GoalAction.EditGoal(goal)) },
-            modifier = Modifier.weight(1f),
             testTag = "goal_edit_${goal.id}",
         )
-        Box(
-            modifier = Modifier
-                .width(1.dp)
-                .height(18.dp)
-                .background(colors.hairline),
-        )
+        Spacer(Modifier.weight(1f))
         Box {
             Box(
                 modifier = Modifier

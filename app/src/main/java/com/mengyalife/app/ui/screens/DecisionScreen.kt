@@ -87,15 +87,17 @@ fun DecisionScreen(
             .navigationBarsPadding(),
         color = colors.canvas,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(scrollState)
-                .padding(horizontal = 22.dp),
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = 22.dp)
+                    .padding(bottom = if (showFramework) 200.dp else 0.dp),
+            ) {
             MorrowTopBar(
                 label = "讨论一个决定",
-                onSettingsClick = onOpenSettings,
+                onSettingsClick = null,
                 onBack = onBack,
             )
             Spacer(Modifier.height(16.dp))
@@ -222,26 +224,6 @@ fun DecisionScreen(
                     Spacer(Modifier.height(12.dp))
                     InlineNote("你提到了金额相关的内容。这里没有做财务模拟或收益预测，只保留你写下的假设。")
                 }
-                Spacer(Modifier.height(20.dp))
-                MorrowPrimaryButton(
-                    text = "和顾问继续讨论",
-                    onClick = {
-                        onDiscussWithAdvisor(buildAdvisorPrompt(decision, options, constraints, timing))
-                    },
-                    testTag = "decision_discuss",
-                )
-                Spacer(Modifier.height(8.dp))
-                MorrowSecondaryButton(
-                    text = "修改刚才的输入",
-                    onClick = { showFramework = false },
-                    testTag = "decision_edit",
-                )
-                Spacer(Modifier.height(2.dp))
-                MorrowTertiaryButton(
-                    text = "先不决定，回到今天",
-                    onClick = onBack,
-                    modifier = Modifier.fillMaxWidth(),
-                )
                 Spacer(Modifier.height(10.dp))
                 InlineNote(
                     "「和顾问继续讨论」只会把你刚才写下的内容带到对话框；" +
@@ -249,6 +231,43 @@ fun DecisionScreen(
                 )
             }
             Spacer(Modifier.height(32.dp))
+            }
+            if (showFramework) {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .background(colors.canvas)
+                        .padding(horizontal = 22.dp, vertical = 10.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(colors.hairline),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    MorrowPrimaryButton(
+                        text = "和顾问继续讨论",
+                        onClick = {
+                            onDiscussWithAdvisor(buildAdvisorPrompt(decision, options, constraints, timing))
+                        },
+                        testTag = "decision_discuss",
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    MorrowSecondaryButton(
+                        text = "修改刚才的输入",
+                        onClick = { showFramework = false },
+                        testTag = "decision_edit",
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    MorrowTertiaryButton(
+                        text = "先不决定，回到今天",
+                        onClick = onBack,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
         }
     }
 }

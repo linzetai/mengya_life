@@ -73,7 +73,7 @@ fun WeeklyReviewScreen(
                 Column {
                     MorrowTopBar(
                         label = "一周回顾",
-                        onSettingsClick = onOpenSettings,
+                        onSettingsClick = null,
                         onBack = onBack,
                         backTestTag = "weekly_review_back",
                     )

@@ -89,6 +89,22 @@ fun ExploreScreen(
         if (difficulty.isNotBlank()) append("目前最难的部分：").append(difficulty.trim()).append("\n\n")
         append("这是你在探索里写下的方向，还没有保存。")
     }
+    val saveDraft = {
+        val targetDomain = displayDomain ?: GoalDomain.LIFE
+        onSaveDraft(draftTitle, draftDescription, targetDomain)
+    }
+    val discussDraft = {
+        onDiscussWithAdvisor(
+            "我想探索一个方向：${draftTitle}\n\n${draftDescription}\n" +
+                "请先帮我把这个模糊的想法问清楚，不要直接替我下结论。",
+        )
+    }
+    val restartDraft = {
+        step = 0
+        domainName = null
+        hope = ""
+        difficulty = ""
+    }
 
     BackHandler {
         if (step > 0) step -= 1 else onBack()
@@ -102,22 +118,24 @@ fun ExploreScreen(
             .navigationBarsPadding(),
         color = colors.canvas,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(scrollState)
-                .padding(horizontal = 22.dp),
-        ) {
-            MorrowTopBar(
-                label = "探索人生方向",
-                onSettingsClick = onOpenSettings,
-                onBack = { if (step > 0) step -= 1 else onBack() },
-            )
-            Spacer(Modifier.height(10.dp))
-            StepDots(active = step)
-            Spacer(Modifier.height(22.dp))
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = 22.dp)
+                    .padding(bottom = if (step == 3) 196.dp else 0.dp),
+            ) {
+                MorrowTopBar(
+                    label = "探索人生方向",
+                    onSettingsClick = null,
+                    onBack = { if (step > 0) step -= 1 else onBack() },
+                )
+                Spacer(Modifier.height(10.dp))
+                StepDots(active = step)
+                Spacer(Modifier.height(22.dp))
 
-            when (step) {
+                when (step) {
                 0 -> StepDomain(
                     selectedName = domainName,
                     onSelect = { domainName = it?.name ?: "UNSURE" },
@@ -144,25 +162,45 @@ fun ExploreScreen(
                 else -> StepDraft(
                     title = draftTitle,
                     description = draftDescription,
-                    onSave = {
-                        val targetDomain = displayDomain ?: GoalDomain.LIFE
-                        onSaveDraft(draftTitle, draftDescription, targetDomain)
-                    },
-                    onDiscuss = {
-                        onDiscussWithAdvisor(
-                            "我想探索一个方向：${draftTitle}\n\n${draftDescription}\n" +
-                                "请先帮我把这个模糊的想法问清楚，不要直接替我下结论。",
-                        )
-                    },
-                    onRestart = {
-                        step = 0
-                        domainName = null
-                        hope = ""
-                        difficulty = ""
-                    },
                 )
+                }
+                Spacer(Modifier.height(32.dp))
             }
-            Spacer(Modifier.height(32.dp))
+            if (step == 3) {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .background(colors.canvas)
+                        .padding(horizontal = 22.dp, vertical = 10.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(colors.hairline),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    MorrowPrimaryButton(
+                        text = "带着这份草案去保存",
+                        onClick = saveDraft,
+                        testTag = "explore_save",
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    MorrowSecondaryButton(
+                        text = "和顾问继续聊",
+                        onClick = discussDraft,
+                        testTag = "explore_discuss",
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    MorrowTertiaryButton(
+                        text = "重新想一想",
+                        onClick = restartDraft,
+                        testTag = "explore_restart",
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
         }
     }
 }
@@ -329,9 +367,6 @@ private fun StepDifficulty(
 private fun StepDraft(
     title: String,
     description: String,
-    onSave: () -> Unit,
-    onDiscuss: () -> Unit,
-    onRestart: () -> Unit,
 ) {
     val colors = MorrowTheme.colors
     StepTitle(
@@ -376,23 +411,4 @@ private fun StepDraft(
     SectionHeading(title = "接下来")
     Spacer(Modifier.height(8.dp))
     InlineNote("保存会进入目标编辑器，你仍可以修改标题、领域和状态；只有再次确认后才会写入。")
-    Spacer(Modifier.height(16.dp))
-    MorrowPrimaryButton(
-        text = "带着这份草案去保存",
-        onClick = onSave,
-        testTag = "explore_save",
-    )
-    Spacer(Modifier.height(10.dp))
-    MorrowSecondaryButton(
-        text = "和顾问继续聊",
-        onClick = onDiscuss,
-        testTag = "explore_discuss",
-    )
-    Spacer(Modifier.height(2.dp))
-    MorrowTertiaryButton(
-        text = "重新想一想",
-        onClick = onRestart,
-        testTag = "explore_restart",
-        modifier = Modifier.fillMaxWidth(),
-    )
 }

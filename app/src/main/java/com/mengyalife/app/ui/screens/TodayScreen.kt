@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -78,6 +79,7 @@ private val WEEKDAY_LABELS = listOf("星期一", "星期二", "星期三", "星�
  *   再没有就展示温柔空态，不伪造资产/学习/坚持天数；
  * - 日记数量来自本机数据库。
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TodayScreen(
     listState: LazyListState,
@@ -122,15 +124,23 @@ fun TodayScreen(
         contentPadding = ScreenPadding,
         verticalArrangement = Arrangement.spacedBy(MorrowSpacing.SectionGap),
     ) {
-        item {
-            Column {
+        stickyHeader {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MorrowTheme.colors.canvas),
+            ) {
                 MorrowTopBar(
-                    label = "萌芽.",
+                    label = "MengYa",
                     onSettingsClick = onOpenSettings,
                     brand = true,
                     showDemoTag = BuildConfig.QA_BUILD,
                 )
-                Spacer(Modifier.height(20.dp))
+            }
+        }
+        item {
+            Column {
+                Spacer(Modifier.height(16.dp))
                 Text(
                     text = localeDate,
                     style = MorrowType.Eyebrow,
@@ -335,8 +345,8 @@ private fun buildInsightPresentation(
         val inWeek = now - latestCheckin <= 7L * 24 * 60 * 60 * 1000
         return InsightPresentation(
             eyebrow = if (inWeek) "本周的一点发现" else "最近的一点记录",
-            quote = "你在「${latestNode.goal.title}」上，\n又留下了一次进展。",
-            evidence = "来自你手动记录的进展 · ${Timestamps.formatDate(latestCheckin)}",
+            quote = "你又留下了一次\n真实的进展。",
+            evidence = "来自「${latestNode.goal.title}」· ${Timestamps.formatDate(latestCheckin)}",
             cta = "看看这背后发生了什么",
             isLocal = true,
         )
@@ -493,7 +503,7 @@ private fun DirectionRow(
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "${goal.domain.label} · ${goal.title}",
+                        text = goal.title,
                         style = MaterialTheme.typography.bodyLarge,
                         color = colors.textPrimary,
                         maxLines = 2,
@@ -618,7 +628,6 @@ private fun ActionTile(
             text = label,
             style = MaterialTheme.typography.labelMedium,
             color = colors.textPrimary,
-            fontWeight = FontWeight.Medium,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )

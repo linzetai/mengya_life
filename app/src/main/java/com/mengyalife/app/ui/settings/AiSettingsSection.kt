@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
@@ -14,6 +15,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -33,6 +35,11 @@ import com.mengyalife.app.ui.advisor.AiSettingsAction
 import com.mengyalife.app.ui.advisor.AiSettingsUiState
 import com.mengyalife.app.ui.components.GroupDivider
 import com.mengyalife.app.ui.components.InlineNote
+import com.mengyalife.app.ui.components.MorrowPrimaryButton
+import com.mengyalife.app.ui.components.MorrowSecondaryButton
+import com.mengyalife.app.ui.components.MorrowTertiaryButton
+import com.mengyalife.app.ui.theme.MorrowTheme
+import com.mengyalife.app.ui.components.morrowTextFieldColors
 import com.mengyalife.app.ui.components.SettingsGroup
 import com.mengyalife.app.ui.components.StatusPill
 
@@ -59,7 +66,7 @@ fun AiSettingsSection(
                 Text(
                     text = "模型配置",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = MorrowTheme.colors.textPrimary,
                     modifier = Modifier.weight(1f),
                 )
                 StatusPill(text = if (state.configured) "已配置" else "未配置")
@@ -68,7 +75,7 @@ fun AiSettingsSection(
             Text(
                 text = "V1 支持 OpenAI-compatible Chat Completions；请求直接发往你填写的地址。",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MorrowTheme.colors.textSecondary,
             )
 
             Spacer(Modifier.height(12.dp))
@@ -82,6 +89,8 @@ fun AiSettingsSection(
                 placeholder = { Text("https://api.openai.com/v1") },
                 singleLine = true,
                 enabled = !state.saving,
+                shape = RoundedCornerShape(14.dp),
+                colors = morrowTextFieldColors(),
             )
             Spacer(Modifier.height(10.dp))
             OutlinedTextField(
@@ -94,6 +103,8 @@ fun AiSettingsSection(
                 placeholder = { Text("例如 deepseek-chat / gpt-4o-mini") },
                 singleLine = true,
                 enabled = !state.saving,
+                shape = RoundedCornerShape(14.dp),
+                colors = morrowTextFieldColors(),
             )
             Spacer(Modifier.height(10.dp))
             OutlinedTextField(
@@ -110,13 +121,15 @@ fun AiSettingsSection(
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 enabled = !state.saving,
+                shape = RoundedCornerShape(14.dp),
+                colors = morrowTextFieldColors(),
             )
             if (state.hasKey) {
                 Spacer(Modifier.height(6.dp))
                 Text(
                     text = "已保存加密密钥；不会在界面、日志或导出文件中显示原文。",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MorrowTheme.colors.forest,
                     modifier = Modifier.testTag("ai_key_saved"),
                 )
             }
@@ -127,35 +140,33 @@ fun AiSettingsSection(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Button(
+                MorrowPrimaryButton(
+                    text = if (state.saving) "保存中…" else "保存配置",
                     onClick = { onAction(AiSettingsAction.Save) },
                     enabled = !state.saving && !state.testing,
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("ai_save"),
-                ) {
-                    Text(if (state.saving) "保存中…" else "保存配置")
-                }
-                Button(
+                    loading = state.saving,
+                    modifier = Modifier.weight(1f),
+                    testTag = "ai_save",
+                )
+                MorrowSecondaryButton(
+                    text = if (state.testing) "测试中…" else "测试连接",
                     onClick = { onAction(AiSettingsAction.TestConnection) },
                     enabled = !state.saving && !state.testing,
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("ai_test"),
-                ) {
-                    Text(if (state.testing) "测试中…" else "测试连接")
-                }
+                    modifier = Modifier.weight(1f),
+                    testTag = "ai_test",
+                )
             }
 
             if (state.hasKey) {
                 Spacer(Modifier.height(4.dp))
-                TextButton(
+                MorrowTertiaryButton(
+                    text = "删除密钥",
                     onClick = { deleteConfirm = true },
                     enabled = !state.saving,
-                    modifier = Modifier.testTag("ai_delete_key"),
-                ) {
-                    Text("删除密钥", color = MaterialTheme.colorScheme.error)
-                }
+                    showArrow = true,
+                    contentColor = MorrowTheme.colors.danger,
+                    testTag = "ai_delete_key",
+                )
             }
 
             state.message?.let {
@@ -163,7 +174,7 @@ fun AiSettingsSection(
                 Text(
                     text = it,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MorrowTheme.colors.forest,
                     modifier = Modifier.testTag("ai_status"),
                 )
             }
@@ -194,19 +205,25 @@ fun AiSettingsSection(
                         Text(
                             text = "使用离线测试引擎（仅 QA）",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = MorrowTheme.colors.textPrimary,
                             modifier = Modifier.testTag("ai_fake_engine_label"),
                         )
                         Text(
                             text = "不发起网络请求，用于自动化验证对话保存与失败重试。",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = MorrowTheme.colors.textSecondary,
                         )
                     }
                     Switch(
                         checked = state.useFakeEngine,
                         onCheckedChange = { onAction(AiSettingsAction.SetFakeEngine(it)) },
                         modifier = Modifier.testTag("ai_fake_engine"),
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MorrowTheme.colors.insightText,
+                            checkedTrackColor = MorrowTheme.colors.forest,
+                            uncheckedThumbColor = MorrowTheme.colors.textTertiary,
+                            uncheckedTrackColor = MorrowTheme.colors.nested,
+                        ),
                     )
                 }
             }
@@ -219,7 +236,9 @@ fun AiSettingsSection(
                 .semantics { testTagsAsResourceId = true }
                 .testTag("ai_delete_dialog"),
             onDismissRequest = { deleteConfirm = false },
-            title = { Text("删除 API Key？") },
+            containerColor = MorrowTheme.colors.card,
+            shape = RoundedCornerShape(20.dp),
+            title = { Text("删除 API Key？", style = MaterialTheme.typography.titleMedium) },
             text = {
                 Text(
                     "删除后旧密钥不能再被使用，需要重新输入才能继续对话。" +

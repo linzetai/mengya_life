@@ -1,6 +1,8 @@
 package com.mengyalife.app.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,7 +12,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
@@ -25,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -49,7 +54,13 @@ import com.mengyalife.app.domain.goals.GoalLevel
 import com.mengyalife.app.domain.goals.GoalStatus
 import com.mengyalife.app.domain.goals.GoalTrends
 import com.mengyalife.app.ui.components.MetricTrendChart
+import com.mengyalife.app.ui.components.MorrowChoicePill
+import com.mengyalife.app.ui.components.MorrowPrimaryButton
+import com.mengyalife.app.ui.components.MorrowTertiaryButton
+import com.mengyalife.app.ui.components.morrowTextFieldColors
 import com.mengyalife.app.ui.components.TrendPointList
+import com.mengyalife.app.ui.theme.MorrowTheme
+import com.mengyalife.app.ui.theme.MorrowType
 import com.mengyalife.app.ui.goals.CheckinDraftState
 import com.mengyalife.app.ui.goals.GoalAction
 import com.mengyalife.app.ui.goals.GoalEditorState
@@ -84,52 +95,55 @@ fun GoalEditorSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = MorrowTheme.colors.card,
+        scrimColor = MorrowTheme.colors.textPrimary.copy(alpha = 0.22f),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .fillMaxHeight(0.9f)
                 .imePadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 8.dp)
                 .dialogSemantics(),
         ) {
-            Text(heading, style = MaterialTheme.typography.titleLarge)
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+            ) {
+            Text(heading, style = MorrowType.SheetTitle, color = MorrowTheme.colors.textPrimary)
             editor.parentTitle?.let {
                 Spacer(Modifier.height(4.dp))
                 Text(
                     text = "上级：$it",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MorrowTheme.colors.textSecondary,
                 )
             }
             Spacer(Modifier.height(12.dp))
 
-            OutlinedTextField(
+            GoalOutlinedField(
                 value = editor.title,
                 onValueChange = onTitleChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("goal_editor_title"),
-                label = { Text("标题（必填）") },
+                label = "标题（必填）",
+                modifier = Modifier.testTag("goal_editor_title"),
                 singleLine = true,
                 enabled = !editor.saving,
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
 
-            OutlinedTextField(
+            GoalOutlinedField(
                 value = editor.description,
                 onValueChange = onDescriptionChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("goal_editor_desc"),
-                label = { Text("描述（可选）") },
+                label = "描述（可选）",
+                modifier = Modifier.testTag("goal_editor_desc"),
                 minLines = 3,
                 enabled = !editor.saving,
             )
 
             Spacer(Modifier.height(14.dp))
-            Text("领域", style = MaterialTheme.typography.labelLarge)
+            Text("领域", style = MaterialTheme.typography.labelMedium, color = MorrowTheme.colors.textSecondary)
             Spacer(Modifier.height(6.dp))
             Row(
                 modifier = Modifier
@@ -138,10 +152,10 @@ fun GoalEditorSheet(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 GoalDomain.entries.forEach { domain ->
-                    FilterChip(
+                    MorrowChoicePill(
+                        text = domain.label,
                         selected = editor.domain == domain,
                         onClick = { onDomainChange(domain) },
-                        label = { Text(domain.label) },
                         modifier = Modifier.testTag("goal_domain_${domain.name}"),
                         enabled = !editor.saving,
                     )
@@ -150,7 +164,7 @@ fun GoalEditorSheet(
 
             if (editor.isEdit) {
                 Spacer(Modifier.height(12.dp))
-                Text("状态", style = MaterialTheme.typography.labelLarge)
+                Text("状态", style = MaterialTheme.typography.labelMedium, color = MorrowTheme.colors.textSecondary)
                 Spacer(Modifier.height(6.dp))
                 Row(
                     modifier = Modifier
@@ -159,10 +173,10 @@ fun GoalEditorSheet(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     GoalStatus.entries.forEach { status ->
-                        FilterChip(
+                        MorrowChoicePill(
+                            text = status.label,
                             selected = editor.status == status,
                             onClick = { onStatusChange(status) },
-                            label = { Text(status.label) },
                             modifier = Modifier.testTag("goal_editor_status_${status.name}"),
                             enabled = !editor.saving,
                         )
@@ -177,14 +191,16 @@ fun GoalEditorSheet(
                     style = MaterialTheme.typography.labelLarge,
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(
+                MorrowTertiaryButton(
+                    text = editor.dueDate?.let { Timestamps.formatDateUtc(it) } ?: "未设置",
                     onClick = { datePickerOpen = true },
-                    modifier = Modifier.testTag("goal_editor_due_date"),
-                ) {
-                    Text(editor.dueDate?.let { Timestamps.formatDateUtc(it) } ?: "未设置")
-                }
+                    testTag = "goal_editor_due_date",
+                )
                 if (editor.dueDate != null) {
-                    TextButton(onClick = { onDueDateChange(null) }) { Text("清除") }
+                    MorrowTertiaryButton(
+                        text = "清除",
+                        onClick = { onDueDateChange(null) },
+                    )
                 }
             }
 
@@ -198,23 +214,32 @@ fun GoalEditorSheet(
                 )
             }
 
-            Spacer(Modifier.height(12.dp))
+            }
+            HorizontalDivider(color = MorrowTheme.colors.hairline)
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextButton(onClick = onDismiss, enabled = !editor.saving) { Text("取消") }
-                Spacer(Modifier.size(8.dp))
-                Button(
-                    onClick = onSave,
+                MorrowTertiaryButton(
+                    text = "取消",
+                    onClick = onDismiss,
                     enabled = !editor.saving,
-                    modifier = Modifier.testTag("goal_editor_save"),
-                ) {
-                    Text(if (editor.saving) "保存中…" else "保存")
+                )
+                Spacer(Modifier.size(8.dp))
+                Box(modifier = Modifier.width(140.dp)) {
+                    MorrowPrimaryButton(
+                        text = if (editor.saving) "保存中…" else "保存",
+                        onClick = onSave,
+                        enabled = !editor.saving,
+                        loading = editor.saving,
+                        testTag = "goal_editor_save",
+                    )
                 }
             }
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(8.dp))
         }
     }
 
@@ -242,6 +267,30 @@ fun GoalEditorSheet(
 }
 
 @Composable
+private fun GoalOutlinedField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    minLines: Int = 1,
+    singleLine: Boolean = false,
+    enabled: Boolean = true,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier.fillMaxWidth(),
+        label = { Text(label, style = MaterialTheme.typography.labelMedium) },
+        textStyle = MaterialTheme.typography.bodyLarge,
+        shape = RoundedCornerShape(14.dp),
+        minLines = minLines,
+        singleLine = singleLine,
+        enabled = enabled,
+        colors = morrowTextFieldColors(),
+    )
+}
+
+@Composable
 fun StatusPickerDialog(
     goal: GoalEntity,
     onSelect: (GoalStatus) -> Unit,
@@ -249,13 +298,15 @@ fun StatusPickerDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("修改状态") },
+        containerColor = MorrowTheme.colors.card,
+        shape = RoundedCornerShape(20.dp),
+        title = { Text("修改状态", style = MorrowType.CardTitle) },
         text = {
             Column(modifier = Modifier.dialogSemantics()) {
                 Text(
                     text = goal.title,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MorrowTheme.colors.textSecondary,
                 )
                 Spacer(Modifier.height(8.dp))
                 GoalStatus.entries.forEach { status ->
@@ -264,6 +315,7 @@ fun StatusPickerDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("status_option_${status.name}")
+                            .defaultMinSize(minHeight = 48.dp)
                             .selectable(
                                 selected = goal.status == status,
                                 role = Role.RadioButton,
@@ -272,7 +324,14 @@ fun StatusPickerDialog(
                             .padding(vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        RadioButton(selected = goal.status == status, onClick = null)
+                        RadioButton(
+                            selected = goal.status == status,
+                            onClick = null,
+                            colors = RadioButtonDefaults.colors(
+                                selectedColor = MorrowTheme.colors.forest,
+                                unselectedColor = MorrowTheme.colors.textTertiary,
+                            ),
+                        )
                         Spacer(Modifier.size(8.dp))
                         Text(status.label, style = MaterialTheme.typography.bodyLarge)
                     }
@@ -298,7 +357,8 @@ fun CheckinSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = MorrowTheme.colors.card,
+        scrimColor = MorrowTheme.colors.textPrimary.copy(alpha = 0.22f),
     ) {
         Column(
             modifier = Modifier
@@ -308,45 +368,39 @@ fun CheckinSheet(
                 .padding(horizontal = 20.dp, vertical = 8.dp)
                 .dialogSemantics(),
         ) {
-            Text("记录一次进展", style = MaterialTheme.typography.titleLarge)
+            Text("记录一次进展", style = MorrowType.SheetTitle, color = MorrowTheme.colors.textPrimary)
             Spacer(Modifier.height(4.dp))
             Text(
                 text = state.goalTitle,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MorrowTheme.colors.textSecondary,
             )
             Spacer(Modifier.height(12.dp))
 
-            OutlinedTextField(
+            GoalOutlinedField(
                 value = state.note,
                 onValueChange = onNoteChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("goal_checkin_note"),
-                label = { Text("这次做了什么（必填）") },
+                label = "这次做了什么（必填）",
+                modifier = Modifier.testTag("goal_checkin_note"),
                 minLines = 3,
                 enabled = !state.saving,
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
+                GoalOutlinedField(
                     value = state.metric,
                     onValueChange = onMetricChange,
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("goal_checkin_metric"),
-                    label = { Text("数值（可选）") },
+                    label = "数值（可选）",
+                    modifier = Modifier.weight(1f).testTag("goal_checkin_metric"),
                     singleLine = true,
                     enabled = !state.saving,
                 )
-                OutlinedTextField(
+                GoalOutlinedField(
                     value = state.unit,
                     onValueChange = onUnitChange,
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("goal_checkin_unit"),
-                    label = { Text("单位（可选）") },
+                    label = "单位（可选）",
+                    modifier = Modifier.weight(1f).testTag("goal_checkin_unit"),
                     singleLine = true,
                     enabled = !state.saving,
                 )
@@ -368,14 +422,20 @@ fun CheckinSheet(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextButton(onClick = onDismiss, enabled = !state.saving) { Text("取消") }
-                Spacer(Modifier.size(8.dp))
-                Button(
-                    onClick = onSave,
+                MorrowTertiaryButton(
+                    text = "取消",
+                    onClick = onDismiss,
                     enabled = !state.saving,
-                    modifier = Modifier.testTag("goal_checkin_save"),
-                ) {
-                    Text(if (state.saving) "保存中…" else "记录")
+                )
+                Spacer(Modifier.size(8.dp))
+                Box(modifier = Modifier.width(140.dp)) {
+                    MorrowPrimaryButton(
+                        text = if (state.saving) "保存中…" else "记录",
+                        onClick = onSave,
+                        enabled = !state.saving,
+                        loading = state.saving,
+                        testTag = "goal_checkin_save",
+                    )
                 }
             }
             Spacer(Modifier.height(20.dp))
@@ -408,7 +468,8 @@ fun CheckinHistorySheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = MorrowTheme.colors.card,
+        scrimColor = MorrowTheme.colors.textPrimary.copy(alpha = 0.22f),
     ) {
         Column(
             modifier = Modifier
@@ -420,12 +481,12 @@ fun CheckinHistorySheet(
                 .padding(horizontal = 20.dp, vertical = 8.dp)
                 .dialogSemantics(),
         ) {
-            Text("进展历史", style = MaterialTheme.typography.titleLarge)
+            Text("进展历史", style = MorrowType.SheetTitle, color = MorrowTheme.colors.textPrimary)
             Spacer(Modifier.height(4.dp))
             Text(
                 text = goal.title,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MorrowTheme.colors.textSecondary,
             )
             Spacer(Modifier.height(12.dp))
 
@@ -433,7 +494,7 @@ fun CheckinHistorySheet(
                 Text(
                     text = "还没有进展记录。",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MorrowTheme.colors.textSecondary,
                     modifier = Modifier.testTag("goal_history_empty"),
                 )
             } else {
@@ -447,7 +508,7 @@ fun CheckinHistorySheet(
                 Text(
                     text = "数据来源：你在「记录进展」里手动填写的数值（source = manual）。",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MorrowTheme.colors.textSecondary,
                     modifier = Modifier.testTag("goal_trend_source"),
                 )
 
@@ -457,7 +518,7 @@ fun CheckinHistorySheet(
                         text = "还没有数值记录，无法绘制趋势。记录进展时「数值」是选填项，" +
                             "下次可以填一个数字（例如 30、3.5）。",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MorrowTheme.colors.textSecondary,
                         modifier = Modifier.testTag("goal_history_trend_empty"),
                     )
                 } else {
@@ -481,14 +542,14 @@ fun CheckinHistorySheet(
                             Text(
                                 text = "只有 1 条数值记录，无法判断趋势；这里只显示该数据点，不连成曲线。",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = MorrowTheme.colors.textSecondary,
                                 modifier = Modifier.testTag("goal_trend_single_note"),
                             )
                         } else {
                             Text(
                                 text = "横轴是真实记录时间，纵轴是指标值；共 ${item.points.size} 条记录。",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = MorrowTheme.colors.textSecondary,
                                 modifier = Modifier.testTag("goal_trend_multi_note"),
                             )
                         }
@@ -501,7 +562,7 @@ fun CheckinHistorySheet(
                             text = "这个目标存在不同单位的记录，已按单位分开绘制；不做单位换算，" +
                                 "也不合并成一个人为评分。",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = MorrowTheme.colors.textSecondary,
                             modifier = Modifier.testTag("goal_trend_unit_split"),
                         )
                     }
@@ -513,7 +574,7 @@ fun CheckinHistorySheet(
                 Text(
                     text = "进展记录（按时间倒序）",
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MorrowTheme.colors.textSecondary,
                 )
                 Spacer(Modifier.height(8.dp))
 
@@ -526,7 +587,7 @@ fun CheckinHistorySheet(
                     Text(
                         text = Timestamps.formatDateTime(item.recordedAt),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MorrowTheme.colors.textSecondary,
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
@@ -561,7 +622,9 @@ fun DeleteGoalDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("删除这个目标？") },
+        containerColor = MorrowTheme.colors.card,
+        shape = RoundedCornerShape(20.dp),
+        title = { Text("删除这个目标？", style = MorrowType.CardTitle) },
         text = {
             Column(modifier = Modifier.dialogSemantics()) {
                 Text("「${goal.title}」", style = MaterialTheme.typography.bodyLarge)
@@ -570,13 +633,13 @@ fun DeleteGoalDialog(
                     Text(
                         text = "正在计算影响范围…",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MorrowTheme.colors.textSecondary,
                     )
                 } else {
                     Text(
                         text = buildImpactText(impact),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MorrowTheme.colors.textSecondary,
                         modifier = Modifier.testTag("goal_delete_impact"),
                     )
                     Spacer(Modifier.height(6.dp))

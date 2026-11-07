@@ -116,6 +116,7 @@ fun AdvisorScreen(
             MorrowTopBar(
                 label = "顾问",
                 onSettingsClick = onOpenSettings,
+                horizontalPadding = 22.dp,
             )
             Column(modifier = Modifier.padding(horizontal = 22.dp)) {
                 Text(

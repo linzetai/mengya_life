@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,7 +12,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material.icons.Icons
@@ -47,6 +50,7 @@ import com.mengyalife.app.data.DemoData
 import com.mengyalife.app.ui.components.GroupDivider
 import com.mengyalife.app.ui.components.InlineNote
 import com.mengyalife.app.ui.components.KeyValueRow
+import com.mengyalife.app.ui.components.MorrowTopBar
 import com.mengyalife.app.ui.components.ScreenPadding
 import com.mengyalife.app.ui.components.SettingsGroup
 import com.mengyalife.app.ui.components.SettingsRow
@@ -123,30 +127,15 @@ fun SettingsScreen(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "设置",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                },
-                navigationIcon = {
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier.testTag("settings_back"),
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
-            )
+            Box(modifier = Modifier.statusBarsPadding()) {
+                MorrowTopBar(
+                    label = "设置",
+                    onBack = onBack,
+                    onSettingsClick = null,
+                    backTestTag = "settings_back",
+                    horizontalPadding = 22.dp,
+                )
+            }
         },
     ) { innerPadding ->
         LazyColumn(
@@ -170,12 +159,16 @@ fun SettingsScreen(
                 )
                 if (BuildConfig.QA_BUILD) {
                     Spacer(Modifier.height(10.dp))
-                    Column(
+                    Row(
                         modifier = Modifier.testTag("settings_qa_banner"),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        InlineNote(
-                            "QA 测试构建：包名 ${BuildConfig.APPLICATION_ID}，数据库 " +
-                                "${BuildConfig.DATABASE_NAME}，与正式版完全隔离。",
+                        StatusPill(text = "QA 隔离构建")
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "日记、目标、密钥与正式版完全隔离",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }

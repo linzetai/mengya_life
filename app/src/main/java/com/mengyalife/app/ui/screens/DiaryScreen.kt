@@ -2,6 +2,7 @@ package com.mengyalife.app.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -81,6 +82,7 @@ private val WEEKDAY_SHORT = listOf("周一", "周二", "周三", "周四", "周�
  * 数据来自 Room，不存在演示记录；写入、编辑、删除、AI 线索的确认/纠正
  * 继续走原有 JournalViewModel 与安全边界。
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun DiaryScreen(
     listState: LazyListState,
@@ -110,9 +112,17 @@ fun DiaryScreen(
         contentPadding = ScreenPadding,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        stickyHeader {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MorrowTheme.colors.canvas),
+            ) {
+                MorrowTopBar(label = "日记", onSettingsClick = onOpenSettings)
+            }
+        }
         item {
             Column {
-                MorrowTopBar(label = "日记", onSettingsClick = onOpenSettings)
                 Spacer(Modifier.height(16.dp))
                 Text(
                     text = "写下今天，\n留给未来的自己。",
@@ -344,7 +354,7 @@ private fun JournalEntryCard(
             ) {
                 Text(
                     text = "${date.dayOfMonth}",
-                    style = MorrowType.Brand.copy(fontSize = 22.sp, lineHeight = 28.sp),
+                    style = MorrowType.DateNumber,
                     color = colors.textPrimary,
                 )
                 Text(

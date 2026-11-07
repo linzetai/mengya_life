@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -73,6 +74,7 @@ private enum class TrajectoryRange(val label: String, val days: Long) {
  * 不把不同单位相加，也没有演示曲线；数据不足时展示温柔空态和补录建议。
  * 每周本地回顾在这里作为精选入口，不额外堆很多无解释的图表。
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TrajectoryScreen(
     listState: LazyListState,
@@ -120,12 +122,20 @@ fun TrajectoryScreen(
         contentPadding = ScreenPadding,
         verticalArrangement = Arrangement.spacedBy(MorrowSpacing.SectionGap),
     ) {
-        item {
-            Column {
+        stickyHeader {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(colors.canvas),
+            ) {
                 MorrowTopBar(
                     label = "轨迹",
                     onSettingsClick = onOpenSettings,
                 )
+            }
+        }
+        item {
+            Column {
                 Spacer(Modifier.height(16.dp))
                 Text(
                     text = "原来，变化已经发生。",
