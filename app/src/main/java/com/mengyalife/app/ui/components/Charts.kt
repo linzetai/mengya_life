@@ -176,9 +176,9 @@ fun MetricTrendChart(
                 verticalArrangement = Arrangement.SpaceBetween,
                 horizontalAlignment = Alignment.End,
             ) {
-                AxisLabel(MetricFormat.number(yMax))
-                AxisLabel(MetricFormat.number((yMax + yMin) / 2))
-                AxisLabel(MetricFormat.number(yMin))
+                AxisLabel(axisText(yMax, span))
+                AxisLabel(axisText((yMax + yMin) / 2, span))
+                AxisLabel(axisText(yMin, span))
             }
             Spacer(Modifier.width(6.dp))
             Canvas(
@@ -227,7 +227,7 @@ fun MetricTrendChart(
                     points.forEach { area.lineTo(xAt(it.recordedAt), yAt(it.value)) }
                     area.lineTo(xAt(points.last().recordedAt), plotBottom)
                     area.close()
-                    drawPath(path = area, color = color.copy(alpha = 0.10f))
+                    drawPath(path = area, color = color.copy(alpha = 0.07f))
 
                     val line = Path()
                     points.forEachIndexed { index, point ->
@@ -282,6 +282,20 @@ fun MetricTrendChart(
             )
         }
     }
+}
+
+/** 坐标轴刻度：按跨度控制小数位，避免 14.875 这类运算噪声。 */
+private fun axisText(value: Double, span: Double): String {
+    val decimals = when {
+        span >= 20.0 -> 0
+        span >= 1.0 -> 1
+        span >= 0.1 -> 2
+        else -> 3
+    }
+    return java.math.BigDecimal.valueOf(value)
+        .setScale(decimals, java.math.RoundingMode.HALF_UP)
+        .stripTrailingZeros()
+        .toPlainString()
 }
 
 @Composable

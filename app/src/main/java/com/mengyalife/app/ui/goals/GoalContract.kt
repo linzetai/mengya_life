@@ -71,7 +71,14 @@ data class GoalsUiState(
 sealed interface GoalAction {
     data class ToggleExpand(val id: Long) : GoalAction
     data class FocusGoal(val id: Long) : GoalAction
-    data class NewGoal(val level: GoalLevel, val parentId: Long?, val parentTitle: String? = null) : GoalAction
+    data class NewGoal(
+        val level: GoalLevel,
+        val parentId: Long?,
+        val parentTitle: String? = null,
+        val initialTitle: String = "",
+        val initialDescription: String = "",
+        val initialDomain: GoalDomain? = null,
+    ) : GoalAction
     data class EditGoal(val goal: GoalEntity) : GoalAction
     data class TitleChange(val value: String) : GoalAction
     data class DescriptionChange(val value: String) : GoalAction

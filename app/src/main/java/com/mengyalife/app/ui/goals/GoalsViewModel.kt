@@ -12,6 +12,7 @@ import com.mengyalife.app.data.repository.GoalDraft
 import com.mengyalife.app.data.repository.GoalRepository
 import com.mengyalife.app.data.repository.GoalResult
 import com.mengyalife.app.data.repository.GoalSnapshot
+import com.mengyalife.app.domain.goals.GoalDomain
 import com.mengyalife.app.domain.goals.GoalRules
 import com.mengyalife.app.domain.goals.GoalStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -109,6 +110,9 @@ class GoalsViewModel(
                         level = action.level,
                         parentId = action.parentId,
                         parentTitle = action.parentTitle,
+                        title = action.initialTitle,
+                        description = action.initialDescription,
+                        domain = action.initialDomain ?: GoalDomain.LIFE,
                     ),
                 )
             }

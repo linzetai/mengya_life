@@ -3,17 +3,14 @@ package com.mengyalife.app.ui.weekly
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -23,8 +20,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.mengyalife.app.domain.weekly.WeeklyFact
 import com.mengyalife.app.ui.components.InlineNote
+import com.mengyalife.app.ui.components.MorrowPrimaryButton
+import com.mengyalife.app.ui.components.MorrowQuietButton
+import com.mengyalife.app.ui.components.MorrowTopBar
 import com.mengyalife.app.ui.components.ScreenPadding
 import com.mengyalife.app.ui.components.SectionCard
+import com.mengyalife.app.ui.theme.MorrowTheme
+import com.mengyalife.app.ui.theme.MorrowType
 import com.mengyalife.app.util.Timestamps
 
 @Composable
@@ -35,8 +37,15 @@ fun WeeklyReviewScreen(
     onGenerateAi: () -> Unit = {},
     onOpenGoal: (Long) -> Unit,
     onDiscuss: (String) -> Unit,
+    onOpenSettings: () -> Unit = {},
 ) {
-    Surface(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars)) {
+    Surface(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding(),
+        color = MorrowTheme.colors.canvas,
+    ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().testTag("weekly_review_screen"),
             contentPadding = ScreenPadding,
@@ -44,16 +53,24 @@ fun WeeklyReviewScreen(
         ) {
             item {
                 Column {
-                    Text("每周成长回顾", style = MaterialTheme.typography.headlineSmall)
+                    MorrowTopBar(
+                        label = "一周回顾",
+                        onSettingsClick = onOpenSettings,
+                        onBack = onBack,
+                        backTestTag = "weekly_review_back",
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    Text(
+                        text = "这一周，\n留下了什么。",
+                        style = MorrowType.PageTitle,
+                        color = MorrowTheme.colors.textPrimary,
+                    )
+                    Spacer(Modifier.height(8.dp))
                     Text(
                         "本地回顾不发送；可选 AI 增强会按当前授权发送事实；「和顾问聊聊」进入现有顾问授权流程。",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MorrowTheme.colors.textSecondary,
                     )
-                    Spacer(Modifier.height(6.dp))
-                    TextButton(onClick = onBack, modifier = Modifier.testTag("weekly_review_back")) {
-                        Text("返回")
-                    }
                 }
             }
             item {
@@ -73,11 +90,12 @@ fun WeeklyReviewScreen(
                         )
                     }
                     Spacer(Modifier.height(8.dp))
-                    Button(
+                    MorrowPrimaryButton(
+                        text = if (state.generating) "本地整理中…" else "生成本周回顾",
                         onClick = onGenerate,
                         enabled = !state.generating,
-                        modifier = Modifier.fillMaxWidth().testTag("weekly_review_generate"),
-                    ) { Text(if (state.generating) "本地整理中…" else "生成本周回顾") }
+                        testTag = "weekly_review_generate",
+                    )
                     state.error?.let {
                         Spacer(Modifier.height(6.dp))
                         Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
@@ -107,9 +125,12 @@ fun WeeklyReviewScreen(
             item {
                 val ai = state.aiReview
                 if (ai == null) {
-                    OutlinedButton(onClick = onGenerateAi, enabled = !state.generating, modifier = Modifier.fillMaxWidth().testTag("weekly_generate_ai")) {
-                        Text("尝试 AI 增强（每周最多一次）")
-                    }
+                    MorrowQuietButton(
+                        text = "尝试 AI 增强（每周最多一次）",
+                        onClick = onGenerateAi,
+                        enabled = !state.generating,
+                        testTag = "weekly_generate_ai",
+                    )
                 } else if (ai.status == "PENDING" || ai.status == "SENT") {
                     Text("AI 已预留本周额度，正在处理；不会重复请求。", style = MaterialTheme.typography.labelSmall)
                 } else if (ai.status == "FAILED" || ai.status == "STALE") {
@@ -124,15 +145,16 @@ fun WeeklyReviewScreen(
                 item { WeeklySection("建议下一步", review.sections.nextSteps, onOpenGoal) }
                 if (review.sections.nextSteps.isNotEmpty()) {
                     item {
-                        OutlinedButton(
+                        MorrowQuietButton(
+                            text = "和顾问聊聊",
                             onClick = {
                                 onDiscuss(
                                     "请围绕我的每周成长回顾继续讨论，并帮我把下一步变成可执行的小行动：\n" +
                                         review.sections.nextSteps.joinToString("\n") { "• ${it.text}" },
                                 )
                             },
-                            modifier = Modifier.fillMaxWidth().testTag("weekly_review_discuss"),
-                        ) { Text("和顾问聊聊") }
+                            testTag = "weekly_review_discuss",
+                        )
                     }
                 }
             }

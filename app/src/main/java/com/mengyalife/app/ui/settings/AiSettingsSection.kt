@@ -183,7 +183,7 @@ fun AiSettingsSection(
                     "应用新增的 INTERNET 权限只用于你主动发起的模型请求。",
             )
             Spacer(Modifier.height(6.dp))
-            InlineNote("本版本不支持导入恢复；模型输出只作为建议，不会自动修改目标或日记。")
+            InlineNote("模型输出只作为建议，不会自动修改目标或日记；完整备份与恢复在下方独立入口，密钥不会进入备份。")
 
             if (state.allowFakeEngine) {
                 Spacer(Modifier.height(10.dp))

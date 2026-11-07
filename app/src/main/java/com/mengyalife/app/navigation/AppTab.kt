@@ -1,56 +1,42 @@
 package com.mengyalife.app.navigation
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.ui.graphics.vector.ImageVector
+import com.mengyalife.app.ui.components.MorrowGlyphKind
 
 /**
- * 一级页面（底部导航的 5 个目的地）。
+ * 一级页面：与原版一致的四 Tab。
  *
- * 设置页刻意**不**出现在这里：它是二级页面，由 [com.mengyalife.app.MengyaLifeApp]
- * 用独立的布尔状态控制，因此不占用底部导航位置。
- *
- * [testTag] 会映射为 Android 的 resource-id（见 MengyaLifeApp 的
- * `testTagsAsResourceId`），便于 UI 自动化按标签定位，避免依赖固定坐标。
+ * 「人生全景」和设置都是二级页面，不占底部导航位置：
+ * - 目标树由首页「查看全景」进入；
+ * - 设置由每个页面右上角的头像入口进入。
  */
 enum class AppTab(
     val label: String,
     val testTag: String,
-    val icon: ImageVector,
+    val glyph: MorrowGlyphKind,
     val description: String,
 ) {
-    OVERVIEW(
-        label = "总览",
-        testTag = "tab_overview",
-        icon = Icons.Filled.Home,
-        description = "人生方向与近期洞察",
+    TODAY(
+        label = "今天",
+        testTag = "tab_today",
+        glyph = MorrowGlyphKind.HOME,
+        description = "今天的方向、洞察与记录入口",
     ),
-    GOALS(
-        label = "目标",
-        testTag = "tab_goals",
-        icon = Icons.Filled.Star,
-        description = "长期 / 阶段 / 短期目标",
-    ),
-    TRENDS(
-        label = "趋势",
-        testTag = "tab_trends",
-        icon = Icons.Filled.DateRange,
-        description = "时间序列与多维比较",
+    PATH(
+        label = "轨迹",
+        testTag = "tab_path",
+        glyph = MorrowGlyphKind.CHART,
+        description = "真实记录里的长期变化",
     ),
     DIARY(
         label = "日记",
         testTag = "tab_diary",
-        icon = Icons.Filled.Edit,
-        description = "记录与回顾",
+        glyph = MorrowGlyphKind.BOOK,
+        description = "写下今天，留给未来的自己",
     ),
     ADVISOR(
         label = "顾问",
         testTag = "tab_advisor",
-        icon = Icons.Filled.Person,
-        description = "AI 顾问入口",
+        glyph = MorrowGlyphKind.SPARKLE,
+        description = "带着你的方向，慢慢想清楚",
     ),
 }

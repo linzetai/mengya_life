@@ -7,6 +7,10 @@ import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 /**
@@ -17,6 +21,83 @@ enum class ThemeMode(val label: String, val testTag: String) {
     SYSTEM("跟随系统", "theme_system"),
     LIGHT("浅色模式", "theme_light"),
     DARK("深色模式", "theme_dark"),
+}
+
+/** 超出 M3 语义色之外、各页面都要用的品牌令牌。 */
+@Immutable
+data class MorrowPalette(
+    val canvas: Color,
+    val card: Color,
+    val nested: Color,
+    val textPrimary: Color,
+    val textSecondary: Color,
+    val textTertiary: Color,
+    val forest: Color,
+    val forestPressed: Color,
+    val accent: Color,
+    val hairline: Color,
+    val insightCard: Color,
+    val insightText: Color,
+    val insightMuted: Color,
+    val selectedNav: Color,
+    val danger: Color,
+)
+
+private val LightPalette = MorrowPalette(
+    canvas = MorrowLight.Canvas,
+    card = MorrowLight.Card,
+    nested = MorrowLight.Nested,
+    textPrimary = MorrowLight.TextPrimary,
+    textSecondary = MorrowLight.TextSecondary,
+    textTertiary = MorrowLight.TextTertiary,
+    forest = MorrowLight.Forest,
+    forestPressed = MorrowLight.ForestPressed,
+    accent = MorrowLight.Accent,
+    hairline = MorrowLight.Hairline,
+    insightCard = MorrowLight.InsightCard,
+    insightText = MorrowLight.InsightText,
+    insightMuted = MorrowLight.InsightMuted,
+    selectedNav = MorrowLight.SelectedNav,
+    danger = MorrowLight.Danger,
+)
+
+private val DarkPalette = MorrowPalette(
+    canvas = MorrowDark.Canvas,
+    card = MorrowDark.Card,
+    nested = MorrowDark.Nested,
+    textPrimary = MorrowDark.TextPrimary,
+    textSecondary = MorrowDark.TextSecondary,
+    textTertiary = MorrowDark.TextTertiary,
+    forest = MorrowDark.Forest,
+    forestPressed = MorrowDark.ForestPressed,
+    accent = MorrowDark.Accent,
+    hairline = MorrowDark.Hairline,
+    insightCard = MorrowDark.InsightCard,
+    insightText = MorrowDark.InsightText,
+    insightMuted = MorrowDark.InsightMuted,
+    selectedNav = MorrowDark.SelectedNav,
+    danger = MorrowDark.Danger,
+)
+
+val LocalMorrowPalette = staticCompositionLocalOf { LightPalette }
+
+/** 页面统一间距 / 圆角。所有页面从这里取值，不再各自复制相近数字。 */
+object MorrowSpacing {
+    val PageHorizontal = 22.dp
+    val SectionGap = 26.dp
+    val BlockGap = 14.dp
+    val CardPadding = 20.dp
+    val RowPadding = 16.dp
+    val CardRadius = 18.dp
+    val InsightRadius = 22.dp
+    val PillRadius = 999.dp
+    val MinTouch = 48.dp
+}
+
+/** 取当前主题的品牌令牌。 */
+object MorrowTheme {
+    val colors: MorrowPalette
+        @Composable @ReadOnlyComposable get() = LocalMorrowPalette.current
 }
 
 private val LightColors = lightColorScheme(
@@ -76,9 +157,9 @@ private val DarkColors = darkColorScheme(
 private val MengyaShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
     small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(18.dp),
-    large = RoundedCornerShape(24.dp),
-    extraLarge = RoundedCornerShape(28.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(20.dp),
+    extraLarge = RoundedCornerShape(24.dp),
 )
 
 /**
@@ -90,12 +171,16 @@ fun MengyaLifeTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
-    MaterialTheme(
-        colorScheme = if (darkTheme) DarkColors else LightColors,
-        typography = MengyaTypography,
-        shapes = MengyaShapes,
-        content = content,
-    )
+    androidx.compose.runtime.CompositionLocalProvider(
+        LocalMorrowPalette provides if (darkTheme) DarkPalette else LightPalette,
+    ) {
+        MaterialTheme(
+            colorScheme = if (darkTheme) DarkColors else LightColors,
+            typography = MengyaTypography,
+            shapes = MengyaShapes,
+            content = content,
+        )
+    }
 }
 
 /** 当前主题是否为深色，供图表等自绘组件取色。 */

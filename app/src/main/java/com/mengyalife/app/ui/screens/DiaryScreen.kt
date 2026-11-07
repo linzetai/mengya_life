@@ -3,6 +3,7 @@ package com.mengyalife.app.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,19 +13,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -35,39 +36,70 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.mengyalife.app.data.local.JournalEntryEntity
 import com.mengyalife.app.domain.JournalRules
 import com.mengyalife.app.domain.growth.DiaryAnalysisStatus
 import com.mengyalife.app.domain.growth.GrowthSignal
+import com.mengyalife.app.ui.components.GentleEmptyCard
 import com.mengyalife.app.ui.components.InlineNote
-import com.mengyalife.app.ui.components.PageHeader
+import com.mengyalife.app.ui.components.MorrowGlyph
+import com.mengyalife.app.ui.components.MorrowGlyphKind
+import com.mengyalife.app.ui.components.MorrowPrimaryButton
+import com.mengyalife.app.ui.components.MorrowTextField
+import com.mengyalife.app.ui.components.MorrowTopBar
 import com.mengyalife.app.ui.components.ScreenPadding
-import com.mengyalife.app.ui.components.SectionCard
 import com.mengyalife.app.ui.components.StatusPill
 import com.mengyalife.app.ui.journal.DiaryAction
 import com.mengyalife.app.ui.journal.DiaryUiState
 import com.mengyalife.app.ui.journal.JournalEditor
 import com.mengyalife.app.ui.journal.JournalSheet
+import com.mengyalife.app.ui.theme.MorrowTheme
+import com.mengyalife.app.ui.theme.MorrowType
 import com.mengyalife.app.util.Timestamps
+import java.time.Instant
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
+private val MONTH_LABEL = DateTimeFormatter.ofPattern("yyyy年M月", Locale.getDefault())
+private val WEEKDAY_SHORT = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
 
 /**
- * 日记页：**真实数据**（Room）展示，不再是演示数据。
+ * 日记页：安静真实的书写空间。
  *
- * 本文件只做「渲染状态 + 发动作」，所有读写逻辑在 JournalViewModel /
- * JournalRepository 里。
+ * 数据来自 Room，不存在演示记录；写入、编辑、删除、AI 线索的确认/纠正
+ * 继续走原有 JournalViewModel 与安全边界。
  */
 @Composable
 fun DiaryScreen(
     listState: LazyListState,
     state: DiaryUiState,
     onAction: (DiaryAction) -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val colors = MorrowTheme.colors
+    val today = remember { LocalDate.now() }
+    val grouped = remember(state.entries) {
+        state.entries
+            .sortedByDescending { it.createdAt }
+            .groupBy { entry ->
+                Instant.ofEpochMilli(entry.createdAt).atZone(ZoneId.systemDefault()).toLocalDate()
+                    .let { YearMonth.of(it.year, it.monthValue) }
+            }
+            .toList()
+            .sortedByDescending { it.first }
+    }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -77,86 +109,91 @@ fun DiaryScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            PageHeader(
-                title = "把今天留下来",
-                subtitle = "记录真实发生的细节，保存在这台设备上",
-                // 日记是真实用户数据，绝不能挂"演示数据"标签
-                showDemoTag = false,
-            )
-        }
-
-        item {
-            SectionCard(
-                title = "今天",
-                subtitle = "写下此刻最想留下的一句话",
-                trailing = {
-                    Button(
-                        onClick = { onAction(DiaryAction.NewEntry) },
-                        modifier = Modifier.testTag("diary_new"),
-                    ) {
-                        Text("写一条")
-                    }
-                },
-            ) {
-                InlineNote("日记保存在本机数据库，关闭应用后仍然存在。")
-            }
-        }
-
-        item {
-            SectionCard(
-                title = "AI 提取",
-                subtitle = "接入模型后，这里会展示从日记中提取的情绪、事项与目标线索",
-                trailing = { StatusPill(text = "未启用") },
-            ) {
-                InlineNote("本轮不会分析你的日记，也不会把任何内容发送出去。")
-            }
-        }
-
-        item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Column {
+                MorrowTopBar(label = "日记", onSettingsClick = onOpenSettings)
+                Spacer(Modifier.height(16.dp))
                 Text(
-                    text = "全部记录",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.weight(1f),
+                    text = "写下今天，\n留给未来的自己。",
+                    style = MorrowType.PageTitle,
+                    color = colors.textPrimary,
                 )
-                if (state.entries.isNotEmpty()) {
-                    StatusPill(text = "${state.entries.size} 条")
-                }
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = "${today.year}年${today.monthValue}月${today.dayOfMonth}日 · " +
+                        WEEKDAY_SHORT[today.dayOfWeek.value - 1] + " · 只保存在这台设备上",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary,
+                )
             }
+        }
+
+        item {
+            NewEntryCard(onClick = { onAction(DiaryAction.NewEntry) })
         }
 
         when {
             state.readError != null -> item {
-                SectionCard(title = "无法读取本地日记") {
-                    InlineNote(state.readError)
-                }
+                GentleEmptyCard(
+                    title = "暂时读不到本地日记",
+                    body = state.readError,
+                )
             }
 
             state.loading -> item {
-                SectionCard(title = "正在读取…") {
-                    InlineNote("正在从本机数据库加载你的记录。")
-                }
+                Text(
+                    text = "正在读取你的记录…",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.textSecondary,
+                )
             }
 
             state.entries.isEmpty() -> item {
-                SectionCard(
+                GentleEmptyCard(
                     title = "还没有记录",
-                    subtitle = "写下的第一条会出现在这里",
-                ) {
-                    InlineNote("点右上角「写一条」开始记录。这里不会预先放任何演示内容。")
-                }
+                    body = "写下的第一条会出现在这里。这里不会预先放任何演示内容，" +
+                        "也不必写得完整——一句话就够了。",
+                    actionLabel = "写第一篇",
+                    onAction = { onAction(DiaryAction.NewEntry) },
+                )
             }
 
-            else -> items(items = state.entries, key = { it.id }) { entry ->
-                JournalEntryCard(
-                    entry = entry,
-                    onClick = { onAction(DiaryAction.Open(entry)) },
-                )
+            else -> {
+                grouped.forEach { (month, entries) ->
+                    item(key = "month_${month}") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = MONTH_LABEL.format(month),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = colors.textPrimary,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                text = "${entries.size} 篇",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.textTertiary,
+                            )
+                        }
+                    }
+                    items(entries.size, key = { entries[it].id }) { index ->
+                        JournalEntryCard(
+                            entry = entries[index],
+                            onClick = { onAction(DiaryAction.Open(entries[index])) },
+                        )
+                    }
+                }
             }
         }
 
-        item { Spacer(Modifier.height(8.dp)) }
+        item {
+            Spacer(Modifier.height(4.dp))
+            InlineNote("日记不会自动发送给任何模型。只有在单篇详情里主动触发、且你已授权时，才会请求 AI 线索。")
+            Spacer(Modifier.height(12.dp))
+        }
     }
 
     when (val sheet = state.sheet) {
@@ -187,7 +224,8 @@ fun DiaryScreen(
     if (pending != null) {
         AlertDialog(
             onDismissRequest = { onAction(DiaryAction.DismissDelete) },
-            title = { Text("删除这条日记？") },
+            containerColor = colors.card,
+            title = { Text("删除这条日记？", style = MorrowType.CardTitle) },
             text = {
                 Column {
                     Text("删除后无法恢复。将会删除：\n\n" + JournalRules.excerpt(pending.body, 40))
@@ -195,7 +233,7 @@ fun DiaryScreen(
                         Spacer(Modifier.height(10.dp))
                         Text(
                             text = state.deleteError,
-                            color = MaterialTheme.colorScheme.error,
+                            color = colors.danger,
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.testTag("journal_delete_error"),
                         )
@@ -207,7 +245,7 @@ fun DiaryScreen(
                     onClick = { onAction(DiaryAction.ConfirmDelete) },
                     modifier = Modifier.testTag("journal_delete_confirm"),
                 ) {
-                    Text("删除", color = MaterialTheme.colorScheme.error)
+                    Text("删除", color = colors.danger)
                 }
             },
             dismissButton = {
@@ -215,10 +253,62 @@ fun DiaryScreen(
                     onClick = { onAction(DiaryAction.DismissDelete) },
                     modifier = Modifier.testTag("journal_delete_cancel"),
                 ) {
-                    Text("取消")
+                    Text("取消", color = colors.textSecondary)
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun NewEntryCard(onClick: () -> Unit) {
+    val colors = MorrowTheme.colors
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(17.dp))
+            .clickable(onClick = onClick)
+            .testTag("diary_new"),
+        shape = RoundedCornerShape(17.dp),
+        color = colors.nested,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(colors.card),
+                contentAlignment = Alignment.Center,
+            ) {
+                MorrowGlyph(
+                    kind = MorrowGlyphKind.PEN,
+                    tint = colors.forest,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            Spacer(Modifier.width(13.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "写一篇日记",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = colors.textPrimary,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "此刻最想留下的一句话",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary,
+                )
+            }
+            MorrowGlyph(
+                kind = MorrowGlyphKind.ARROW,
+                tint = colors.textTertiary,
+                modifier = Modifier.size(16.dp),
+            )
+        }
     }
 }
 
@@ -227,25 +317,74 @@ private fun JournalEntryCard(
     entry: JournalEntryEntity,
     onClick: () -> Unit,
 ) {
+    val colors = MorrowTheme.colors
     val edited = entry.updatedAt > entry.createdAt
-    SectionCard(
-        title = entry.title?.takeIf { it.isNotBlank() } ?: "无标题",
-        subtitle = buildString {
-            append(Timestamps.formatDateTime(entry.createdAt))
-            if (edited) append(" · 已编辑")
-        },
+    val date = remember(entry.createdAt) {
+        Instant.ofEpochMilli(entry.createdAt).atZone(ZoneId.systemDefault()).toLocalDate()
+    }
+    Surface(
         modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
             .testTag("journal_entry_${entry.id}"),
-        trailing = { StatusPill(text = "查看") },
+        shape = RoundedCornerShape(16.dp),
+        color = colors.card,
+        border = androidx.compose.foundation.BorderStroke(1.dp, colors.hairline),
     ) {
-        Text(
-            text = JournalRules.excerpt(entry.body, 80),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 3,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+            Column(
+                modifier = Modifier.width(44.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = "${date.dayOfMonth}",
+                    style = MorrowType.Brand.copy(fontSize = 22.sp, lineHeight = 28.sp),
+                    color = colors.textPrimary,
+                )
+                Text(
+                    text = WEEKDAY_SHORT[date.dayOfWeek.value - 1],
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textTertiary,
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(48.dp)
+                    .background(colors.hairline),
+            )
+            Spacer(Modifier.width(13.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = entry.title?.takeIf { it.isNotBlank() } ?: "无标题",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = colors.textPrimary,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (edited) {
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = "已编辑",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.textTertiary,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(5.dp))
+                Text(
+                    text = JournalRules.excerpt(entry.body, 72),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }
 
@@ -259,64 +398,68 @@ private fun JournalEditorSheet(
     onSave: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val colors = MorrowTheme.colors
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = colors.card,
+        scrimColor = colors.textPrimary.copy(alpha = 0.22f),
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(vertical = 10.dp)
+                    .width(36.dp)
+                    .height(4.dp)
+                    .background(colors.hairline, CircleShape),
+            )
+        },
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .imePadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-                // ModalBottomSheet 是独立窗口，根节点上的 testTagsAsResourceId 不会传进来
+                .padding(horizontal = 22.dp, vertical = 4.dp)
                 .semantics { testTagsAsResourceId = true },
         ) {
             Text(
-                text = if (isCreating) "写一条日记" else "编辑日记",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
+                text = if (isCreating) "写下今天" else "编辑这一篇",
+                style = MorrowType.SheetTitle,
+                color = colors.textPrimary,
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = "不必完整，也不必正确。",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary,
+            )
+            Spacer(Modifier.height(18.dp))
 
-            OutlinedTextField(
+            MorrowTextField(
                 value = editor.title,
                 onValueChange = onTitleChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("journal_title_input"),
-                label = { Text("标题（可选）") },
+                placeholder = "标题（可选）",
                 singleLine = true,
-                shape = MaterialTheme.shapes.medium,
                 enabled = !editor.saving,
+                testTag = "journal_title_input",
             )
             Spacer(Modifier.height(12.dp))
 
-            OutlinedTextField(
+            MorrowTextField(
                 value = editor.body,
                 onValueChange = onBodyChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("journal_body_input"),
-                label = { Text("正文（必填）") },
-                isError = editor.bodyError != null,
-                supportingText = {
-                    if (editor.bodyError != null) {
-                        Text(
-                            text = editor.bodyError,
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.testTag("journal_body_error"),
-                        )
-                    }
-                },
-                minLines = 5,
-                shape = MaterialTheme.shapes.medium,
+                placeholder = "今天发生了什么？你注意到了什么？",
+                minLines = 7,
+                maxLines = 16,
                 enabled = !editor.saving,
+                isError = editor.bodyError != null,
+                supportingText = editor.bodyError,
+                supportingTestTag = "journal_body_error",
+                testTag = "journal_body_input",
             )
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(14.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
@@ -326,18 +469,19 @@ private fun JournalEditorSheet(
                     onClick = onDismiss,
                     enabled = !editor.saving,
                 ) {
-                    Text("取消")
+                    Text("取消", color = colors.textSecondary)
                 }
                 Spacer(Modifier.size(8.dp))
-                Button(
-                    onClick = onSave,
-                    enabled = !editor.saving,
-                    modifier = Modifier.testTag("journal_save"),
-                ) {
-                    Text(if (editor.saving) "保存中…" else "保存")
+                Box(modifier = Modifier.width(126.dp)) {
+                    MorrowPrimaryButton(
+                        text = if (editor.saving) "保存中…" else "保存",
+                        onClick = onSave,
+                        enabled = !editor.saving,
+                        testTag = "journal_save",
+                    )
                 }
             }
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(24.dp))
         }
     }
 }
@@ -354,46 +498,55 @@ private fun JournalDetailSheet(
     onCorrectSignal: (String, String) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val colors = MorrowTheme.colors
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = colors.card,
+        scrimColor = colors.textPrimary.copy(alpha = 0.22f),
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(vertical = 10.dp)
+                    .width(36.dp)
+                    .height(4.dp)
+                    .background(colors.hairline, CircleShape),
+            )
+        },
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 8.dp)
+                .padding(horizontal = 22.dp, vertical = 4.dp)
                 .semantics { testTagsAsResourceId = true },
         ) {
             Text(
                 text = entry.title?.takeIf { it.isNotBlank() } ?: "无标题",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
+                style = MorrowType.SheetTitle,
+                color = colors.textPrimary,
             )
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(7.dp))
             Text(
-                text = "创建于 " + Timestamps.formatDateTime(entry.createdAt),
+                text = "创建于 " + Timestamps.formatDateTime(entry.createdAt) +
+                    if (entry.updatedAt > entry.createdAt) {
+                        " · 更新于 " + Timestamps.formatDateTime(entry.updatedAt)
+                    } else {
+                        ""
+                    },
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = colors.textSecondary,
             )
-            if (entry.updatedAt > entry.createdAt) {
-                Text(
-                    text = "更新于 " + Timestamps.formatDateTime(entry.updatedAt),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Spacer(Modifier.height(14.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(18.dp))
+            HorizontalDivider(color = colors.hairline)
+            Spacer(Modifier.height(18.dp))
             Text(
                 text = entry.body,
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = colors.textPrimary,
             )
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(24.dp))
             AiDiscoverySection(
                 entry = entry,
                 signals = signals,
@@ -401,7 +554,7 @@ private fun JournalDetailSheet(
                 onDeleteSignal = onDeleteSignal,
                 onCorrectSignal = onCorrectSignal,
             )
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(24.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
@@ -410,17 +563,17 @@ private fun JournalDetailSheet(
                     onClick = onEdit,
                     modifier = Modifier.testTag("journal_edit"),
                 ) {
-                    Text("编辑")
+                    Text("编辑", color = colors.forest)
                 }
                 Spacer(Modifier.size(8.dp))
                 TextButton(
                     onClick = onDelete,
                     modifier = Modifier.testTag("journal_delete"),
                 ) {
-                    Text("删除", color = MaterialTheme.colorScheme.error)
+                    Text("删除", color = colors.danger)
                 }
             }
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(24.dp))
         }
     }
 }
@@ -433,65 +586,57 @@ private fun AiDiscoverySection(
     onDeleteSignal: (String) -> Unit,
     onCorrectSignal: (String, String) -> Unit,
 ) {
+    val colors = MorrowTheme.colors
     var correcting by remember { mutableStateOf<GrowthSignal?>(null) }
     var deleting by remember { mutableStateOf<GrowthSignal?>(null) }
     var correctionText by remember { mutableStateOf("") }
 
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-    Spacer(Modifier.height(12.dp))
+    HorizontalDivider(color = colors.hairline)
+    Spacer(Modifier.height(16.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("AI 发现", style = MaterialTheme.typography.titleSmall)
+        Text("从记录里发现线索", style = MaterialTheme.typography.titleSmall, color = colors.textPrimary)
         Spacer(Modifier.size(8.dp))
-        Text(
-            text = DiaryAnalysisStatus.label(entry.analysisStatus),
-            style = MaterialTheme.typography.labelSmall,
-            color = when (entry.analysisStatus) {
-                DiaryAnalysisStatus.FAILED -> MaterialTheme.colorScheme.error
-                DiaryAnalysisStatus.COMPLETED -> MaterialTheme.colorScheme.primary
-                else -> MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            modifier = Modifier.testTag("journal_analysis_status"),
-        )
+        StatusPill(text = DiaryAnalysisStatus.label(entry.analysisStatus))
     }
-    Spacer(Modifier.height(4.dp))
+    Spacer(Modifier.height(5.dp))
     Text(
         "仅在你配置 AI 并授权「日记」类别时发送；结果只作为线索，不会修改目标或进展。",
         style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = colors.textSecondary,
     )
     when (entry.analysisStatus) {
         DiaryAnalysisStatus.PENDING -> {
-            Spacer(Modifier.height(6.dp))
-            Text("待分析：保存后会在允许时自动分析。", style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(8.dp))
+            Text("待分析：保存后会在允许时分析。", style = MaterialTheme.typography.bodySmall)
         }
         DiaryAnalysisStatus.ANALYZING -> {
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(8.dp))
             Text("正在分析这篇日记…", style = MaterialTheme.typography.bodySmall)
         }
         DiaryAnalysisStatus.FAILED -> {
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(8.dp))
             Text(
                 "分析失败：" + (entry.analysisError ?: "未知错误"),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
+                color = colors.danger,
                 modifier = Modifier.testTag("journal_analysis_error"),
             )
             TextButton(onClick = onRetry, modifier = Modifier.testTag("journal_analysis_retry")) {
-                Text("重试分析")
+                Text("重试分析", color = colors.forest)
             }
         }
     }
     if (entry.analysisStatus == DiaryAnalysisStatus.COMPLETED && signals.isEmpty()) {
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(8.dp))
         Text("这篇日记没有提取到可保留的成长线索。", style = MaterialTheme.typography.bodySmall)
     }
     signals.forEach { signal ->
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(9.dp))
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
-                .padding(10.dp)
+                .background(colors.nested, RoundedCornerShape(12.dp))
+                .padding(12.dp)
                 .testTag("growth_signal_${signal.id}"),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -504,7 +649,7 @@ private fun AiDiscoverySection(
                         else -> "事实"
                     },
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (signal.isInference) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
+                    color = if (signal.isInference) colors.textSecondary else colors.forest,
                 )
                 signal.confidence?.let {
                     Spacer(Modifier.size(8.dp))
@@ -517,7 +662,7 @@ private fun AiDiscoverySection(
             Text(
                 "原文：" + signal.evidence.take(180),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = colors.textSecondary,
             )
             Row {
                 TextButton(
@@ -526,11 +671,11 @@ private fun AiDiscoverySection(
                         correctionText = signal.content
                     },
                     modifier = Modifier.testTag("growth_signal_correct_${signal.id}"),
-                ) { Text("纠正") }
+                ) { Text("纠正", color = colors.forest) }
                 TextButton(
                     onClick = { deleting = signal },
                     modifier = Modifier.testTag("growth_signal_delete_${signal.id}"),
-                ) { Text("删除", color = MaterialTheme.colorScheme.error) }
+                ) { Text("删除", color = colors.danger) }
             }
         }
     }
@@ -541,16 +686,18 @@ private fun AiDiscoverySection(
                 .semantics { testTagsAsResourceId = true }
                 .testTag("growth_signal_correction_dialog"),
             onDismissRequest = { correcting = null },
-            title = { Text("纠正这条线索") },
+            containerColor = colors.card,
+            title = { Text("纠正这条线索", style = MorrowType.CardTitle) },
             text = {
                 Column {
                     Text("纠正后会优先于旧 AI 推测，不会修改日记或目标。")
                     Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
+                    MorrowTextField(
                         value = correctionText,
                         onValueChange = { correctionText = it },
-                        modifier = Modifier.fillMaxWidth().testTag("growth_signal_correction_input"),
+                        placeholder = "你更准确的表述",
                         minLines = 2,
+                        testTag = "growth_signal_correction_input",
                     )
                 }
             },
@@ -561,10 +708,10 @@ private fun AiDiscoverySection(
                         correcting = null
                     },
                     modifier = Modifier.testTag("growth_signal_correction_save"),
-                ) { Text("保存纠正") }
+                ) { Text("保存纠正", color = colors.forest) }
             },
             dismissButton = {
-                TextButton(onClick = { correcting = null }) { Text("取消") }
+                TextButton(onClick = { correcting = null }) { Text("取消", color = colors.textSecondary) }
             },
         )
     }
@@ -574,7 +721,8 @@ private fun AiDiscoverySection(
                 .semantics { testTagsAsResourceId = true }
                 .testTag("growth_signal_delete_dialog"),
             onDismissRequest = { deleting = null },
-            title = { Text("删除这条线索？") },
+            containerColor = colors.card,
+            title = { Text("删除这条线索？", style = MorrowType.CardTitle) },
             text = { Text("删除后不会进入未来的 AI 上下文；日记本身不变。") },
             confirmButton = {
                 TextButton(
@@ -583,10 +731,10 @@ private fun AiDiscoverySection(
                         deleting = null
                     },
                     modifier = Modifier.testTag("growth_signal_delete_confirm"),
-                ) { Text("删除", color = MaterialTheme.colorScheme.error) }
+                ) { Text("删除", color = colors.danger) }
             },
             dismissButton = {
-                TextButton(onClick = { deleting = null }) { Text("取消") }
+                TextButton(onClick = { deleting = null }) { Text("取消", color = colors.textSecondary) }
             },
         )
     }

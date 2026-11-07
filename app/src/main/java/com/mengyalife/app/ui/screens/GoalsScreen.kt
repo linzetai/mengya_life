@@ -49,6 +49,7 @@ import com.mengyalife.app.ui.components.InlineNote
 import com.mengyalife.app.ui.components.PageHeader
 import com.mengyalife.app.ui.components.ScreenPadding
 import com.mengyalife.app.ui.components.SectionCard
+import com.mengyalife.app.ui.theme.MorrowTheme
 import com.mengyalife.app.ui.components.StatusPill
 import com.mengyalife.app.ui.goals.GoalAction
 import com.mengyalife.app.ui.goals.GoalsUiState
@@ -379,7 +380,14 @@ private fun GoalMenu(
 /** 状态胶囊：不同状态不同底色，但保持低饱和。 */
 @Composable
 fun StatusChip(status: GoalStatus) {
-    val (container, content) = statusColors(status)
+    val colors = MorrowTheme.colors
+    val (container, content) = when (status) {
+        GoalStatus.NOT_STARTED -> colors.nested to colors.textSecondary
+        GoalStatus.IN_PROGRESS -> colors.selectedNav to colors.forest
+        GoalStatus.DONE -> colors.forest.copy(alpha = 0.14f) to colors.forest
+        GoalStatus.PAUSED -> colors.nested to colors.textSecondary
+        GoalStatus.CANCELLED -> colors.card to colors.danger
+    }
     Surface(shape = CircleShape, color = container, contentColor = content) {
         Text(
             text = status.label,
@@ -387,12 +395,4 @@ fun StatusChip(status: GoalStatus) {
             modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
         )
     }
-}
-
-private fun statusColors(status: GoalStatus): Pair<Color, Color> = when (status) {
-    GoalStatus.NOT_STARTED -> Color(0xFFE7E9DC) to Color(0xFF45483B)
-    GoalStatus.IN_PROGRESS -> Color(0xFFCFE8A9) to Color(0xFF15200A)
-    GoalStatus.DONE -> Color(0xFFB5D39C) to Color(0xFF1E3610)
-    GoalStatus.PAUSED -> Color(0xFFF3DFC0) to Color(0xFF2C1F0A)
-    GoalStatus.CANCELLED -> Color(0xFFF0D9D7) to Color(0xFF410E0B)
 }

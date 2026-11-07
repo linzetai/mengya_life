@@ -167,7 +167,7 @@ private fun FactLine(fact: InsightFact) {
 }
 
 @Composable
-private fun InsightDetailDialog(
+fun InsightDetailDialog(
     insight: GrowthInsight,
     report: InsightReport?,
     onDismiss: () -> Unit,
