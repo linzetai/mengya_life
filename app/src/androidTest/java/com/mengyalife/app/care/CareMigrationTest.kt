@@ -29,7 +29,11 @@ class CareMigrationTest {
             )
             execSQL(
                 "INSERT INTO care_decisions(opportunity_id,action,reason,source_refs,model_ok,created_at) " +
-                    "VALUES(1,'SEND','r','s',1,1)",
+                    "VALUES(1,'SCHEDULE','r','s',1,1)",
+            )
+            execSQL(
+                "INSERT INTO care_decisions(opportunity_id,action,reason,source_refs,model_ok,created_at) " +
+                    "VALUES(1,'SEND','r','s',1,2)",
             )
             close()
         }
@@ -51,7 +55,7 @@ class CareMigrationTest {
         helper.createDatabase("migration-care", 21).apply {
             execSQL(
                 "INSERT INTO care_decisions(opportunity_id,action,reason,source_refs,model_ok,created_at) " +
-                    "VALUES(1,'SEND','r','s',1,1)",
+                    "VALUES(1,'SEND','r','s',1,2)",
             )
             close()
         }

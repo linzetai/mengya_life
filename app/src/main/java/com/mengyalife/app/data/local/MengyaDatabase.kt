@@ -576,22 +576,26 @@ abstract class MengyaDatabase : RoomDatabase() {
                 db.execSQL(
                     "INSERT INTO care_preferences(kind,topic_key,topic_label,value,source,source_message_id," +
                         "source_excerpt,window_note,effective_at,expires_at,revoked_at,created_at,updated_at) " +
-                        "SELECT 'TOPIC', 'plan:'||o.plan_id, o.title, 'SILENCED', 'USER_EXPLICIT', d.message_id," +
-                        "'migrated from care_feedback', NULL, f.created_at, NULL, NULL, f.created_at, f.created_at " +
-                        "FROM care_feedback f JOIN care_opportunities o ON o.id=f.opportunity_id " +
+                        "SELECT 'TOPIC', x.topic_key, x.title, 'SILENCED', 'USER_EXPLICIT', x.message_id," +
+                        "'migrated from care_feedback', NULL, x.ts, NULL, NULL, x.ts, x.ts FROM (" +
+                        "SELECT 'plan:'||o.plan_id AS topic_key, MAX(o.title) AS title, MIN(f.created_at) AS ts," +
+                        "MIN(d.message_id) AS message_id FROM care_feedback f " +
+                        "JOIN care_opportunities o ON o.id=f.opportunity_id " +
                         "LEFT JOIN care_decisions d ON d.opportunity_id=o.id " +
-                        "WHERE f.kind='SILENCED' AND o.plan_id IS NOT NULL " +
-                        "AND NOT EXISTS(SELECT 1 FROM care_preferences p WHERE p.topic_key='plan:'||o.plan_id AND p.revoked_at IS NULL)",
+                        "WHERE f.kind='SILENCED' AND o.plan_id IS NOT NULL GROUP BY o.plan_id) x " +
+                        "WHERE NOT EXISTS(SELECT 1 FROM care_preferences p WHERE p.topic_key=x.topic_key AND p.revoked_at IS NULL)",
                 )
                 db.execSQL(
                     "INSERT INTO care_preferences(kind,topic_key,topic_label,value,source,source_message_id," +
                         "source_excerpt,window_note,effective_at,expires_at,revoked_at,created_at,updated_at) " +
-                        "SELECT 'TOPIC', 'goal:'||o.goal_id, o.title, 'SILENCED', 'USER_EXPLICIT', d.message_id," +
-                        "'migrated from care_feedback', NULL, f.created_at, NULL, NULL, f.created_at, f.created_at " +
-                        "FROM care_feedback f JOIN care_opportunities o ON o.id=f.opportunity_id " +
+                        "SELECT 'TOPIC', x.topic_key, x.title, 'SILENCED', 'USER_EXPLICIT', x.message_id," +
+                        "'migrated from care_feedback', NULL, x.ts, NULL, NULL, x.ts, x.ts FROM (" +
+                        "SELECT 'goal:'||o.goal_id AS topic_key, MAX(o.title) AS title, MIN(f.created_at) AS ts," +
+                        "MIN(d.message_id) AS message_id FROM care_feedback f " +
+                        "JOIN care_opportunities o ON o.id=f.opportunity_id " +
                         "LEFT JOIN care_decisions d ON d.opportunity_id=o.id " +
-                        "WHERE f.kind='SILENCED' AND o.plan_id IS NULL AND o.goal_id IS NOT NULL " +
-                        "AND NOT EXISTS(SELECT 1 FROM care_preferences p WHERE p.topic_key='goal:'||o.goal_id AND p.revoked_at IS NULL)",
+                        "WHERE f.kind='SILENCED' AND o.plan_id IS NULL AND o.goal_id IS NOT NULL GROUP BY o.goal_id) x " +
+                        "WHERE NOT EXISTS(SELECT 1 FROM care_preferences p WHERE p.topic_key=x.topic_key AND p.revoked_at IS NULL)",
                 )
             }
         }

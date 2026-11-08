@@ -60,3 +60,9 @@
 ## Round 15
 - E4 修复：QA 时钟统一注入 CareRepository，预算/冷却口径一致。
 - 最终：358 JVM、15 instrumented、Debug/QA/lint PASS。
+
+## 审查修复（M1/M2）
+- M1：MIGRATION_22_23 改为派生表 GROUP BY 主题键 + NOT EXISTS，避免 1 feedback + 2 decisions 写重复 SILENCED；迁移测试加入 SCHEDULE+SEND 两条决策并断言 1 条偏好；设置页恢复改为按 topicKey 撤销。
+- M2：移除无候选的硬时段门与自证测试；TIME 明确为软偏好（提示词），不拦截无关关心。
+- 设备 instrumented 复跑：OK (15 tests)。
+- 其余 MINOR/NIT 作为残留风险记录在 REPORT-D/E（非阻塞）。

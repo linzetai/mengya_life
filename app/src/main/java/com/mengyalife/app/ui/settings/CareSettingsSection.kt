@@ -166,7 +166,12 @@ private fun CarePreferenceList() {
                     style = MaterialTheme.typography.labelSmall,
                     color = colors.forest,
                     modifier = Modifier
-                        .clickable { scope.launch { repository.revoke(pref.id) } }
+                        .clickable {
+                            scope.launch {
+                                if (pref.topicKey != null) repository.revokeByTopic(pref.topicKey)
+                                else repository.revoke(pref.id)
+                            }
+                        }
                         .padding(8.dp),
                 )
             }

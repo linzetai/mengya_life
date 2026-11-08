@@ -224,20 +224,6 @@ class CareRunner(
             }
         android.util.Log.i("CareRun", "action=${decision.action} id=${decision.opportunityId}")
         val opp = pending.first { it.id == decision.opportunityId }
-        val timePref = activePrefs.firstOrNull { it.kind == "TIME" }
-        // 时段偏好只约束“周回顾”类机会，不得拦截无关的计划/目标关心。
-        val timeWindow = com.mengyalife.app.domain.care.CareTimePreferenceCodec.decode(timePref?.windowNote)
-        val appliesTime = com.mengyalife.app.domain.care.CareTimePreferenceScope.applies(opp.type) && timeWindow != null
-        val inPreferredWindow = !appliesTime || timeWindow!!.contains(nowMs, zone)
-        if (decision.action == CareAction.SEND && !inPreferredWindow) {
-            careRepository.saveDecision(
-                opportunityId = opp.id, action = "DEFER",
-                reason = decision.reason + "｜避开用户偏好时段：" + timePref?.windowNote,
-                sourceRefs = opp.type, suggestedText = decision.suggestedText,
-                avoidJson = null, nextStart = null, nextEnd = null, modelOk = true,
-            )
-            return null
-        }
         if (decision.action == CareAction.SEND &&
             (globalBusy || localBusy(opp.planId, opp.goalId, opp.title))
         ) {
@@ -269,7 +255,7 @@ class CareRunner(
             )
             if (gate is CarePolicy.Result.Allow) {
                 val freshNow = if (BuildConfig.QA_BUILD && settings.testNow > 0) settings.testNow else now()
-                if (CarePolicy.inDnd(freshNow, prefs, zone)) {
+                if (CarePolicy.inDnd(freshNow, settings.policyPrefs(), zone)) {
                     careRepository.saveDecision(
                         opportunityId = opp.id, action = "DEFER",
                         reason = decision.reason + "｜发送前复核进入免打扰",
@@ -281,7 +267,8 @@ class CareRunner(
                 if (!boundOk()) return null
                 val latestPrefs = preferences.active()
                 val stillSuppressed = latestPrefs.any { pref ->
-                    (pref.value == "PAUSED" || pref.value == "SILENCED") &&
+                    pref.topicKey != null &&
+                        (pref.value == "PAUSED" || pref.value == "SILENCED") &&
                         (pref.topicKey == opp.planId?.let { "plan:$it" } ||
                             pref.topicKey == opp.goalId?.let { "goal:$it" } ||
                             (pref.topicKey?.startsWith("topic:") == true &&
