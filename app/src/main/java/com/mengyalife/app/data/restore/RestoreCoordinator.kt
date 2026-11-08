@@ -266,17 +266,11 @@ class RestoreCoordinator(
             gate.write(state.copy(phase = RestoreGatePhase.RESET_PENDING))
             journal.write(RestoreJournalState(state.attemptId, state.backupId, state.generation,
                 RestoreJournalPhase.DB_COMMITTED, now()))
-            consentRepository.resetAfterRestore(state.generation)
+            // 恢复只替换数据，不清除本机加密 Key，也不强制重新授权；
+            // Key 本就不在备份中，保留本机配置即可。
             if (com.mengyalife.app.BuildConfig.QA_BUILD) writeQaPhase("CONSENT_DONE", state.attemptId, state.generation)
             if (com.mengyalife.app.BuildConfig.QA_BUILD && QaRestoreFaultInjector.pauseAfterConsentMs > 0) {
                 kotlinx.coroutines.delay(QaRestoreFaultInjector.pauseAfterConsentMs)
-            }
-            if (com.mengyalife.app.BuildConfig.QA_BUILD && QaRestoreFaultInjector.failKeyDelete) {
-                throw RestoreException("QA_KEY_DELETE", "QA injected key delete failure")
-            }
-            val keyResult = configRepository.deleteKeyConfirmed()
-            if (keyResult == KeyDeleteResult.FAILED) {
-                return RestoreRunResult(RestoreRunStatus.COMMITTED_NEEDS_CONVERGENCE, "数据库已提交，但 Key 删除未确认；正在维护状态")
             }
             weeklyPreferences.setAiEnabled(false)
             gate.write(state.copy(phase = RestoreGatePhase.SETTINGS_PENDING))
@@ -296,9 +290,9 @@ class RestoreCoordinator(
                 RestoreJournalPhase.DONE, now()))
             gate.clear(); journal.clear(); finishReady()
             writeQaEvidence(state)
-            _completionMessage.value = "恢复完成，已撤权并删除旧 Key"
-            onSuccess("恢复完成，已撤权并删除旧 Key")
-            return RestoreRunResult(RestoreRunStatus.SUCCESS, "恢复完成，已撤权并删除旧 Key")
+            _completionMessage.value = "恢复完成，已保留本机 Key 与授权"
+            onSuccess("恢复完成，已保留本机 Key 与授权")
+            return RestoreRunResult(RestoreRunStatus.SUCCESS, "恢复完成，已保留本机 Key 与授权")
         } catch (e: Exception) {
             finishMaintenance()
             writeQaStatus("COMMITTED_NEEDS_CONVERGENCE", state.attemptId, state.generation)

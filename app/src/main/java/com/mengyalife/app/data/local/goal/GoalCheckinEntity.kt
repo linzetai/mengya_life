@@ -50,4 +50,20 @@ data class GoalCheckinEntity(
     /** 来源。本轮固定 manual，保留字段以便未来区分导入数据。 */
     @ColumnInfo(name = "source")
     val source: String,
+
+    /** 进展语义：delta / snapshot / none（v14 新增；历史行迁移为 snapshot）。 */
+    @ColumnInfo(name = "amount_kind", defaultValue = "snapshot")
+    val amountKind: String = "snapshot",
+
+    /** 来源原话：顾问记录时保留用户原句，便于追溯；手动记录为空。 */
+    @ColumnInfo(name = "original_text")
+    val originalText: String? = null,
+
+    /** 归一到目标既有单位后的数值（仅当单位可可靠换算/继承时填写）。 */
+    @ColumnInfo(name = "normalized_value")
+    val normalizedValue: Double? = null,
+
+    /** 归一后的单位；与 [metricUnit] 不同表示做过换算。 */
+    @ColumnInfo(name = "normalized_unit")
+    val normalizedUnit: String? = null,
 )

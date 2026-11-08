@@ -665,10 +665,14 @@ private fun AiDiscoverySection(
                     style = MaterialTheme.typography.labelSmall,
                     color = if (signal.isInference) colors.textSecondary else colors.forest,
                 )
-                signal.confidence?.let {
-                    Spacer(Modifier.size(8.dp))
-                    Text("可信度 ${(it * 100).toInt()}%", style = MaterialTheme.typography.labelSmall)
-                }
+            }
+            signal.confidence?.let {
+                Text(
+                    text = "可信度 ${(it * 100).toInt()}%",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textTertiary,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
             }
             Spacer(Modifier.height(4.dp))
             Text(signal.content, style = MaterialTheme.typography.bodyMedium)

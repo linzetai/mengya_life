@@ -7,8 +7,14 @@ import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.exclude
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListState
@@ -26,6 +32,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
@@ -35,6 +46,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mengyalife.app.domain.goals.GoalLevel
 import com.mengyalife.app.navigation.AppTab
 import com.mengyalife.app.ui.advisor.AdvisorAction
+import com.mengyalife.app.ui.advisor.AdvisorTestBus
 import com.mengyalife.app.ui.advisor.AdvisorUiState
 import com.mengyalife.app.ui.advisor.AdvisorViewModel
 import com.mengyalife.app.ui.components.MorrowBottomBar
@@ -68,6 +80,7 @@ import com.mengyalife.app.ui.theme.MorrowTheme
 import com.mengyalife.app.ui.weekly.WeeklyReviewScreen
 import com.mengyalife.app.ui.weekly.WeeklyReviewViewModel
 import com.mengyalife.app.data.weekly.WeeklyReviewRouter
+import kotlinx.coroutines.flow.first
 
 /**
  * App 根组件：只负责**装配**。
@@ -112,6 +125,11 @@ fun MengyaLifeApp() {
     val advisorViewModel: AdvisorViewModel = viewModel(factory = AdvisorViewModel.Factory)
     val advisorState by advisorViewModel.uiState.collectAsStateWithLifecycle()
 
+    val careViewModel: com.mengyalife.app.ui.care.CareViewModel =
+        viewModel(factory = com.mengyalife.app.ui.care.CareViewModel.Factory)
+    val careState by careViewModel.state.collectAsStateWithLifecycle()
+
+
     val aiSettingsViewModel: AiSettingsViewModel = viewModel(factory = AiSettingsViewModel.Factory)
     val aiSettingsState by aiSettingsViewModel.state.collectAsStateWithLifecycle()
 
@@ -126,6 +144,92 @@ fun MengyaLifeApp() {
     var showPanorama by rememberSaveable { mutableStateOf(false) }
     var showExplore by rememberSaveable { mutableStateOf(false) }
     var showDecision by rememberSaveable { mutableStateOf(false) }
+    // 今天页的近期小计划：只在 ACTIVE 且时间锚定在当下时出现。
+    val planRepository = appContext.container.smallPlanRepository
+    val allPlans by planRepository.observeAll()
+        .collectAsStateWithLifecycle(initialValue = emptyList())
+    val planProgressCounts by planRepository.observeProgressCounts()
+        .collectAsStateWithLifecycle(initialValue = emptyMap())
+    val todayPlans = androidx.compose.runtime.remember(allPlans, planProgressCounts) {
+        val now = System.currentTimeMillis()
+        allPlans
+            .filter {
+                it.status == "ACTIVE" &&
+                    (it.timeScope.isNullOrBlank() ||
+                        com.mengyalife.app.domain.goals.PlanTime.isCurrent(it.timeScope, it.createdAt, now))
+            }
+            .sortedByDescending { it.updatedAt }
+            .take(3)
+            .map {
+                com.mengyalife.app.ui.screens.PlanTodayItem(
+                    planId = it.id,
+                    title = it.title,
+                    timeScope = it.timeScope,
+                    progressCount = planProgressCounts[it.id] ?: 0,
+                )
+            }
+    }
+
+
+
+    // 顾问保存日记后，跳到日记页同一篇（不复制数据）。
+    LaunchedEffect(advisorState.recordAction?.openDiaryEntryId) {
+        val entryId = advisorState.recordAction?.openDiaryEntryId ?: return@LaunchedEffect
+        currentTab = AppTab.DIARY
+        showPanorama = false
+        showExplore = false
+        showDecision = false
+        showSettings = false
+        showWeeklyReview = false
+        journalViewModel.onAction(DiaryAction.OpenById(entryId))
+        advisorViewModel.onAction(AdvisorAction.DismissRecordAction)
+    }
+
+    LaunchedEffect(currentTab) {
+        if (currentTab == AppTab.TODAY) careViewModel.refresh()
+    }
+
+    val careSettings = remember { com.mengyalife.app.data.care.CareSettings(appContext) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val currentCareCard = androidx.compose.runtime.rememberUpdatedState(careState.card)
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                if (currentCareCard.value != null && careSettings.notificationsEnabled) {
+                    careViewModel.notifyIfNeeded(appContext)
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(Unit) {
+        com.mengyalife.app.data.care.CareOpenBus.pending.collect { id ->
+            if (id == null) return@collect
+            currentTab = AppTab.ADVISOR
+            showPanorama = false
+            showExplore = false
+            showDecision = false
+            showSettings = false
+            showWeeklyReview = false
+            careViewModel.onNotificationOpen(id)
+            com.mengyalife.app.data.care.CareOpenBus.clear()
+        }
+    }
+    LaunchedEffect(careState.openAdvisorText) {
+        val text = careState.openAdvisorText ?: return@LaunchedEffect
+        currentTab = AppTab.ADVISOR
+        showPanorama = false
+        showExplore = false
+        showDecision = false
+        showSettings = false
+        showWeeklyReview = false
+        if (text.isNotBlank()) {
+            advisorViewModel.onAction(AdvisorAction.InputChange(text))
+        }
+        careViewModel.consumeOpenAdvisor()
+    }
 
     // ---- 页面滚动位置（切换页面/设置返回不丢）----
     val todayListState = rememberLazyListState()
@@ -133,6 +237,27 @@ fun MengyaLifeApp() {
     val trajectoryListState = rememberLazyListState()
     val diaryListState = rememberLazyListState()
     val advisorListState = rememberLazyListState()
+
+    LaunchedEffect(Unit) {
+        if (!BuildConfig.QA_BUILD) return@LaunchedEffect
+        AdvisorTestBus.prompts.collect { prompt ->
+            if (prompt == null) return@collect
+            AdvisorTestBus.clear()
+            currentTab = AppTab.ADVISOR
+            showSettings = false
+            showMemories = false
+            showWeeklyReview = false
+            showPanorama = false
+            showExplore = false
+            showDecision = false
+            advisorViewModel.onAction(AdvisorAction.InputChange(prompt))
+            // 等配置与授权从 DataStore 读入后再发送；QA 注入只用于真机验收。
+            kotlinx.coroutines.withTimeoutOrNull(8_000) {
+                advisorViewModel.uiState.first { it.configured && it.consentValid }
+            }
+            advisorViewModel.onAction(AdvisorAction.Send)
+        }
+    }
 
     val weeklyOpenRequest by WeeklyReviewRouter.requests.collectAsStateWithLifecycle()
     LaunchedEffect(weeklyOpenRequest) {
@@ -173,6 +298,12 @@ fun MengyaLifeApp() {
         showExplore = false
         showDecision = false
     }
+    LaunchedEffect(advisorState.recordAction?.openGoalId) {
+        val goalId = advisorState.recordAction?.openGoalId ?: return@LaunchedEffect
+        openPanorama(goalId)
+        advisorViewModel.onAction(AdvisorAction.DismissRecordAction)
+    }
+
     val discussWithAdvisor: (String) -> Unit = { text ->
         showExplore = false
         showDecision = false
@@ -189,6 +320,7 @@ fun MengyaLifeApp() {
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(MorrowTheme.colors.canvas)
                 .semantics { testTagsAsResourceId = true },
         ) {
             when {
@@ -292,6 +424,20 @@ fun MengyaLifeApp() {
                     onOpenExplore = { showExplore = true },
                     onOpenDecision = { showDecision = true },
                     onOpenGoal = { id -> openPanorama(id) },
+                    todayPlans = todayPlans,
+                    careCard = careState.card,
+                    onCareEngage = careViewModel::engage,
+                    onCareIgnore = careViewModel::ignore,
+                    onCareSilence = careViewModel::silence,
+                    onOpenPlan = { title ->
+                        currentTab = AppTab.ADVISOR
+                        showPanorama = false
+                        showExplore = false
+                        showDecision = false
+                        showSettings = false
+                        showWeeklyReview = false
+                        advisorViewModel.onAction(AdvisorAction.InputChange("聊聊这个计划：$title"))
+                    },
                     onCreateGoalFromToday = {
                         showPanorama = true
                         goalsViewModel.onAction(GoalAction.NewGoal(GoalLevel.LONG_TERM, null))
@@ -340,6 +486,12 @@ private fun MainShell(
     onOpenExplore: () -> Unit,
     onOpenDecision: () -> Unit,
     onOpenGoal: (Long) -> Unit,
+    todayPlans: List<com.mengyalife.app.ui.screens.PlanTodayItem>,
+    onOpenPlan: (String) -> Unit,
+    careCard: com.mengyalife.app.ui.care.CareCard?,
+    onCareEngage: () -> Unit,
+    onCareIgnore: () -> Unit,
+    onCareSilence: () -> Unit,
     onCreateGoalFromToday: () -> Unit,
     todayListState: LazyListState,
     trajectoryListState: LazyListState,
@@ -368,12 +520,20 @@ private fun MainShell(
         onGoalAction(GoalAction.ConsumeMessage)
     }
 
+    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = colors.canvas,
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        contentWindowInsets = if (imeVisible) {
+            WindowInsets.systemBars.exclude(WindowInsets.navigationBars)
+        } else {
+            WindowInsets.systemBars
+        },
         bottomBar = {
-            MorrowBottomBar(currentTab = currentTab, onTabChange = onTabChange)
+            if (!imeVisible) {
+                MorrowBottomBar(currentTab = currentTab, onTabChange = onTabChange)
+            }
         },
     ) { innerPadding ->
         Box(
@@ -385,6 +545,12 @@ private fun MainShell(
                 AppTab.TODAY -> TodayScreen(
                     listState = todayListState,
                     goals = goalsState.snapshot,
+                    plans = todayPlans,
+                    onOpenPlan = onOpenPlan,
+                    careCard = careCard,
+                    onCareEngage = onCareEngage,
+                    onCareIgnore = onCareIgnore,
+                    onCareSilence = onCareSilence,
                     entries = diaryState.entries,
                     insights = insightState,
                     onOpenSettings = onOpenSettings,

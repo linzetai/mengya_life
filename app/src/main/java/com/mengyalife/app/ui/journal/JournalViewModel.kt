@@ -126,6 +126,13 @@ class JournalViewModel(
                 it.copy(sheet = JournalSheet.Viewing(action.entry))
             }
 
+            is DiaryAction.OpenById -> viewModelScope.launch {
+                val entry = repository.getEntry(action.entryId)
+                if (entry != null) {
+                    localState.update { it.copy(sheet = JournalSheet.Viewing(entry)) }
+                }
+            }
+
             is DiaryAction.Edit -> localState.update {
                 it.copy(
                     sheet = JournalSheet.Editing(action.entry),

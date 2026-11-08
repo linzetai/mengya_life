@@ -86,6 +86,18 @@ object RestorePlanBuilder {
         restored["growthMemories"] = memories.sortedBy { it["id"]!!.jsonPrimitive.content }
         restored["insightReports"] = rows(data["insightReports"]).sortedBy { it["id"]!!.jsonPrimitive.content }
         restored["weeklyReviews"] = rows(data["weeklyReviews"]).sortedBy { it["id"]!!.jsonPrimitive.content }
+        // 0.21/0.22 新增表对旧备份可缺省；缺省按空表恢复。
+        fun optionalRows(key: String): List<MutableMap<String, JsonElement>> {
+            val array = data[key] as? JsonArray ?: return emptyList()
+            return rows(array).sortedBy { it["id"]?.jsonPrimitive?.content?.toLongOrNull() ?: 0L }
+        }
+        restored["smallPlans"] = optionalRows("smallPlans")
+        restored["planEvents"] = optionalRows("planEvents")
+        restored["planProgress"] = optionalRows("planProgress")
+        restored["careOpportunities"] = optionalRows("careOpportunities")
+        restored["careDecisions"] = optionalRows("careDecisions")
+        restored["careFeedback"] = optionalRows("careFeedback")
+        restored["carePreferences"] = optionalRows("carePreferences")
 
         val settings = payload["settings"] as? JsonObject ?: throw RestoreException("SETTINGS_MISSING", "缺少 settings")
         val weekly = settings["weeklyReview"] as? JsonObject

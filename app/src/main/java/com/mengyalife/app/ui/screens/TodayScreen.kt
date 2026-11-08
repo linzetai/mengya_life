@@ -24,6 +24,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -84,6 +86,12 @@ private val WEEKDAY_LABELS = listOf("星期一", "星期二", "星期三", "星�
 fun TodayScreen(
     listState: LazyListState,
     goals: GoalSnapshot,
+    plans: List<PlanTodayItem> = emptyList(),
+    onOpenPlan: (String) -> Unit = {},
+    careCard: com.mengyalife.app.ui.care.CareCard? = null,
+    onCareEngage: () -> Unit = {},
+    onCareIgnore: () -> Unit = {},
+    onCareSilence: () -> Unit = {},
     entries: List<JournalEntryEntity>,
     insights: InsightUiState,
     onOpenSettings: () -> Unit,
@@ -175,6 +183,21 @@ fun TodayScreen(
                     }
                 },
             )
+        }
+
+        if (careCard != null) {
+            item {
+                CareCardSection(
+                    card = careCard,
+                    onEngage = onCareEngage,
+                    onIgnore = onCareIgnore,
+                    onSilence = onCareSilence,
+                )
+            }
+        }
+
+        if (plans.isNotEmpty()) {
+            item { PlanTodaySection(plans = plans, onOpenPlan = onOpenPlan) }
         }
 
         item {
@@ -687,6 +710,134 @@ private fun GoodThingsCard(
                 tint = colors.forest,
                 modifier = Modifier.size(16.dp),
             )
+        }
+    }
+}
+
+
+/** 今天页的近期计划条目（由 App 按时间锚定后传入）。 */
+data class PlanTodayItem(
+    val planId: Long,
+    val title: String,
+    val timeScope: String?,
+    val progressCount: Int,
+)
+
+@Composable
+private fun PlanTodaySection(
+    plans: List<PlanTodayItem>,
+    onOpenPlan: (String) -> Unit,
+) {
+    val colors = MorrowTheme.colors
+    var hintDismissed by rememberSaveable { mutableStateOf(false) }
+    SectionHeading(title = "本周的小计划")
+    plans.take(3).forEach { plan ->
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .clickable { onOpenPlan(plan.title) }
+                .testTag("today_plan_${plan.planId}"),
+            shape = RoundedCornerShape(14.dp),
+            color = colors.card,
+            border = androidx.compose.foundation.BorderStroke(1.dp, colors.hairline),
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = plan.title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.textPrimary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        text = (plan.timeScope?.takeIf { it.isNotBlank() } ?: "时间未定") +
+                            " · " + if (plan.progressCount > 0) {
+                            "已记录 ${plan.progressCount} 次"
+                        } else {
+                            "尚未记录进展"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.textTertiary,
+                    )
+                }
+                Text("→", style = MaterialTheme.typography.bodyMedium, color = colors.textTertiary)
+            }
+        }
+    }
+    val hintPlan = plans.firstOrNull { it.progressCount == 0 }
+    if (hintPlan != null && !hintDismissed) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp)
+                .testTag("today_plan_hint"),
+            shape = RoundedCornerShape(12.dp),
+            color = colors.nested,
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text(
+                    text = "「${hintPlan.title}」这周还没记录，要不要聊聊进展？",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { onOpenPlan(hintPlan.title) }) {
+                        Text("去聊聊", color = colors.forest)
+                    }
+                    TextButton(onClick = { hintDismissed = true }) {
+                        Text("忽略", color = colors.textTertiary)
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun CareCardSection(
+    card: com.mengyalife.app.ui.care.CareCard,
+    onEngage: () -> Unit,
+    onIgnore: () -> Unit,
+    onSilence: () -> Unit,
+) {
+    val colors = MorrowTheme.colors
+    Surface(
+        modifier = Modifier.fillMaxWidth().testTag("today_care_card"),
+        shape = RoundedCornerShape(16.dp),
+        color = colors.card,
+        border = androidx.compose.foundation.BorderStroke(1.dp, colors.hairline),
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+                text = "MengYa 想和你聊聊",
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.forest,
+            )
+            Spacer(Modifier.height(5.dp))
+            Text(
+                text = card.text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.textPrimary,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = if (card.sourceType == "PLAN_CHECKIN") "来自你的小计划" else "来自你的长期目标",
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.textTertiary,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = onEngage) { Text("聊聊", color = colors.forest) }
+                TextButton(onClick = onIgnore) { Text("暂时忽略", color = colors.textTertiary) }
+                TextButton(onClick = onSilence) { Text("不再提醒这个话题", color = colors.textTertiary) }
+            }
         }
     }
 }

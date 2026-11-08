@@ -6,6 +6,7 @@ import com.mengyalife.app.data.local.goal.GoalDao
 import com.mengyalife.app.data.restore.RestoreWriteBarrier
 import com.mengyalife.app.data.local.goal.GoalEntity
 import com.mengyalife.app.domain.goals.CheckinSource
+import com.mengyalife.app.domain.goals.ProgressKind
 import com.mengyalife.app.domain.goals.GoalDomain
 import com.mengyalife.app.domain.goals.GoalLevel
 import com.mengyalife.app.domain.goals.GoalRef
@@ -27,6 +28,9 @@ data class GoalNode(
     val children: List<GoalNode>,
     val checkinCount: Int,
     val lastCheckinAt: Long?,
+    val lastCheckinNote: String? = null,
+    val lastCheckinValue: Double? = null,
+    val lastCheckinUnit: String? = null,
 ) {
     val hasCheckins: Boolean get() = checkinCount > 0
 }
@@ -242,6 +246,12 @@ class GoalRepository(
         note: String,
         metricValue: Double?,
         metricUnit: String?,
+        source: String = CheckinSource.MANUAL,
+        recordedAt: Long? = null,
+        amountKind: String = ProgressKind.SNAPSHOT,
+        originalText: String? = null,
+        normalizedValue: Double? = null,
+        normalizedUnit: String? = null,
     ): GoalResult<Long> = guarded {
         dao.findGoal(goalId) ?: return@guarded GoalResult.Error("目标不存在")
         GoalRules.validateCheckinNote(note)?.let { return@guarded GoalResult.Error(it) }
@@ -253,11 +263,15 @@ class GoalRepository(
         val id = dao.insertCheckin(
             GoalCheckinEntity(
                 goalId = goalId,
-                recordedAt = now(),
+                recordedAt = recordedAt ?: now(),
                 note = note.trim(),
                 metricValue = metricValue,
                 metricUnit = GoalRules.normalizeUnit(metricUnit),
-                source = CheckinSource.MANUAL,
+                source = source,
+                amountKind = amountKind,
+                originalText = originalText?.takeIf { it.isNotBlank() },
+                normalizedValue = normalizedValue,
+                normalizedUnit = normalizedUnit?.takeIf { it.isNotBlank() },
             ),
         )
         // 记录进展时，若目标还没开始，自动置为「进行中」更符合直觉
@@ -267,6 +281,42 @@ class GoalRepository(
         }
         return@guarded GoalResult.Ok(id)
 
+    }
+
+    /**
+     * 修改已经写入的进展记录（顾问记录卡片里的「修改」与后续纠错）。
+     * 只改数值/单位/说明，不改变目标与来源；复用同一套校验。
+     */
+    suspend fun updateCheckin(
+        checkinId: Long,
+        note: String,
+        metricValue: Double?,
+        metricUnit: String?,
+        amountKind: String? = null,
+        normalizedValue: Double? = null,
+        normalizedUnit: String? = null,
+    ): GoalResult<Unit> = guarded {
+        val existing = dao.findCheckin(checkinId) ?: return@guarded GoalResult.Error("进展记录不存在")
+        GoalRules.validateCheckinNote(note)?.let { return@guarded GoalResult.Error(it) }
+        GoalRules.validateMetricValue(metricValue)?.let { return@guarded GoalResult.Error(it) }
+        GoalRules.validateUnit(metricUnit)?.let { return@guarded GoalResult.Error(it) }
+        dao.updateCheckin(
+            id = checkinId,
+            note = note.trim(),
+            metricValue = metricValue,
+            metricUnit = GoalRules.normalizeUnit(metricUnit),
+            amountKind = amountKind ?: existing.amountKind,
+            normalizedValue = normalizedValue,
+            normalizedUnit = normalizedUnit?.takeIf { it.isNotBlank() },
+        )
+        return@guarded GoalResult.Ok(Unit)
+    }
+
+    /** 撤销一条进展记录（只用于撤销顾问刚写入且用户确认撤销的记录）。 */
+    suspend fun deleteCheckin(checkinId: Long): GoalResult<Unit> = guarded {
+        dao.findCheckin(checkinId) ?: return@guarded GoalResult.Error("进展记录不存在")
+        dao.deleteCheckin(checkinId)
+        return@guarded GoalResult.Ok(Unit)
     }
 
     // ---------------------------------------------------------------- 顾问上下文
@@ -363,6 +413,9 @@ class GoalRepository(
                 children = children,
                 checkinCount = stat?.checkinCount ?: 0,
                 lastCheckinAt = stat?.lastAt,
+                lastCheckinNote = stat?.lastNote,
+                lastCheckinValue = stat?.lastValue,
+                lastCheckinUnit = stat?.lastUnit,
             )
         }
 
@@ -403,8 +456,9 @@ class GoalRepository(
                     GoalTrends.MetricRecord(
                         checkinId = it.id,
                         recordedAt = it.recordedAt,
-                        value = it.metricValue,
-                        unit = it.metricUnit,
+                        value = it.normalizedValue ?: it.metricValue,
+                        unit = it.normalizedUnit ?: it.metricUnit,
+                        kind = it.amountKind,
                     )
                 }
                 GoalTrends.seriesFrom(metrics).map { series ->

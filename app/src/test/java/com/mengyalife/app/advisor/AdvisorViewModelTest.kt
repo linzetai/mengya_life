@@ -75,6 +75,8 @@ class AdvisorViewModelTest {
         val data = FakeAdvisorDataRepository(snapshot)
         val proposals = FakeGoalProposalRepository()
         val apply = FakeGoalProposalApply()
+        val records = FakeRecordProposalRepository()
+        val recordApply = FakeProgressRecordApply()
         val vm = AdvisorViewModel(
             conversations = repository,
             configRepository = config,
@@ -82,6 +84,11 @@ class AdvisorViewModelTest {
             dataRepository = data,
             proposalRepository = proposals,
             proposalApplyService = apply,
+            recordRepository = records,
+            recordApplyService = recordApply,
+                    diaryApplyService = FakeDiaryRecordApply(),
+                    goalApplyService = FakeGoalRecordApply(),
+                    planApplyService = FakePlanRecordApply(),
             assembler = AdvisorContextAssembler(),
             networkEngine = engine,
             fakeEngine = null,

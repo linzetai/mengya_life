@@ -194,20 +194,22 @@ fun WeeklyReviewScreen(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            MorrowTertiaryButton(
-                                text = "尝试 AI 增强",
-                                onClick = onGenerateAi,
-                                enabled = !state.generating,
-                                showArrow = true,
-                                testTag = "weekly_generate_ai",
-                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                MorrowTertiaryButton(
+                                    text = "尝试 AI 增强",
+                                    onClick = onGenerateAi,
+                                    enabled = !state.generating,
+                                    showArrow = true,
+                                    testTag = "weekly_generate_ai",
+                                )
+                                Text(
+                                    text = "每周最多一次",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = colors.textTertiary,
+                                    modifier = Modifier.padding(start = 4.dp),
+                                )
+                            }
                             Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = "每周最多一次",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = colors.textTertiary,
-                            )
-                            Spacer(Modifier.weight(1f))
                             MorrowTertiaryButton(
                                 text = if (state.generating) "整理中…" else "重新整理",
                                 onClick = onGenerate,

@@ -10,7 +10,12 @@ import com.mengyalife.app.data.advisor.GoalProposalApply
 import com.mengyalife.app.data.advisor.GoalProposalRepository
 import com.mengyalife.app.data.advisor.ProposalApplyResult
 import com.mengyalife.app.data.advisor.ProposalUndoResult
+import com.mengyalife.app.data.advisor.RecordApplyResult
+import com.mengyalife.app.data.advisor.RecordProposalRepository
+import com.mengyalife.app.data.advisor.RecordUndoResult
+import com.mengyalife.app.data.advisor.ProgressRecordApply
 import com.mengyalife.app.data.advisor.StoredGoalProposal
+import com.mengyalife.app.data.advisor.StoredRecordProposal
 import com.mengyalife.app.data.consent.AiConsentRepository
 import com.mengyalife.app.data.advisor.SecretCipher
 import com.mengyalife.app.data.advisor.StoredAiConfig
@@ -245,6 +250,137 @@ class FakeGoalProposalApply : GoalProposalApply {
         return applyResult
     }
     override suspend fun undo(proposalId: String): ProposalUndoResult {
+        undoCalls++
+        return undoResult
+    }
+}
+
+
+class FakeRecordProposalRepository : RecordProposalRepository {
+    private val flow = MutableStateFlow<List<StoredRecordProposal>>(emptyList())
+    var saveCalls = 0
+    override fun observeAll(): Flow<List<StoredRecordProposal>> = flow
+    override suspend fun findById(id: String): StoredRecordProposal? =
+        flow.value.firstOrNull { it.id == id }
+    override suspend fun save(
+        messageId: String,
+        draft: com.mengyalife.app.domain.advisor.RecordProposalDraft,
+        expectedRestoreGeneration: Long?,
+    ): StoredRecordProposal {
+        saveCalls++
+        flow.value.firstOrNull { it.messageId == messageId }?.let { return it }
+        val proposal = StoredRecordProposal("r-$messageId", messageId, 1L, draft, "DRAFT")
+        flow.value = flow.value + proposal
+        return proposal
+    }
+    override suspend fun updateDraft(
+        id: String,
+        draft: com.mengyalife.app.domain.advisor.RecordProposalDraft,
+    ): Boolean {
+        if (flow.value.none { it.id == id && it.isDraft }) return false
+        flow.value = flow.value.map { if (it.id == id) it.copy(draft = draft) else it }
+        return true
+    }
+    override suspend fun cancel(id: String): Boolean {
+        if (flow.value.none { it.id == id && it.isDraft }) return false
+        flow.value = flow.value.map { if (it.id == id) it.copy(status = "CANCELLED") else it }
+        return true
+    }
+
+    override suspend fun markDiaryApplied(proposalId: String, entryId: Long, title: String?, body: String): Boolean {
+        if (flow.value.none { it.id == proposalId && it.isDraft }) return false
+        flow.value = flow.value.map {
+            if (it.id == proposalId) it.copy(status = "APPLIED", diaryEntryId = entryId) else it
+        }
+        return true
+    }
+
+    override suspend fun updateDiaryApplied(proposalId: String, title: String?, body: String): Boolean =
+        flow.value.any { it.id == proposalId && it.isApplied }
+
+    override suspend fun markPlanApplied(proposalId: String, planId: Long): Boolean {
+        if (flow.value.none { it.id == proposalId && it.isDraft }) return false
+        flow.value = flow.value.map {
+            if (it.id == proposalId) it.copy(status = "APPLIED", appliedPlanId = planId) else it
+        }
+        return true
+    }
+
+    override suspend fun markGoalApplied(proposalId: String, goalIds: List<Long>): Boolean {
+        if (flow.value.none { it.id == proposalId && it.isDraft }) return false
+        flow.value = flow.value.map {
+            if (it.id == proposalId) it.copy(status = "APPLIED", appliedGoalIds = goalIds) else it
+        }
+        return true
+    }
+    fun seed(proposal: StoredRecordProposal) {
+        flow.value = flow.value + proposal
+    }
+}
+
+class FakePlanRecordApply : com.mengyalife.app.data.advisor.PlanRecordApply {
+    var calls = 0
+    override suspend fun apply(proposalId: String): com.mengyalife.app.data.advisor.PlanApplyResult {
+        calls++
+        return com.mengyalife.app.data.advisor.PlanApplyResult.Success(21L)
+    }
+
+    override suspend fun applyProgress(proposalId: String): com.mengyalife.app.data.advisor.PlanApplyResult {
+        calls++
+        return com.mengyalife.app.data.advisor.PlanApplyResult.Success(21L)
+    }
+}
+
+class FakeGoalRecordApply : com.mengyalife.app.data.advisor.GoalRecordApply {
+    var calls = 0
+    var result: com.mengyalife.app.data.advisor.GoalApplyResult =
+        com.mengyalife.app.data.advisor.GoalApplyResult.Success(listOf(9L))
+    override suspend fun apply(proposalId: String): com.mengyalife.app.data.advisor.GoalApplyResult {
+        calls++
+        return result
+    }
+}
+
+class FakeDiaryRecordApply : com.mengyalife.app.data.advisor.DiaryRecordApply {
+    var applyCalls = 0
+    var editCalls = 0
+    var applyResult: com.mengyalife.app.data.advisor.DiaryApplyResult =
+        com.mengyalife.app.data.advisor.DiaryApplyResult.Success(11L)
+    override suspend fun apply(proposalId: String): com.mengyalife.app.data.advisor.DiaryApplyResult {
+        applyCalls++
+        return applyResult
+    }
+    override suspend fun editApplied(
+        proposalId: String,
+        draft: com.mengyalife.app.domain.advisor.RecordProposalDraft,
+    ): com.mengyalife.app.data.advisor.DiaryApplyResult {
+        editCalls++
+        return applyResult
+    }
+}
+
+class FakeProgressRecordApply : ProgressRecordApply {
+    var applyCalls = 0
+    var editCalls = 0
+    var undoCalls = 0
+    var applyResult: RecordApplyResult = RecordApplyResult.Success(1L, "健康")
+    var editResult: RecordApplyResult = RecordApplyResult.Success(1L, "健康")
+    var undoResult: RecordUndoResult = RecordUndoResult.Success()
+    override suspend fun apply(
+        proposalId: String,
+        draft: com.mengyalife.app.domain.advisor.RecordProposalDraft,
+    ): RecordApplyResult {
+        applyCalls++
+        return applyResult
+    }
+    override suspend fun editApplied(
+        proposalId: String,
+        draft: com.mengyalife.app.domain.advisor.RecordProposalDraft,
+    ): RecordApplyResult {
+        editCalls++
+        return editResult
+    }
+    override suspend fun undo(proposalId: String): RecordUndoResult {
         undoCalls++
         return undoResult
     }

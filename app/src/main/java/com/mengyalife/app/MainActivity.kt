@@ -70,6 +70,42 @@ class MainActivity : ComponentActivity() {
                 com.mengyalife.app.data.growth.QaExtractionGate.delayBeforeRequestMs =
                     intent.getIntExtra("qa_extract_delay_ms", 0).toLong().coerceAtLeast(0)
             }
+            // QA 真机验收：ADB 无法输入中文，允许用 intent extra 注入一句顾问输入。
+            intent?.getStringExtra("qa_advisor_prompt")?.let {
+                com.mengyalife.app.ui.advisor.AdvisorTestBus.offer(it)
+            }
+            if (intent?.getBooleanExtra("qa_care_now", false) == true) {
+                com.mengyalife.app.data.care.CareScheduler.runNow(this)
+            }
+            if (intent?.getBooleanExtra("qa_care_roundtrip", false) == true) {
+                val app = application as MengyaApplication
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    runCatching {
+                        app.container.restoreCoordinator.awaitReady()
+                        val pass = "qa-roundtrip".toCharArray()
+                        val artifact = app.container.backupExporter.build(pass)
+                        val result = app.container.restoreCoordinator.execute(
+                            artifact.bytes, pass, artifact.payloadSha256, artifact.backupId,
+                        )
+                        android.util.Log.i("CareRoundtrip", "result=$result")
+                    }.onFailure { android.util.Log.e("CareRoundtrip", "failed", it) }
+                }
+            }
+            if (intent?.getBooleanExtra("qa_care_direct", false) == true) {
+                com.mengyalife.app.data.care.CareDirectTest.runDelayed(application as MengyaApplication)
+            }
+            intent?.getLongExtra("qa_republish_care", -1L)?.takeIf { it > 0 }?.let { careId ->
+                val app = application as MengyaApplication
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    val opp = app.container.careRepository.find(careId) ?: return@launch
+                    val decision = app.container.careRepository.latestDecisionFor(careId) ?: return@launch
+                    com.mengyalife.app.data.care.CareNotification.post(
+                        app, careId, decision.suggestedText ?: "最近怎么样？",
+                        com.mengyalife.app.data.care.CareSettings(app).lockScreenDetail,
+                    )
+                }
+            }
+
             if (intent?.getBooleanExtra("qa_seed_backup_fixture", false) == true) {
                 val container = (application as MengyaApplication).container
                 kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
@@ -103,6 +139,9 @@ class MainActivity : ComponentActivity() {
             com.mengyalife.app.data.weekly.WeeklyReviewRouter.requestOpen()
         }
         enableEdgeToEdge()
+        intent?.getLongExtra(com.mengyalife.app.data.care.CareNotification.EXTRA_CARE_ID, -1L)
+            ?.takeIf { it > 0 }
+            ?.let { com.mengyalife.app.data.care.CareOpenBus.offer(it) }
         setContent {
             MengyaLifeApp()
         }
@@ -111,6 +150,14 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (BuildConfig.QA_BUILD) {
+            intent.getStringExtra("qa_advisor_prompt")?.let {
+                com.mengyalife.app.ui.advisor.AdvisorTestBus.offer(it)
+            }
+        }
+        intent.getLongExtra(com.mengyalife.app.data.care.CareNotification.EXTRA_CARE_ID, -1L)
+            .takeIf { it > 0 }
+            ?.let { com.mengyalife.app.data.care.CareOpenBus.offer(it) }
         if (intent.getBooleanExtra(com.mengyalife.app.data.weekly.WeeklyReviewNotifier.EXTRA_WEEKLY_REVIEW, false)) {
             com.mengyalife.app.data.weekly.WeeklyReviewRouter.requestOpen()
         }

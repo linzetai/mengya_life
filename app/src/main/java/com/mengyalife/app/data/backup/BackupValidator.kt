@@ -60,7 +60,11 @@ object BackupValidator {
                 "id" to FieldType.LONG, "goalId" to FieldType.LONG, "recordedAt" to FieldType.LONG,
                 "note" to FieldType.STRING, "source" to FieldType.STRING,
             ),
-            optional = setOf("metricValue", "metricUnit"),
+            // 0.16A 新增字段均为可选；旧备份缺少时按 v14 列默认值（snapshot）恢复。
+            optional = setOf(
+                "metricValue", "metricUnit", "amountKind", "originalText",
+                "normalizedValue", "normalizedUnit",
+            ),
         ),
         "advisorMessages" to Fields(
             required = mapOf(
@@ -128,6 +132,61 @@ object BackupValidator {
             ),
             optional = setOf("error", "model"),
         ),
+        "smallPlans" to Fields(
+            required = mapOf(
+                "id" to FieldType.LONG, "title" to FieldType.STRING, "status" to FieldType.STRING,
+                "createdAt" to FieldType.LONG, "updatedAt" to FieldType.LONG,
+            ),
+            optional = setOf("timeScope", "goalId", "sourceMessageId"),
+        ),
+        "careOpportunities" to Fields(
+            required = mapOf(
+                "id" to FieldType.LONG, "type" to FieldType.STRING, "sourceId" to FieldType.LONG,
+                "title" to FieldType.STRING, "discoveredAt" to FieldType.LONG,
+                "windowStart" to FieldType.LONG, "windowEnd" to FieldType.LONG,
+                "expiresAt" to FieldType.LONG, "sensitivity" to FieldType.STRING,
+                "status" to FieldType.STRING, "dedupeKey" to FieldType.STRING,
+                "createdAt" to FieldType.LONG, "updatedAt" to FieldType.LONG,
+            ),
+            optional = setOf("planId", "goalId"),
+        ),
+        "careDecisions" to Fields(
+            required = mapOf(
+                "id" to FieldType.LONG, "opportunityId" to FieldType.LONG,
+                "action" to FieldType.STRING, "reason" to FieldType.STRING,
+                "sourceRefs" to FieldType.STRING, "modelOk" to FieldType.BOOLEAN,
+                "createdAt" to FieldType.LONG,
+            ),
+            optional = setOf("suggestedText", "avoidJson", "nextWindowStart", "nextWindowEnd", "messageId", "deliveredAt"),
+        ),
+        "carePreferences" to Fields(
+            required = mapOf(
+                "id" to FieldType.LONG, "kind" to FieldType.STRING, "value" to FieldType.STRING,
+                "source" to FieldType.STRING, "effectiveAt" to FieldType.LONG,
+                "createdAt" to FieldType.LONG, "updatedAt" to FieldType.LONG,
+            ),
+            optional = setOf("topicKey", "topicLabel", "sourceMessageId", "sourceExcerpt", "windowNote", "expiresAt", "revokedAt"),
+        ),
+        "careFeedback" to Fields(
+            required = mapOf(
+                "id" to FieldType.LONG, "opportunityId" to FieldType.LONG,
+                "kind" to FieldType.STRING, "createdAt" to FieldType.LONG,
+            ),
+        ),
+        "planProgress" to Fields(
+            required = mapOf(
+                "id" to FieldType.LONG, "planId" to FieldType.LONG,
+                "note" to FieldType.STRING, "recordedAt" to FieldType.LONG,
+            ),
+            optional = setOf("sourceMessageId"),
+        ),
+        "planEvents" to Fields(
+            required = mapOf(
+                "id" to FieldType.LONG, "planId" to FieldType.LONG, "status" to FieldType.STRING,
+                "createdAt" to FieldType.LONG,
+            ),
+            optional = setOf("note"),
+        ),
     )
 
     fun validatePayload(payload: JsonObject, expectedPayloadSha256: String? = null,
@@ -183,16 +242,25 @@ object BackupValidator {
 
         var totalRows = 0
         val tableArrays = linkedMapOf<String, JsonArray>()
+        val optionalTables = setOf(
+            "smallPlans", "planEvents", "planProgress",
+            "careOpportunities", "careDecisions", "careFeedback", "carePreferences",
+        )
         for (key in BackupFormatV2.TABLE_KEYS) {
             val array = data[key] as? JsonArray
             if (array == null) {
+                if (key in optionalTables) {
+                    tableArrays[key] = JsonArray(emptyList())
+                    continue
+                }
                 errors += "缺少表：$key"
                 continue
             }
             tableArrays[key] = array
             totalRows += array.size
             if (array.size > MAX_TABLE_ROWS) errors += "$key 行数超限"
-            if (counts?.get(key)?.jsonPrimitive?.intOrNull != array.size) {
+            val declaredCount = counts?.get(key)?.jsonPrimitive?.intOrNull
+            if (declaredCount != null && declaredCount != array.size) {
                 errors += "$key counts 与实际不符"
             }
             val spec = fieldSpecs.getValue(key)

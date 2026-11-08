@@ -37,6 +37,18 @@ class AdvisorConfigTest {
     }
 
     @Test
+    fun `恢复设置只更新端点并保留本机密钥`() = runTest {
+        val (repository, _, _) = repo()
+        repository.save("https://old.example.com/v1", "old-model", "sk-keep-me")
+        repository.restoreEndpointAndModel("https://api.deepseek.com", "deepseek-flash")
+        val state = repository.state.first()
+        assertEquals("https://api.deepseek.com", state.endpoint)
+        assertEquals("deepseek-flash", state.model)
+        assertTrue(state.hasKey)
+        assertEquals("sk-keep-me", repository.runtimeConfig()!!.apiKey)
+    }
+
+    @Test
     fun `运行时配置能解密，删除密钥后不可用`() = runTest {
         val (repository, storage, cipher) = repo()
         repository.save("https://api.example.com/v1", "deepseek-chat", "sk-secret-123")

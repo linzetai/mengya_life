@@ -35,7 +35,7 @@ class BackupRestoreReaderTest {
         )
         assertTrue(preview.canExecute)
         assertFalse(preview.executed)
-        assertEquals(10, preview.counts.size)
+        assertEquals(17, preview.counts.size)
         assertEquals("com.mengyalife.app.qa", preview.sourcePackage)
         assertTrue(preview.sourceQa)
         assertTrue(preview.notRestored.any { it.contains("API Key") })

@@ -1,11 +1,25 @@
 package com.mengyalife.app.ui.advisor
 
 import com.mengyalife.app.data.advisor.StoredGoalProposal
+import com.mengyalife.app.data.advisor.StoredRecordProposal
 import com.mengyalife.app.domain.advisor.AdvisorMessage
 import com.mengyalife.app.domain.advisor.AiConfigState
 import com.mengyalife.app.domain.advisor.AiConsentState
 import com.mengyalife.app.domain.advisor.ConsentCategory
 import com.mengyalife.app.domain.advisor.GoalProposalDraft
+import com.mengyalife.app.domain.advisor.RecordProposalDraft
+
+/** 记录候选卡片的操作反馈；按 proposalId 隔离，避免串台。 */
+data class RecordActionUiState(
+    val proposalId: String,
+    val loading: Boolean = false,
+    val message: String? = null,
+    val error: String? = null,
+    /** 日记保存成功后请求跳转的日记 id；消费后清空。 */
+    val openDiaryEntryId: Long? = null,
+    /** 目标保存后请求打开的目标 id。 */
+    val openGoalId: Long? = null,
+)
 
 data class ProposalApplyUiState(
     val proposalId: String,
@@ -29,6 +43,10 @@ data class AdvisorUiState(
     val errorMessage: String? = null,
     val infoMessage: String? = null,
     val applyState: ProposalApplyUiState? = null,
+    val records: Map<String, StoredRecordProposal> = emptyMap(),
+    val recordAction: RecordActionUiState? = null,
+    /** 对话中的轻量建议：把刚才讨论的计划整理成目标。 */
+    val planSuggestion: Boolean = false,
 ) {
     val configured: Boolean get() = config.configured
     val canSend: Boolean
@@ -63,6 +81,8 @@ sealed interface AdvisorAction {
     data object GrantConsent : AdvisorAction
     data object DeclineConsent : AdvisorAction
     data object RequestProposal : AdvisorAction
+    data object AcceptPlanSuggestion : AdvisorAction
+    data object DismissPlanSuggestion : AdvisorAction
     data class UpdateProposalDraft(
         val proposalId: String,
         val draft: GoalProposalDraft,
@@ -74,6 +94,19 @@ sealed interface AdvisorAction {
         val selected: Set<String>,
     ) : AdvisorAction
     data class UndoProposal(val proposalId: String) : AdvisorAction
+    data class ConfirmRecord(
+        val proposalId: String,
+        val draft: RecordProposalDraft,
+    ) : AdvisorAction
+    data class UpdateRecordDraft(
+        val proposalId: String,
+        val draft: RecordProposalDraft,
+    ) : AdvisorAction
+    data class UndoRecord(val proposalId: String) : AdvisorAction
+    data class OpenDiary(val proposalId: String) : AdvisorAction
+    data class OpenGoal(val proposalId: String) : AdvisorAction
+    data class CancelRecord(val proposalId: String) : AdvisorAction
+    data object DismissRecordAction : AdvisorAction
     data object DismissApplyState : AdvisorAction
     data object DismissError : AdvisorAction
     data object DismissInfo : AdvisorAction

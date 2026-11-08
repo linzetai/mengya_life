@@ -19,6 +19,11 @@ import com.mengyalife.app.data.advisor.DataStoreAiConfigStorage
 import com.mengyalife.app.data.advisor.FakeAdvisorEngine
 import com.mengyalife.app.data.advisor.GoalProposalApplyService
 import com.mengyalife.app.data.advisor.GoalProposalRepository
+import com.mengyalife.app.data.advisor.DiaryRecordApplyService
+import com.mengyalife.app.data.advisor.GoalRecordApplyService
+import com.mengyalife.app.data.advisor.ProgressRecordApplyService
+import com.mengyalife.app.data.advisor.RecordProposalRepository
+import com.mengyalife.app.data.advisor.RoomRecordProposalRepository
 import com.mengyalife.app.data.advisor.RoomAdvisorDataRepository
 import com.mengyalife.app.data.advisor.RoomGoalProposalRepository
 import com.mengyalife.app.data.advisor.NetworkAdvisorEngine
@@ -244,6 +249,25 @@ class AppContainer(context: Context) {
             journalDao = database.journalEntryDao(),
             growthSignalDao = database.growthSignalDao(),
             growthMemoryDao = database.growthMemoryDao(),
+            smallPlanDao = database.smallPlanDao(),
+        )
+    }
+
+    val smallPlanRepository: com.mengyalife.app.data.repository.SmallPlanRepository by lazy {
+        com.mengyalife.app.data.repository.SmallPlanRepository(
+            dao = database.smallPlanDao(),
+            canWrite = { !restoreCoordinator.isGateActive() },
+            writeBarrier = restoreWriteBarrier,
+        )
+    }
+
+    val planRecordApplyService: com.mengyalife.app.data.advisor.PlanRecordApplyService by lazy {
+        com.mengyalife.app.data.advisor.PlanRecordApplyService(
+            database = database,
+            recordDao = database.recordProposalDao(),
+            planRepository = smallPlanRepository,
+            canWrite = { !restoreCoordinator.isGateActive() },
+            writeBarrier = restoreWriteBarrier,
         )
     }
 
@@ -259,6 +283,48 @@ class AppContainer(context: Context) {
             canWrite = { !restoreCoordinator.isGateActive() },
             writeBarrier = restoreWriteBarrier,
         )
+    }
+
+    val recordProposalRepository: RecordProposalRepository by lazy {
+        RoomRecordProposalRepository(database.recordProposalDao(), writeBarrier = restoreWriteBarrier)
+    }
+
+    val progressRecordApplyService: ProgressRecordApplyService by lazy {
+        ProgressRecordApplyService(
+            database = database,
+            recordDao = database.recordProposalDao(),
+            goalRepository = goalRepository,
+            canWrite = { !restoreCoordinator.isGateActive() },
+            writeBarrier = restoreWriteBarrier,
+        )
+    }
+
+    val diaryRecordApplyService: DiaryRecordApplyService by lazy {
+        DiaryRecordApplyService(
+            database = database,
+            recordDao = database.recordProposalDao(),
+            journalRepository = journalRepository,
+            canWrite = { !restoreCoordinator.isGateActive() },
+            writeBarrier = restoreWriteBarrier,
+        )
+    }
+
+    val goalRecordApplyService: GoalRecordApplyService by lazy {
+        GoalRecordApplyService(
+            database = database,
+            recordDao = database.recordProposalDao(),
+            goalRepository = goalRepository,
+            canWrite = { !restoreCoordinator.isGateActive() },
+            writeBarrier = restoreWriteBarrier,
+        )
+    }
+
+    val careRepository: com.mengyalife.app.data.care.CareRepository by lazy {
+        com.mengyalife.app.data.care.CareRepository(database.careDao())
+    }
+
+    val carePreferenceRepository: com.mengyalife.app.data.care.CarePreferenceRepository by lazy {
+        com.mengyalife.app.data.care.CarePreferenceRepository(database.carePreferenceDao())
     }
 
     val networkAdvisorEngine: NetworkAdvisorEngine by lazy { NetworkAdvisorEngine() }

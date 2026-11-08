@@ -11,6 +11,7 @@ import com.mengyalife.app.domain.advisor.ContextGoalRecord
 import com.mengyalife.app.domain.advisor.ContextGrowthMemory
 import com.mengyalife.app.domain.advisor.ContextGrowthSignal
 import com.mengyalife.app.domain.advisor.ContextJournalRecord
+import com.mengyalife.app.domain.advisor.ContextPlanRecord
 import com.mengyalife.app.domain.advisor.ConsentCategory
 import com.mengyalife.app.domain.advisor.AiConsentState
 import com.mengyalife.app.domain.growth.DiaryContentHash
@@ -28,6 +29,7 @@ class RoomAdvisorDataRepository(
     private val journalDao: JournalEntryDao,
     private val growthSignalDao: GrowthSignalDao,
     private val growthMemoryDao: GrowthMemoryDao,
+    private val smallPlanDao: com.mengyalife.app.data.local.plan.SmallPlanDao? = null,
 ) : AdvisorDataRepository {
 
     override suspend fun snapshot(consent: AiConsentState): AdvisorContextSnapshot {
@@ -58,6 +60,21 @@ class RoomAdvisorDataRepository(
                     note = it.note,
                     metricValue = it.metricValue,
                     metricUnit = it.metricUnit,
+                )
+            }
+        } else {
+            emptyList()
+        }
+        val plans = if (consent.enabled(ConsentCategory.GOALS)) {
+            smallPlanDao?.loadAll().orEmpty().map {
+                ContextPlanRecord(
+                    id = it.id,
+                    title = it.title,
+                    timeScope = it.timeScope,
+                    status = it.status,
+                    goalId = it.goalId,
+                    createdAt = it.createdAt,
+                    updatedAt = it.updatedAt,
                 )
             }
         } else {
@@ -126,6 +143,7 @@ class RoomAdvisorDataRepository(
             goals = goals,
             checkins = checkins,
             journals = journals,
+            plans = plans,
             growthSignals = signals,
             growthMemories = memories,
             history = emptyList(),

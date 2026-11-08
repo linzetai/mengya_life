@@ -25,6 +25,8 @@ import com.mengyalife.app.data.local.growth.GrowthSignalDao
 import com.mengyalife.app.data.local.growth.GrowthSignalEntity
 import com.mengyalife.app.data.local.proposal.GoalProposalDao
 import com.mengyalife.app.data.local.proposal.GoalProposalEntity
+import com.mengyalife.app.data.local.proposal.RecordProposalDao
+import com.mengyalife.app.data.local.proposal.RecordProposalEntity
 
 /**
  * 本地数据库。
@@ -44,6 +46,11 @@ import com.mengyalife.app.data.local.proposal.GoalProposalEntity
  * - **v9**（Gate 3E-1）：新增 `weekly_reviews`（本地每周回顾历史）
  * - **v10**（Gate 3E-2）：周回顾加入 dataVersion / AI 授权版本
  * - **v11**（Gate 3E-2.1）：AI 请求绑定配置哈希
+ * - **v13**（0.16）：新增 `record_proposals`（对话式记录候选）；不动业务表
+ * - **v14**（0.16A）：goal_checkins 增加进展语义/原话/归一化字段；旧行按 snapshot 处理
+ * - **v15**（0.17）：record_proposals 增加日记草稿字段（不新增日记表）
+ * - **v16**（0.18）：record_proposals 增加目标变更草稿与已创建目标 id（不新增目标表）
+ * - **v17**（0.20）：新增 small_plans / plan_events（对话确认的小计划与状态历史）
  *
  * 迁移策略：
  * 1. 每次改表都必须 version + 1 并提供 `Migration`；
@@ -52,7 +59,7 @@ import com.mengyalife.app.data.local.proposal.GoalProposalEntity
  * 4. 迁移必须在真机升级安装上验证（本轮已做 v1→v2 实测，见报告）。
  */
 /** 数据库结构版本。导出文件里的 `databaseVersion` 与它保持一致。 */
-const val DB_SCHEMA_VERSION = 12
+const val DB_SCHEMA_VERSION = 21
 
 @Database(
     entities = [
@@ -61,12 +68,20 @@ const val DB_SCHEMA_VERSION = 12
         GoalCheckinEntity::class,
         AdvisorMessageEntity::class,
         GoalProposalEntity::class,
+        RecordProposalEntity::class,
         GrowthSignalEntity::class,
         GrowthMemoryEntity::class,
         InsightReportEntity::class,
         WeeklyReviewEntity::class,
         WeeklyAiEntity::class,
         AppMetaEntity::class,
+        com.mengyalife.app.data.local.plan.SmallPlanEntity::class,
+        com.mengyalife.app.data.local.plan.PlanEventEntity::class,
+        com.mengyalife.app.data.local.plan.PlanProgressEntity::class,
+        com.mengyalife.app.data.local.care.CareOpportunityEntity::class,
+        com.mengyalife.app.data.local.care.CareDecisionEntity::class,
+        com.mengyalife.app.data.local.care.CareFeedbackEntity::class,
+        com.mengyalife.app.data.local.care.CarePreferenceEntity::class,
     ],
     version = DB_SCHEMA_VERSION,
     exportSchema = true,
@@ -81,6 +96,14 @@ abstract class MengyaDatabase : RoomDatabase() {
     abstract fun advisorMessageDao(): AdvisorMessageDao
 
     abstract fun goalProposalDao(): GoalProposalDao
+
+    abstract fun smallPlanDao(): com.mengyalife.app.data.local.plan.SmallPlanDao
+
+    abstract fun careDao(): com.mengyalife.app.data.local.care.CareDao
+
+    abstract fun carePreferenceDao(): com.mengyalife.app.data.local.care.CarePreferenceDao
+
+    abstract fun recordProposalDao(): RecordProposalDao
 
     abstract fun growthSignalDao(): GrowthSignalDao
 
@@ -392,6 +415,193 @@ abstract class MengyaDatabase : RoomDatabase() {
             }
         }
 
+        /** v13 → v14：正式进展保留类型与来源原话，并保存可选的归一化数值。 */
+        val MIGRATION_13_14: Migration = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `goal_checkins` ADD COLUMN `amount_kind` TEXT NOT NULL DEFAULT 'snapshot'",
+                )
+                db.execSQL("ALTER TABLE `goal_checkins` ADD COLUMN `original_text` TEXT")
+                db.execSQL("ALTER TABLE `goal_checkins` ADD COLUMN `normalized_value` REAL")
+                db.execSQL("ALTER TABLE `goal_checkins` ADD COLUMN `normalized_unit` TEXT")
+                // 旧候选表里 amount_kind 的写法可能是大写；统一成枚举名，避免读取时被丢弃。
+                db.execSQL("UPDATE `record_proposals` SET `amount_kind` = UPPER(`amount_kind`)")
+                // 0.16 已写入的顾问进展：从候选表回填真实语义与原话，避免历史增量被当成“累计总额”。
+                db.execSQL(
+                    """
+                    UPDATE `goal_checkins`
+                    SET `amount_kind` = COALESCE(
+                        (SELECT LOWER(rp.`amount_kind`) FROM `record_proposals` rp
+                         WHERE rp.`applied_checkin_id` = `goal_checkins`.`id` LIMIT 1),
+                        `amount_kind`
+                    ),
+                    `original_text` = COALESCE(
+                        (SELECT rp.`original_text` FROM `record_proposals` rp
+                         WHERE rp.`applied_checkin_id` = `goal_checkins`.`id` LIMIT 1),
+                        `original_text`
+                    )
+                    WHERE EXISTS (
+                        SELECT 1 FROM `record_proposals` rp
+                        WHERE rp.`applied_checkin_id` = `goal_checkins`.`id`
+                    )
+                    """.trimIndent(),
+                )
+                // 没有候选可回溯的旧顾问记录：按“新增”处理更安全（避免被读成累计下降）；
+                // 手动记录保持 snapshot，延续原有“累计曲线”含义。
+                db.execSQL(
+                    "UPDATE `goal_checkins` SET `amount_kind` = 'delta' " +
+                        "WHERE `source` = 'advisor' AND `amount_kind` = 'snapshot'",
+                )
+            }
+        }
+
+        /** v14 → v15：日记候选复用同一张候选表；正式日记仍写 journal_entries。 */
+        val MIGRATION_14_15: Migration = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `record_proposals` ADD COLUMN `diary_title` TEXT")
+                db.execSQL("ALTER TABLE `record_proposals` ADD COLUMN `diary_body` TEXT")
+                db.execSQL("ALTER TABLE `record_proposals` ADD COLUMN `diary_entry_id` INTEGER")
+                db.execSQL("ALTER TABLE `record_proposals` ADD COLUMN `source_message_ids_json` TEXT")
+            }
+        }
+
+        /** v15 → v16：目标变更复用候选表；正式目标仍写 goals。 */
+        val MIGRATION_15_16: Migration = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `record_proposals` ADD COLUMN `goal_change_json` TEXT")
+                db.execSQL("ALTER TABLE `record_proposals` ADD COLUMN `applied_goal_ids_json` TEXT")
+            }
+        }
+
+        /** v16 → v17：对话确认的小计划；正式写入只经 SmallPlanRepository。 */
+        val MIGRATION_16_17: Migration = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `small_plans` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `title` TEXT NOT NULL, " +
+                        "`time_scope` TEXT, `goal_id` INTEGER, `status` TEXT NOT NULL, " +
+                        "`source_message_id` TEXT, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL)",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_small_plans_status` ON `small_plans` (`status`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_small_plans_updated_at` ON `small_plans` (`updated_at`)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `plan_events` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `plan_id` INTEGER NOT NULL, " +
+                        "`status` TEXT NOT NULL, `note` TEXT, `created_at` INTEGER NOT NULL)",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_plan_events_plan_id` ON `plan_events` (`plan_id`)")
+                db.execSQL("ALTER TABLE `record_proposals` ADD COLUMN `plan_change_json` TEXT")
+                db.execSQL("ALTER TABLE `record_proposals` ADD COLUMN `applied_plan_id` INTEGER")
+            }
+        }
+
+        /** v17 → v18：计划执行记录；来源消息唯一，防重复提交。 */
+        val MIGRATION_17_18: Migration = object : Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `plan_progress` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `plan_id` INTEGER NOT NULL, " +
+                        "`note` TEXT NOT NULL, `recorded_at` INTEGER NOT NULL, `source_message_id` TEXT)",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_plan_progress_plan_id` ON `plan_progress` (`plan_id`)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_plan_progress_source_message_id` ON `plan_progress` (`source_message_id`)")
+                db.execSQL("ALTER TABLE `record_proposals` ADD COLUMN `plan_progress_json` TEXT")
+            }
+        }
+
+        /** v18 → v19：Care Engine 机会、决策、反馈。 */
+        val MIGRATION_18_19: Migration = object : Migration(18, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `care_opportunities` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `type` TEXT NOT NULL, " +
+                        "`source_id` INTEGER NOT NULL, `plan_id` INTEGER, `goal_id` INTEGER, `title` TEXT NOT NULL, " +
+                        "`discovered_at` INTEGER NOT NULL, `window_start` INTEGER NOT NULL, `window_end` INTEGER NOT NULL, " +
+                        "`expires_at` INTEGER NOT NULL, `sensitivity` TEXT NOT NULL, `status` TEXT NOT NULL, " +
+                        "`dedupe_key` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL)",
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_care_opportunities_dedupe_key` ON `care_opportunities` (`dedupe_key`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_care_opportunities_status` ON `care_opportunities` (`status`)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `care_decisions` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `opportunity_id` INTEGER NOT NULL, " +
+                        "`action` TEXT NOT NULL, `reason` TEXT NOT NULL, `source_refs` TEXT NOT NULL, " +
+                        "`suggested_text` TEXT, `avoid_json` TEXT, `next_window_start` INTEGER, `next_window_end` INTEGER, " +
+                        "`model_ok` INTEGER NOT NULL, `created_at` INTEGER NOT NULL)",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_care_decisions_opportunity_id` ON `care_decisions` (`opportunity_id`)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `care_feedback` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `opportunity_id` INTEGER NOT NULL, " +
+                        "`kind` TEXT NOT NULL, `created_at` INTEGER NOT NULL)",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_care_feedback_opportunity_id` ON `care_feedback` (`opportunity_id`)")
+            }
+        }
+
+        /** v19 → v20：Care 决策关联顾问消息，通知与站内共享同一投递。 */
+        val MIGRATION_19_20: Migration = object : Migration(19, 20) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `care_decisions` ADD COLUMN `message_id` TEXT")
+                db.execSQL("ALTER TABLE `care_decisions` ADD COLUMN `delivered_at` INTEGER")
+            }
+        }
+
+        /** v20 → v21：0.24 关心偏好；SENDING 可被安全收敛为 UNKNOWN。 */
+        val MIGRATION_20_21: Migration = object : Migration(20, 21) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `care_preferences` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `kind` TEXT NOT NULL, " +
+                        "`topic_key` TEXT, `topic_label` TEXT, `value` TEXT NOT NULL, `source` TEXT NOT NULL, " +
+                        "`source_message_id` TEXT, `source_excerpt` TEXT, `window_note` TEXT, " +
+                        "`effective_at` INTEGER NOT NULL, `expires_at` INTEGER, `revoked_at` INTEGER, " +
+                        "`created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL)",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_care_preferences_kind` ON `care_preferences` (`kind`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_care_preferences_topic_key` ON `care_preferences` (`topic_key`)")
+            }
+        }
+
+        /** v12 → v13：对话式记录候选表；不改动目标/进展/对话等既有表。 */
+        val MIGRATION_12_13: Migration = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `record_proposals` (
+                        `id` TEXT PRIMARY KEY NOT NULL,
+                        `message_id` TEXT NOT NULL,
+                        `created_at` INTEGER NOT NULL,
+                        `status` TEXT NOT NULL,
+                        `kind` TEXT NOT NULL,
+                        `goal_id` INTEGER,
+                        `goal_title` TEXT,
+                        `goal_candidates_json` TEXT,
+                        `amount_kind` TEXT NOT NULL,
+                        `metric_value` REAL,
+                        `metric_unit` TEXT,
+                        `note` TEXT NOT NULL,
+                        `occurred_at` INTEGER,
+                        `pending_fields_json` TEXT,
+                        `intent` TEXT NOT NULL,
+                        `original_text` TEXT NOT NULL,
+                        `applied_checkin_id` INTEGER,
+                        `applied_at` INTEGER,
+                        `undone_at` INTEGER
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_record_proposals_message_id` " +
+                        "ON `record_proposals` (`message_id`)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_record_proposals_status` " +
+                        "ON `record_proposals` (`status`)",
+                )
+            }
+        }
+
         @Volatile
         private var instance: MengyaDatabase? = null
 
@@ -405,7 +615,7 @@ abstract class MengyaDatabase : RoomDatabase() {
                     MengyaDatabase::class.java,
                     DATABASE_NAME,
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21)
                     .addCallback(object : RoomDatabase.Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)

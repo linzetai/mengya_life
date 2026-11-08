@@ -634,20 +634,22 @@ fun KeyValueRow(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
             color = MorrowTheme.colors.textSecondary,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(0.38f)
+                .padding(end = 12.dp),
         )
         Text(
             text = value,
             style = MaterialTheme.typography.bodyMedium,
             color = MorrowTheme.colors.textPrimary,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(0.62f),
+            textAlign = TextAlign.End,
         )
     }
 }

@@ -1,21 +1,24 @@
 package com.mengyalife.app.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -52,6 +55,7 @@ import com.mengyalife.app.data.repository.DeleteImpact
 import com.mengyalife.app.domain.goals.GoalDomain
 import com.mengyalife.app.domain.goals.GoalLevel
 import com.mengyalife.app.domain.goals.GoalStatus
+import com.mengyalife.app.domain.goals.ProgressKind
 import com.mengyalife.app.domain.goals.GoalTrends
 import com.mengyalife.app.ui.components.MetricTrendChart
 import com.mengyalife.app.ui.components.MorrowChoicePill
@@ -70,7 +74,7 @@ import com.mengyalife.app.util.Timestamps
 
 private fun Modifier.dialogSemantics(): Modifier = this.semantics { testTagsAsResourceId = true }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun GoalEditorSheet(
     editor: GoalEditorState,
@@ -98,20 +102,21 @@ fun GoalEditorSheet(
         containerColor = MorrowTheme.colors.card,
         scrimColor = MorrowTheme.colors.textPrimary.copy(alpha = 0.22f),
     ) {
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.9f)
                 .imePadding()
                 .dialogSemantics(),
         ) {
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 8.dp),
-            ) {
+            val maxFieldsHeight = maxHeight * 0.72f
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = maxFieldsHeight)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp, vertical = 8.dp),
+                ) {
             Text(heading, style = MorrowType.SheetTitle, color = MorrowTheme.colors.textPrimary)
             editor.parentTitle?.let {
                 Spacer(Modifier.height(4.dp))
@@ -145,11 +150,12 @@ fun GoalEditorSheet(
             Spacer(Modifier.height(14.dp))
             Text("领域", style = MaterialTheme.typography.labelMedium, color = MorrowTheme.colors.textSecondary)
             Spacer(Modifier.height(6.dp))
-            Row(
+            FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
+                    .padding(horizontal = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 GoalDomain.entries.forEach { domain ->
                     MorrowChoicePill(
@@ -166,11 +172,12 @@ fun GoalEditorSheet(
                 Spacer(Modifier.height(12.dp))
                 Text("状态", style = MaterialTheme.typography.labelMedium, color = MorrowTheme.colors.textSecondary)
                 Spacer(Modifier.height(6.dp))
-                Row(
+                FlowRow(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
+                        .padding(horizontal = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     GoalStatus.entries.forEach { status ->
                         MorrowChoicePill(
@@ -240,6 +247,7 @@ fun GoalEditorSheet(
                 }
             }
             Spacer(Modifier.height(8.dp))
+            }
         }
     }
 
@@ -350,6 +358,7 @@ fun CheckinSheet(
     onNoteChange: (String) -> Unit,
     onMetricChange: (String) -> Unit,
     onUnitChange: (String) -> Unit,
+    onKindChange: (String) -> Unit,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -387,22 +396,63 @@ fun CheckinSheet(
             )
             Spacer(Modifier.height(12.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                GoalOutlinedField(
-                    value = state.metric,
-                    onValueChange = onMetricChange,
-                    label = "数值（可选）",
-                    modifier = Modifier.weight(1f).testTag("goal_checkin_metric"),
-                    singleLine = true,
+            // 与顾问共用同一份语义：本次新增 / 当前累计 / 无数值。
+            Text(
+                text = "这次进展属于",
+                style = MaterialTheme.typography.labelMedium,
+                color = MorrowTheme.colors.textSecondary,
+            )
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MorrowChoicePill(
+                    text = "本次新增",
+                    selected = state.kind == ProgressKind.DELTA,
+                    onClick = { onKindChange(ProgressKind.DELTA) },
                     enabled = !state.saving,
+                    modifier = Modifier.testTag("goal_checkin_kind_delta"),
                 )
-                GoalOutlinedField(
-                    value = state.unit,
-                    onValueChange = onUnitChange,
-                    label = "单位（可选）",
-                    modifier = Modifier.weight(1f).testTag("goal_checkin_unit"),
-                    singleLine = true,
+                MorrowChoicePill(
+                    text = "当前累计",
+                    selected = state.kind == ProgressKind.SNAPSHOT,
+                    onClick = { onKindChange(ProgressKind.SNAPSHOT) },
                     enabled = !state.saving,
+                    modifier = Modifier.testTag("goal_checkin_kind_snapshot"),
+                )
+                MorrowChoicePill(
+                    text = "无数值",
+                    selected = state.kind == ProgressKind.NONE,
+                    onClick = { onKindChange(ProgressKind.NONE) },
+                    enabled = !state.saving,
+                    modifier = Modifier.testTag("goal_checkin_kind_none"),
+                )
+            }
+
+            if (state.kind != ProgressKind.NONE) {
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    GoalOutlinedField(
+                        value = state.metric,
+                        onValueChange = onMetricChange,
+                        label = if (state.kind == ProgressKind.DELTA) "本次新增（可选）" else "当前累计（可选）",
+                        modifier = Modifier.weight(1f).testTag("goal_checkin_metric"),
+                        singleLine = true,
+                        enabled = !state.saving,
+                    )
+                    GoalOutlinedField(
+                        value = state.unit,
+                        onValueChange = onUnitChange,
+                        label = "单位（可选）",
+                        modifier = Modifier.weight(1f).testTag("goal_checkin_unit"),
+                        singleLine = true,
+                        enabled = !state.saving,
+                    )
+                }
+            } else {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "只记录发生了什么，不需要数值。",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MorrowTheme.colors.textTertiary,
                 )
             }
 
@@ -714,6 +764,7 @@ fun GoalOverlays(
             onNoteChange = { onAction(GoalAction.NoteChange(it)) },
             onMetricChange = { onAction(GoalAction.MetricChange(it)) },
             onUnitChange = { onAction(GoalAction.UnitChange(it)) },
+            onKindChange = { onAction(GoalAction.CheckinKindChange(it)) },
             onSave = { onAction(GoalAction.SaveCheckin) },
             onDismiss = { onAction(GoalAction.CloseCheckin) },
         )

@@ -23,11 +23,19 @@ data class BackupSnapshot(
     val insightReports: List<InsightReportEntity>,
     val weeklyReviews: List<WeeklyReviewEntity>,
     val weeklyAiReviews: List<WeeklyAiEntity>,
+    val smallPlans: List<com.mengyalife.app.data.local.plan.SmallPlanEntity> = emptyList(),
+    val planEvents: List<com.mengyalife.app.data.local.plan.PlanEventEntity> = emptyList(),
+    val planProgress: List<com.mengyalife.app.data.local.plan.PlanProgressEntity> = emptyList(),
+    val careOpportunities: List<com.mengyalife.app.data.local.care.CareOpportunityEntity> = emptyList(),
+    val careDecisions: List<com.mengyalife.app.data.local.care.CareDecisionEntity> = emptyList(),
+    val careFeedback: List<com.mengyalife.app.data.local.care.CareFeedbackEntity> = emptyList(),
+    val carePreferences: List<com.mengyalife.app.data.local.care.CarePreferenceEntity> = emptyList(),
 ) {
     val totalRows: Int
         get() = journalEntries.size + goals.size + goalCheckins.size + advisorMessages.size +
             goalProposals.size + growthSignals.size + growthMemories.size + insightReports.size +
-            weeklyReviews.size + weeklyAiReviews.size
+            weeklyReviews.size + weeklyAiReviews.size + smallPlans.size + planEvents.size + planProgress.size +
+            careOpportunities.size + careDecisions.size + careFeedback.size + carePreferences.size
 
     fun counts(): Map<String, Int> = linkedMapOf(
         "journalEntries" to journalEntries.size,
@@ -40,6 +48,13 @@ data class BackupSnapshot(
         "insightReports" to insightReports.size,
         "weeklyReviews" to weeklyReviews.size,
         "weeklyAiReviews" to weeklyAiReviews.size,
+        "smallPlans" to smallPlans.size,
+        "planEvents" to planEvents.size,
+        "planProgress" to planProgress.size,
+        "careOpportunities" to careOpportunities.size,
+        "careDecisions" to careDecisions.size,
+        "careFeedback" to careFeedback.size,
+        "carePreferences" to carePreferences.size,
     )
 }
 

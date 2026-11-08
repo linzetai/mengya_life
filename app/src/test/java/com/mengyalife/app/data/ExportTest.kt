@@ -45,6 +45,17 @@ private class ExportGoalDao(
     override suspend fun countCheckinsForGoals(goalIds: List<Long>): Int = 0
     override suspend fun loadCheckinsForGoals(goalIds: List<Long>): List<GoalCheckinEntity> =
         checkins.filter { it.goalId in goalIds }
+    override suspend fun findCheckin(id: Long): GoalCheckinEntity? = checkins.firstOrNull { it.id == id }
+    override suspend fun updateCheckin(
+        id: Long,
+        note: String,
+        metricValue: Double?,
+        metricUnit: String?,
+        amountKind: String,
+        normalizedValue: Double?,
+        normalizedUnit: String?,
+    ): Int = 0
+    override suspend fun deleteCheckin(id: Long): Int = 0
 }
 
 private class ExportJournalDao(private val entries: List<JournalEntryEntity>) : JournalEntryDao {

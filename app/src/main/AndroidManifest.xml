@@ -25,13 +25,18 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:label="${appLabel}"
-            android:theme="@style/Theme.MengyaLife">
+            android:theme="@style/Theme.MengyaLife"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <receiver
+            android:name=".data.care.CareActionReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>

@@ -24,6 +24,7 @@ import com.mengyalife.app.data.DemoData
 import com.mengyalife.app.data.repository.GoalTrend
 import com.mengyalife.app.data.repository.TrendSnapshot
 import com.mengyalife.app.domain.goals.GoalTrends
+import com.mengyalife.app.domain.goals.ProgressKind
 import com.mengyalife.app.ui.components.InlineNote
 import com.mengyalife.app.ui.components.MetricTrendChart
 import com.mengyalife.app.ui.components.MultiLineChart
@@ -71,7 +72,7 @@ fun TrendsScreen(
         item {
             SectionCard(
                 title = "我的数值进展",
-                subtitle = "只来自你在目标里手动记录的进展",
+                subtitle = "只来自你在目标里记录的进展（手动或顾问确认）",
                 modifier = Modifier.testTag("trend_real_section"),
                 trailing = { StatusPill(text = "真实记录") },
             ) {
@@ -108,7 +109,7 @@ fun TrendsScreen(
                     )
                     Spacer(Modifier.height(6.dp))
                     InlineNote(
-                        "同一目标的不同单位分开绘制，不做单位换算；" +
+                        "累计快照、每次新增、不同单位分别绘制，绝不混成一条线；" +
                             "只有 1 条记录时只显示单点，不伪造曲线。",
                     )
                 }
@@ -227,6 +228,8 @@ fun TrendsScreen(
 @Composable
 private fun GoalTrendBlock(trend: GoalTrend, index: Int) {
     val unit = trend.unitLabel.takeIf { it != GoalTrends.UNIT_NONE }
+    val isDelta = trend.series.kind == ProgressKind.DELTA
+    val kindLabel = ProgressKind.label(trend.series.kind)
     Column(modifier = Modifier.testTag("trend_block_$index")) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -235,11 +238,11 @@ private fun GoalTrendBlock(trend: GoalTrend, index: Int) {
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f),
             )
-            StatusPill(text = trend.unitLabel)
+            StatusPill(text = if (trend.unitLabel == GoalTrends.UNIT_NONE) kindLabel else "$kindLabel · ${trend.unitLabel}")
         }
         Spacer(Modifier.height(2.dp))
         Text(
-            text = "最近一次：" +
+            text = (if (isDelta) "最近一次新增：" else "最近一次累计：") +
                 com.mengyalife.app.util.MetricFormat.withUnit(trend.latest.value, unit) +
                 " · ${trend.points.size} 条记录",
             style = MaterialTheme.typography.labelSmall,
@@ -257,7 +260,11 @@ private fun GoalTrendBlock(trend: GoalTrend, index: Int) {
             )
         } else {
             Text(
-                text = "横轴为真实记录时间，纵轴为指标值。",
+                text = if (isDelta) {
+                    "增量记录仅表示每次新增，不是累计总额。"
+                } else {
+                    "横轴为真实记录时间，纵轴为累计状态。"
+                },
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -266,7 +273,7 @@ private fun GoalTrendBlock(trend: GoalTrend, index: Int) {
         TrendPointList(series = trend.series, maxRows = 5)
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "数据来源：你手动记录的进展",
+            text = "数据来源：你在目标里记录的进展（手动或顾问确认）",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.testTag("trend_block_source_$index"),

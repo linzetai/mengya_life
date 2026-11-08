@@ -37,6 +37,13 @@ class RestoreTransaction(private val database: MengyaDatabase) {
         insertMemories(db, plan.rows.getValue("growthMemories"))
         insertInsights(db, plan.rows.getValue("insightReports"))
         insertWeeklies(db, plan.rows.getValue("weeklyReviews"))
+        insertPlans(db, plan.rows["smallPlans"].orEmpty())
+        insertPlanEvents(db, plan.rows["planEvents"].orEmpty())
+        insertPlanProgress(db, plan.rows["planProgress"].orEmpty())
+        insertCare(db, plan.rows["careOpportunities"].orEmpty(), "care_opportunities")
+        insertCare(db, plan.rows["careDecisions"].orEmpty(), "care_decisions")
+        insertCare(db, plan.rows["careFeedback"].orEmpty(), "care_feedback")
+        insertCare(db, plan.rows["carePreferences"].orEmpty(), "care_preferences")
 
         database.appMetaDao().upsert(
             AppMetaEntity(
@@ -57,6 +64,8 @@ class RestoreTransaction(private val database: MengyaDatabase) {
             "weekly_ai_reviews", "weekly_reviews", "insight_reports", "growth_memories",
             "growth_signals", "goal_proposals", "advisor_messages", "goal_checkins",
             "goals", "journal_entries",
+            "small_plans", "plan_events", "plan_progress",
+            "care_opportunities", "care_decisions", "care_feedback", "care_preferences",
         ).forEach { db.execSQL("DELETE FROM `$it`") }
     }
 
@@ -80,6 +89,14 @@ class RestoreTransaction(private val database: MengyaDatabase) {
         rows.forEach { insert(db, "insight_reports", it) }
     private fun insertWeeklies(db: androidx.sqlite.db.SupportSQLiteDatabase, rows: List<Map<String, JsonElement>>) =
         rows.forEach { insert(db, "weekly_reviews", it) }
+    private fun insertPlans(db: androidx.sqlite.db.SupportSQLiteDatabase, rows: List<Map<String, JsonElement>>) =
+        rows.forEach { insert(db, "small_plans", it) }
+    private fun insertPlanEvents(db: androidx.sqlite.db.SupportSQLiteDatabase, rows: List<Map<String, JsonElement>>) =
+        rows.forEach { insert(db, "plan_events", it) }
+    private fun insertPlanProgress(db: androidx.sqlite.db.SupportSQLiteDatabase, rows: List<Map<String, JsonElement>>) =
+        rows.forEach { insert(db, "plan_progress", it) }
+    private fun insertCare(db: androidx.sqlite.db.SupportSQLiteDatabase, rows: List<Map<String, JsonElement>>, table: String) =
+        rows.forEach { insert(db, table, it) }
 
     private fun insert(db: androidx.sqlite.db.SupportSQLiteDatabase, table: String, row: Map<String, JsonElement>) {
         val values = ContentValues()
@@ -128,8 +145,22 @@ class RestoreTransaction(private val database: MengyaDatabase) {
                 }
             }
             actual[key] = JsonArray(rows)
+            if (key == "smallPlans") {
+                val exp = plan.rows[key]?.firstOrNull()
+                val act = rows.firstOrNull()
+                android.util.Log.i("RestoreVerify", "exp=${exp?.keys} act=${act?.keys} expRow=$exp actRow=$act")
+            }
+            val optional = key in setOf(
+                "smallPlans", "planEvents", "planProgress",
+                "careOpportunities", "careDecisions", "careFeedback", "carePreferences",
+            )
             val expected = plan.perTableSha256[key]
-                ?: throw RestoreException("RESTORE_VERIFY", "缺少预期表摘要 $key")
+                ?: if (optional) {
+                    // 旧备份没有这两张表：按空表恢复，同样按空数组摘要校验。
+                    CanonicalJson.sha256Hex(JsonArray(emptyList()))
+                } else {
+                    throw RestoreException("RESTORE_VERIFY", "缺少预期表摘要 $key")
+                }
             if (CanonicalJson.sha256Hex(actual.getValue(key)) != expected) {
                 throw RestoreException("RESTORE_VERIFY", "恢复后表摘要不匹配：$key")
             }
@@ -157,6 +188,6 @@ class RestoreTransaction(private val database: MengyaDatabase) {
     }
 
     private companion object {
-        val BOOLEAN_FIELDS = setOf("isInference", "userCorrected", "insufficient", "proposalMode")
+        val BOOLEAN_FIELDS = setOf("isInference", "userCorrected", "insufficient", "proposalMode", "modelOk")
     }
 }

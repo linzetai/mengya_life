@@ -71,7 +71,7 @@ class RestoreValidator(
             "status" to setOf("NOT_STARTED", "IN_PROGRESS", "DONE", "PAUSED", "CANCELLED"),
         ),
         "advisorMessages" to mapOf(
-            "role" to setOf("user", "assistant"),
+            "role" to setOf("user", "assistant", "USER", "ASSISTANT"),
             "status" to setOf("SENT", "FAILED", "CANCELLED"),
         ),
         "goalProposals" to mapOf("status" to setOf("DRAFT", "APPLIED", "UNDONE")),
@@ -107,9 +107,10 @@ class RestoreValidator(
         structural.warnings.forEach { warning("UNKNOWN_FIELD", it) }
 
         val data = payload["data"] as? JsonObject ?: fail("DATA_MISSING", "缺少 data")
+        val optionalTables = setOf("smallPlans", "planEvents", "planProgress", "careOpportunities", "careDecisions", "careFeedback", "carePreferences")
         val rows = RestoreTables.ALL.associateWith { key ->
             (data[key] as? JsonArray)?.map { it as? JsonObject ?: fail("ROW_TYPE", "$key 行不是对象") }
-                ?: fail("TABLE_MISSING", "缺少表 $key")
+                ?: if (key in optionalTables) emptyList() else fail("TABLE_MISSING", "缺少表 $key")
         }
         validateRows(rows)
         validateReferences(rows)

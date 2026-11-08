@@ -38,6 +38,8 @@ data class DiaryUiState(
 sealed interface DiaryAction {
     data object NewEntry : DiaryAction
     data class Open(val entry: JournalEntryEntity) : DiaryAction
+    /** 从顾问保存成功后跳转：按 id 打开同一篇正式日记。 */
+    data class OpenById(val entryId: Long) : DiaryAction
     data class Edit(val entry: JournalEntryEntity) : DiaryAction
     data class BodyChange(val value: String) : DiaryAction
     data class TitleChange(val value: String) : DiaryAction

@@ -92,5 +92,12 @@ object RestoreTables {
         "insightReports" to "insight_reports",
         "weeklyReviews" to "weekly_reviews",
         "weeklyAiReviews" to "weekly_ai_reviews",
+        "smallPlans" to "small_plans",
+        "planEvents" to "plan_events",
+        "planProgress" to "plan_progress",
+        "careOpportunities" to "care_opportunities",
+        "careDecisions" to "care_decisions",
+        "careFeedback" to "care_feedback",
+        "carePreferences" to "care_preferences",
     )
 }

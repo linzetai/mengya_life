@@ -10,6 +10,8 @@ enum class AdvisorSourceType(val label: String) {
     GOAL("目标"),
     PROGRESS("进展"),
     JOURNAL("日记"),
+    PLAN("小计划"),
+    CARE("主动关心"),
     GROWTH("成长线索"),
     MEMORY("成长记忆"),
 }
@@ -40,6 +42,16 @@ data class ContextCheckinRecord(
     val note: String,
     val metricValue: Double?,
     val metricUnit: String?,
+)
+
+data class ContextPlanRecord(
+    val id: Long,
+    val title: String,
+    val timeScope: String?,
+    val status: String,
+    val goalId: Long?,
+    val createdAt: Long,
+    val updatedAt: Long,
 )
 
 data class ContextJournalRecord(
@@ -75,6 +87,7 @@ data class AdvisorContextSnapshot(
     val goals: List<ContextGoalRecord> = emptyList(),
     val checkins: List<ContextCheckinRecord> = emptyList(),
     val journals: List<ContextJournalRecord> = emptyList(),
+    val plans: List<ContextPlanRecord> = emptyList(),
     val growthSignals: List<ContextGrowthSignal> = emptyList(),
     val growthMemories: List<ContextGrowthMemory> = emptyList(),
     val history: List<AdvisorMessage> = emptyList(),
@@ -227,6 +240,7 @@ class AdvisorContextAssembler(
             }
         }
         var journalsUsed = 0
+        var plansUsed = 0
         if (consent.enabled(ConsentCategory.JOURNAL) && snapshot.journals.isNotEmpty()) {
             val scored = snapshot.journals
                 .map { journal -> journal to scoreJournal(journal, tokens) }

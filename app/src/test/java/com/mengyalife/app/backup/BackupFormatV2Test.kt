@@ -27,8 +27,8 @@ class BackupFormatV2Test {
     fun `full snapshot encodes all ten tables with counts and hashes`() {
         val result = BackupValidator.validatePayload(built.payload, built.payloadSha256, built.payloadBytes)
         assertTrue(result.errors.joinToString(), result.ok)
-        assertEquals(10, built.perTableSha256.size)
-        assertEquals(10, (built.payload["counts"] as JsonObject).size)
+        assertEquals(17, built.perTableSha256.size)
+        assertEquals(17, (built.payload["counts"] as JsonObject).size)
         val data = built.payload["data"]!!.jsonObject
         assertEquals(1, data["journalEntries"]!!.jsonArray.size)
         assertEquals(1, data["weeklyAiReviews"]!!.jsonArray.size)
@@ -43,7 +43,7 @@ class BackupFormatV2Test {
             BackupTestFixtures.empty(), settings, app, "b-empty", BackupTestFixtures.T,
         )
         assertTrue(BackupValidator.validatePayload(empty.payload, empty.payloadSha256).ok)
-        assertEquals(10, (empty.payload["data"] as JsonObject).size)
+        assertEquals(17, (empty.payload["data"] as JsonObject).size)
         assertEquals("0", (empty.payload["counts"] as JsonObject)["journalEntries"]!!.jsonPrimitive.content)
     }
 

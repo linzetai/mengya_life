@@ -36,6 +36,8 @@ object BackupFormatV2 {
     val TABLE_KEYS = listOf(
         "journalEntries", "goals", "goalCheckins", "advisorMessages", "goalProposals",
         "growthSignals", "growthMemories", "insightReports", "weeklyReviews", "weeklyAiReviews",
+        "smallPlans", "planEvents", "planProgress",
+        "careOpportunities", "careDecisions", "careFeedback", "carePreferences",
     )
     val REQUIRED_FEATURES = listOf("core", "derived-insight", "derived-weekly", "weekly-ai-archive")
 
@@ -86,6 +88,10 @@ object BackupFormatV2 {
                     put("id", e.id); put("goalId", e.goalId); put("recordedAt", e.recordedAt)
                     put("note", e.note); putNullable("metricValue", e.metricValue)
                     putNullable("metricUnit", e.metricUnit); put("source", e.source)
+                    put("amountKind", e.amountKind)
+                    putNullable("originalText", e.originalText)
+                    putNullable("normalizedValue", e.normalizedValue)
+                    putNullable("normalizedUnit", e.normalizedUnit)
                 })
             }
         })
@@ -169,6 +175,76 @@ object BackupFormatV2 {
         })
 
         val counts = snapshot.counts()
+        addTable("smallPlans", buildJsonArray {
+            snapshot.smallPlans.sortedBy { it.id }.forEach { e ->
+                add(buildJsonObject {
+                    put("id", e.id); put("title", e.title); putNullable("timeScope", e.timeScope)
+                    putNullable("goalId", e.goalId); put("status", e.status)
+                    putNullable("sourceMessageId", e.sourceMessageId)
+                    put("createdAt", e.createdAt); put("updatedAt", e.updatedAt)
+                })
+            }
+        })
+        addTable("planEvents", buildJsonArray {
+            snapshot.planEvents.sortedBy { it.id }.forEach { e ->
+                add(buildJsonObject {
+                    put("id", e.id); put("planId", e.planId); put("status", e.status)
+                    putNullable("note", e.note); put("createdAt", e.createdAt)
+                })
+            }
+        })
+        addTable("planProgress", buildJsonArray {
+            snapshot.planProgress.sortedBy { it.id }.forEach { e ->
+                add(buildJsonObject {
+                    put("id", e.id); put("planId", e.planId); put("note", e.note)
+                    put("recordedAt", e.recordedAt); putNullable("sourceMessageId", e.sourceMessageId)
+                })
+            }
+        })
+        addTable("careOpportunities", buildJsonArray {
+            snapshot.careOpportunities.sortedBy { it.id }.forEach { e ->
+                add(buildJsonObject {
+                    put("id", e.id); put("type", e.type); put("sourceId", e.sourceId)
+                    putNullable("planId", e.planId); putNullable("goalId", e.goalId); put("title", e.title)
+                    put("discoveredAt", e.discoveredAt); put("windowStart", e.windowStart)
+                    put("windowEnd", e.windowEnd); put("expiresAt", e.expiresAt)
+                    put("sensitivity", e.sensitivity); put("status", e.status)
+                    put("dedupeKey", e.dedupeKey); put("createdAt", e.createdAt); put("updatedAt", e.updatedAt)
+                })
+            }
+        })
+        addTable("careDecisions", buildJsonArray {
+            snapshot.careDecisions.sortedBy { it.id }.forEach { e ->
+                add(buildJsonObject {
+                    put("id", e.id); put("opportunityId", e.opportunityId); put("action", e.action)
+                    put("reason", e.reason); put("sourceRefs", e.sourceRefs)
+                    putNullable("suggestedText", e.suggestedText); putNullable("avoidJson", e.avoidJson)
+                    putNullable("nextWindowStart", e.nextWindowStart); putNullable("nextWindowEnd", e.nextWindowEnd)
+                    put("modelOk", e.modelOk); put("createdAt", e.createdAt)
+                    putNullable("messageId", e.messageId); putNullable("deliveredAt", e.deliveredAt)
+                })
+            }
+        })
+        addTable("carePreferences", buildJsonArray {
+            snapshot.carePreferences.sortedBy { it.id }.forEach { e ->
+                add(buildJsonObject {
+                    put("id", e.id); put("kind", e.kind); putNullable("topicKey", e.topicKey)
+                    putNullable("topicLabel", e.topicLabel); put("value", e.value); put("source", e.source)
+                    putNullable("sourceMessageId", e.sourceMessageId); putNullable("sourceExcerpt", e.sourceExcerpt)
+                    putNullable("windowNote", e.windowNote); put("effectiveAt", e.effectiveAt)
+                    putNullable("expiresAt", e.expiresAt); putNullable("revokedAt", e.revokedAt)
+                    put("createdAt", e.createdAt); put("updatedAt", e.updatedAt)
+                })
+            }
+        })
+        addTable("careFeedback", buildJsonArray {
+            snapshot.careFeedback.sortedBy { it.id }.forEach { e ->
+                add(buildJsonObject {
+                    put("id", e.id); put("opportunityId", e.opportunityId)
+                    put("kind", e.kind); put("createdAt", e.createdAt)
+                })
+            }
+        })
         val payload = buildJsonObject {
             put("format", FORMAT)
             put("backupFormatVersion", VERSION)

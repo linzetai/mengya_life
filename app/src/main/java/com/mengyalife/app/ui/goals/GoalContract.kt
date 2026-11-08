@@ -38,6 +38,8 @@ data class CheckinDraftState(
     val note: String = "",
     val metric: String = "",
     val unit: String = "",
+    /** delta 本次新增 / snapshot 当前累计 / none 无数值（与顾问共用 ProgressKind）。 */
+    val kind: String = com.mengyalife.app.domain.goals.ProgressKind.DELTA,
     val error: String? = null,
     val saving: Boolean = false,
 )
@@ -100,6 +102,7 @@ sealed interface GoalAction {
     data class NoteChange(val value: String) : GoalAction
     data class MetricChange(val value: String) : GoalAction
     data class UnitChange(val value: String) : GoalAction
+    data class CheckinKindChange(val value: String) : GoalAction
     data object SaveCheckin : GoalAction
     data object CloseCheckin : GoalAction
 

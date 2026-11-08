@@ -34,7 +34,6 @@ import androidx.compose.ui.unit.dp
 import com.mengyalife.app.ui.advisor.AiSettingsAction
 import com.mengyalife.app.ui.advisor.AiSettingsUiState
 import com.mengyalife.app.ui.components.GroupDivider
-import com.mengyalife.app.ui.components.InlineNote
 import com.mengyalife.app.ui.components.MorrowPrimaryButton
 import com.mengyalife.app.ui.components.MorrowSecondaryButton
 import com.mengyalife.app.ui.components.MorrowTertiaryButton
@@ -73,9 +72,9 @@ fun AiSettingsSection(
             }
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "V1 支持 OpenAI-compatible Chat Completions；请求直接发往你填写的地址。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MorrowTheme.colors.textSecondary,
+                text = "兼容 OpenAI Chat Completions；请求仅发往你填写的 HTTPS 地址。",
+                style = MaterialTheme.typography.labelSmall,
+                color = MorrowTheme.colors.textTertiary,
             )
 
             Spacer(Modifier.height(12.dp))
@@ -129,7 +128,7 @@ fun AiSettingsSection(
                 Text(
                     text = "已保存加密密钥；不会在界面、日志或导出文件中显示原文。",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MorrowTheme.colors.forest,
+                    color = MorrowTheme.colors.textTertiary,
                     modifier = Modifier.testTag("ai_key_saved"),
                 )
             }
@@ -189,12 +188,23 @@ fun AiSettingsSection(
             }
 
             Spacer(Modifier.height(10.dp))
-            InlineNote(
-                "密钥由 Android Keystore 加密保存在本机；不上传、不写入 Room、不进入导出文件。" +
-                    "应用新增的 INTERNET 权限只用于你主动发起的模型请求。",
+            Text(
+                text = "安全说明",
+                style = MaterialTheme.typography.labelSmall,
+                color = MorrowTheme.colors.textTertiary,
             )
-            Spacer(Modifier.height(6.dp))
-            InlineNote("模型输出只作为建议，不会自动修改目标或日记；完整备份与恢复在下方独立入口，密钥不会进入备份。")
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "密钥由 Android Keystore 加密保存在本机；原文不展示、不记日志，也不会上传或进入 Room、导出与备份。",
+                style = MaterialTheme.typography.labelSmall,
+                color = MorrowTheme.colors.textTertiary,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "INTERNET 仅用于你主动发起的模型请求。模型输出只作建议，不会自动修改目标或日记。",
+                style = MaterialTheme.typography.labelSmall,
+                color = MorrowTheme.colors.textTertiary,
+            )
 
             if (state.allowFakeEngine) {
                 Spacer(Modifier.height(10.dp))

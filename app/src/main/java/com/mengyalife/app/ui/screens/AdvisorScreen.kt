@@ -2,6 +2,8 @@ package com.mengyalife.app.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +20,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -29,6 +33,8 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -36,28 +42,36 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mengyalife.app.data.advisor.StoredGoalProposal
+import com.mengyalife.app.data.advisor.StoredRecordProposal
 import com.mengyalife.app.domain.advisor.AdvisorMessage
 import com.mengyalife.app.domain.advisor.AdvisorMessageStatus
 import com.mengyalife.app.domain.advisor.AdvisorRole
 import com.mengyalife.app.domain.advisor.AdvisorSourceType
 import com.mengyalife.app.domain.advisor.AiConsentRules
+import com.mengyalife.app.domain.advisor.RecordProposalDraft
 import com.mengyalife.app.domain.advisor.safeEndpointLabel
 import com.mengyalife.app.ui.advisor.AdvisorAction
 import com.mengyalife.app.ui.advisor.AdvisorUiState
 import com.mengyalife.app.ui.advisor.GoalProposalReviewDialog
+import com.mengyalife.app.ui.advisor.RecordActionUiState
+import com.mengyalife.app.ui.advisor.RecordProposalCard
 import com.mengyalife.app.ui.components.GentleEmptyCard
 import com.mengyalife.app.ui.components.InlineNote
 import com.mengyalife.app.ui.components.MorrowIcon
@@ -74,6 +88,8 @@ import com.mengyalife.app.ui.theme.MorrowTheme
 import com.mengyalife.app.ui.theme.MorrowType
 import com.mengyalife.app.ui.theme.isDarkTheme
 import com.mengyalife.app.util.Timestamps
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 
 private val STARTER_PROMPTS = listOf(
     "我还不知道未来想做什么",
@@ -100,9 +116,59 @@ fun AdvisorScreen(
     var proposalDialogFor by remember { mutableStateOf<StoredGoalProposal?>(null) }
     var statusExpanded by rememberSaveable { mutableStateOf(false) }
 
-    LaunchedEffect(state.messages.size, state.sending) {
-        if (state.messages.isNotEmpty() || state.sending) {
-            runCatching { listState.animateScrollToItem((state.messages.size + 4).coerceAtLeast(0)) }
+    val hasMessages = state.messages.isNotEmpty()
+    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    val emptyStateScroll = rememberScrollState()
+    var followLatest by remember(listState) {
+        mutableStateOf(listState.layoutInfo.totalItemsCount == 0 || !listState.canScrollForward)
+    }
+    val followLatestState = rememberUpdatedState(followLatest)
+    var previousMessageCount by remember(listState) {
+        mutableIntStateOf(if (listState.layoutInfo.totalItemsCount == 0) 0 else state.messages.size)
+    }
+
+    // 只有用户真正拖动列表时才更新“是否跟随最新”：
+    // 自动滚动/键盘改高度/新消息插入都不应把用户强行拉回底部，也不应误判成用户离开底部。
+    LaunchedEffect(listState) {
+        listState.interactionSource.interactions.collect { interaction ->
+            when (interaction) {
+                is DragInteraction.Start -> Unit
+                is DragInteraction.Stop, is DragInteraction.Cancel -> {
+                    followLatest = !listState.canScrollForward
+                }
+                else -> Unit
+            }
+        }
+    }
+
+    LaunchedEffect(
+        state.messages.size,
+        state.sending,
+        state.errorMessage,
+        state.infoMessage,
+        state.records.size,
+        imeVisible,
+    ) {
+        val messagesAdded = state.messages.size > previousMessageCount
+        previousMessageCount = state.messages.size
+        if (hasMessages && followLatestState.value) {
+            if (imeVisible) delay(350)
+            val trailingItems =
+                (if (state.sending) 1 else 0) +
+                    (if (state.errorMessage != null) 1 else 0) +
+                    (if (state.infoMessage != null) 1 else 0)
+            val lastIndex = (state.messages.size + trailingItems - 1).coerceAtLeast(0)
+            if (messagesAdded || state.sending || imeVisible || state.errorMessage != null || state.infoMessage != null ||
+                state.records.isNotEmpty()
+            ) {
+                listState.scrollToItem(lastIndex)
+                // 记录卡片在消息之后插入，高度可能超过一屏；等一帧布局后再滚到真正的末尾。
+                delay(120)
+                repeat(3) {
+                    if (!listState.canScrollForward) return@repeat
+                    listState.scrollBy(listState.layoutInfo.viewportSize.height.toFloat())
+                }
+            }
         }
     }
 
@@ -119,19 +185,30 @@ fun AdvisorScreen(
                 horizontalPadding = 22.dp,
             )
             Column(modifier = Modifier.padding(horizontal = 22.dp)) {
-                Text(
-                    text = "有些事情，\n我们可以慢慢想清楚。",
-                    style = MorrowType.SheetTitle,
-                    color = colors.textPrimary,
-                )
-                Spacer(Modifier.height(12.dp))
-                AdvisorStatusCard(
+                if (!hasMessages) {
+                    Text(
+                        text = "有些事情，\n我们可以慢慢想清楚。",
+                        style = MorrowType.SheetTitle,
+                        color = colors.textPrimary,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                }
+                CompactStatusChip(
                     state = state,
-                    expanded = statusExpanded,
-                    onToggle = { statusExpanded = !statusExpanded },
-                    onOpenSettings = onOpenSettings,
+                    onClick = { statusExpanded = !statusExpanded },
                 )
-                Spacer(Modifier.height(12.dp))
+                if (statusExpanded) {
+                    Spacer(Modifier.height(6.dp))
+                    AdvisorStatusCard(
+                        state = state,
+                        expanded = true,
+                        compact = hasMessages,
+                        keyboardOpen = imeVisible,
+                        onToggle = { statusExpanded = false },
+                        onOpenSettings = onOpenSettings,
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
             }
 
             when {
@@ -161,12 +238,20 @@ fun AdvisorScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxWidth(),
+                            contentAlignment = if (imeVisible) Alignment.TopCenter else Alignment.Center,
                         ) {
                             EmptyConversation(
                                 onPick = { onAction(AdvisorAction.InputChange(it)) },
                                 modifier = Modifier
-                                    .align(Alignment.Center)
-                                    .padding(horizontal = 22.dp),
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 22.dp)
+                                    .then(
+                                        if (imeVisible) {
+                                            Modifier.verticalScroll(emptyStateScroll)
+                                        } else {
+                                            Modifier
+                                        },
+                                    ),
                             )
                         }
                     } else {
@@ -201,9 +286,21 @@ fun AdvisorScreen(
                                     lastWithSources = lastWithSources,
                                     lastProposal = lastProposal,
                                     proposal = proposal,
+                                    record = state.records[message.id],
+                                    recordAction = state.recordAction,
                                     onRetry = { onAction(AdvisorAction.Retry(message.id)) },
                                     onOpenSources = { sourceDialogFor = message },
                                     onOpenProposal = { proposalDialogFor = it },
+                                    onConfirmRecord = { stored, draft ->
+                                        onAction(AdvisorAction.ConfirmRecord(stored.id, draft))
+                                    },
+                                    onCancelRecord = { onAction(AdvisorAction.CancelRecord(it)) },
+                                    onUndoRecord = { onAction(AdvisorAction.UndoRecord(it)) },
+                                    onUpdateRecordDraft = { id, draft ->
+                                        onAction(AdvisorAction.UpdateRecordDraft(id, draft))
+                                    },
+                                    onOpenDiary = { onAction(AdvisorAction.OpenDiary(it)) },
+                                    onOpenGoal = { onAction(AdvisorAction.OpenGoal(it)) },
                                 )
                             }
 
@@ -248,6 +345,41 @@ fun AdvisorScreen(
                                     )
                                 }
                             }
+                            if (state.planSuggestion) {
+                                item {
+                                    Surface(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("advisor_plan_suggestion"),
+                                        shape = RoundedCornerShape(14.dp),
+                                        color = colors.nested,
+                                        border = BorderStroke(1.dp, colors.hairline),
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
+                                            Text(
+                                                text = "要把刚才讨论的计划整理成目标吗？",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = colors.textSecondary,
+                                            )
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                TextButton(
+                                                    onClick = { onAction(AdvisorAction.AcceptPlanSuggestion) },
+                                                    contentPadding = PaddingValues(0.dp),
+                                                ) {
+                                                    Text("生成草案", color = colors.forest)
+                                                }
+                                                Spacer(Modifier.width(12.dp))
+                                                TextButton(
+                                                    onClick = { onAction(AdvisorAction.DismissPlanSuggestion) },
+                                                    contentPadding = PaddingValues(0.dp),
+                                                ) {
+                                                    Text("不用了", color = colors.textTertiary)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -255,6 +387,7 @@ fun AdvisorScreen(
                         state = state,
                         onAction = onAction,
                         canPropose = hasAssistantReply,
+                        keyboardOpen = imeVisible,
                     )
                 }
             }
@@ -282,9 +415,61 @@ fun AdvisorScreen(
 }
 
 @Composable
+private fun CompactStatusChip(
+    state: AdvisorUiState,
+    onClick: () -> Unit,
+) {
+    val colors = MorrowTheme.colors
+    val text = when {
+        !state.configured -> "未配置模型"
+        !state.consentValid -> "需要重新授权"
+        else -> "已连接 · ${state.config.model}"
+    }
+    val dotColor = when {
+        !state.configured || !state.consentValid -> colors.danger
+        else -> colors.forest
+    }
+    Surface(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .clickable(onClick = onClick)
+            .testTag("advisor_status_chip"),
+        shape = RoundedCornerShape(50),
+        color = colors.nested,
+        border = BorderStroke(1.dp, colors.hairline),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .background(dotColor, androidx.compose.foundation.shape.CircleShape),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.textSecondary,
+                maxLines = 1,
+            )
+            Spacer(Modifier.width(4.dp))
+            Text(
+                text = "⌄",
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.textTertiary,
+            )
+        }
+    }
+}
+
+@Composable
 private fun AdvisorStatusCard(
     state: AdvisorUiState,
     expanded: Boolean,
+    compact: Boolean,
+    keyboardOpen: Boolean,
     onToggle: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
@@ -308,55 +493,92 @@ private fun AdvisorStatusCard(
         color = colors.nested,
         border = BorderStroke(1.dp, colors.hairline),
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(34.dp)
-                        .clip(CircleShape)
-                        .background(colors.card),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    MorrowIcon(
-                        kind = MorrowIconKind.SPARKLE,
-                        tint = MorrowIconColors.Active,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-                Spacer(Modifier.width(11.dp))
-                Column(modifier = Modifier.weight(1f)) {
+        Column(
+            modifier = Modifier.padding(
+                horizontal = if (compact) 12.dp else 14.dp,
+                vertical = if (compact && keyboardOpen) 4.dp else if (compact) 8.dp else 14.dp,
+            ),
+        ) {
+            if (compact && keyboardOpen) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleSmall,
+                        text = if (state.configured && state.consentValid) "$title · 已授权" else title,
+                        style = MaterialTheme.typography.labelMedium,
                         color = colors.textPrimary,
-                        maxLines = 2,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .weight(1f)
+                            .then(
+                                if (state.configured && state.consentValid) {
+                                    Modifier.testTag("advisor_consent_summary")
+                                } else {
+                                    Modifier
+                                },
+                            ),
                     )
-                    Spacer(Modifier.height(3.dp))
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = colors.textSecondary,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = if (state.configured && state.consentValid) {
-                            Modifier.testTag("advisor_consent_summary")
-                        } else {
-                            Modifier
-                        },
-                    )
+                    Box(
+                        modifier = Modifier.size(40.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        MorrowIcon(
+                            kind = if (expanded) MorrowIconKind.CHEVRON_UP else MorrowIconKind.CHEVRON_DOWN,
+                            tint = colors.textTertiary,
+                            modifier = Modifier.size(18.dp),
+                            contentDescription = if (expanded) "收起状态详情" else "展开状态详情",
+                        )
+                    }
                 }
-                Spacer(Modifier.width(6.dp))
-                Box(
-                    modifier = Modifier.size(40.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    MorrowIcon(
-                        kind = if (expanded) MorrowIconKind.CHEVRON_UP else MorrowIconKind.CHEVRON_DOWN,
-                        tint = colors.textTertiary,
-                        modifier = Modifier.size(18.dp),
-                        contentDescription = if (expanded) "收起状态详情" else "展开状态详情",
-                    )
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(if (compact) 28.dp else 34.dp)
+                            .clip(CircleShape)
+                            .background(colors.card),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        MorrowIcon(
+                            kind = MorrowIconKind.SPARKLE,
+                            tint = MorrowIconColors.Active,
+                            modifier = Modifier.size(if (compact) 15.dp else 18.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(if (compact) 8.dp else 11.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = colors.textPrimary,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.textSecondary,
+                            maxLines = if (compact) 1 else 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = if (state.configured && state.consentValid) {
+                                Modifier.testTag("advisor_consent_summary")
+                            } else {
+                                Modifier
+                            },
+                        )
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    Box(
+                        modifier = Modifier.size(40.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        MorrowIcon(
+                            kind = if (expanded) MorrowIconKind.CHEVRON_UP else MorrowIconKind.CHEVRON_DOWN,
+                            tint = colors.textTertiary,
+                            modifier = Modifier.size(18.dp),
+                            contentDescription = if (expanded) "收起状态详情" else "展开状态详情",
+                        )
+                    }
                 }
             }
 
@@ -387,26 +609,28 @@ private fun AdvisorStatusCard(
                 )
             }
 
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                MorrowTertiaryButton(
-                    text = "模型设置",
-                    onClick = onOpenSettings,
-                    showArrow = true,
-                    testTag = "advisor_open_settings",
-                )
-                if (state.configured) {
-                    Spacer(Modifier.width(2.dp))
-                    Text("·", color = colors.textTertiary, style = MaterialTheme.typography.labelSmall)
-                    Spacer(Modifier.width(2.dp))
+            if (!compact || expanded) {
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     MorrowTertiaryButton(
-                        text = "授权管理",
+                        text = "模型设置",
                         onClick = onOpenSettings,
                         showArrow = true,
-                        testTag = "advisor_consent_manage",
+                        testTag = "advisor_open_settings",
                     )
+                    if (state.configured) {
+                        Spacer(Modifier.width(2.dp))
+                        Text("·", color = colors.textTertiary, style = MaterialTheme.typography.labelSmall)
+                        Spacer(Modifier.width(2.dp))
+                        MorrowTertiaryButton(
+                            text = "授权管理",
+                            onClick = onOpenSettings,
+                            showArrow = true,
+                            testTag = "advisor_consent_manage",
+                        )
+                    }
+                    Spacer(Modifier.weight(1f))
                 }
-                Spacer(Modifier.weight(1f))
             }
         }
     }
@@ -639,34 +863,15 @@ private fun Composer(
     state: AdvisorUiState,
     onAction: (AdvisorAction) -> Unit,
     canPropose: Boolean,
+    keyboardOpen: Boolean,
 ) {
     val colors = MorrowTheme.colors
     val dark = isDarkTheme()
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp)) {
-        if (canPropose) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                MorrowTertiaryButton(
-                    text = "整理为目标草案",
-                    onClick = { onAction(AdvisorAction.RequestProposal) },
-                    enabled = !state.sending && state.consentValid,
-                    testTag = "advisor_make_proposal",
-                )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    text = "草案不会保存为正式目标",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = colors.textTertiary,
-                )
-            }
-            Spacer(Modifier.height(2.dp))
-        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = if (canPropose) 0.dp else 4.dp, bottom = 12.dp),
+                .padding(top = 2.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(modifier = Modifier.weight(1f)) {
@@ -724,9 +929,17 @@ private fun MessageRow(
     lastWithSources: Boolean,
     lastProposal: Boolean,
     proposal: StoredGoalProposal?,
+    record: StoredRecordProposal?,
+    recordAction: RecordActionUiState?,
     onRetry: () -> Unit,
     onOpenSources: () -> Unit,
     onOpenProposal: (StoredGoalProposal) -> Unit,
+    onConfirmRecord: (StoredRecordProposal, RecordProposalDraft) -> Unit,
+    onCancelRecord: (String) -> Unit,
+    onUndoRecord: (String) -> Unit,
+    onUpdateRecordDraft: (String, RecordProposalDraft) -> Unit,
+    onOpenDiary: (String) -> Unit,
+    onOpenGoal: (String) -> Unit,
 ) {
     val colors = MorrowTheme.colors
     val dark = isDarkTheme()
@@ -845,6 +1058,19 @@ private fun MessageRow(
                     color = colors.forest,
                 )
             }
+        }
+        if (record != null) {
+            Spacer(Modifier.height(6.dp))
+            RecordProposalCard(
+                proposal = record,
+                actionState = recordAction,
+                onConfirm = { draft -> onConfirmRecord(record, draft) },
+                onCancel = { onCancelRecord(record.id) },
+                onUndo = { onUndoRecord(record.id) },
+                onUpdateDraft = { draft -> onUpdateRecordDraft(record.id, draft) },
+                onOpenDiary = { proposalId -> onOpenDiary(proposalId) },
+                onOpenGoal = { proposalId -> onOpenGoal(proposalId) },
+            )
         }
         Text(
             text = Timestamps.formatDateTime(message.createdAt),

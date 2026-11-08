@@ -197,6 +197,12 @@ class FakeAdvisorEngine(
         delay(delayMs)
         val last = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
         if (last.contains("[slow]")) delay(10_000)
+        val extractPrompt = messages.firstOrNull {
+            it.role == "system" && it.content.contains("记录提取器")
+        }?.content
+        if (extractPrompt != null) {
+            return AdvisorChatResult.Success(fakeRecordExtraction(extractPrompt, last))
+        }
         val diaryPrompt = messages.lastOrNull { it.content.contains("日记正文：") }?.content
         if (diaryPrompt != null) {
             val body = diaryPrompt.substringAfter("日记正文：").trim()
@@ -288,6 +294,84 @@ class FakeAdvisorEngine(
                     "不代表真实模型输出。",
             )
         }
+    }
+
+
+    /**
+     * QA 专用：确定性的记录候选提取。只覆盖验收需要的几条自然表达，
+     * 真实语义由真实模型完成；这里不会伪装成模型能力。
+     */
+    private fun fakeRecordExtraction(prompt: String, userText: String): String {
+        val goals = Regex("""\[目标#(\d+)]\s*([^（\n]+)（([^）]*)）""").findAll(prompt)
+            .map {
+                val rawTitle = it.groupValues[2].trim()
+                val title = listOf("长期目标：", "阶段目标：", "短期行动：")
+                    .firstOrNull { prefix -> rawTitle.startsWith(prefix) }
+                    ?.let { prefix -> rawTitle.removePrefix(prefix) }
+                    ?: rawTitle
+                Triple(it.groupValues[1].toLong(), title, it.groupValues[3])
+            }
+            .toList()
+        fun jsonEscape(value: String): String =
+            value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", " ")
+
+        val explicit = listOf("记录", "记一下", "记一笔", "帮我记").any { userText.contains(it) }
+        val numberMatch = Regex("""(\d+(?:\.\d+)?)\s*(万)?\s*(元|块|小时|次|公里|天|页|本)?""")
+            .find(userText)
+        val rawValue = numberMatch?.groupValues?.getOrNull(1)?.toDoubleOrNull()
+        val manSuffix = numberMatch?.groupValues?.getOrNull(2).orEmpty()
+        val explicitUnit = numberMatch?.groupValues?.getOrNull(3).orEmpty()
+        val unit = when {
+            explicitUnit.isNotEmpty() -> explicitUnit
+            // 「14.7 万」换算为 147000 元，避免再叠加一个「万元」变成双重单位。
+            manSuffix.isNotEmpty() -> "元"
+            else -> ""
+        }
+        val value = when {
+            rawValue == null -> null
+            manSuffix.isNotEmpty() -> rawValue * 10_000
+            else -> rawValue
+        }
+        val snapshot = listOf("现在", "已经攒到", "累计", "目前有").any { userText.contains(it) } ||
+            userText.contains("攒到")
+        val amountKind = when {
+            value == null && userText.any { it == '完' } -> "NONE"
+            value == null -> return """{"schemaVersion":1,"record":null}"""
+            snapshot -> "SNAPSHOT"
+            else -> "DELTA"
+        }
+        // 目标匹配：按标题/领域关键词；多个命中时转为澄清候选。
+        val wealthWords = listOf("存", "攒", "储蓄", "万", "元")
+        val careerWords = listOf("学习", "读", "学", "工作", "职业", "课")
+        val matched = goals.filter { (_, title, _) ->
+            when {
+                wealthWords.any { userText.contains(it) } ->
+                    title.contains("存") || title.contains("攒") || title.contains("万") || title.contains("财富")
+                careerWords.any { userText.contains(it) } ->
+                    title.contains("学习") || title.contains("发展") || title.contains("职业") || title.contains("工作")
+                else -> true
+            }
+        }
+        val chosen = matched.singleOrNull()
+        val forceAmbiguous = goals.size > 1 && userText.contains("记录一下进展")
+        if (forceAmbiguous || chosen == null) {
+            val candidates = goals.take(3).joinToString(",") { (id, title, _) ->
+                """{"goalId":$id,"title":"${jsonEscape(title)}"}"""
+            }
+            return """{"schemaVersion":1,"record":{"type":"PROGRESS","goalId":null,"goalTitle":null,""" +
+                """"goalCandidates":[$candidates],"amountKind":"$amountKind","metricValue":${value ?: "null"},""" +
+                """"metricUnit":"${jsonEscape(unit)}","note":"${jsonEscape(userText)}","occurredAt":null,""" +
+                """"pendingFields":["goal"],"intent":"SUGGESTED"}}"""
+        }
+        val goalId = chosen?.first
+        val goalTitle = chosen?.second
+        val intent = if (explicit) "EXPLICIT" else "SUGGESTED"
+        val metric = if (value == null) "null" else value.toBigDecimal().stripTrailingZeros().toPlainString()
+        return """{"schemaVersion":1,"record":{"type":"PROGRESS","goalId":${goalId ?: "null"},""" +
+            """"goalTitle":${if (goalTitle == null) "null" else "\"" + jsonEscape(goalTitle) + "\""},""" +
+            """"goalCandidates":[],"amountKind":"$amountKind","metricValue":$metric,""" +
+            """"metricUnit":"${jsonEscape(unit)}","note":"${jsonEscape(userText)}","occurredAt":null,""" +
+            """"pendingFields":${if (goalId == null) "[\"goal\"]" else "[]"},"intent":"$intent"}}"""
     }
 
     override suspend fun testConnection(config: AdvisorRuntimeConfig): AdvisorTestResult =

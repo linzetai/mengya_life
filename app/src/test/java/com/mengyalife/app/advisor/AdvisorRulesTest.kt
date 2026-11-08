@@ -52,10 +52,12 @@ class AdvisorRulesTest {
     }
 
     @Test
-    fun `系统提示明确只给建议且不生成人生评分`() {
+    fun `系统提示禁止直接写库且不生成人生评分`() {
         val prompt = AdvisorRules.systemPrompt()
-        assertTrue(prompt.contains("只有建议权"))
-        assertTrue(prompt.contains("不能声称已经创建、修改或删除"))
+        // 0.16：应用支持对话式记录进展，但模型本身仍不能直接改数据库。
+        assertTrue(prompt.contains("不能直接改数据库"))
+        assertTrue(prompt.contains("对话式记录进展"))
+        assertTrue(prompt.contains("不要声称是你本人直接写入了数据"))
         assertTrue(prompt.contains("人生综合评分"))
         assertTrue(prompt.contains("中文"))
     }

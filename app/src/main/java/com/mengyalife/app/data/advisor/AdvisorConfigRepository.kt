@@ -106,7 +106,8 @@ class DataStoreAdvisorConfigRepository(
 
     override suspend fun restoreEndpointAndModel(endpoint: String, model: String) = guarded {
         val existing = storage.load()
-        storage.save(existing.copy(endpoint = endpoint.trim(), model = model.trim(), encryptedKey = null))
+        // 恢复只应用非秘密设置；Key 不在备份中，本机已有 Key 必须保留。
+        storage.save(existing.copy(endpoint = endpoint.trim(), model = model.trim()))
     }
 
     override suspend fun runtimeConfig(): AdvisorRuntimeConfig? {

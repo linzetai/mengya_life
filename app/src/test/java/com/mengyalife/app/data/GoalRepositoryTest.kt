@@ -37,7 +37,15 @@ private class FakeGoalDao : GoalDao {
 
     override fun observeCheckinStats(): Flow<List<GoalCheckinStat>> = checkins.map { list ->
         list.groupBy { it.goalId }.map { (goalId, items) ->
-            GoalCheckinStat(goalId, items.size, items.maxOfOrNull { it.recordedAt })
+            val latest = items.maxWithOrNull(compareBy<GoalCheckinEntity> { it.recordedAt }.thenBy { it.id })
+            GoalCheckinStat(
+                goalId = goalId,
+                checkinCount = items.size,
+                lastAt = latest?.recordedAt,
+                lastNote = latest?.note,
+                lastValue = latest?.metricValue,
+                lastUnit = latest?.metricUnit,
+            )
         }
     }
 
@@ -55,6 +63,44 @@ private class FakeGoalDao : GoalDao {
     override suspend fun loadAllGoals(): List<GoalEntity> = goals.value
 
     override suspend fun loadAllCheckins(): List<GoalCheckinEntity> = checkins.value.sortedBy { it.id }
+
+    override suspend fun findCheckin(id: Long): GoalCheckinEntity? =
+        checkins.value.firstOrNull { it.id == id }
+
+    override suspend fun updateCheckin(
+        id: Long,
+        note: String,
+        metricValue: Double?,
+        metricUnit: String?,
+        amountKind: String,
+        normalizedValue: Double?,
+        normalizedUnit: String?,
+    ): Int {
+        if (checkins.value.none { it.id == id }) return 0
+        checkins.update { list ->
+            list.map {
+                if (it.id == id) {
+                    it.copy(
+                        note = note,
+                        metricValue = metricValue,
+                        metricUnit = metricUnit,
+                        amountKind = amountKind,
+                        normalizedValue = normalizedValue,
+                        normalizedUnit = normalizedUnit,
+                    )
+                } else {
+                    it
+                }
+            }
+        }
+        return 1
+    }
+
+    override suspend fun deleteCheckin(id: Long): Int {
+        if (checkins.value.none { it.id == id }) return 0
+        checkins.update { list -> list.filterNot { it.id == id } }
+        return 1
+    }
 
     override suspend fun insertGoal(goal: GoalEntity): Long {
         goalInsertCalls++

@@ -27,7 +27,6 @@ import com.mengyalife.app.domain.advisor.ConsentCategory
 import com.mengyalife.app.ui.advisor.AiSettingsAction
 import com.mengyalife.app.ui.advisor.AiSettingsUiState
 import com.mengyalife.app.ui.components.GroupDivider
-import com.mengyalife.app.ui.components.InlineNote
 import com.mengyalife.app.ui.components.SettingsGroup
 import com.mengyalife.app.ui.components.StatusPill
 import com.mengyalife.app.util.Timestamps
@@ -160,13 +159,16 @@ fun AiPrivacySection(
                 }
             }
             Spacer(Modifier.height(4.dp))
-            InlineNote(
-                "关闭某个类别只影响未来请求，不会删除本机已有的日记、目标与聊天记录；" +
-                    "已经发送给第三方模型服务的数据无法从对方撤回。",
+            Text(
+                text = "关闭某个类别只影响未来请求，不会删除本机已有的日记、目标与聊天记录；已经发送给第三方模型服务的数据无法从对方撤回。",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(4.dp))
-            InlineNote(
-                "授权长期有效，只在首次启用时确认；更换服务地址或新增数据类别时需要重新确认。",
+            Text(
+                text = "授权长期有效，只在首次启用时确认；更换服务地址或新增数据类别时需要重新确认。",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

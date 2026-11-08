@@ -42,6 +42,7 @@ import com.mengyalife.app.data.repository.GoalSnapshot
 import com.mengyalife.app.data.repository.GoalTrend
 import com.mengyalife.app.data.repository.TrendSnapshot
 import com.mengyalife.app.domain.goals.GoalTrends
+import com.mengyalife.app.domain.goals.ProgressKind
 import com.mengyalife.app.ui.components.GentleEmptyCard
 import com.mengyalife.app.ui.components.InlineNote
 import com.mengyalife.app.ui.components.MetricTrendChart
@@ -202,7 +203,7 @@ fun TrajectoryScreen(
                                 )
                                 Spacer(Modifier.height(18.dp))
                             }
-                            TrendBlock(trend = trend, index = index)
+                            TrendBlock(trend = trend, index = index, onOpenGoal = onOpenGoal)
                         }
                         if (allTrends.size > 2) {
                             Spacer(Modifier.height(14.dp))
@@ -258,10 +259,16 @@ fun TrajectoryScreen(
 }
 
 @Composable
-private fun TrendBlock(trend: GoalTrend, index: Int) {
+private fun TrendBlock(trend: GoalTrend, index: Int, onOpenGoal: (Long) -> Unit) {
     val colors = MorrowTheme.colors
     val unit = trend.unitLabel.takeIf { it != GoalTrends.UNIT_NONE }
-    Column(modifier = Modifier.testTag("trend_block_$index")) {
+    val isDelta = trend.series.kind == ProgressKind.DELTA
+    val kindLabel = ProgressKind.label(trend.series.kind)
+    Column(
+        modifier = Modifier
+            .testTag("trend_block_$index")
+            .clickable { onOpenGoal(trend.goalId) },
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = trend.goalTitle,
@@ -272,7 +279,9 @@ private fun TrendBlock(trend: GoalTrend, index: Int) {
                 overflow = TextOverflow.Ellipsis,
             )
             Spacer(Modifier.width(8.dp))
-            StatusPill(text = trend.unitLabel)
+            StatusPill(
+                text = if (trend.unitLabel == GoalTrends.UNIT_NONE) kindLabel else "$kindLabel · ${trend.unitLabel}",
+            )
         }
         Spacer(Modifier.height(4.dp))
         Row(verticalAlignment = Alignment.Bottom) {
@@ -283,7 +292,7 @@ private fun TrendBlock(trend: GoalTrend, index: Int) {
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                text = "最近一次 · ${trend.points.size} 条记录",
+                text = (if (isDelta) "最近一次新增 · ${trend.points.size} 条" else "最近一次累计 · ${trend.points.size} 条"),
                 style = MaterialTheme.typography.labelSmall,
                 color = colors.textSecondary,
                 modifier = Modifier.padding(bottom = 3.dp),
@@ -297,6 +306,16 @@ private fun TrendBlock(trend: GoalTrend, index: Int) {
             chartHeight = 150.dp,
         )
         Spacer(Modifier.height(8.dp))
+        Text(
+            text = if (isDelta) {
+                "增量记录仅表示每次新增，不是累计总额。"
+            } else {
+                "横轴为真实记录时间，纵轴为累计状态。"
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = colors.textSecondary,
+        )
+        Spacer(Modifier.height(6.dp))
         if (trend.points.size == 1) {
             Text(
                 text = "只有 1 条数值记录，无法判断趋势；这里只显示该数据点。",
@@ -309,7 +328,7 @@ private fun TrendBlock(trend: GoalTrend, index: Int) {
         TrendPointList(series = trend.series, maxRows = 3)
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "数据来源：你手动记录的进展",
+            text = "数据来源：你在目标里记录的进展（手动或顾问确认）",
             style = MaterialTheme.typography.labelSmall,
             color = colors.forest,
             modifier = Modifier.testTag("trend_block_source_$index"),
@@ -368,16 +387,26 @@ private fun buildChanges(
         val first = trend.points.first()
         val last = trend.points.last()
         val unit = trend.unitLabel.takeIf { it != GoalTrends.UNIT_NONE }
-        result += ChangeLine(
-            "「${trend.goalTitle}」从 ${MetricFormat.withUnit(first.value, unit)} " +
-                "到 ${MetricFormat.withUnit(last.value, unit)}，共 ${trend.points.size} 次记录。",
-            "来自你的数值进展",
-        )
+        val isDelta = trend.series.kind == ProgressKind.DELTA
+        if (isDelta) {
+            // 增量是“每次新增”，不能写成总额从 A 到 B，否则会读成累计下降。
+            result += ChangeLine(
+                "「${trend.goalTitle}」有 ${trend.points.size} 次新增记录，最近一次 " +
+                    MetricFormat.withUnit(last.value, unit) + "。",
+                "来自你的增量进展",
+            )
+        } else {
+            result += ChangeLine(
+                "「${trend.goalTitle}」累计从 ${MetricFormat.withUnit(first.value, unit)} " +
+                    "到 ${MetricFormat.withUnit(last.value, unit)}，共 ${trend.points.size} 次累计快照。",
+                "来自你的累计快照",
+            )
+        }
     }
     latestNode?.lastCheckinAt?.let { at ->
         result += ChangeLine(
             "你最近一次为「${latestNode.goal.title}」记录进展，是在 ${Timestamps.formatDate(at)}。",
-            "来自你手动记录的进展",
+            "来自你在目标里记录的进展",
         )
     }
     val weekAgo = System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000

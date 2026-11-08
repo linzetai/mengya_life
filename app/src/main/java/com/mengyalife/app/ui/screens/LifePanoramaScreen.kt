@@ -65,8 +65,9 @@ import com.mengyalife.app.ui.goals.GoalAction
 import com.mengyalife.app.ui.goals.GoalsUiState
 import com.mengyalife.app.ui.theme.MorrowSpacing
 import com.mengyalife.app.ui.theme.MorrowTheme
-import com.mengyalife.app.ui.theme.MorrowType
+import com.mengyalife.app.util.MetricFormat
 import com.mengyalife.app.util.Timestamps
+import com.mengyalife.app.ui.theme.MorrowType
 
 /**
  * 二级页面「人生全景」。
@@ -97,8 +98,19 @@ fun LifePanoramaScreen(
     val shownRootIds = remember(groups) { groups.flatMap { g -> g.second.map { it.goal.id } }.toSet() }
     val hiddenCount = roots.count { it.goal.id !in shownRootIds }
 
-    LaunchedEffect(state.focusedGoalId, groups) {
+    LaunchedEffect(state.focusedGoalId, groups, state.expandedIds) {
         val id = state.focusedGoalId ?: return@LaunchedEffect
+        // 从「今天」点进来时，直接展开该目标（含父级），让详情与「记录进展」立即可见。
+        fun findPath(nodes: List<GoalNode>, target: Long, trail: List<Long>): List<Long>? {
+            nodes.forEach { node ->
+                val next = trail + node.goal.id
+                if (node.goal.id == target) return next
+                findPath(node.children, target, next)?.let { return it }
+            }
+            return null
+        }
+        val path = groups.flatMap { it.second }.let { findPath(it, id, emptyList()) }.orEmpty()
+        path.filter { it !in state.expandedIds }.forEach { onAction(GoalAction.ToggleExpand(it)) }
         var index = 1
         var target: Int? = null
         for ((_, nodes) in groups) {
@@ -115,8 +127,9 @@ fun LifePanoramaScreen(
         }
     }
 
+    Box(modifier = modifier.fillMaxSize()) {
     LazyColumn(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding()
@@ -261,6 +274,32 @@ fun LifePanoramaScreen(
             }
         }
     }
+
+        // 全景是独立页面，不挂在主 Scaffold 的 Snackbar 上；这里给保存成功一个就地确认。
+        state.message?.let { message ->
+            LaunchedEffect(message) {
+                kotlinx.coroutines.delay(2600)
+                onAction(GoalAction.ConsumeMessage)
+            }
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 64.dp, start = 20.dp, end = 20.dp)
+                    .testTag("panorama_message"),
+                shape = RoundedCornerShape(12.dp),
+                color = colors.accent,
+                shadowElevation = 4.dp,
+            ) {
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = colors.canvas,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -281,7 +320,7 @@ private fun GoalNodeCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = if (depth == 0) 0.dp else 12.dp)
+            .padding(start = if (depth == 0) 0.dp else 16.dp)
             .testTag("goal_node_${goal.id}"),
     ) {
         Surface(
@@ -374,8 +413,42 @@ private fun GoalNodeCard(
         }
 
         if (expanded) {
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(6.dp))
+            if (node.checkinCount > 0 && node.lastCheckinNote != null) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "最近进展 · " + Timestamps.formatDate(node.lastCheckinAt ?: 0L),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textTertiary,
+                    modifier = Modifier.padding(start = if (depth == 0) 0.dp else 16.dp),
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    text = buildString {
+                        append(node.lastCheckinNote)
+                        if (node.lastCheckinValue != null) {
+                            append(" · ")
+                            append(MetricFormat.withUnit(node.lastCheckinValue, node.lastCheckinUnit))
+                        }
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textPrimary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .padding(start = if (depth == 0) 0.dp else 16.dp)
+                        .testTag("goal_last_checkin_${goal.id}"),
+                )
+                Spacer(Modifier.height(6.dp))
+            }
+            GoalExpandedActions(
+                goal = goal,
+                depth = depth,
+                onAction = onAction,
+                modifier = Modifier.padding(start = if (depth == 0) 0.dp else 16.dp),
+            )
             if (hasChildren) {
+                Spacer(Modifier.height(4.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     node.children.forEach { child ->
                         GoalNodeCard(
@@ -386,14 +459,7 @@ private fun GoalNodeCard(
                         )
                     }
                 }
-                Spacer(Modifier.height(4.dp))
             }
-            GoalExpandedActions(
-                goal = goal,
-                depth = depth,
-                onAction = onAction,
-                modifier = Modifier.padding(start = if (depth == 0) 0.dp else 12.dp),
-            )
         }
     }
 }
@@ -424,7 +490,6 @@ private fun GoalExpandedActions(
             onClick = { onAction(GoalAction.EditGoal(goal)) },
             testTag = "goal_edit_${goal.id}",
         )
-        Spacer(Modifier.weight(1f))
         Box {
             Box(
                 modifier = Modifier

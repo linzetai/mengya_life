@@ -50,7 +50,7 @@ class BackupExporterTest {
         val exporter = exporter(Source(BackupTestFixtures.snapshot()), Settings(BackupTestFixtures.settings()))
         val artifact = exporter.build("correct horse battery".toCharArray())
         assertEquals("backup-test-id", artifact.backupId)
-        assertEquals(10, artifact.counts.values.size)
+        assertEquals(17, artifact.counts.values.size)
         assertTrue(artifact.bytes.isNotEmpty())
 
         val payload = exporter.verify(artifact.bytes, "correct horse battery".toCharArray())

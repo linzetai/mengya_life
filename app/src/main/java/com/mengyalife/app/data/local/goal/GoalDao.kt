@@ -12,6 +12,9 @@ data class GoalCheckinStat(
     @androidx.room.ColumnInfo(name = "goal_id") val goalId: Long,
     @androidx.room.ColumnInfo(name = "checkin_count") val checkinCount: Int,
     @androidx.room.ColumnInfo(name = "last_at") val lastAt: Long?,
+    @androidx.room.ColumnInfo(name = "latest_note") val lastNote: String? = null,
+    @androidx.room.ColumnInfo(name = "latest_value") val lastValue: Double? = null,
+    @androidx.room.ColumnInfo(name = "latest_unit") val lastUnit: String? = null,
 )
 
 @Dao
@@ -24,6 +27,15 @@ interface GoalDao {
         """
         SELECT goal_id AS goal_id,
                COUNT(*) AS checkin_count,
+               (SELECT note FROM goal_checkins c2
+                WHERE c2.goal_id = goal_checkins.goal_id
+                ORDER BY recorded_at DESC, id DESC LIMIT 1) AS latest_note,
+               (SELECT metric_value FROM goal_checkins c2
+                WHERE c2.goal_id = goal_checkins.goal_id
+                ORDER BY recorded_at DESC, id DESC LIMIT 1) AS latest_value,
+               (SELECT metric_unit FROM goal_checkins c2
+                WHERE c2.goal_id = goal_checkins.goal_id
+                ORDER BY recorded_at DESC, id DESC LIMIT 1) AS latest_unit,
                MAX(recorded_at) AS last_at
         FROM goal_checkins
         GROUP BY goal_id
@@ -68,6 +80,31 @@ interface GoalDao {
 
     @Query("SELECT COUNT(*) FROM goal_checkins WHERE goal_id IN (:goalIds)")
     suspend fun countCheckinsForGoals(goalIds: List<Long>): Int
+
+    @Query("SELECT * FROM goal_checkins WHERE id = :id LIMIT 1")
+    suspend fun findCheckin(id: Long): GoalCheckinEntity?
+
+    @Query(
+        """
+        UPDATE goal_checkins
+        SET note = :note, metric_value = :metricValue, metric_unit = :metricUnit,
+            amount_kind = :amountKind, normalized_value = :normalizedValue,
+            normalized_unit = :normalizedUnit
+        WHERE id = :id
+        """
+    )
+    suspend fun updateCheckin(
+        id: Long,
+        note: String,
+        metricValue: Double?,
+        metricUnit: String?,
+        amountKind: String,
+        normalizedValue: Double?,
+        normalizedUnit: String?,
+    ): Int
+
+    @Query("DELETE FROM goal_checkins WHERE id = :id")
+    suspend fun deleteCheckin(id: Long): Int
 
     /** 顾问上下文：读取某棵目标树的进展（只读，不修改）。 */
     @Query("SELECT * FROM goal_checkins WHERE goal_id IN (:goalIds) ORDER BY recorded_at DESC, id DESC")

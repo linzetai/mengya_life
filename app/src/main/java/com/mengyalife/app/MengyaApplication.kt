@@ -23,6 +23,8 @@ class MengyaApplication : Application() {
         CoroutineScope(Dispatchers.IO).launch {
             runCatching { container.restoreCoordinator.reconcileOnStartup() }
             runCatching { container.weeklyReviewScheduler.sync(container.weeklyReviewPreferences) }
+            runCatching { container.carePreferenceRepository.reconcileSending() }
+            runCatching { com.mengyalife.app.data.care.CareScheduler.schedule(this@MengyaApplication) }
         }
     }
 }

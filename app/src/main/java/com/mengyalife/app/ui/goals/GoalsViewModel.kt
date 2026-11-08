@@ -14,6 +14,7 @@ import com.mengyalife.app.data.repository.GoalResult
 import com.mengyalife.app.data.repository.GoalSnapshot
 import com.mengyalife.app.domain.goals.GoalDomain
 import com.mengyalife.app.domain.goals.GoalRules
+import com.mengyalife.app.domain.goals.ProgressKind
 import com.mengyalife.app.domain.goals.GoalStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -208,6 +209,18 @@ class GoalsViewModel(
                 it.copy(checkin = it.checkin.copy(unit = action.value))
             }
 
+            is GoalAction.CheckinKindChange -> localState.update {
+                it.copy(
+                    checkin = it.checkin.copy(
+                        kind = action.value,
+                        error = null,
+                        // 无数值：清空数值字段，避免隐藏值被误写入。
+                        metric = if (action.value == ProgressKind.NONE) "" else it.checkin.metric,
+                        unit = if (action.value == ProgressKind.NONE) "" else it.checkin.unit,
+                    ),
+                )
+            }
+
             GoalAction.CloseCheckin -> localState.update { it.copy(checkin = CheckinDraftState()) }
 
             GoalAction.SaveCheckin -> saveCheckin()
@@ -266,9 +279,12 @@ class GoalsViewModel(
             localState.update { it.copy(checkin = it.checkin.copy(error = error)) }
             return
         }
-        GoalRules.validateMetric(state.metric)?.let { error ->
-            localState.update { it.copy(checkin = it.checkin.copy(error = error)) }
-            return
+        val isQualitative = state.kind == ProgressKind.NONE
+        if (!isQualitative) {
+            GoalRules.validateMetric(state.metric)?.let { error ->
+                localState.update { it.copy(checkin = it.checkin.copy(error = error)) }
+                return
+            }
         }
 
         localState.update { it.copy(checkin = it.checkin.copy(saving = true, error = null)) }
@@ -278,8 +294,9 @@ class GoalsViewModel(
                 goalId = goalId,
                 note = state.note,
                 // 文本 → Double 只在这一处发生；非有限数由仓库层再次拒绝。
-                metricValue = GoalRules.parseMetric(state.metric),
-                metricUnit = state.unit,
+                metricValue = if (isQualitative) null else GoalRules.parseMetric(state.metric),
+                metricUnit = if (isQualitative) null else state.unit,
+                amountKind = state.kind,
             )
             when (result) {
                 is GoalResult.Ok -> localState.update {

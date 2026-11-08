@@ -27,11 +27,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.mengyalife.app.data.repository.GoalSnapshot
@@ -68,6 +71,8 @@ fun DecisionScreen(
     var timing by rememberSaveable { mutableStateOf("") }
     var showFramework by rememberSaveable { mutableStateOf(false) }
     val scrollState = rememberScrollState()
+    val density = LocalDensity.current
+    var actionBarHeight by remember { mutableStateOf(0.dp) }
 
     val directions = goals.roots.take(2).joinToString("、") { it.goal.title }
     val involvesMoney = listOf(decision, options, constraints).any {
@@ -93,7 +98,7 @@ fun DecisionScreen(
                     .fillMaxSize()
                     .verticalScroll(scrollState)
                     .padding(horizontal = 22.dp)
-                    .padding(bottom = if (showFramework) 200.dp else 0.dp),
+                    .padding(bottom = if (showFramework) actionBarHeight + 16.dp else 0.dp),
             ) {
             MorrowTopBar(
                 label = "讨论一个决定",
@@ -237,6 +242,9 @@ fun DecisionScreen(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
+                        .onSizeChanged { size ->
+                            actionBarHeight = with(density) { size.height.toDp() }
+                        }
                         .background(colors.canvas)
                         .padding(horizontal = 22.dp, vertical = 10.dp),
                 ) {

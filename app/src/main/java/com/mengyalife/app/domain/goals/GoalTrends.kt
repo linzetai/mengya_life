@@ -21,6 +21,7 @@ object GoalTrends {
         val recordedAt: Long,
         val value: Double?,
         val unit: String?,
+        val kind: String = ProgressKind.SNAPSHOT,
     )
 
     data class TrendPoint(
@@ -33,6 +34,7 @@ object GoalTrends {
     data class TrendSeries(
         val unitLabel: String,
         val points: List<TrendPoint>,
+        val kind: String = ProgressKind.SNAPSHOT,
     ) {
         val latest: TrendPoint get() = points.last()
     }
@@ -49,19 +51,25 @@ object GoalTrends {
     fun seriesFrom(records: List<MetricRecord>): List<TrendSeries> {
         val valid = records.filter { record ->
             val value = record.value
-            value != null && value.isFinite()
+            value != null && value.isFinite() && record.kind != ProgressKind.NONE
         }
         if (valid.isEmpty()) return emptyList()
 
+        // 先按单位、再按语义（累计快照 / 增量）分组：两者绝不混进同一条曲线。
         return valid
-            .groupBy { normalizeUnit(it.unit) }
-            .map { (unit, rows) ->
+            .groupBy { normalizeUnit(it.unit) to it.kind }
+            .map { (key, rows) ->
+                val (unit, kind) = key
                 val points = rows
                     .sortedWith(compareBy<MetricRecord> { it.recordedAt }.thenBy { it.checkinId })
                     .map { TrendPoint(it.checkinId, it.recordedAt, it.value!!) }
-                TrendSeries(unitLabel = unit, points = points)
+                TrendSeries(unitLabel = unit, points = points, kind = kind)
             }
-            .sortedWith(compareBy<TrendSeries> { it.points.first().recordedAt }.thenBy { it.unitLabel })
+            .sortedWith(
+                compareBy<TrendSeries> { it.kind != ProgressKind.SNAPSHOT }
+                    .thenBy { it.points.first().recordedAt }
+                    .thenBy { it.unitLabel },
+            )
     }
 
     /** 横轴范围（真实时间），单点时为该点自身。 */

@@ -5,6 +5,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -58,6 +60,7 @@ import com.mengyalife.app.ui.components.StatusPill
 import com.mengyalife.app.ui.advisor.AiSettingsAction
 import com.mengyalife.app.ui.advisor.AiSettingsUiState
 import com.mengyalife.app.ui.settings.AiPrivacySection
+import com.mengyalife.app.ui.settings.CareSettingsSection
 import com.mengyalife.app.ui.settings.AiSettingsSection
 import com.mengyalife.app.ui.settings.BackupSection
 import com.mengyalife.app.ui.settings.RestoreSection
@@ -76,7 +79,7 @@ import kotlinx.coroutines.launch
  * - 「导出我的数据」是真实实现：数据库事务快照 → JSON → 系统文件选择器 → 回读校验。
  * - 导入恢复**尚未实现**，页面里明确写清，不暗示已经可以还原。
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     themeMode: ThemeMode,
@@ -181,6 +184,8 @@ fun SettingsScreen(
 
             item {
                 AiPrivacySection(state = aiState, onAction = onAiAction)
+
+                CareSettingsSection()
             }
 
             item {
@@ -335,7 +340,7 @@ fun SettingsScreen(
                 SettingsGroup(title = "关于") {
                     Column(modifier = Modifier.padding(horizontal = 18.dp)) {
                         KeyValueRow(label = "应用名称", value = "萌芽人生")
-                        KeyValueRow(label = "英文标识", value = "Mengya Life")
+                        KeyValueRow(label = "英文名称", value = "MengYa Life")
                         KeyValueRow(label = "当前版本", value = versionName)
                         KeyValueRow(label = "数据存储", value = "本机（无云端同步）")
                         if (BuildConfig.QA_BUILD) {
@@ -358,11 +363,12 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Spacer(Modifier.height(10.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
                             StatusPill(text = "本地优先")
-                            Spacer(Modifier.size(8.dp))
                             StatusPill(text = "自带密钥")
-                            Spacer(Modifier.size(8.dp))
                             StatusPill(text = "无后端")
                         }
                         Spacer(Modifier.height(10.dp))
