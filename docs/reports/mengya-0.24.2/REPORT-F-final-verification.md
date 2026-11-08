@@ -20,3 +20,7 @@
 ## Round 4
 - 设备恢复（37523），instrumented `OK (7 tests)`：3 DAO/claim + 2 崩溃点 + 2 迁移（21→22、22→23）。
 - 仍缺：A1 旧 fixture、Gate D 事务/挂起、Gate E BUSY/TIME。
+
+## Round 6
+- JVM：357 tests PASS / 0 FAIL（新增旧格式 fixture）。
+- A1 以编码器版本开关生成 fixture（非真实 0.24 加密文件）；Gate D 事务仍未重构。

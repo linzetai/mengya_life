@@ -14,6 +14,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNull
+import kotlinx.serialization.json.jsonObject
+import com.mengyalife.app.data.restore.RestoreCountResolver
 import org.junit.Test
 
 class BackupFormatV2Test {
@@ -22,6 +25,19 @@ class BackupFormatV2Test {
     private val built = BackupFormatV2.encodePayload(
         BackupTestFixtures.snapshot(), settings, app, "b1", BackupTestFixtures.T,
     )
+
+    @Test
+    fun legacyFixtureWithoutRecordProposalsHasNoCountAndResolvesZero() {
+        val legacy = BackupFormatV2.encodePayload(
+            BackupTestFixtures.snapshot(), settings, app, "legacy", BackupTestFixtures.T,
+            includeRecordProposals = false,
+        )
+        val data = legacy.payload["data"]!!.jsonObject
+        assertNull(data["recordProposals"])
+        val counts = RestoreCountResolver.resolve(legacy.payload["counts"]!!.jsonObject)
+        assertEquals(0, counts["recordProposals"])
+        assertTrue(legacy.perTableSha256["recordProposals"] == null)
+    }
 
     @Test
     fun `full snapshot encodes all ten tables with counts and hashes`() {

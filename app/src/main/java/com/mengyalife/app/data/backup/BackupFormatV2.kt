@@ -53,7 +53,8 @@ object BackupFormatV2 {
     fun newBackupId(): String = UUID.randomUUID().toString()
 
     fun encodePayload(snapshot: BackupSnapshot, settings: BackupSettingsSnapshot,
-                      app: BackupAppInfo, backupId: String, createdAt: Long): BuiltPayload {
+                      app: BackupAppInfo, backupId: String, createdAt: Long,
+                      includeRecordProposals: Boolean = true): BuiltPayload {
         val tables = linkedMapOf<String, JsonArray>()
         val hashes = linkedMapOf<String, String>()
         fun addTable(key: String, rows: JsonArray) {
@@ -174,7 +175,9 @@ object BackupFormatV2 {
             snapshot.weeklyAiReviews.sortedBy { it.periodKey }.forEach { add(weeklyAiJson(it)) }
         })
 
-        val counts = snapshot.counts()
+        val counts = snapshot.counts().let {
+            if (includeRecordProposals) it else it - "recordProposals"
+        }
         addTable("smallPlans", buildJsonArray {
             snapshot.smallPlans.sortedBy { it.id }.forEach { e ->
                 add(buildJsonObject {
@@ -226,7 +229,7 @@ object BackupFormatV2 {
                 })
             }
         })
-        addTable("recordProposals", buildJsonArray {
+        if (includeRecordProposals) addTable("recordProposals", buildJsonArray {
             snapshot.recordProposals.sortedBy { it.createdAt }.forEach { e ->
                 add(buildJsonObject {
                     put("id", e.id); put("messageId", e.messageId); put("createdAt", e.createdAt)
