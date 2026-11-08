@@ -38,3 +38,8 @@
 - `am start -S/-W` 会丢失 extras；改为先 `am force-stop` 再普通 `am start --ez`，extras 正常到达（endpointFlag=true）。
 - 但钩子在 awaitReady/build/restore 阶段仍无结果日志、Key 未删除，判定 BLOCKED；尚未定位卡点。
 - 已移除临时 QA 诊断日志。
+
+## Round 8（endpoint 卡点）
+- 阶段日志：`stage=awaitReady` → `stage=build` 后不再前进；卡在 `BackupExporter.build()`，与 extras/awaitReady 无关。
+- 该 build 在 qa_care_roundtrip 路径曾成功，新增 endpoint 钩子场景下卡住原因未定位；判定 BLOCKED，不计 PASS。
+- 已移除阶段日志。
