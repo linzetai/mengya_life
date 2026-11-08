@@ -23,3 +23,7 @@
 - notified_at 在通知后写入；连续 3 次 qa_care_now Worker 后该字段未变化，未再产生新的通知事件（截图 notification-once.png）。
 - 局部 BUSY 修复：BUSY(plan:5) 不再阻断无关目标候选。
 - QA 测试时钟下 decision.created_at 为真实时间，sentSince(testDayStart) 会低估已发送数；仅影响 QA 时钟，生产同一时钟不受影响，记为已知测试环境风险。
+
+## 追加：lint 检查
+- `./gradlew :app:lintDebug` FAILED：`NonNullableMutableLiveDataDetector` 抛 `IncompatibleClassChangeError`，lint 工具链与当前 AGP/依赖不兼容，未产出可读报告。
+- 结论：lint 为 BLOCKED（工具原因），不能计为通过；需单独修 lint 工具链后重跑。
