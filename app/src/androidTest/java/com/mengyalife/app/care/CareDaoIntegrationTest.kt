@@ -32,6 +32,50 @@ class CareDaoIntegrationTest {
     fun tearDown() = db.close()
 
     @Test
+    fun crashAfterClaimBeforeMessageDoesNotResend() = runBlocking {
+        val dao = db.careDao()
+        val now = System.currentTimeMillis()
+        val oppId = dao.insertOpportunity(
+            CareOpportunityEntity(
+                type = "TEST", sourceId = 4, planId = null, goalId = null, title = "崩溃1",
+                discoveredAt = now, windowStart = now, windowEnd = now + 1000,
+                expiresAt = now + 2000, sensitivity = "NORMAL", status = "PENDING",
+                dedupeKey = "test:4", createdAt = now, updatedAt = now,
+            ),
+        )
+        assertEquals(1, dao.claimSending(oppId, now))
+        // 模拟进程在写消息/决策前崩溃，重启收敛。
+        assertEquals(1, db.carePreferenceDao().reconcileSending(now + 1))
+        assertEquals("UNKNOWN", dao.findOpportunity(oppId)!!.status)
+        assertEquals(0, dao.recentDecisions().size)
+    }
+
+    @Test
+    fun crashAfterMessageBeforeDecisionKeepsUnknownAndDoesNotResend() = runBlocking {
+        val dao = db.careDao()
+        val now = System.currentTimeMillis()
+        val oppId = dao.insertOpportunity(
+            CareOpportunityEntity(
+                type = "TEST", sourceId = 5, planId = null, goalId = null, title = "崩溃2",
+                discoveredAt = now, windowStart = now, windowEnd = now + 1000,
+                expiresAt = now + 2000, sensitivity = "NORMAL", status = "PENDING",
+                dedupeKey = "test:5", createdAt = now, updatedAt = now,
+            ),
+        )
+        assertEquals(1, dao.claimSending(oppId, now))
+        db.advisorMessageDao().insert(
+            com.mengyalife.app.data.local.advisor.AdvisorMessageEntity(
+                id = "crash-message", role = "ASSISTANT", content = "已写消息但未写决策",
+                createdAt = now, status = "SENT", contextEpoch = 1,
+                sourcesJson = "[{\"type\":\"CARE\",\"id\":\"$oppId\"}]",
+            ),
+        )
+        db.carePreferenceDao().reconcileSending(now + 1)
+        assertEquals("UNKNOWN", dao.findOpportunity(oppId)!!.status)
+        assertEquals(0, dao.recentDecisions().size)
+    }
+
+    @Test
     fun concurrentSendingClaimOnlyOneWins() = runBlocking {
         val dao = db.careDao()
         val now = System.currentTimeMillis()

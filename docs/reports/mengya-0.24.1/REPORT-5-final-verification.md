@@ -28,3 +28,12 @@ CONDITIONAL：关键代码、备份、通知幂等、动作与基础集成测试
   - CareMigrationTest：v21→v22 迁移新增 notified_at，旧行保留。
 - 命令：`adb shell am instrument -w com.mengyalife.app.test/androidx.test.runner.AndroidJUnitRunner`
 - 仍未覆盖：claim→写消息→写决策→通知之间的逐点崩溃注入；消息写入本身无 opportunity 幂等键，D06 仅部分覆盖。
+
+## Round 7 最终
+- Instrumented：`OK (6 tests)`（3 DAO + 1 migration + 2 crash-point）。
+- `:app:lintDebug` PASS；350 JVM tests PASS；Debug/QA PASS。
+- 崩溃注入为状态级模拟（claim 后、消息后、通知 claim 后），未做真实 `kill -9`。
+- 残留：崩溃在消息写入后可能留下一条孤立助手消息，但机会为 UNKNOWN，不会重复发送/通知；QA 测试时钟发送计数偏低仅测试环境。
+
+## 验收结论
+**PASS（有条件）**：满足“同一机会至多一次通知、用户静音优先、恢复不重复、备份完整、授权绑定”的工程底线；条件为上述两项已知非阻塞残留。

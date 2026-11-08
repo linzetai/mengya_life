@@ -15,3 +15,10 @@ at-most-once：通知与 DB 无法跨系统原子，通知后崩溃只能标记�
 - D01/D05/D06/D07：BLOCKED（未做 Worker 连跑、并发、崩溃注入集成测试）。
 - D04（未反馈不阻塞）：FAIL，仍以 latestSentWithoutFeedback 短路，旧卡会阻塞新决策。
 - D08：PASS（SENDING→UNKNOWN 真机已验证，0.24）。
+
+## 0.24.1 崩溃断点测试（真机 instrumented）
+- claim SENDING 后崩溃：reconcile → UNKNOWN，无决策、无补发。
+- 写顾问消息后、写决策前崩溃：reconcile → UNKNOWN，决策数 0，不再发。
+- 通知 claim 后崩溃：claimNotification 只成功一次，后续返回 0，至多一次通知。
+- 并发 opportunity claim：仅 1 个成功。
+- 结论：D05/D06/D08 PASS（状态级注入；未做真实进程 kill）。
