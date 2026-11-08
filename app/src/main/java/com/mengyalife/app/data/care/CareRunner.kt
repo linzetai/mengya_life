@@ -87,7 +87,14 @@ class CareRunner(
                 else -> false
             }
         }
-        val busy = activePrefs.any { it.kind == "BUSY" }
+        val globalBusy = activePrefs.any { it.kind == "BUSY" && it.topicKey == null }
+        fun localBusy(planId: Long?, goalId: Long?, title: String): Boolean = activePrefs.any { pref ->
+            pref.kind == "BUSY" && pref.topicKey != null && (
+                pref.topicKey == planId?.let { "plan:$it" } ||
+                    pref.topicKey == goalId?.let { "goal:$it" } ||
+                    (pref.topicKey.startsWith("topic:") && title.contains(pref.topicKey.removePrefix("topic:")))
+                )
+        }
         val timeNote = activePrefs.firstOrNull { it.kind == "TIME" }?.windowNote
         val progressAuthorized = consent.enabled(ConsentCategory.PROGRESS)
         val progressCounts = if (progressAuthorized) planRepository.observeProgressCounts().first() else emptyMap()
@@ -176,7 +183,7 @@ class CareRunner(
             .map { "已发过：机会#${it.opportunityId}｜${fmt(it.createdAt)}｜${it.suggestedText.orEmpty().take(24)}" }
         val prompt = AdvisorRules.carePlannerPrompt(
             candidateLines = candidateLines + buildList {
-                if (busy) add("用户临时较忙：除非确实重要，否则不要 SEND，选择 DEFER/SCHEDULE。")
+                if (globalBusy) add("用户临时较忙：除非确实重要，否则不要 SEND，选择 DEFER/SCHEDULE。")
                 if (!timeNote.isNullOrBlank()) add("用户偏好时段：$timeNote（周回顾）")
             },
             recentDecisionLines = history,
@@ -225,7 +232,9 @@ class CareRunner(
             )
             return null
         }
-        if (decision.action == CareAction.SEND && busy) {
+        if (decision.action == CareAction.SEND &&
+            (globalBusy || localBusy(opp.planId, opp.goalId, opp.title))
+        ) {
             careRepository.saveDecision(
                 opportunityId = opp.id, action = "DEFER",
                 reason = decision.reason + "｜用户临时较忙，降低打扰",

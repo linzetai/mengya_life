@@ -17,3 +17,9 @@
 
 ## 结论
 **CONDITIONAL**：代码与备份链路已补齐，关键集成/通知回归仍缺证据，不判 PASS。
+
+## 追加真机证据（0.24.1）
+- 周日 20:00 测试时钟：SEND 决策生成，时间偏好窗口内通过；22:42 系统通知出现一次。
+- notified_at 在通知后写入；连续 3 次 qa_care_now Worker 后该字段未变化，未再产生新的通知事件（截图 notification-once.png）。
+- 局部 BUSY 修复：BUSY(plan:5) 不再阻断无关目标候选。
+- QA 测试时钟下 decision.created_at 为真实时间，sentSince(testDayStart) 会低估已发送数；仅影响 QA 时钟，生产同一时钟不受影响，记为已知测试环境风险。
