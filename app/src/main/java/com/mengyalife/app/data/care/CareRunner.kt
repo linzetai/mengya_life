@@ -41,6 +41,7 @@ class CareRunner(
     private val engine: AdvisorEngine,
     private val settings: CareSettings,
     private val preferences: CarePreferenceRepository,
+    private val restoreGeneration: () -> Long = { 0L },
     private val now: () -> Long = System::currentTimeMillis,
     private val zone: ZoneId = ZoneId.systemDefault(),
 ) {
@@ -53,27 +54,25 @@ class CareRunner(
         val consent = consentRepository.current()
         if (!consent.enabled(ConsentCategory.GOALS)) { android.util.Log.i("CareRun", "no consent"); return null }
         // QA 构建使用独立测试预算，但不放宽免打扰/授权/静音等生产约束。
+        val boundEpoch = consent.epoch
+        val boundGeneration = restoreGeneration()
+        val startupConfig = configRepository.runtimeConfig() ?: return null
+        val boundEndpoint = startupConfig.endpoint
+        suspend fun boundOk(): Boolean {
+            if (!settings.enabled) return false
+            if (restoreGeneration() != boundGeneration) return false
+            val latest = consentRepository.current()
+            if (!latest.granted || latest.epoch != boundEpoch) return false
+            if (!latest.enabled(ConsentCategory.GOALS)) return false
+            if (!latest.isValidFor(boundEndpoint)) return false
+            val cfg = configRepository.state.first()
+            return cfg.endpoint == boundEndpoint
+        }
+        if (!boundOk()) return null
         val prefs = settings.policyPrefs().let {
             if (BuildConfig.QA_BUILD) it.copy(dailyDecisionBudget = 20) else it
         }
         if (CarePolicy.inDnd(nowMs, prefs, zone)) { android.util.Log.i("CareRun", "dnd"); return null }
-
-        val existing = careRepository.latestSentWithoutFeedback()
-        if (existing != null) {
-            val opp = careRepository.find(existing.opportunityId) ?: return null
-            if (existing.messageId == null) {
-                val message = conversations.appendAssistant(
-                    content = existing.suggestedText ?: defaultText(opp.title),
-                    contextEpoch = consent.epoch,
-                    sources = listOf(AdvisorSource(AdvisorSourceType.CARE, opp.id.toString(), opp.title)),
-                    proposalMode = false,
-                    expectedRestoreGeneration = null,
-                )
-                careRepository.markDecisionDelivered(existing.id, message.id)
-            }
-            careRepository.markStatus(opp.id, "SENT")
-            return CareCard(opp.id, opp.title, existing.suggestedText ?: defaultText(opp.title), opp.type)
-        }
 
         val snapshot = dataRepository.snapshot(consent)
         val activePrefs = preferences.active()
@@ -90,7 +89,8 @@ class CareRunner(
         }
         val busy = activePrefs.any { it.kind == "BUSY" }
         val timeNote = activePrefs.firstOrNull { it.kind == "TIME" }?.windowNote
-        val progressCounts = planRepository.observeProgressCounts().first()
+        val progressAuthorized = consent.enabled(ConsentCategory.PROGRESS)
+        val progressCounts = if (progressAuthorized) planRepository.observeProgressCounts().first() else emptyMap()
         val drafts = buildList {
             snapshot.plans.filter { it.status == "ACTIVE" && !suppressed(it.id, it.goalId, it.title) }.forEach { plan ->
                 val range = PlanTime.resolve(plan.timeScope, plan.createdAt, zone) ?: return@forEach
@@ -121,7 +121,13 @@ class CareRunner(
             }
         }
         if (drafts.isNotEmpty()) careRepository.ensure(drafts)
-        val pending = careRepository.pending().filter { it.expiresAt >= nowMs }.take(5)
+        fun suppressedOpportunity(oppId: Long, planId: Long?, goalId: Long?, title: String): Boolean {
+            return suppressed(planId, goalId, title)
+        }
+        val pending = careRepository.pending()
+            .filter { it.expiresAt >= nowMs }
+            .filter { !suppressedOpportunity(it.id, it.planId, it.goalId, it.title) }
+            .take(5)
         android.util.Log.i("CareRun", "pending=${pending.size} drafts=${drafts.size} now=$nowMs")
         if (pending.isEmpty()) return null
 
@@ -135,14 +141,16 @@ class CareRunner(
                 opportunityId = opp.id, type = opp.type, title = opp.title,
                 planId = opp.planId, goalId = opp.goalId, status = opp.status,
                 timeScope = null,
-                progressCount = opp.planId?.let { progressCounts[it] ?: 0 } ?: 0,
+                progressCount = if (!progressAuthorized) null
+                else opp.planId?.let { progressCounts[it] ?: 0 } ?: 0,
                 lastProgressAt = null, windowEnd = opp.windowEnd, expiresAt = opp.expiresAt,
             )
         }
         val candidateLines = candidates.map { c ->
             val plan = snapshot.plans.firstOrNull { it.id == c.planId }
             "[机会#${c.opportunityId}] 类型=${c.type}｜${c.title}｜状态=${plan?.status ?: "目标"}" +
-                "｜时间=${plan?.timeScope ?: "未定"}｜已记录执行=${c.progressCount} 次" +
+                "｜时间=${plan?.timeScope ?: "未定"}｜执行次数=" +
+                (c.progressCount?.let { "$it 次" } ?: "UNKNOWN_DUE_TO_CONSENT") +
                 "｜窗口结束=${fmt(c.windowEnd)}"
         }
         val config = configRepository.runtimeConfig()
@@ -159,6 +167,7 @@ class CareRunner(
             nowText = fmt(nowMs),
             userZone = zone.id,
         )
+        if (!boundOk()) return null
         val result = engine.chat(
             config = config,
             messages = listOf(
@@ -176,6 +185,7 @@ class CareRunner(
             )
             return null
         }
+        if (!boundOk()) return null
         val decision = CareParser.parse(result.content, candidates.map { it.opportunityId }.toSet())
             ?: run {
                 careRepository.saveDecision(
@@ -216,6 +226,19 @@ class CareRunner(
                 decisionsToday = decisionsToday, zone = zone,
             )
             if (gate is CarePolicy.Result.Allow) {
+                if (!boundOk()) return null
+                val latestPrefs = preferences.active()
+                val stillSuppressed = latestPrefs.any { pref ->
+                    (pref.value == "PAUSED" || pref.value == "SILENCED") &&
+                        (pref.topicKey == opp.planId?.let { "plan:$it" } ||
+                            pref.topicKey == opp.goalId?.let { "goal:$it" } ||
+                            (pref.topicKey?.startsWith("topic:") == true &&
+                                opp.title.contains(pref.topicKey.removePrefix("topic:"))))
+                }
+                if (stillSuppressed) {
+                    careRepository.markStatus(opp.id, "DROPPED")
+                    return null
+                }
                 if (!careRepository.claimSending(opp.id)) return null
                 val text = decision.suggestedText ?: defaultText(opp.title)
                 val message = conversations.appendAssistant(
@@ -231,7 +254,7 @@ class CareRunner(
                 )
                 careRepository.markDecisionDelivered(decisionId, message.id)
                 careRepository.markStatus(opp.id, "SENT")
-                return CareCard(opp.id, opp.title, text, opp.type)
+                return CareCard(opp.id, opp.title, text, opp.type, isNew = true, decisionId = decisionId)
             }
             careRepository.saveDecision(
                 opportunityId = opp.id, action = "DEFER",

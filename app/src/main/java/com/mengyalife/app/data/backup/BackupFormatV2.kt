@@ -222,6 +222,7 @@ object BackupFormatV2 {
                     putNullable("nextWindowStart", e.nextWindowStart); putNullable("nextWindowEnd", e.nextWindowEnd)
                     put("modelOk", e.modelOk); put("createdAt", e.createdAt)
                     putNullable("messageId", e.messageId); putNullable("deliveredAt", e.deliveredAt)
+                    putNullable("notifiedAt", e.notifiedAt)
                 })
             }
         })

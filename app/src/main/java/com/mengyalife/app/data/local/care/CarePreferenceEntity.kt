@@ -47,6 +47,9 @@ interface CarePreferenceDao {
     @Query("SELECT * FROM care_preferences ORDER BY created_at DESC")
     suspend fun all(): List<CarePreferenceEntity>
 
+    @Query("UPDATE care_preferences SET revoked_at = :at, updated_at = :at WHERE topic_key = :key AND revoked_at IS NULL")
+    suspend fun revokeByTopic(key: String, at: Long)
+
     @Query("UPDATE care_preferences SET revoked_at = :at, updated_at = :at WHERE id = :id")
     suspend fun revoke(id: Long, at: Long)
 

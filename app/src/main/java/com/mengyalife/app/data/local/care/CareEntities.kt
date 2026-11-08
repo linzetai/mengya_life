@@ -49,6 +49,7 @@ data class CareDecisionEntity(
     @ColumnInfo(name = "created_at") val createdAt: Long,
     @ColumnInfo(name = "message_id") val messageId: String? = null,
     @ColumnInfo(name = "delivered_at") val deliveredAt: Long? = null,
+    @ColumnInfo(name = "notified_at") val notifiedAt: Long? = null,
 )
 
 /** 用户反馈：一次忽略 ≠ 永久拒绝。 */
@@ -78,6 +79,9 @@ interface CareDao {
     /** 原子占用：只有一个 worker 能把 PENDING 变成 SENDING。 */
     @Query("UPDATE care_opportunities SET status = 'SENDING', updated_at = :at WHERE id = :id AND status = 'PENDING'")
     suspend fun claimSending(id: Long, at: Long): Int
+
+    @Query("UPDATE care_decisions SET notified_at = :at WHERE id = :id AND notified_at IS NULL")
+    suspend fun claimNotification(id: Long, at: Long): Int
 
     @Query("UPDATE care_decisions SET message_id = :messageId, delivered_at = :at WHERE id = :decisionId")
     suspend fun markDecisionDelivered(decisionId: Long, messageId: String?, at: Long)

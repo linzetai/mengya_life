@@ -24,6 +24,7 @@ object CareDirectTest {
                 engine = c.networkAdvisorEngine,
                 settings = settings,
                 preferences = c.carePreferenceRepository,
+                restoreGeneration = { c.restoreWriteBarrier.generation() },
             )
             val card = runCatching { runner.runOnce() }.getOrNull() ?: return@launch
             CareNotification.post(app, card.opportunityId, card.text, settings.lockScreenDetail)

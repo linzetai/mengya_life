@@ -30,8 +30,12 @@ class CareWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             engine = container.networkAdvisorEngine,
             settings = settings,
             preferences = container.carePreferenceRepository,
+            restoreGeneration = { container.restoreWriteBarrier.generation() },
         )
         val card = runCatching { runner.runOnce() }.getOrNull() ?: return Result.success()
+        val decisionId = card.decisionId ?: return Result.success()
+        if (!card.isNew) return Result.success() // 旧卡片只展示，不再次通知
+        if (!container.careRepository.claimNotification(decisionId)) return Result.success()
         CareNotification.post(app, card.opportunityId, card.text, settings.lockScreenDetail)
         return Result.success()
     }

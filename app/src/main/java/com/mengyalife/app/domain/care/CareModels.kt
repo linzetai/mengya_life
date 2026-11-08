@@ -25,7 +25,7 @@ data class CareCandidate(
     val goalId: Long?,
     val status: String,
     val timeScope: String?,
-    val progressCount: Int,
+    val progressCount: Int?,
     val lastProgressAt: Long?,
     val windowEnd: Long,
     val expiresAt: Long,

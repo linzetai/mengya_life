@@ -145,11 +145,6 @@ class RestoreTransaction(private val database: MengyaDatabase) {
                 }
             }
             actual[key] = JsonArray(rows)
-            if (key == "smallPlans") {
-                val exp = plan.rows[key]?.firstOrNull()
-                val act = rows.firstOrNull()
-                android.util.Log.i("RestoreVerify", "exp=${exp?.keys} act=${act?.keys} expRow=$exp actRow=$act")
-            }
             val optional = key in setOf(
                 "smallPlans", "planEvents", "planProgress",
                 "careOpportunities", "careDecisions", "careFeedback", "carePreferences",

@@ -337,6 +337,17 @@ class AdvisorViewModel(
                                 expectedRestoreGeneration = expectedRestoreGeneration,
                             )
                         }
+                    } else if (pref.kind == "REVOKE") {
+                        pref.topicKey?.let { carePreferenceRepository.revokeByTopic(it) }
+                        conversations.appendAssistant(
+                            content = pref.reply, contextEpoch = epoch, sources = emptyList(),
+                            proposalMode = false, expectedRestoreGeneration = expectedRestoreGeneration,
+                        )
+                    } else if (pref.kind == "CLARIFY") {
+                        conversations.appendAssistant(
+                            content = pref.reply, contextEpoch = epoch, sources = emptyList(),
+                            proposalMode = false, expectedRestoreGeneration = expectedRestoreGeneration,
+                        )
                     } else {
                         carePreferenceRepository.save(
                             kind = pref.kind, topicKey = pref.topicKey, topicLabel = pref.topicLabel,

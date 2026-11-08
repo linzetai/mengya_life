@@ -80,6 +80,21 @@ class CareEngineTest {
     }
 
     @Test
+    fun `parser rejects questions negations and supports revoke`() {
+        val plans = listOf(5L to "整理一次作品集", 4L to "整理一次简历")
+        assertNull(CarePreferenceParser.parse("你觉得我以后别提醒自己合理吗", plans, emptyList(), now, zone))
+        assertNull(CarePreferenceParser.parse("我不喜欢周日晚上复盘", plans, emptyList(), now, zone))
+        val silence = CarePreferenceParser.parse("以后别提醒简历", plans, emptyList(), now, zone)!!
+        assertEquals("plan:4", silence.topicKey)
+        val revoke = CarePreferenceParser.parse("我刚才说错了，恢复简历提醒", plans, emptyList(), now, zone)!!
+        assertEquals("REVOKE", revoke.kind)
+        assertEquals("plan:4", revoke.topicKey)
+        val busy = CarePreferenceParser.parse("我最近比较忙", plans, emptyList(), now, zone)!!
+        assertEquals("BUSY", busy.kind)
+        assertNull(busy.topicKey)
+    }
+
+    @Test
     fun `future plans outside current week are not opportunities`() {
         val createdNextWeek = java.time.LocalDate.parse("2026-11-16")
             .atStartOfDay(zone).toInstant().toEpochMilli()

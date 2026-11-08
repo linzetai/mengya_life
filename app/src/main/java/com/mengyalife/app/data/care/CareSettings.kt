@@ -46,8 +46,11 @@ class CareSettings(context: Context) {
         enabled = enabled,
         dndStartHour = dndStartHour,
         dndEndHour = dndEndHour,
-        dailySendLimit = qaDailySendLimit.takeIf { it >= 0 }
-            ?: if (level == "CONSERVATIVE") 1 else 1,
+        dailySendLimit = if (com.mengyalife.app.BuildConfig.QA_BUILD) {
+            qaDailySendLimit.takeIf { it >= 0 } ?: 1
+        } else {
+            1
+        },
         topicGapMillis = if (level == "CONSERVATIVE") 7L * 24 * 3600_000 else 72L * 3600_000,
         dailyDecisionBudget = 5,
     )

@@ -157,7 +157,7 @@ object BackupValidator {
                 "sourceRefs" to FieldType.STRING, "modelOk" to FieldType.BOOLEAN,
                 "createdAt" to FieldType.LONG,
             ),
-            optional = setOf("suggestedText", "avoidJson", "nextWindowStart", "nextWindowEnd", "messageId", "deliveredAt"),
+            optional = setOf("suggestedText", "avoidJson", "nextWindowStart", "nextWindowEnd", "messageId", "deliveredAt", "notifiedAt"),
         ),
         "carePreferences" to Fields(
             required = mapOf(

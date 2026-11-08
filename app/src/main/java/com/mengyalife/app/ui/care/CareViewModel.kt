@@ -42,6 +42,9 @@ data class CareCard(
     val title: String,
     val text: String,
     val sourceType: String,
+    /** 本轮新生成、可投递系统通知；旧卡片不得再次通知。 */
+    val isNew: Boolean = false,
+    val decisionId: Long? = null,
 )
 
 data class CareUiState(
@@ -62,6 +65,7 @@ class CareViewModel(
     private val conversations: ConversationRepository,
     private val settings: com.mengyalife.app.data.care.CareSettings,
     private val preferences: com.mengyalife.app.data.care.CarePreferenceRepository,
+    private val restoreGeneration: () -> Long = { 0L },
     private val engine: AdvisorEngine,
     private val now: () -> Long = System::currentTimeMillis,
     private val zone: ZoneId = ZoneId.systemDefault(),
@@ -82,6 +86,7 @@ class CareViewModel(
         preferences = preferences,
         now = now,
         zone = zone,
+        restoreGeneration = { restoreGeneration() },
     )
 
     fun refresh() = viewModelScope.launch {
@@ -101,6 +106,18 @@ class CareViewModel(
         val card = runner.runOnce()
         if (card != null) {
             _state.value = _state.value.copy(card = card, error = null)
+        } else {
+            // 旧关心仍可展示，但不再阻塞新决策，也不产生新通知。
+            val existing = careRepository.latestSentWithoutFeedback()
+            if (existing != null) {
+                val opp = careRepository.find(existing.opportunityId)
+                if (opp != null) {
+                    _state.value = _state.value.copy(
+                        card = CareCard(opp.id, opp.title, existing.suggestedText ?: "上次的关心还在等你回应。",
+                            opp.type, isNew = false, decisionId = existing.id),
+                    )
+                }
+            }
         }
     }
 
@@ -156,9 +173,14 @@ class CareViewModel(
     fun notifyIfNeeded(context: android.content.Context) {
         val card = _state.value.card ?: return
         if (!settings.enabled || !settings.notificationsEnabled) return
-        com.mengyalife.app.data.care.CareNotification.post(
-            context, card.opportunityId, card.text, settings.lockScreenDetail,
-        )
+        if (!card.isNew) return
+        val decisionId = card.decisionId ?: return
+        viewModelScope.launch {
+            if (!careRepository.claimNotification(decisionId)) return@launch
+            com.mengyalife.app.data.care.CareNotification.post(
+                context, card.opportunityId, card.text, settings.lockScreenDetail,
+            )
+        }
     }
 
     fun consumeOpenAdvisor() {
@@ -178,6 +200,7 @@ class CareViewModel(
                     conversations = app.container.conversationRepository,
                     settings = com.mengyalife.app.data.care.CareSettings(app),
                     preferences = app.container.carePreferenceRepository,
+                    restoreGeneration = { app.container.restoreWriteBarrier.generation() },
                     engine = app.container.networkAdvisorEngine,
                 )
             }

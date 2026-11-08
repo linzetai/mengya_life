@@ -30,6 +30,7 @@ class CarePreferenceRepository(
     suspend fun active(): List<CarePreferenceEntity> = dao.active(now())
     suspend fun all(): List<CarePreferenceEntity> = dao.all()
     suspend fun revoke(id: Long) = dao.revoke(id, now())
+    suspend fun revokeByTopic(key: String) = dao.revokeByTopic(key, now())
     suspend fun forTopic(key: String): CarePreferenceEntity? = dao.activeForTopic(key, now())
     suspend fun timePreference(): CarePreferenceEntity? = dao.activeTimePreference(now())
     suspend fun busy(): CarePreferenceEntity? = dao.activeBusy(now())
