@@ -13,3 +13,9 @@
 - Instrumented `sendTransactionRollsBackMessageAndDecisionTogether`：事务内插消息+决策后抛错，消息与决策均回滚为 0。
 - 设备 instrumented：`OK (8 tests)`。
 - 仍未做恢复挂起点交错与通知跨系统原子。
+
+## Round 11
+- 复用/确认 `RestoreWriteBarrierTest.exclusive restore waits existing write and invalidates stale work`：
+  - 旧 generation 写持有期间恢复等待；
+  - 恢复完成后 `withWrite(oldGeneration)` 抛 RestoreException，旧写不落库。
+- 这是 D1/D4 的屏障级证明；仍缺 CareRunner 事务内“claim 后恢复”的 Runner 级挂起点测试。
