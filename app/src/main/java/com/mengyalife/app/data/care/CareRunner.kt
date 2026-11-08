@@ -72,6 +72,22 @@ class CareRunner(
             return cfg.endpoint == boundEndpoint
         }
         if (!boundOk()) return null
+        suspend fun <T> fenced(block: suspend () -> T): T? {
+            if (!boundOk()) return null
+            return if (writeBarrier != null) {
+                runCatching { writeBarrier!!.withWrite(boundGeneration) { block() } }
+                    .onFailure { android.util.Log.w("CareRun", "stale write dropped") }
+                    .getOrNull()
+            } else block()
+        }
+        suspend fun saveDecisionFenced(
+            opportunityId: Long, action: String, reason: String, sourceRefs: String,
+            suggestedText: String?, avoidJson: String?, nextStart: Long?, nextEnd: Long?, modelOk: Boolean,
+        ): Long? = fenced {
+            careRepository.saveDecision(
+                opportunityId, action, reason, sourceRefs, suggestedText, avoidJson, nextStart, nextEnd, modelOk,
+            )
+        }
         val prefs = settings.policyPrefs().let {
             if (BuildConfig.QA_BUILD) it.copy(dailyDecisionBudget = 20) else it
         }
@@ -130,7 +146,7 @@ class CareRunner(
                 }
             }
         }
-        if (drafts.isNotEmpty()) careRepository.ensure(drafts)
+        if (drafts.isNotEmpty()) fenced { careRepository.ensure(drafts) }
         fun suppressedOpportunity(oppId: Long, planId: Long?, goalId: Long?, title: String): Boolean {
             return suppressed(planId, goalId, title)
         }
@@ -144,7 +160,7 @@ class CareRunner(
                     val end = latest.nextWindowEnd ?: 0L
                     if (start > nowMs) continue
                     if (end > 0L && nowMs > end) {
-                        careRepository.markStatus(opp.id, "EXPIRED")
+                        fenced { careRepository.markStatus(opp.id, "EXPIRED") }
                         continue
                     }
                 }
@@ -204,7 +220,7 @@ class CareRunner(
         )
         android.util.Log.i("CareRun", "engine=${result is AdvisorChatResult.Success}")
         if (result !is AdvisorChatResult.Success) {
-            careRepository.saveDecision(
+            saveDecisionFenced(
                 opportunityId = pending.first().id, action = "DROP", reason = "模型调用失败，安全退出",
                 sourceRefs = "engine", suggestedText = null, avoidJson = null,
                 nextStart = null, nextEnd = null, modelOk = false,
@@ -214,7 +230,7 @@ class CareRunner(
         if (!boundOk()) return null
         val decision = CareParser.parse(result.content, candidates.map { it.opportunityId }.toSet())
             ?: run {
-                careRepository.saveDecision(
+                saveDecisionFenced(
                     opportunityId = pending.first().id, action = "DROP",
                     reason = "模型输出无法解析，安全退出：" + result.content.take(240),
                     sourceRefs = "planner", suggestedText = null, avoidJson = null,
@@ -227,7 +243,7 @@ class CareRunner(
         if (decision.action == CareAction.SEND &&
             (globalBusy || localBusy(opp.planId, opp.goalId, opp.title))
         ) {
-            careRepository.saveDecision(
+            saveDecisionFenced(
                 opportunityId = opp.id, action = "DEFER",
                 reason = decision.reason + "｜用户临时较忙，降低打扰",
                 sourceRefs = opp.type, suggestedText = decision.suggestedText,
@@ -256,7 +272,7 @@ class CareRunner(
             if (gate is CarePolicy.Result.Allow) {
                 val freshNow = if (BuildConfig.QA_BUILD && settings.testNow > 0) settings.testNow else now()
                 if (CarePolicy.inDnd(freshNow, settings.policyPrefs(), zone)) {
-                    careRepository.saveDecision(
+                    saveDecisionFenced(
                         opportunityId = opp.id, action = "DEFER",
                         reason = decision.reason + "｜发送前复核进入免打扰",
                         sourceRefs = opp.type, suggestedText = decision.suggestedText,
@@ -275,7 +291,7 @@ class CareRunner(
                                 opp.title.contains(pref.topicKey.removePrefix("topic:"))))
                 }
                 if (stillSuppressed) {
-                    careRepository.markStatus(opp.id, "DROPPED")
+                    fenced { careRepository.markStatus(opp.id, "DROPPED") }
                     return null
                 }
                 val freshBusy = latestPrefs.any { pref ->
@@ -287,7 +303,7 @@ class CareRunner(
                         )
                 }
                 if (freshBusy) {
-                    careRepository.saveDecision(
+                    saveDecisionFenced(
                         opportunityId = opp.id, action = "DEFER",
                         reason = decision.reason + "｜发送前复核：用户刚设为忙碌",
                         sourceRefs = opp.type, suggestedText = decision.suggestedText,
@@ -307,11 +323,13 @@ class CareRunner(
                     if (!boundOk()) throw com.mengyalife.app.data.restore.RestoreException(
                         "RESTORE_STALE_RESULT", "恢复后旧关怀结果作废",
                     )
-                    val decisionId = careRepository.saveDecision(
+                    val decisionId = saveDecisionFenced(
                         opportunityId = opp.id, action = "SEND", reason = decision.reason,
                         sourceRefs = opp.type, suggestedText = decision.suggestedText,
                         avoidJson = decision.avoid.joinToString(",").takeIf { it.isNotEmpty() },
                         nextStart = null, nextEnd = null, modelOk = true,
+                    ) ?: throw com.mengyalife.app.data.restore.RestoreException(
+                        "RESTORE_STALE_RESULT", "恢复后旧关怀结果作废",
                     )
                     careRepository.markDecisionDelivered(decisionId, message.id)
                     careRepository.markStatus(opp.id, "SENT")
@@ -322,7 +340,7 @@ class CareRunner(
                 }
                 return if (writeBarrier != null) writeBarrier.withWrite(boundGeneration) { write() } else write()
             }
-            careRepository.saveDecision(
+            saveDecisionFenced(
                 opportunityId = opp.id, action = "DEFER",
                 reason = decision.reason + "｜策略拒绝：" + (gate as CarePolicy.Result.Deny).reason,
                 sourceRefs = opp.type, suggestedText = decision.suggestedText,
@@ -330,13 +348,13 @@ class CareRunner(
             )
             return null
         }
-        careRepository.saveDecision(
+        saveDecisionFenced(
             opportunityId = opp.id, action = decision.action.name, reason = decision.reason,
             sourceRefs = opp.type, suggestedText = decision.suggestedText,
             avoidJson = decision.avoid.joinToString(",").takeIf { it.isNotEmpty() },
             nextStart = decision.nextWindowStart, nextEnd = decision.nextWindowEnd, modelOk = true,
         )
-        if (decision.action == CareAction.DROP) careRepository.markStatus(opp.id, "DROPPED")
+        if (decision.action == CareAction.DROP) fenced { careRepository.markStatus(opp.id, "DROPPED") }
         return null
     }
 

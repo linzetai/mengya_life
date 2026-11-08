@@ -8,6 +8,7 @@ import com.mengyalife.app.data.local.MengyaDatabase
 import com.mengyalife.app.data.weekly.WeeklyReviewPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.put
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -276,7 +277,24 @@ class RestoreCoordinator(
             gate.write(state.copy(phase = RestoreGatePhase.SETTINGS_PENDING))
             journal.write(RestoreJournalState(state.attemptId, state.backupId, state.generation,
                 RestoreJournalPhase.SECURITY_RESET, now()))
+            val beforeAi = configRepository.state.first()
+            val beforeEndpoint = beforeAi.endpoint
+            val hadKey = beforeAi.hasKey
             settingsApplier.apply(meta?.restoreSettingsJson)
+            val afterEndpoint = configRepository.state.first().endpoint
+            val credential = RestoreCredentialPolicy.decide(beforeEndpoint, afterEndpoint, hadKey)
+            if (credential.deleteKey) {
+                val keyResult = configRepository.deleteKeyConfirmed()
+                if (keyResult == KeyDeleteResult.FAILED) {
+                    return RestoreRunResult(
+                        RestoreRunStatus.COMMITTED_NEEDS_CONVERGENCE,
+                        "endpoint 已变化但旧 Key 删除未确认；保持维护状态",
+                    )
+                }
+            }
+            if (credential.resetConsent) {
+                consentRepository.resetAfterRestore(state.generation)
+            }
             database.appMetaDao().markConverged(now())
             val convergedMeta = database.appMetaDao().get()
                 ?: throw RestoreException("META_VERIFY", "app_meta 收敛标记缺失")

@@ -77,7 +77,7 @@ import kotlinx.coroutines.launch
  *   **不会**产生「保存成功」之类的虚假反馈。
  * - 主题**已经持久化**：写入 DataStore，重启后保持；「跟随系统」实时响应系统深浅色。
  * - 「导出我的数据」是真实实现：数据库事务快照 → JSON → 系统文件选择器 → 回读校验。
- * - 导入恢复**尚未实现**，页面里明确写清，不暗示已经可以还原。
+ * - 恢复在 RestoreSection 中完成：先预览校验，再输入口令执行；恢复不导出/不迁移明文 Key。
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -270,15 +270,6 @@ fun SettingsScreen(
                     )
                     GroupDivider()
                     SettingsRow(
-                        title = "导入数据",
-                        subtitle = "本轮只支持导出；导入恢复尚未实现，后续单独验收",
-                        badge = "后续接入",
-                        dimmed = true,
-                        testTag = "settings_import_data",
-                        onClick = { notify("后续接入：当前只能导出，还不能把文件导回应用") },
-                    )
-                    GroupDivider()
-                    SettingsRow(
                         title = "数据采集与授权",
                         subtitle = "不采集任何数据；INTERNET 仅用于你主动发起的 AI 请求",
                         dimmed = true,
@@ -413,7 +404,7 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.height(10.dp))
                     Text(
-                        text = "导出不包含 API Key；导入恢复尚未实现，这个文件目前不能导回应用。",
+                        text = "导出不包含 API Key。恢复时若 endpoint 与本机不同，会删除旧 Key 并撤销授权，需要重新配置；同 endpoint 则保留本机 Key。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

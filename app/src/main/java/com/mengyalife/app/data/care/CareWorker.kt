@@ -34,10 +34,15 @@ class CareWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             database = container.databaseHandle,
             writeBarrier = container.restoreWriteBarrier,
         )
+        val barrier = container.restoreWriteBarrier
+        val startGeneration = barrier.generation()
         val card = runCatching { runner.runOnce() }.getOrNull() ?: return Result.success()
         val decisionId = card.decisionId ?: return Result.success()
         if (!card.isNew) return Result.success() // 旧卡片只展示，不再次通知
+        // 恢复维护中/代次变化：不投递旧关心。
+        if (!barrier.isReady() || barrier.generation() != startGeneration) return Result.success()
         if (!container.careRepository.claimNotification(decisionId)) return Result.success()
+        if (!barrier.isReady() || barrier.generation() != startGeneration) return Result.success()
         CareNotification.post(app, card.opportunityId, card.text, settings.lockScreenDetail)
         return Result.success()
     }

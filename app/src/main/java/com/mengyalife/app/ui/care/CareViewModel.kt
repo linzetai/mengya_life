@@ -192,8 +192,12 @@ class CareViewModel(
         if (!settings.enabled || !settings.notificationsEnabled) return
         if (!card.isNew) return
         val decisionId = card.decisionId ?: return
+        val barrier = writeBarrier
+        val generation = barrier?.generation()
         viewModelScope.launch {
+            if (barrier != null && (!barrier.isReady() || barrier.generation() != generation)) return@launch
             if (!careRepository.claimNotification(decisionId)) return@launch
+            if (barrier != null && (!barrier.isReady() || barrier.generation() != generation)) return@launch
             com.mengyalife.app.data.care.CareNotification.post(
                 context, card.opportunityId, card.text, settings.lockScreenDetail,
             )

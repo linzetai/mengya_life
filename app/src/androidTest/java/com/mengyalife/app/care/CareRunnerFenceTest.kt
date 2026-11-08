@@ -202,10 +202,8 @@ class CareRunnerFenceTest {
         assertEquals("恢复后不得再调用模型", 0, engine.calls.size)
         assertEquals(0, db.advisorMessageDao().loadAll().size)
         assertEquals(0, db.careDao().allDecisions().size)
-        // ensure() 不是联系用户：允许留下 PENDING 候选（本地去重），但绝不能 SENDING/SENT。
-        val opportunities = db.careDao().loadAllOpportunities()
-        assertEquals(1, opportunities.size)
-        assertEquals("PENDING", opportunities.single().status)
+        // 0.24.2.1：ensure() 也受代次栅栏约束，旧代次不得留下候选。
+        assertEquals(0, db.careDao().loadAllOpportunities().size)
     }
 
     // ---------------------------------------------------------------------
@@ -380,14 +378,10 @@ class CareRunnerFenceTest {
         val failure = runCatching { withTimeout(AWAIT_TIMEOUT_MS) { runner.runOnce() } }
             .exceptionOrNull()
 
-        assertTrue("旧 generation 的 Runner 必须在提交点失败", failure is RestoreException)
-        assertEquals("RESTORE_STALE_RESULT", (failure as RestoreException).code)
-        assertEquals("模型确实被调用过，证明走到了提交路径", 1, engine.calls.size)
-
-        // ensure() 的本地候选可以存在，但绝不能 claim（SENDING）或写消息/决策。
-        val opportunities = db.careDao().loadAllOpportunities()
-        assertEquals(1, opportunities.size)
-        assertEquals("PENDING", opportunities.single().status)
+        // ensure() 也受栅栏约束：旧代次在进入模型前即放弃，不写任何业务行。
+        assertNull(failure)
+        assertEquals(0, engine.calls.size)
+        assertEquals(0, db.careDao().loadAllOpportunities().size)
         assertEquals(0, db.advisorMessageDao().loadAll().size)
         assertEquals(0, db.careDao().allDecisions().size)
         assertNull(db.careDao().latestSentDecision())
