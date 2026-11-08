@@ -158,6 +158,19 @@ class CareViewModel(
         viewModelScope.launch {
             careRepository.addFeedback(card.opportunityId, "SILENCED")
             careRepository.markStatus(card.opportunityId, "DISMISSED")
+            val opp = careRepository.find(card.opportunityId)
+            if (opp != null) {
+                val key = opp.planId?.let { "plan:$it" } ?: opp.goalId?.let { "goal:$it" }
+                    ?: "topic:${opp.title}"
+                val existing = preferences.active().firstOrNull { it.topicKey == key && it.value == "SILENCED" }
+                if (existing == null) {
+                    preferences.save(
+                        kind = "TOPIC", topicKey = key, topicLabel = opp.title,
+                        value = "SILENCED", source = "USER_EXPLICIT",
+                        sourceMessageId = null, sourceExcerpt = "今天页：不再提醒",
+                    )
+                }
+            }
             _state.value = _state.value.copy(card = null, lastAction = "SILENCED")
         }
     }

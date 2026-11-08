@@ -59,7 +59,7 @@ import com.mengyalife.app.data.local.proposal.RecordProposalEntity
  * 4. 迁移必须在真机升级安装上验证（本轮已做 v1→v2 实测，见报告）。
  */
 /** 数据库结构版本。导出文件里的 `databaseVersion` 与它保持一致。 */
-const val DB_SCHEMA_VERSION = 22
+const val DB_SCHEMA_VERSION = 23
 
 @Database(
     entities = [
@@ -570,6 +570,32 @@ abstract class MengyaDatabase : RoomDatabase() {
             }
         }
 
+        /** v22 → v23：旧反馈静音一次性迁入 care_preferences；反馈保留审计。 */
+        val MIGRATION_22_23: Migration = object : Migration(22, 23) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "INSERT INTO care_preferences(kind,topic_key,topic_label,value,source,source_message_id," +
+                        "source_excerpt,window_note,effective_at,expires_at,revoked_at,created_at,updated_at) " +
+                        "SELECT 'TOPIC', 'plan:'||o.plan_id, o.title, 'SILENCED', 'USER_EXPLICIT', d.message_id," +
+                        "'migrated from care_feedback', NULL, f.created_at, NULL, NULL, f.created_at, f.created_at " +
+                        "FROM care_feedback f JOIN care_opportunities o ON o.id=f.opportunity_id " +
+                        "LEFT JOIN care_decisions d ON d.opportunity_id=o.id " +
+                        "WHERE f.kind='SILENCED' AND o.plan_id IS NOT NULL " +
+                        "AND NOT EXISTS(SELECT 1 FROM care_preferences p WHERE p.topic_key='plan:'||o.plan_id AND p.revoked_at IS NULL)",
+                )
+                db.execSQL(
+                    "INSERT INTO care_preferences(kind,topic_key,topic_label,value,source,source_message_id," +
+                        "source_excerpt,window_note,effective_at,expires_at,revoked_at,created_at,updated_at) " +
+                        "SELECT 'TOPIC', 'goal:'||o.goal_id, o.title, 'SILENCED', 'USER_EXPLICIT', d.message_id," +
+                        "'migrated from care_feedback', NULL, f.created_at, NULL, NULL, f.created_at, f.created_at " +
+                        "FROM care_feedback f JOIN care_opportunities o ON o.id=f.opportunity_id " +
+                        "LEFT JOIN care_decisions d ON d.opportunity_id=o.id " +
+                        "WHERE f.kind='SILENCED' AND o.plan_id IS NULL AND o.goal_id IS NOT NULL " +
+                        "AND NOT EXISTS(SELECT 1 FROM care_preferences p WHERE p.topic_key='goal:'||o.goal_id AND p.revoked_at IS NULL)",
+                )
+            }
+        }
+
         /** v12 → v13：对话式记录候选表；不改动目标/进展/对话等既有表。 */
         val MIGRATION_12_13: Migration = object : Migration(12, 13) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -622,7 +648,7 @@ abstract class MengyaDatabase : RoomDatabase() {
                     MengyaDatabase::class.java,
                     DATABASE_NAME,
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23)
                     .addCallback(object : RoomDatabase.Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)

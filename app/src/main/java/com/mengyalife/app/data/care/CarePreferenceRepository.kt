@@ -35,5 +35,7 @@ class CarePreferenceRepository(
     suspend fun timePreference(): CarePreferenceEntity? = dao.activeTimePreference(now())
     suspend fun busy(): CarePreferenceEntity? = dao.activeBusy(now())
     fun observeActive(): Flow<List<CarePreferenceEntity>> = dao.observeActive(now())
-    suspend fun reconcileSending(): Int = dao.reconcileSending(now())
+    /** 只收敛超过 lease 的遗留 SENDING，避免误伤活跃任务。 */
+    suspend fun reconcileSending(leaseMillis: Long = 10 * 60_000L): Int =
+        dao.reconcileSending(now(), now() - leaseMillis)
 }

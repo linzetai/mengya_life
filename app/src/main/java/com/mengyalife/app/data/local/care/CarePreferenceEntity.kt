@@ -65,6 +65,6 @@ interface CarePreferenceDao {
     @Query("SELECT * FROM care_preferences WHERE revoked_at IS NULL AND (expires_at IS NULL OR expires_at > :now) ORDER BY created_at DESC")
     fun observeActive(now: Long): Flow<List<CarePreferenceEntity>>
 
-    @Query("UPDATE care_opportunities SET status = 'UNKNOWN', updated_at = :at WHERE status = 'SENDING'")
-    suspend fun reconcileSending(at: Long): Int
+    @Query("UPDATE care_opportunities SET status = 'UNKNOWN', updated_at = :at WHERE status = 'SENDING' AND updated_at < :cutoff")
+    suspend fun reconcileSending(at: Long, cutoff: Long): Int
 }

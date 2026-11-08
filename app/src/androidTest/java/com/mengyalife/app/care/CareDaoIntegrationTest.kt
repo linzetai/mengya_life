@@ -45,7 +45,7 @@ class CareDaoIntegrationTest {
         )
         assertEquals(1, dao.claimSending(oppId, now))
         // 模拟进程在写消息/决策前崩溃，重启收敛。
-        assertEquals(1, db.carePreferenceDao().reconcileSending(now + 1))
+        assertEquals(1, db.carePreferenceDao().reconcileSending(now + 1, now + 1))
         assertEquals("UNKNOWN", dao.findOpportunity(oppId)!!.status)
         assertEquals(0, dao.recentDecisions().size)
     }
@@ -70,7 +70,7 @@ class CareDaoIntegrationTest {
                 sourcesJson = "[{\"type\":\"CARE\",\"id\":\"$oppId\"}]",
             ),
         )
-        db.carePreferenceDao().reconcileSending(now + 1)
+        db.carePreferenceDao().reconcileSending(now + 1, now + 1)
         assertEquals("UNKNOWN", dao.findOpportunity(oppId)!!.status)
         assertEquals(0, dao.recentDecisions().size)
     }
@@ -144,7 +144,7 @@ class CareDaoIntegrationTest {
         )
         assertTrue(dao.claimNotification(decisionId, now) == 1)
         assertFalse(dao.claimNotification(decisionId, now + 1) == 1)
-        assertEquals(1, db.carePreferenceDao().reconcileSending(now + 2))
+        assertEquals(1, db.carePreferenceDao().reconcileSending(now + 2, now + 2))
         assertEquals("UNKNOWN", dao.findOpportunity(oppId)!!.status)
     }
 }

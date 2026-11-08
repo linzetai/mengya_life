@@ -71,16 +71,8 @@ class CareRepository(private val dao: CareDao, private val now: () -> Long = Sys
         dao.insertFeedback(CareFeedbackEntity(opportunityId = opportunityId, kind = kind, createdAt = now()))
     }
 
-    suspend fun silencedTopics(): Set<String> {
-        val silenced = dao.silencedFeedback()
-        val keys = mutableSetOf<String>()
-        silenced.forEach { fb ->
-            val opp = dao.findOpportunity(fb.opportunityId) ?: return@forEach
-            opp.planId?.let { keys += "plan:$it" }
-            opp.goalId?.let { keys += "goal:$it" }
-        }
-        return keys
-    }
+    /** 历史 SILENCED 反馈仅作审计；当前有效静音只看 care_preferences。 */
+    suspend fun silencedTopics(): Set<String> = emptySet()
 
     suspend fun latestDecisionFor(id: Long) = dao.latestDecision(id)
 

@@ -83,9 +83,11 @@ class CareActionReceiver : BroadcastReceiver() {
         if (id <= 0) return
         CareNotification.cancel(context, id)
         val app = context.applicationContext as? MengyaApplication ?: return
+        if (!app.container.restoreWriteBarrier.isReady()) return
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
+                if (!app.container.restoreWriteBarrier.isReady()) return@launch
                 val repo = app.container.careRepository
                 val prefs = app.container.carePreferenceRepository
                 when (intent.action) {

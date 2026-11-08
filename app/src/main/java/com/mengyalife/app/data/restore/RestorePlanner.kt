@@ -16,7 +16,8 @@ class RestorePlanner(private val currentStateSource: RestoreCurrentStateSource) 
         val counts = (payload["counts"] as? JsonObject) ?: throw RestoreException("COUNTS_MISSING", "缺少 counts")
         val backupCounts = RestoreTables.ALL.associateWith { key ->
             counts[key]?.jsonPrimitive?.intOrNull
-                ?: throw RestoreException("COUNTS_MISSING", "缺少计数 $key")
+                ?: if (key in RestoreTables.OPTIONAL) 0
+                else throw RestoreException("COUNTS_MISSING", "缺少计数 $key")
         }
         val current = currentStateSource.counts()
         val tableCounts = RestoreTables.ALL.map { key ->

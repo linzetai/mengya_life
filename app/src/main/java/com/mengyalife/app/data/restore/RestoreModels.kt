@@ -69,6 +69,11 @@ object RestoreTables {
     const val WEEKLY_AI = "weeklyAiReviews"
     val ALL: List<String> = BackupFormatV2.TABLE_KEYS
     val RESTORED: List<String> = ALL - WEEKLY_AI
+    /** 0.21+ 才出现的表：旧 v2 备份可完全缺失 counts/data。 */
+    val OPTIONAL: Set<String> = setOf(
+        "smallPlans", "planEvents", "planProgress",
+        "careOpportunities", "careDecisions", "careFeedback", "carePreferences", "recordProposals",
+    )
     val LABELS = linkedMapOf(
         "journalEntries" to "日记",
         "goals" to "目标",

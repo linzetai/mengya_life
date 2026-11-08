@@ -47,8 +47,6 @@ class CareRunner(
 ) {
     suspend fun runOnce(): CareCard? {
         android.util.Log.i("CareRun", "start")
-        // 崩溃/恢复后可能残留 SENDING：保守标为 UNKNOWN，避免重复投递。
-        runCatching { preferences.reconcileSending() }
         val nowMs = if (BuildConfig.QA_BUILD && settings.testNow > 0) settings.testNow else now()
         if (!settings.enabled) { android.util.Log.i("CareRun", "disabled"); return null }
         val consent = consentRepository.current()
@@ -222,7 +220,10 @@ class CareRunner(
         android.util.Log.i("CareRun", "action=${decision.action} id=${decision.opportunityId}")
         val opp = pending.first { it.id == decision.opportunityId }
         val timePref = activePrefs.firstOrNull { it.kind == "TIME" }
-        val inPreferredWindow = timePref == null || withinTimePreference(nowMs, timePref.windowNote, zone)
+        // 时段偏好只约束“周回顾”类机会，不得拦截无关的计划/目标关心。
+        val timeWindow = com.mengyalife.app.domain.care.CareTimePreferenceCodec.decode(timePref?.windowNote)
+        val appliesTime = opp.type == "WEEKLY_REVIEW" && timeWindow != null
+        val inPreferredWindow = !appliesTime || timeWindow!!.contains(nowMs, zone)
         if (decision.action == CareAction.SEND && !inPreferredWindow) {
             careRepository.saveDecision(
                 opportunityId = opp.id, action = "DEFER",
@@ -262,6 +263,16 @@ class CareRunner(
                 decisionsToday = decisionsToday, zone = zone,
             )
             if (gate is CarePolicy.Result.Allow) {
+                val freshNow = if (BuildConfig.QA_BUILD && settings.testNow > 0) settings.testNow else now()
+                if (CarePolicy.inDnd(freshNow, prefs, zone)) {
+                    careRepository.saveDecision(
+                        opportunityId = opp.id, action = "DEFER",
+                        reason = decision.reason + "｜发送前复核进入免打扰",
+                        sourceRefs = opp.type, suggestedText = decision.suggestedText,
+                        avoidJson = null, nextStart = null, nextEnd = null, modelOk = true,
+                    )
+                    return null
+                }
                 if (!boundOk()) return null
                 val latestPrefs = preferences.active()
                 val stillSuppressed = latestPrefs.any { pref ->
@@ -280,8 +291,9 @@ class CareRunner(
                 val message = conversations.appendAssistant(
                     content = text, contextEpoch = consent.epoch,
                     sources = listOf(AdvisorSource(AdvisorSourceType.CARE, opp.id.toString(), opp.title)),
-                    proposalMode = false, expectedRestoreGeneration = null,
+                    proposalMode = false, expectedRestoreGeneration = boundGeneration,
                 )
+                if (!boundOk()) return null
                 val decisionId = careRepository.saveDecision(
                     opportunityId = opp.id, action = "SEND", reason = decision.reason,
                     sourceRefs = opp.type, suggestedText = decision.suggestedText,
@@ -308,18 +320,6 @@ class CareRunner(
         )
         if (decision.action == CareAction.DROP) careRepository.markStatus(opp.id, "DROPPED")
         return null
-    }
-
-    private fun withinTimePreference(now: Long, note: String?, zone: ZoneId): Boolean {
-        if (note.isNullOrBlank()) return true
-        val parts = note.split(" ")
-        if (parts.size != 2) return true
-        val day = runCatching { java.time.DayOfWeek.valueOf(parts[0]) }.getOrNull() ?: return true
-        val hour = parts[1].substringBefore(":").toIntOrNull() ?: return true
-        val date = java.time.Instant.ofEpochMilli(now).atZone(zone)
-        if (date.dayOfWeek != day) return false
-        val diff = kotlin.math.abs(date.hour - hour)
-        return diff <= 2
     }
 
     private fun defaultText(title: String) = "上次说的「$title」，最近有没有新进展？"
