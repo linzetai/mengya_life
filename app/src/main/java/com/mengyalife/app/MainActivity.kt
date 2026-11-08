@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -76,6 +77,29 @@ class MainActivity : ComponentActivity() {
             }
             if (intent?.getBooleanExtra("qa_care_now", false) == true) {
                 com.mengyalife.app.data.care.CareScheduler.runNow(this)
+            }
+            if (intent?.getBooleanExtra("qa_endpoint_change_restore", false) == true) {
+                val app = application as MengyaApplication
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    runCatching {
+                        app.container.restoreCoordinator.awaitReady()
+                        val pass = "qa-endpoint".toCharArray()
+                        val artifact = app.container.backupExporter.build(pass)
+                        // 让本机 endpoint 与备份中的 endpoint 不同，再把备份恢复回来。
+                        app.container.advisorConfigRepository.restoreEndpointAndModel(
+                            "https://other.example.com/v1", "other-model",
+                        )
+                        val result = app.container.restoreCoordinator.execute(
+                            artifact.bytes, pass, artifact.payloadSha256, artifact.backupId,
+                        )
+                        val config = app.container.advisorConfigRepository.state.first()
+                        val consent = app.container.aiConsentRepository.current()
+                        android.util.Log.i(
+                            "CareRoundtrip",
+                            "endpointRestore=$result hasKey=${config.hasKey} consent=${consent.granted} epoch=${consent.epoch}",
+                        )
+                    }.onFailure { android.util.Log.e("CareRoundtrip", "endpointRestore failed", it) }
+                }
             }
             if (intent?.getBooleanExtra("qa_legacy_roundtrip", false) == true) {
                 val app = application as MengyaApplication

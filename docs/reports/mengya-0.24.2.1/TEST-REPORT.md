@@ -28,3 +28,8 @@
 ## Round 5
 - 新增 instrumented：模型返回 SEND 后日上限策略拒绝，写 DEFER、无消息、无新增 SEND。
 - Instrumented：OK (19 tests)。
+
+## Round 6（endpoint 设备 e2e）
+- 新增 QA 钩子 qa_endpoint_change_restore：A 备份→切换 endpoint B→恢复 A，期望删 Key/reset 授权。
+- 设备冷启动执行时钩子未产生 CareRoundtrip 日志、Key 未删除；判定为 BLOCKED（钩子未触发，原因未定），不计 PASS。
+- 恢复凭据策略仍由 4 项 JVM 单测覆盖；设备端到端未验证。
