@@ -43,3 +43,8 @@
 - 阶段日志：`stage=awaitReady` → `stage=build` 后不再前进；卡在 `BackupExporter.build()`，与 extras/awaitReady 无关。
 - 该 build 在 qa_care_roundtrip 路径曾成功，新增 endpoint 钩子场景下卡住原因未定位；判定 BLOCKED，不计 PASS。
 - 已移除阶段日志。
+
+## Round 9（endpoint 卡点二）
+- 阶段日志：settingsBefore→snapshot→settingsAfter→encode→validate 均完成，卡在 `BackupCrypto.encrypt`，超过 2 分钟未返回。
+- 不是 extras/awaitReady/DB 读取；可能是 PBKDF/加密在 QA 数据量或设备负载下的异常耗时/卡死，未定位。
+- 已移除阶段日志；endpoint 设备 e2e 仍 BLOCKED。
