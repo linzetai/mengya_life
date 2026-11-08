@@ -127,7 +127,8 @@ class RestoreTransaction(private val database: MengyaDatabase) {
         tables.forEach { key ->
             val sql = RestoreTables.SQL_TABLES.getValue(key)
             val rows = mutableListOf<JsonObject>()
-            db.query("SELECT * FROM `$sql` ORDER BY `id`").use { c ->
+            val order = if (key == "recordProposals") "created_at ASC, id ASC" else "id"
+            db.query("SELECT * FROM `$sql` ORDER BY $order").use { c ->
                 while (c.moveToNext()) {
                     val row = buildJsonObject {
                         for (i in 0 until c.columnCount) {
