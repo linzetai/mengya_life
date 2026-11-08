@@ -256,6 +256,23 @@ class CareRunnerFenceTest {
     // 旧 generation 的提交在恢复之后被拒绝的路径由 c-1/c-2 覆盖。
     // ---------------------------------------------------------------------
     @Test
+    fun restoreDuringModelFailureLeavesNoDropDecision() = runBlocking {
+        engine.failure = true
+        engine.beforeChat = {
+            barrier.withExclusive { db.clearAllTables() }
+            barrier.setReady(true)
+        }
+        val runner = buildRunner()
+        val result = runCatching { runner.runOnce() }
+        assertTrue(result.isSuccess)
+        assertNull(result.getOrNull())
+        assertEquals(1, engine.calls.size) // 模型被调用；返回失败后 DROP 写被栅栏拒绝
+        assertEquals(0, db.careDao().allDecisions().size)
+        assertEquals(0, db.advisorMessageDao().loadAll().size)
+        assertEquals(0, db.careDao().loadAllOpportunities().size)
+    }
+
+    @Test
     fun restoreWaitsForClaimedSendThenReplacementLeavesNoResidue() = runBlocking {
         val claimed = CompletableDeferred<Unit>()
         val writeRelease = CompletableDeferred<Unit>()
@@ -560,6 +577,7 @@ class CareRunnerFenceTest {
     private class FakeCareEngine : AdvisorEngine {
         val calls = mutableListOf<List<AdvisorChatMessage>>()
         var beforeChat: (suspend () -> Unit)? = null
+        var failure: Boolean = false
 
         override suspend fun chat(
             config: AdvisorRuntimeConfig,
@@ -568,6 +586,7 @@ class CareRunnerFenceTest {
         ): AdvisorChatResult {
             calls += messages
             beforeChat?.invoke()
+            if (failure) return AdvisorChatResult.Failure(AdvisorError.unknown())
             val prompt = messages.firstOrNull { it.role == "system" }?.content.orEmpty()
             val id = Regex("机会#(\\d+)").find(prompt)?.groupValues?.get(1)?.toLongOrNull()
                 ?: return AdvisorChatResult.Failure(AdvisorError.unknown())

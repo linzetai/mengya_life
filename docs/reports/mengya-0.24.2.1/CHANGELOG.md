@@ -7,3 +7,8 @@
 - SEND 仍为同一 Room 事务 + 写屏障；旧代次在 ensure 阶段即放弃，不再留下 PENDING 候选。
 - 通知投递：Worker/ViewModel 在 runOnce、claim 前、post 前校验 barrier.isReady 与 generation；恢复维护/代次变化不投递。
 - 测试：RestoreCredentialPolicyTest 4 项；CareRunnerFenceTest 更新旧代次断言（0 行）；instrumented OK (15 tests)。
+
+## 补充（Round 1）
+- 新增 CareDeliveryGate：通知投递必须 ready 且 generation 未变；Worker/ViewModel 共用，单测 4 组。
+- 新增 instrumented：恢复发生在模型失败返回后，DROP 写被栅栏拒绝（决策/消息/候选均为 0）。
+- instrumented 16 tests PASS。

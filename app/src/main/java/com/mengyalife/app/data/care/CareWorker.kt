@@ -40,9 +40,9 @@ class CareWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         val decisionId = card.decisionId ?: return Result.success()
         if (!card.isNew) return Result.success() // 旧卡片只展示，不再次通知
         // 恢复维护中/代次变化：不投递旧关心。
-        if (!barrier.isReady() || barrier.generation() != startGeneration) return Result.success()
+        if (!CareDeliveryGate.canDeliver(barrier.isReady(), startGeneration, barrier.generation())) return Result.success()
         if (!container.careRepository.claimNotification(decisionId)) return Result.success()
-        if (!barrier.isReady() || barrier.generation() != startGeneration) return Result.success()
+        if (!CareDeliveryGate.canDeliver(barrier.isReady(), startGeneration, barrier.generation())) return Result.success()
         CareNotification.post(app, card.opportunityId, card.text, settings.lockScreenDetail)
         return Result.success()
     }
