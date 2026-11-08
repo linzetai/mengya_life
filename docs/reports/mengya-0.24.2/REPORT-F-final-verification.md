@@ -16,3 +16,7 @@
 ## Round 3
 - 新增迁移 instrumented 测试但未运行：设备掉线（port 44435 connection refused）。
 - JVM 356 PASS（上轮）；本轮无 JVM 变更。
+
+## Round 4
+- 设备恢复（37523），instrumented `OK (7 tests)`：3 DAO/claim + 2 崩溃点 + 2 迁移（21→22、22→23）。
+- 仍缺：A1 旧 fixture、Gate D 事务/挂起、Gate E BUSY/TIME。

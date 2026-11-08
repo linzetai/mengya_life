@@ -8,3 +8,7 @@
 ## Round 3
 - 新增 instrumented `migrate22To23MigratesSilencedFeedbackToPreference`：v22 中 SILENCED feedback + planId=5 → v23 care_preferences(plan:5, SILENCED, USER_EXPLICIT)。
 - 运行状态：BLOCKED（设备 127.0.0.1:44435 连接被拒，adb devices 为空）。
+
+## Round 4（设备恢复）
+- 真机 instrumented：`OK (7 tests)`，含 v22→v23 旧 SILENCED feedback → care_preferences(plan:5, SILENCED, USER_EXPLICIT)。
+- 设备：2509FPN0BC / Android 17 / port 37523。
