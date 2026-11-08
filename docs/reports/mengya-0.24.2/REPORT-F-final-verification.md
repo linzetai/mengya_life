@@ -41,3 +41,14 @@
 - A5 设备 legacy 恢复 PASS（record_proposals=0，偏好/Key 保留）。
 - 修复可选表哈希校验过严。
 - 仍缺：D 恢复挂起点交错、C 真机跨周、E TIME。
+
+## Round 11（Gate D Runner 级恢复栅栏 + 最终验证）
+- 新增 `app/src/androidTest/java/com/mengyalife/app/care/CareRunnerFenceTest.kt`：7 个真实 Room + 真实 Care 仓库的 instrumented 用例，覆盖恢复前、模型前、模型后、claim 后、恢复后旧 generation 提交（栅栏级 + Runner 级）。细节见 `REPORT-D-restore-fencing.md` Round 14。
+- 生产代码未改：仅使用 d92241e 已有的 `beforeCommit`（默认 null）与 `restoreGeneration` 读口。
+- JVM：`./gradlew :app:testDebugUnitTest` → 358 tests / 0 failures / 0 skipped（57 个测试类 XML）。
+- 构建与 lint：`./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug` → BUILD SUCCESSFUL；lint 报告 `app/build/reports/lint-results-debug.html`。
+- 设备（adb 127.0.0.1:37523，debug + androidTest APK 均 `Success` 安装）：
+  - 全量 `am instrument -w -r com.mengyalife.app.test/androidx.test.runner.AndroidJUnitRunner` → `OK (15 tests)`；
+  - 定向 `-e class com.mengyalife.app.care.CareRunnerFenceTest` → `OK (7 tests)`。
+- Gate D 结论：恢复栅栏的 Runner 级证据已补齐；claim 后恢复无法插入事务内部（锁语义），以“恢复等待 in-flight 事务 + 恢复后旧代次提交被 RESTORE_STALE_RESULT 拒绝且 DB 零副作用”作为等价证明，已在报告中说明。
+- 剩余风险（不阻塞本轮 D）：候选 `ensure()` 未加 generation 栅栏；`CareWorker` 的通知 claim/post 仍在栅栏之外（DB at-most-once 成立，但与恢复非跨系统原子）；b) 用 `clearAllTables` 近似备份替换。详见 Gate D 报告。
