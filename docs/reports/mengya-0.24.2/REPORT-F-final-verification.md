@@ -52,3 +52,7 @@
   - 定向 `-e class com.mengyalife.app.care.CareRunnerFenceTest` → `OK (7 tests)`。
 - Gate D 结论：恢复栅栏的 Runner 级证据已补齐；claim 后恢复无法插入事务内部（锁语义），以“恢复等待 in-flight 事务 + 恢复后旧代次提交被 RESTORE_STALE_RESULT 拒绝且 DB 零副作用”作为等价证明，已在报告中说明。
 - 剩余风险（不阻塞本轮 D）：候选 `ensure()` 未加 generation 栅栏；`CareWorker` 的通知 claim/post 仍在栅栏之外（DB at-most-once 成立，但与恢复非跨系统原子）；b) 用 `clearAllTables` 近似备份替换。详见 Gate D 报告。
+
+## Round 15
+- C 真机：周日 20:00 SEND，reason 引用偏好时段。
+- 仍缺 E TIME 运行中变化；其余 A/B/C/D 主用例已闭合。
