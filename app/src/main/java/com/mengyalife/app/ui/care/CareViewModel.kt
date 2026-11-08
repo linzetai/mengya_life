@@ -66,6 +66,8 @@ class CareViewModel(
     private val settings: com.mengyalife.app.data.care.CareSettings,
     private val preferences: com.mengyalife.app.data.care.CarePreferenceRepository,
     private val restoreGeneration: () -> Long = { 0L },
+    private val database: com.mengyalife.app.data.local.MengyaDatabase? = null,
+    private val writeBarrier: com.mengyalife.app.data.restore.RestoreWriteBarrier? = null,
     private val engine: AdvisorEngine,
     private val now: () -> Long = System::currentTimeMillis,
     private val zone: ZoneId = ZoneId.systemDefault(),
@@ -87,6 +89,8 @@ class CareViewModel(
         now = now,
         zone = zone,
         restoreGeneration = { restoreGeneration() },
+        database = database,
+        writeBarrier = writeBarrier,
     )
 
     fun refresh() = viewModelScope.launch {
@@ -214,6 +218,8 @@ class CareViewModel(
                     settings = com.mengyalife.app.data.care.CareSettings(app),
                     preferences = app.container.carePreferenceRepository,
                     restoreGeneration = { app.container.restoreWriteBarrier.generation() },
+                    database = app.container.databaseHandle,
+                    writeBarrier = app.container.restoreWriteBarrier,
                     engine = app.container.networkAdvisorEngine,
                 )
             }

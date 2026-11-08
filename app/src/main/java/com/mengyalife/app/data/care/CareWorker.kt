@@ -31,6 +31,8 @@ class CareWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             settings = settings,
             preferences = container.carePreferenceRepository,
             restoreGeneration = { container.restoreWriteBarrier.generation() },
+            database = container.databaseHandle,
+            writeBarrier = container.restoreWriteBarrier,
         )
         val card = runCatching { runner.runOnce() }.getOrNull() ?: return Result.success()
         val decisionId = card.decisionId ?: return Result.success()

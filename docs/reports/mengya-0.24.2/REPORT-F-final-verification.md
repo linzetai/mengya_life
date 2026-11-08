@@ -24,3 +24,7 @@
 ## Round 6
 - JVM：357 tests PASS / 0 FAIL（新增旧格式 fixture）。
 - A1 以编码器版本开关生成 fixture（非真实 0.24 加密文件）；Gate D 事务仍未重构。
+
+## Round 7
+- Gate D 事务/屏障实现；357 JVM PASS；Debug/QA/lint PASS。
+- 未跑：恢复挂起点设备测试、通知跨系统原子验证。

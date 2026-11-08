@@ -18,6 +18,7 @@ import com.mengyalife.app.domain.care.CareCandidate
 import com.mengyalife.app.domain.care.CareOpportunityFactory
 import com.mengyalife.app.domain.care.CareParser
 import com.mengyalife.app.domain.care.CarePolicy
+import androidx.room.withTransaction
 import com.mengyalife.app.domain.goals.PlanTime
 import com.mengyalife.app.ui.care.CareCard
 import kotlinx.coroutines.flow.first
@@ -42,6 +43,8 @@ class CareRunner(
     private val settings: CareSettings,
     private val preferences: CarePreferenceRepository,
     private val restoreGeneration: () -> Long = { 0L },
+    private val database: com.mengyalife.app.data.local.MengyaDatabase? = null,
+    private val writeBarrier: com.mengyalife.app.data.restore.RestoreWriteBarrier? = null,
     private val now: () -> Long = System::currentTimeMillis,
     private val zone: ZoneId = ZoneId.systemDefault(),
 ) {
@@ -303,23 +306,31 @@ class CareRunner(
                     )
                     return null
                 }
-                if (!careRepository.claimSending(opp.id)) return null
-                val text = decision.suggestedText ?: defaultText(opp.title)
-                val message = conversations.appendAssistant(
-                    content = text, contextEpoch = consent.epoch,
-                    sources = listOf(AdvisorSource(AdvisorSourceType.CARE, opp.id.toString(), opp.title)),
-                    proposalMode = false, expectedRestoreGeneration = boundGeneration,
-                )
-                if (!boundOk()) return null
-                val decisionId = careRepository.saveDecision(
-                    opportunityId = opp.id, action = "SEND", reason = decision.reason,
-                    sourceRefs = opp.type, suggestedText = decision.suggestedText,
-                    avoidJson = decision.avoid.joinToString(",").takeIf { it.isNotEmpty() },
-                    nextStart = null, nextEnd = null, modelOk = true,
-                )
-                careRepository.markDecisionDelivered(decisionId, message.id)
-                careRepository.markStatus(opp.id, "SENT")
-                return CareCard(opp.id, opp.title, text, opp.type, isNew = true, decisionId = decisionId)
+                suspend fun commitSend(): CareCard? {
+                    if (!careRepository.claimSending(opp.id)) return null
+                    val text = decision.suggestedText ?: defaultText(opp.title)
+                    val message = conversations.appendAssistant(
+                        content = text, contextEpoch = consent.epoch,
+                        sources = listOf(AdvisorSource(AdvisorSourceType.CARE, opp.id.toString(), opp.title)),
+                        proposalMode = false, expectedRestoreGeneration = boundGeneration,
+                    )
+                    if (!boundOk()) throw com.mengyalife.app.data.restore.RestoreException(
+                        "RESTORE_STALE_RESULT", "恢复后旧关怀结果作废",
+                    )
+                    val decisionId = careRepository.saveDecision(
+                        opportunityId = opp.id, action = "SEND", reason = decision.reason,
+                        sourceRefs = opp.type, suggestedText = decision.suggestedText,
+                        avoidJson = decision.avoid.joinToString(",").takeIf { it.isNotEmpty() },
+                        nextStart = null, nextEnd = null, modelOk = true,
+                    )
+                    careRepository.markDecisionDelivered(decisionId, message.id)
+                    careRepository.markStatus(opp.id, "SENT")
+                    return CareCard(opp.id, opp.title, text, opp.type, isNew = true, decisionId = decisionId)
+                }
+                val write: suspend () -> CareCard? = {
+                    if (database != null) database.withTransaction { commitSend() } else commitSend()
+                }
+                return if (writeBarrier != null) writeBarrier.withWrite(boundGeneration) { write() } else write()
             }
             careRepository.saveDecision(
                 opportunityId = opp.id, action = "DEFER",

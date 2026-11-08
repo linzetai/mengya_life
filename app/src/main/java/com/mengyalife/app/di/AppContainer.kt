@@ -73,6 +73,9 @@ class AppContainer(context: Context) {
 
     private val database: MengyaDatabase by lazy { MengyaDatabase.get(appContext) }
 
+    /** Care 事务需要与恢复写屏障共用同一数据库句柄。 */
+    val databaseHandle: MengyaDatabase get() = database
+
     val journalRepository: JournalRepository by lazy {
         JournalRepository(
             dao = database.journalEntryDao(),
