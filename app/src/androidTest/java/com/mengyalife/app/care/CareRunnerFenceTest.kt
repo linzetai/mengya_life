@@ -44,6 +44,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -256,6 +257,25 @@ class CareRunnerFenceTest {
     // 旧 generation 的提交在恢复之后被拒绝的路径由 c-1/c-2 覆盖。
     // ---------------------------------------------------------------------
     @Test
+    fun deferredDuringModelCallPreventsSendAndLeavesPending() = runBlocking {
+        engine.beforeChat = {
+            val pending = db.careDao().pendingOpportunities().first()
+            db.careDao().insertFeedback(
+                com.mengyalife.app.data.local.care.CareFeedbackEntity(
+                    opportunityId = pending.id, kind = "DEFERRED", createdAt = CARE_FENCE_NOW,
+                ),
+            )
+        }
+        val runner = buildRunner()
+        val result = runWithTimeout { runner.runOnce() }
+        assertNull(result)
+        assertEquals(0, db.advisorMessageDao().loadAll().size)
+        // 不得出现新的 SEND；机会回到 PENDING 等 24h 后再评估。
+        assertEquals(0, db.careDao().allDecisions().count { it.action == "SEND" })
+        assertEquals("PENDING", db.careDao().loadAllOpportunities().single().status)
+    }
+
+    @Test
     fun restoreDuringModelFailureLeavesNoDropDecision() = runBlocking {
         engine.failure = true
         engine.beforeChat = {
@@ -407,6 +427,9 @@ class CareRunnerFenceTest {
     // ---------------------------------------------------------------------
     // helpers / fakes
     // ---------------------------------------------------------------------
+
+    private suspend fun <T> runWithTimeout(block: suspend () -> T): T? =
+        withTimeoutOrNull(AWAIT_TIMEOUT_MS) { block() }
 
     private fun buildRunner(
         beforeCommit: (suspend () -> Unit)? = null,

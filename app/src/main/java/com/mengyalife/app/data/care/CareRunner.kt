@@ -302,6 +302,19 @@ class CareRunner(
                             (pref.topicKey.startsWith("topic:") && opp.title.contains(pref.topicKey.removePrefix("topic:")))
                         )
                 }
+                val freshFeedback = careRepository.latestFeedback(opp.id)
+                if (freshFeedback?.kind == "DEFERRED" &&
+                    freshNow - freshFeedback.createdAt < 24L * 3600_000
+                ) {
+                    saveDecisionFenced(
+                        opportunityId = opp.id, action = "DEFER",
+                        reason = decision.reason + "｜发送前复核：用户刚点稍后（24h 内不打扰）",
+                        sourceRefs = opp.type, suggestedText = decision.suggestedText,
+                        avoidJson = null, nextStart = null, nextEnd = null, modelOk = true,
+                    )
+                    fenced { careRepository.markStatus(opp.id, "PENDING") }
+                    return null
+                }
                 if (freshBusy) {
                     saveDecisionFenced(
                         opportunityId = opp.id, action = "DEFER",
