@@ -48,3 +48,8 @@
 - 阶段日志：settingsBefore→snapshot→settingsAfter→encode→validate 均完成，卡在 `BackupCrypto.encrypt`，超过 2 分钟未返回。
 - 不是 extras/awaitReady/DB 读取；可能是 PBKDF/加密在 QA 数据量或设备负载下的异常耗时/卡死，未定位。
 - 已移除阶段日志；endpoint 设备 e2e 仍 BLOCKED。
+
+## Round 10（加密卡点）
+- 阶段日志：`stage=encrypting` 后再无进展；设备 `top` 显示 app CPU 0%，说明阻塞在锁/provider 初始化而非 PBKDF 计算。
+- 同一 build 在早期 0.24.2 设备往返曾成功；当前 QA 设备加密阶段阻塞，未定位（疑似设备/provider/环境）。
+- 已移除日志；endpoint 设备 e2e BLOCKED。
