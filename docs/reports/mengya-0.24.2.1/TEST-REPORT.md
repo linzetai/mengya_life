@@ -1,6 +1,6 @@
 # 0.24.2.1 测试报告
 
-- JVM：`./gradlew :app:testDebugUnitTest` → 362 tests PASS / 0 FAIL（含 RestoreCredentialPolicyTest 4）。
+- JVM：`./gradlew :app:testDebugUnitTest` → 361 tests PASS / 0 FAIL（含 RestoreCredentialPolicyTest 4）。
 - 构建：`:app:assembleDebug :app:assembleQa` → BUILD SUCCESSFUL。
 - lint：`:app:lintDebug` → BUILD SUCCESSFUL。
 - Android instrumented（设备 2509FPN0BC / Android 17 / 127.0.0.1:37523）：
