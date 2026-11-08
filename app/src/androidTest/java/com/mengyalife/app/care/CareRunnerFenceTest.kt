@@ -257,6 +257,21 @@ class CareRunnerFenceTest {
     // 旧 generation 的提交在恢复之后被拒绝的路径由 c-1/c-2 覆盖。
     // ---------------------------------------------------------------------
     @Test
+    fun policyDenyAfterModelWritesDeferWithoutMessage() = runBlocking {
+        val seedOpp = seedOpportunity("PENDING")
+        db.careDao().insertDecision(
+            seedDecision(seedOpp, "SEND").copy(createdAt = CARE_FENCE_NOW),
+        )
+        val runner = buildRunner()
+        val result = runWithTimeout { runner.runOnce() }
+        assertNull(result)
+        assertEquals(0, db.advisorMessageDao().loadAll().size)
+        val decisions = db.careDao().allDecisions()
+        assertTrue(decisions.any { it.action == "DEFER" && it.reason.contains("策略拒绝") })
+        assertFalse(decisions.any { it.action == "SEND" && it.opportunityId != seedOpp })
+    }
+
+    @Test
     fun busyDuringModelCallPreventsSendAndLeavesPending() = runBlocking {
         engine.beforeChat = {
             preferences.save(
