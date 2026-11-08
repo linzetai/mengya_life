@@ -323,7 +323,14 @@ class AppContainer(context: Context) {
     }
 
     val careRepository: com.mengyalife.app.data.care.CareRepository by lazy {
-        com.mengyalife.app.data.care.CareRepository(database.careDao())
+        // QA 可控时钟：决策 created_at 与 Runner 使用同一虚拟时间；生产为真实时钟。
+        val careClock = {
+            if (BuildConfig.QA_BUILD) {
+                val test = com.mengyalife.app.data.care.CareSettings(appContext).testNow
+                if (test > 0) test else System.currentTimeMillis()
+            } else System.currentTimeMillis()
+        }
+        com.mengyalife.app.data.care.CareRepository(database.careDao(), careClock)
     }
 
     val carePreferenceRepository: com.mengyalife.app.data.care.CarePreferenceRepository by lazy {

@@ -56,3 +56,7 @@
 ## Round 15
 - C 真机：周日 20:00 SEND，reason 引用偏好时段。
 - 仍缺 E TIME 运行中变化；其余 A/B/C/D 主用例已闭合。
+
+## Round 15
+- E4 修复：QA 时钟统一注入 CareRepository，预算/冷却口径一致。
+- 最终：358 JVM、15 instrumented、Debug/QA/lint PASS。
