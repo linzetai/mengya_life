@@ -286,6 +286,23 @@ class CareRunner(
                     careRepository.markStatus(opp.id, "DROPPED")
                     return null
                 }
+                val freshBusy = latestPrefs.any { pref ->
+                    pref.kind == "BUSY" && (
+                        pref.topicKey == null ||
+                            pref.topicKey == opp.planId?.let { "plan:$it" } ||
+                            pref.topicKey == opp.goalId?.let { "goal:$it" } ||
+                            (pref.topicKey.startsWith("topic:") && opp.title.contains(pref.topicKey.removePrefix("topic:")))
+                        )
+                }
+                if (freshBusy) {
+                    careRepository.saveDecision(
+                        opportunityId = opp.id, action = "DEFER",
+                        reason = decision.reason + "｜发送前复核：用户刚设为忙碌",
+                        sourceRefs = opp.type, suggestedText = decision.suggestedText,
+                        avoidJson = null, nextStart = null, nextEnd = null, modelOk = true,
+                    )
+                    return null
+                }
                 if (!careRepository.claimSending(opp.id)) return null
                 val text = decision.suggestedText ?: defaultText(opp.title)
                 val message = conversations.appendAssistant(
