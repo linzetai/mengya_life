@@ -32,6 +32,27 @@ class CareDaoIntegrationTest {
     fun tearDown() = db.close()
 
     @Test
+    fun concurrentSendingClaimOnlyOneWins() = runBlocking {
+        val dao = db.careDao()
+        val now = System.currentTimeMillis()
+        val oppId = dao.insertOpportunity(
+            CareOpportunityEntity(
+                type = "TEST", sourceId = 3, planId = null, goalId = null, title = "并发认领",
+                discoveredAt = now, windowStart = now, windowEnd = now + 1000,
+                expiresAt = now + 2000, sensitivity = "NORMAL", status = "PENDING",
+                dedupeKey = "test:3", createdAt = now, updatedAt = now,
+            ),
+        )
+        val results = coroutineScope {
+            val a = async(Dispatchers.IO) { dao.claimSending(oppId, now) }
+            val b = async(Dispatchers.IO) { dao.claimSending(oppId, now) }
+            listOf(a.await(), b.await())
+        }
+        assertEquals(1, results.count { it == 1 })
+        assertEquals("SENDING", dao.findOpportunity(oppId)!!.status)
+    }
+
+    @Test
     fun concurrentClaimOnlyOneWins() = runBlocking {
         val dao = db.careDao()
         val now = System.currentTimeMillis()

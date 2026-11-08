@@ -20,3 +20,11 @@
 
 ## 结论
 CONDITIONAL：关键代码、备份、通知幂等、动作与基础集成测试已 PASS；崩溃注入与完整 Worker 并发仍缺。
+
+## 追加（Round 6）
+- Instrumented（真机）：`OK (4 tests)`：
+  - CareDaoIntegrationTest：通知 claim 幂等、两个并发 claim 仅 1 成功、SENDING→UNKNOWN；
+  - 并发机会认领仅 1 成功；
+  - CareMigrationTest：v21→v22 迁移新增 notified_at，旧行保留。
+- 命令：`adb shell am instrument -w com.mengyalife.app.test/androidx.test.runner.AndroidJUnitRunner`
+- 仍未覆盖：claim→写消息→写决策→通知之间的逐点崩溃注入；消息写入本身无 opportunity 幂等键，D06 仅部分覆盖。
