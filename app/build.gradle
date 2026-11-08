@@ -40,6 +40,11 @@ android {
         }
     }
 
+    defaultConfig {
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        manifestPlaceholders = [appLabel: '萌芽人生', careReceiverExported: 'false']
+    }
+
     buildTypes {
         debug {
             minifyEnabled false
@@ -57,7 +62,7 @@ android {
             versionNameSuffix '-qa'
             signingConfig signingConfigs.debug
             matchingFallbacks = ['debug']
-            manifestPlaceholders = [appLabel: '萌芽人生 QA']
+            manifestPlaceholders = [appLabel: '萌芽人生 QA', careReceiverExported: 'true']
             buildConfigField 'String', 'DATABASE_NAME', '"mengya-life-qa.db"'
             buildConfigField 'String', 'PREFS_NAME', '"mengya_settings_qa"'
             buildConfigField 'String', 'AI_PREFS_NAME', '"mengya_ai_qa"'
@@ -79,6 +84,7 @@ android {
     }
 
     lint {
+        lintConfig file('lint.xml')
         abortOnError false
     }
 }
@@ -124,5 +130,8 @@ dependencies {
 
     // JVM 单元测试（不依赖真机）
     testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.room:room-testing:2.7.2'
     testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2'
 }

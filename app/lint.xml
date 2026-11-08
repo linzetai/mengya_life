@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!-- 0.24.1：该 Detector 与当前 AGP 不兼容，单独修复工具链前先跳过。 -->
+    <issue id="NullSafeMutableLiveData" severity="ignore" />
+</lint>
