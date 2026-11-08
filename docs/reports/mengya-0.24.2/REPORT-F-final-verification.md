@@ -12,3 +12,7 @@
 ## Round 2
 - JVM 356 tests PASS / 0 FAIL（新增 RestoreCompatibilityTest 4 项）。
 - A1/A5/A6 设备 fixture 未做；Gate D 事务/挂起测试未做。
+
+## Round 3
+- 新增迁移 instrumented 测试但未运行：设备掉线（port 44435 connection refused）。
+- JVM 356 PASS（上轮）；本轮无 JVM 变更。
