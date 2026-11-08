@@ -3,3 +3,8 @@
 - Debug/QA 构建待最终命令。
 - 真机：本轮未跑 0.24.2 设备回归。
 - 结论：CONDITIONAL/BLOCKED：A1 fixture、D 事务/栅栏挂起测试、B 迁移 instrumented、C 真机、E 新鲜 BUSY 未完成；且存在 1 个非本轮代码的 JVM 失败需先定位。
+
+## Round 1 更新
+- JVM：352 tests PASS / 0 FAIL。
+- 修复 WeeklyAiTest 测试时钟误传（trailing lambda 给了 beforeComplete，导致按系统周计算）；改为显式 now={now}，非生产代码问题。
+- 未变：A1 旧 fixture、D 事务/挂起测试、B 迁移 instrumented、C 真机、E 新鲜 BUSY 未完成。

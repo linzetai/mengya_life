@@ -71,7 +71,7 @@ class WeeklyAiTest {
         val engine = ScriptedAdvisorEngine().apply { enqueue(AdvisorChatResult.Success(valid)) }
         val dao = FakeAiDao()
         val config = FakeConfigRepository().apply { save("https://api.example.com/v1", "m", "sk") }
-        val svc = WeeklyAiService(AiSource(snapshot), FakeConsentRepository().apply { grant("https://api.example.com/v1", AiConsentRules.allCategories) }, config, engine, dao) { now }
+        val svc = WeeklyAiService(AiSource(snapshot), FakeConsentRepository().apply { grant("https://api.example.com/v1", AiConsentRules.allCategories) }, config, engine, dao, now = { now })
         val a = svc.generateIfAllowed()
         val b = svc.generateIfAllowed()
         assertEquals("READY", a?.status)
