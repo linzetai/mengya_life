@@ -17,7 +17,7 @@ class BackupExporter(
     private val newCryptoParams: () -> CryptoParams = { BackupCrypto.newParams() },
 ) {
 
-    suspend fun build(passphrase: CharArray): BackupArtifact {
+    suspend fun build(passphrase: CharArray, includeRecordProposals: Boolean = true): BackupArtifact {
         if (passphrase.isEmpty()) throw BackupException("PASSPHRASE_EMPTY", "备份口令不能为空")
         val settingsBefore = settingsSource.load()
         val snapshot = snapshotSource.load()
@@ -27,7 +27,10 @@ class BackupExporter(
         }
         val createdAt = now()
         val backupId = newBackupId()
-        val built = BackupFormatV2.encodePayload(snapshot, settingsAfter, appInfo, backupId, createdAt)
+        val built = BackupFormatV2.encodePayload(
+            snapshot, settingsAfter, appInfo, backupId, createdAt,
+            includeRecordProposals = includeRecordProposals,
+        )
         val validation = BackupValidator.validatePayload(
             built.payload, built.payloadSha256, built.payloadBytes,
         )

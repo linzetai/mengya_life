@@ -19,3 +19,8 @@
   `FAILED_BEFORE_COMMIT / 恢复事务失败，旧数据已保留：QA injected transaction failure`
 - 失败前后计数一致：journal=4, goals=13, care_opportunities=4, care_preferences=5；API Key 仍存在。
 - 未验证：授权状态显式读取（未变）、旧格式备份设备预览（A5）。
+
+## Round 10（设备 A5）
+- BackupExporter.build 增加 includeRecordProposals=false；QA 钩子 qa_legacy_roundtrip 用真实编码器生成无 recordProposals 备份并执行恢复。
+- 结果：`SUCCESS，已保留本机 Key 与授权`；恢复后 record_proposals=0、care_preferences=5、care_decisions=5、care_opportunities=4，Key 保留。
+- BackupValidator 允许缺失可选表 perTableSha256（旧格式）。

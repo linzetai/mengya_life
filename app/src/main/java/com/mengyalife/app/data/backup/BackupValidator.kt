@@ -323,6 +323,7 @@ object BackupValidator {
         } else {
             for ((key, array) in tableArrays) {
                 val expected = hashes[key]?.jsonPrimitive?.contentOrNull
+                if (expected == null && key in com.mengyalife.app.data.restore.RestoreTables.OPTIONAL) continue
                 if (expected != CanonicalJson.sha256Hex(array)) {
                     errors += "$key perTableSha256 不匹配"
                 }

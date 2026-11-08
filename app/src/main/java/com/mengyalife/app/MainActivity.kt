@@ -77,6 +77,21 @@ class MainActivity : ComponentActivity() {
             if (intent?.getBooleanExtra("qa_care_now", false) == true) {
                 com.mengyalife.app.data.care.CareScheduler.runNow(this)
             }
+            if (intent?.getBooleanExtra("qa_legacy_roundtrip", false) == true) {
+                val app = application as MengyaApplication
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    runCatching {
+                        app.container.restoreCoordinator.awaitReady()
+                        val pass = "qa-legacy".toCharArray()
+                        // 版本固定 fixture：真实编码器，但不含 0.24.1 的 recordProposals。
+                        val artifact = app.container.backupExporter.build(pass, includeRecordProposals = false)
+                        val result = app.container.restoreCoordinator.execute(
+                            artifact.bytes, pass, artifact.payloadSha256, artifact.backupId,
+                        )
+                        android.util.Log.i("CareRoundtrip", "legacy=$result")
+                    }.onFailure { android.util.Log.e("CareRoundtrip", "legacy failed", it) }
+                }
+            }
             if (intent?.getBooleanExtra("qa_care_roundtrip", false) == true) {
                 val app = application as MengyaApplication
                 kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {

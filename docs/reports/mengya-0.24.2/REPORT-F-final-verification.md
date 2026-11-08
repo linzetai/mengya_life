@@ -36,3 +36,8 @@
 ## Round 9
 - A6 设备失败注入：原库计数不变、Key 保留。
 - 仍缺 A5 旧格式设备预览、D 恢复挂起点、C 真机。
+
+## Round 10
+- A5 设备 legacy 恢复 PASS（record_proposals=0，偏好/Key 保留）。
+- 修复可选表哈希校验过严。
+- 仍缺：D 恢复挂起点交错、C 真机跨周、E TIME。
