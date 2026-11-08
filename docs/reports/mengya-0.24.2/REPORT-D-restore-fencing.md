@@ -19,3 +19,7 @@
   - 旧 generation 写持有期间恢复等待；
   - 恢复完成后 `withWrite(oldGeneration)` 抛 RestoreException，旧写不落库。
 - 这是 D1/D4 的屏障级证明；仍缺 CareRunner 事务内“claim 后恢复”的 Runner 级挂起点测试。
+
+## Round 12/13
+- CareRunner 增加默认关闭的 `beforeCommit` 事务挂起点（生产 null，无行为变化）；位于 claimSending 之后、写消息之前。
+- 后续 instrumented 可用真实 Room + 该 hook 在事务内启动并完成恢复，验证旧结果不落库。

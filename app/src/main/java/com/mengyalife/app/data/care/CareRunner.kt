@@ -45,6 +45,8 @@ class CareRunner(
     private val restoreGeneration: () -> Long = { 0L },
     private val database: com.mengyalife.app.data.local.MengyaDatabase? = null,
     private val writeBarrier: com.mengyalife.app.data.restore.RestoreWriteBarrier? = null,
+    /** QA/instrumented 专用事务挂起点；生产为 null。 */
+    private val beforeCommit: (suspend () -> Unit)? = null,
     private val now: () -> Long = System::currentTimeMillis,
     private val zone: ZoneId = ZoneId.systemDefault(),
 ) {
@@ -308,6 +310,7 @@ class CareRunner(
                 }
                 suspend fun commitSend(): CareCard? {
                     if (!careRepository.claimSending(opp.id)) return null
+                    beforeCommit?.invoke()
                     val text = decision.suggestedText ?: defaultText(opp.title)
                     val message = conversations.appendAssistant(
                         content = text, contextEpoch = consent.epoch,
