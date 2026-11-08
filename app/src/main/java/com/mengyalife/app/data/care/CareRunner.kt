@@ -225,7 +225,7 @@ class CareRunner(
         val timePref = activePrefs.firstOrNull { it.kind == "TIME" }
         // 时段偏好只约束“周回顾”类机会，不得拦截无关的计划/目标关心。
         val timeWindow = com.mengyalife.app.domain.care.CareTimePreferenceCodec.decode(timePref?.windowNote)
-        val appliesTime = opp.type == "WEEKLY_REVIEW" && timeWindow != null
+        val appliesTime = com.mengyalife.app.domain.care.CareTimePreferenceScope.applies(opp.type) && timeWindow != null
         val inPreferredWindow = !appliesTime || timeWindow!!.contains(nowMs, zone)
         if (decision.action == CareAction.SEND && !inPreferredWindow) {
             careRepository.saveDecision(

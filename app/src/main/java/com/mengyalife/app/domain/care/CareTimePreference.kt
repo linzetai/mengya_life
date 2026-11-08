@@ -13,6 +13,11 @@ data class CareTimeWindow(val day: DayOfWeek, val hour: Int) {
     }
 }
 
+object CareTimePreferenceScope {
+    /** 时段偏好只约束周回顾；计划/目标关心不受影响。 */
+    fun applies(opportunityType: String): Boolean = opportunityType == "WEEKLY_REVIEW"
+}
+
 object CareTimePreferenceCodec {
     fun decode(note: String?): CareTimeWindow? {
         val parts = note?.trim()?.split(" ") ?: return null

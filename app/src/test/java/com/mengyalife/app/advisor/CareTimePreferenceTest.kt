@@ -33,5 +33,12 @@ class CareTimePreferenceTest {
         assertFalse(w.contains(monday20, zone))
     }
 
+    @Test
+    fun `time scope applies only to weekly review`() {
+        assertTrue(com.mengyalife.app.domain.care.CareTimePreferenceScope.applies("WEEKLY_REVIEW"))
+        assertFalse(com.mengyalife.app.domain.care.CareTimePreferenceScope.applies("PLAN_CHECKIN"))
+        assertFalse(com.mengyalife.app.domain.care.CareTimePreferenceScope.applies("GOAL_STALL"))
+    }
+
     private fun assertEqualsDay(day: DayOfWeek) = org.junit.Assert.assertEquals(DayOfWeek.SUNDAY, day)
 }
