@@ -23,6 +23,17 @@ data class RestoredSettings(
     val aiModel: String,
 )
 
+object RestoreRowNormalizer {
+    fun normalize(key: String, row: MutableMap<String, JsonElement>): MutableMap<String, JsonElement> {
+        if (key == "careDecisions") {
+            for (column in listOf("notifiedAt", "messageId", "deliveredAt")) {
+                if (!row.containsKey(column)) row[column] = kotlinx.serialization.json.JsonNull
+            }
+        }
+        return row
+    }
+}
+
 data class RestorePlan(
     val attemptId: String,
     val backupId: String,
@@ -87,19 +98,10 @@ object RestorePlanBuilder {
         restored["insightReports"] = rows(data["insightReports"]).sortedBy { it["id"]!!.jsonPrimitive.content }
         restored["weeklyReviews"] = rows(data["weeklyReviews"]).sortedBy { it["id"]!!.jsonPrimitive.content }
         // 0.21/0.22 新增表对旧备份可缺省；缺省按空表恢复。
-        fun normalizeRow(key: String, row: MutableMap<String, JsonElement>): MutableMap<String, JsonElement> {
-            // 历史备份没有 0.24.1 新列：仅在计划内补 null，原始 payload/完整性校验不变。
-            if (key == "careDecisions") {
-                for (column in listOf("notifiedAt", "messageId", "deliveredAt")) {
-                    if (!row.containsKey(column)) row[column] = kotlinx.serialization.json.JsonNull
-                }
-            }
-            return row
-        }
         fun optionalRows(key: String): List<MutableMap<String, JsonElement>> {
             val array = data[key] as? JsonArray ?: return emptyList()
             return rows(array)
-                .map { normalizeRow(key, it) }
+                .map { RestoreRowNormalizer.normalize(key, it) }
                 .sortedBy { it["id"]?.jsonPrimitive?.content?.toLongOrNull() ?: 0L }
         }
         restored["smallPlans"] = optionalRows("smallPlans")

@@ -1,6 +1,8 @@
 package com.mengyalife.app.data.restore
 
 import com.mengyalife.app.data.backup.BackupFormatV2
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonPrimitive
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -57,6 +59,16 @@ data class RestorePreview(
         get() = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
             .withZone(ZoneId.systemDefault())
             .format(Instant.ofEpochMilli(createdAt))
+}
+
+object RestoreCountResolver {
+    /** 可选表缺失记 0；必需表缺失抛错。 */
+    fun resolve(counts: kotlinx.serialization.json.JsonObject): Map<String, Int> =
+        RestoreTables.ALL.associateWith { key ->
+            counts[key]?.jsonPrimitive?.intOrNull
+                ?: if (key in RestoreTables.OPTIONAL) 0
+                else throw RestoreException("COUNTS_MISSING", "缺少计数 $key")
+        }
 }
 
 class RestoreException(

@@ -8,3 +8,7 @@
 - JVM：352 tests PASS / 0 FAIL。
 - 修复 WeeklyAiTest 测试时钟误传（trailing lambda 给了 beforeComplete，导致按系统周计算）；改为显式 now={now}，非生产代码问题。
 - 未变：A1 旧 fixture、D 事务/挂起测试、B 迁移 instrumented、C 真机、E 新鲜 BUSY 未完成。
+
+## Round 2
+- JVM 356 tests PASS / 0 FAIL（新增 RestoreCompatibilityTest 4 项）。
+- A1/A5/A6 设备 fixture 未做；Gate D 事务/挂起测试未做。
