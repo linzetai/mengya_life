@@ -44,6 +44,7 @@ class RestoreTransaction(private val database: MengyaDatabase) {
         insertCare(db, plan.rows["careDecisions"].orEmpty(), "care_decisions")
         insertCare(db, plan.rows["careFeedback"].orEmpty(), "care_feedback")
         insertCare(db, plan.rows["carePreferences"].orEmpty(), "care_preferences")
+        insertCare(db, plan.rows["recordProposals"].orEmpty(), "record_proposals")
 
         database.appMetaDao().upsert(
             AppMetaEntity(
@@ -65,7 +66,7 @@ class RestoreTransaction(private val database: MengyaDatabase) {
             "growth_signals", "goal_proposals", "advisor_messages", "goal_checkins",
             "goals", "journal_entries",
             "small_plans", "plan_events", "plan_progress",
-            "care_opportunities", "care_decisions", "care_feedback", "care_preferences",
+            "care_opportunities", "care_decisions", "care_feedback", "care_preferences", "record_proposals",
         ).forEach { db.execSQL("DELETE FROM `$it`") }
     }
 
@@ -147,7 +148,7 @@ class RestoreTransaction(private val database: MengyaDatabase) {
             actual[key] = JsonArray(rows)
             val optional = key in setOf(
                 "smallPlans", "planEvents", "planProgress",
-                "careOpportunities", "careDecisions", "careFeedback", "carePreferences",
+                "careOpportunities", "careDecisions", "careFeedback", "carePreferences", "recordProposals",
             )
             val expected = plan.perTableSha256[key]
                 ?: if (optional) {

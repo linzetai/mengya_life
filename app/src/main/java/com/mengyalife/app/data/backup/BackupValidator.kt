@@ -159,6 +159,19 @@ object BackupValidator {
             ),
             optional = setOf("suggestedText", "avoidJson", "nextWindowStart", "nextWindowEnd", "messageId", "deliveredAt", "notifiedAt"),
         ),
+        "recordProposals" to Fields(
+            required = mapOf(
+                "id" to FieldType.STRING, "messageId" to FieldType.STRING, "createdAt" to FieldType.LONG,
+                "status" to FieldType.STRING, "kind" to FieldType.STRING, "amountKind" to FieldType.STRING,
+                "note" to FieldType.STRING, "intent" to FieldType.STRING, "originalText" to FieldType.STRING,
+            ),
+            optional = setOf(
+                "goalId", "goalTitle", "goalCandidatesJson", "metricValue", "metricUnit", "occurredAt",
+                "pendingFieldsJson", "appliedCheckinId", "diaryTitle", "diaryBody", "diaryEntryId",
+                "sourceMessageIdsJson", "goalChangeJson", "appliedGoalIdsJson", "planChangeJson",
+                "planProgressJson", "appliedPlanId", "appliedAt", "undoneAt",
+            ),
+        ),
         "carePreferences" to Fields(
             required = mapOf(
                 "id" to FieldType.LONG, "kind" to FieldType.STRING, "value" to FieldType.STRING,
@@ -244,7 +257,7 @@ object BackupValidator {
         val tableArrays = linkedMapOf<String, JsonArray>()
         val optionalTables = setOf(
             "smallPlans", "planEvents", "planProgress",
-            "careOpportunities", "careDecisions", "careFeedback", "carePreferences",
+            "careOpportunities", "careDecisions", "careFeedback", "carePreferences", "recordProposals",
         )
         for (key in BackupFormatV2.TABLE_KEYS) {
             val array = data[key] as? JsonArray

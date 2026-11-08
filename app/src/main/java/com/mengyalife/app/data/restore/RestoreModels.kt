@@ -99,5 +99,6 @@ object RestoreTables {
         "careDecisions" to "care_decisions",
         "careFeedback" to "care_feedback",
         "carePreferences" to "care_preferences",
+        "recordProposals" to "record_proposals",
     )
 }

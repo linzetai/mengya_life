@@ -124,10 +124,26 @@ class CareRunner(
         fun suppressedOpportunity(oppId: Long, planId: Long?, goalId: Long?, title: String): Boolean {
             return suppressed(planId, goalId, title)
         }
-        val pending = careRepository.pending()
-            .filter { it.expiresAt >= nowMs }
-            .filter { !suppressedOpportunity(it.id, it.planId, it.goalId, it.title) }
-            .take(5)
+        val pending = buildList {
+            for (opp in careRepository.pending()) {
+                if (opp.expiresAt < nowMs) continue
+                if (suppressedOpportunity(opp.id, opp.planId, opp.goalId, opp.title)) continue
+                val latest = careRepository.latestDecision(opp.id)
+                if (latest != null && (latest.action == "SCHEDULE" || latest.action == "DEFER")) {
+                    val start = latest.nextWindowStart ?: 0L
+                    val end = latest.nextWindowEnd ?: 0L
+                    if (start > nowMs) continue
+                    if (end > 0L && nowMs > end) {
+                        careRepository.markStatus(opp.id, "EXPIRED")
+                        continue
+                    }
+                }
+                val fb = careRepository.latestFeedback(opp.id)
+                if (fb?.kind == "DEFERRED" && nowMs - fb.createdAt < 24L * 3600_000) continue
+                add(opp)
+                if (size >= 5) break
+            }
+        }
         android.util.Log.i("CareRun", "pending=${pending.size} drafts=${drafts.size} now=$nowMs")
         if (pending.isEmpty()) return null
 
@@ -198,6 +214,17 @@ class CareRunner(
             }
         android.util.Log.i("CareRun", "action=${decision.action} id=${decision.opportunityId}")
         val opp = pending.first { it.id == decision.opportunityId }
+        val timePref = activePrefs.firstOrNull { it.kind == "TIME" }
+        val inPreferredWindow = timePref == null || withinTimePreference(nowMs, timePref.windowNote, zone)
+        if (decision.action == CareAction.SEND && !inPreferredWindow) {
+            careRepository.saveDecision(
+                opportunityId = opp.id, action = "DEFER",
+                reason = decision.reason + "｜避开用户偏好时段：" + timePref?.windowNote,
+                sourceRefs = opp.type, suggestedText = decision.suggestedText,
+                avoidJson = null, nextStart = null, nextEnd = null, modelOk = true,
+            )
+            return null
+        }
         if (decision.action == CareAction.SEND && busy) {
             careRepository.saveDecision(
                 opportunityId = opp.id, action = "DEFER",
@@ -272,6 +299,18 @@ class CareRunner(
         )
         if (decision.action == CareAction.DROP) careRepository.markStatus(opp.id, "DROPPED")
         return null
+    }
+
+    private fun withinTimePreference(now: Long, note: String?, zone: ZoneId): Boolean {
+        if (note.isNullOrBlank()) return true
+        val parts = note.split(" ")
+        if (parts.size != 2) return true
+        val day = runCatching { java.time.DayOfWeek.valueOf(parts[0]) }.getOrNull() ?: return true
+        val hour = parts[1].substringBefore(":").toIntOrNull() ?: return true
+        val date = java.time.Instant.ofEpochMilli(now).atZone(zone)
+        if (date.dayOfWeek != day) return false
+        val diff = kotlin.math.abs(date.hour - hour)
+        return diff <= 2
     }
 
     private fun defaultText(title: String) = "上次说的「$title」，最近有没有新进展？"

@@ -1,8 +1,8 @@
-# Gate 3 时间与反馈
+# Gate 3 调度与反馈（代码完成，设备待验）
 
-- 时间偏好仍只进入 prompt，无应用层硬窗口：FAIL（T01）。
-- SCHEDULE/DEFER 的 nextWindowStart/End 只落库，未参与候选过滤：FAIL（T02/T03）。
-- 通知“稍后”仍只 cancel，无持久化延期：FAIL（T04）。
-- “不再提醒”Receiver 仍使用无人管理的 CoroutineScope，未 goAsync：FAIL（T06）。
-- “不再提醒”写入 feedback + status，但未写 care_preferences：部分（T05 重启有效已验证，0.24）。
-结论：Gate 3 未关闭，阻塞 0.24.1 PASS。
+- 时间偏好：Runner 在 SEND 前检查 TIME window_note（SUN 20:00，允许 ±2h）；偏离则 DEFER，不投递。
+- nextWindowStart/End：候选进入前读取最近决策；未到 start 跳过，超过 end 标 EXPIRED；到期不补发。
+- “稍后”：Receiver 写 feedback DEFERRED，机会回 PENDING；24h 内 Runner 跳过；之后仍需全量授权/静音/频控。
+- “不再提醒”：Receiver 用 goAsync，写 feedback SILENCED + status DISMISSED + care_preferences SILENCED（topic 级）。
+- 授权撤回：BoundCareContext 在请求前/后拦截；旧预约不会发送。
+- 验收：T01/T02/T03/T04/T05/T07 代码路径完成；T06 goAsync 完成；均未真机验证。

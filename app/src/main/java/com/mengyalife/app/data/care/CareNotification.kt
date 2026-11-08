@@ -82,11 +82,35 @@ class CareActionReceiver : BroadcastReceiver() {
         val id = intent.getLongExtra(CareNotification.EXTRA_CARE_ID, -1L)
         if (id <= 0) return
         CareNotification.cancel(context, id)
-        if (intent.action == CareNotification.ACTION_SILENCE) {
-            val app = context.applicationContext as? MengyaApplication ?: return
-            CoroutineScope(Dispatchers.IO).launch {
-                app.container.careRepository.addFeedback(id, "SILENCED")
-                app.container.careRepository.markStatus(id, "DISMISSED")
+        val app = context.applicationContext as? MengyaApplication ?: return
+        val pending = goAsync()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val repo = app.container.careRepository
+                val prefs = app.container.carePreferenceRepository
+                when (intent.action) {
+                    CareNotification.ACTION_LATER -> {
+                        // MVP：记录延期，24 小时内不再考虑该机会。
+                        repo.addFeedback(id, "DEFERRED")
+                        repo.markStatus(id, "PENDING")
+                    }
+                    CareNotification.ACTION_SILENCE -> {
+                        val opp = repo.find(id)
+                        repo.addFeedback(id, "SILENCED")
+                        repo.markStatus(id, "DISMISSED")
+                        if (opp != null) {
+                            val key = opp.planId?.let { "plan:$it" } ?: opp.goalId?.let { "goal:$it" }
+                                ?: "topic:${opp.title}"
+                            prefs.save(
+                                kind = "TOPIC", topicKey = key, topicLabel = opp.title,
+                                value = "SILENCED", source = "USER_EXPLICIT",
+                                sourceMessageId = null, sourceExcerpt = "通知动作：不再提醒",
+                            )
+                        }
+                    }
+                }
+            } finally {
+                pending.finish()
             }
         }
     }

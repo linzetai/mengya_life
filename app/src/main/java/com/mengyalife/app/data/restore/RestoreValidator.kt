@@ -107,7 +107,7 @@ class RestoreValidator(
         structural.warnings.forEach { warning("UNKNOWN_FIELD", it) }
 
         val data = payload["data"] as? JsonObject ?: fail("DATA_MISSING", "缺少 data")
-        val optionalTables = setOf("smallPlans", "planEvents", "planProgress", "careOpportunities", "careDecisions", "careFeedback", "carePreferences")
+        val optionalTables = setOf("smallPlans", "planEvents", "planProgress", "careOpportunities", "careDecisions", "careFeedback", "carePreferences", "recordProposals")
         val rows = RestoreTables.ALL.associateWith { key ->
             (data[key] as? JsonArray)?.map { it as? JsonObject ?: fail("ROW_TYPE", "$key 行不是对象") }
                 ?: if (key in optionalTables) emptyList() else fail("TABLE_MISSING", "缺少表 $key")

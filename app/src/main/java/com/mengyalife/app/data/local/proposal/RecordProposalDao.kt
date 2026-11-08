@@ -10,6 +10,9 @@ interface RecordProposalDao {
     @Query("SELECT * FROM record_proposals ORDER BY created_at ASC, id ASC")
     fun observeAll(): Flow<List<RecordProposalEntity>>
 
+    @Query("SELECT * FROM record_proposals ORDER BY created_at ASC, id ASC")
+    suspend fun loadAll(): List<RecordProposalEntity>
+
     @Query("SELECT * FROM record_proposals WHERE id = :id LIMIT 1")
     suspend fun findById(id: String): RecordProposalEntity?
 

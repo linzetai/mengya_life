@@ -104,6 +104,9 @@ interface CareDao {
     @Query("SELECT * FROM care_decisions ORDER BY created_at DESC LIMIT 50")
     suspend fun recentDecisions(): List<CareDecisionEntity>
 
+    @Query("SELECT * FROM care_decisions ORDER BY created_at ASC, id ASC")
+    suspend fun allDecisions(): List<CareDecisionEntity>
+
     @Insert
     suspend fun insertFeedback(entity: CareFeedbackEntity): Long
 

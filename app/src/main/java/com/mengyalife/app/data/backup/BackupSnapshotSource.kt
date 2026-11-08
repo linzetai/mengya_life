@@ -32,9 +32,10 @@ class RoomBackupSnapshotSource(private val database: MengyaDatabase) : BackupSna
             planEvents = database.smallPlanDao().loadAllEvents(),
             planProgress = database.smallPlanDao().loadAllProgress(),
             careOpportunities = database.careDao().loadAllOpportunities(),
-            careDecisions = database.careDao().recentDecisions(),
+            careDecisions = database.careDao().allDecisions(),
             careFeedback = database.careDao().allFeedback(),
             carePreferences = database.carePreferenceDao().all(),
+            recordProposals = database.recordProposalDao().loadAll(),
         )
     }
 }

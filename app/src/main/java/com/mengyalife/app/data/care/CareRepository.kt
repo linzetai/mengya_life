@@ -86,6 +86,8 @@ class CareRepository(private val dao: CareDao, private val now: () -> Long = Sys
 
     suspend fun latestSentDecision(): CareDecisionEntity? = dao.latestSentDecision()
 
+    suspend fun latestFeedback(id: Long) = dao.latestFeedback(id)
+
     /** 系统通知最多一次；返回 true 才允许调用 NotificationManager。 */
     suspend fun claimNotification(decisionId: Long): Boolean = dao.claimNotification(decisionId, now()) == 1
 }

@@ -98,6 +98,7 @@ object RestorePlanBuilder {
         restored["careDecisions"] = optionalRows("careDecisions")
         restored["careFeedback"] = optionalRows("careFeedback")
         restored["carePreferences"] = optionalRows("carePreferences")
+        restored["recordProposals"] = optionalRows("recordProposals")
 
         val settings = payload["settings"] as? JsonObject ?: throw RestoreException("SETTINGS_MISSING", "缺少 settings")
         val weekly = settings["weeklyReview"] as? JsonObject

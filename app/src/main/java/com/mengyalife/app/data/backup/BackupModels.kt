@@ -30,12 +30,13 @@ data class BackupSnapshot(
     val careDecisions: List<com.mengyalife.app.data.local.care.CareDecisionEntity> = emptyList(),
     val careFeedback: List<com.mengyalife.app.data.local.care.CareFeedbackEntity> = emptyList(),
     val carePreferences: List<com.mengyalife.app.data.local.care.CarePreferenceEntity> = emptyList(),
+    val recordProposals: List<com.mengyalife.app.data.local.proposal.RecordProposalEntity> = emptyList(),
 ) {
     val totalRows: Int
         get() = journalEntries.size + goals.size + goalCheckins.size + advisorMessages.size +
             goalProposals.size + growthSignals.size + growthMemories.size + insightReports.size +
             weeklyReviews.size + weeklyAiReviews.size + smallPlans.size + planEvents.size + planProgress.size +
-            careOpportunities.size + careDecisions.size + careFeedback.size + carePreferences.size
+            careOpportunities.size + careDecisions.size + careFeedback.size + carePreferences.size + recordProposals.size
 
     fun counts(): Map<String, Int> = linkedMapOf(
         "journalEntries" to journalEntries.size,
@@ -55,6 +56,7 @@ data class BackupSnapshot(
         "careDecisions" to careDecisions.size,
         "careFeedback" to careFeedback.size,
         "carePreferences" to carePreferences.size,
+        "recordProposals" to recordProposals.size,
     )
 }
 

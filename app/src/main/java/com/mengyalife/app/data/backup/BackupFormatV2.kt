@@ -37,7 +37,7 @@ object BackupFormatV2 {
         "journalEntries", "goals", "goalCheckins", "advisorMessages", "goalProposals",
         "growthSignals", "growthMemories", "insightReports", "weeklyReviews", "weeklyAiReviews",
         "smallPlans", "planEvents", "planProgress",
-        "careOpportunities", "careDecisions", "careFeedback", "carePreferences",
+        "careOpportunities", "careDecisions", "careFeedback", "carePreferences", "recordProposals",
     )
     val REQUIRED_FEATURES = listOf("core", "derived-insight", "derived-weekly", "weekly-ai-archive")
 
@@ -223,6 +223,25 @@ object BackupFormatV2 {
                     put("modelOk", e.modelOk); put("createdAt", e.createdAt)
                     putNullable("messageId", e.messageId); putNullable("deliveredAt", e.deliveredAt)
                     putNullable("notifiedAt", e.notifiedAt)
+                })
+            }
+        })
+        addTable("recordProposals", buildJsonArray {
+            snapshot.recordProposals.sortedBy { it.createdAt }.forEach { e ->
+                add(buildJsonObject {
+                    put("id", e.id); put("messageId", e.messageId); put("createdAt", e.createdAt)
+                    put("status", e.status); put("kind", e.kind); putNullable("goalId", e.goalId)
+                    putNullable("goalTitle", e.goalTitle); putNullable("goalCandidatesJson", e.goalCandidatesJson)
+                    put("amountKind", e.amountKind); putNullable("metricValue", e.metricValue)
+                    putNullable("metricUnit", e.metricUnit); put("note", e.note)
+                    putNullable("occurredAt", e.occurredAt); putNullable("pendingFieldsJson", e.pendingFieldsJson)
+                    put("intent", e.intent); put("originalText", e.originalText)
+                    putNullable("appliedCheckinId", e.appliedCheckinId); putNullable("diaryTitle", e.diaryTitle)
+                    putNullable("diaryBody", e.diaryBody); putNullable("diaryEntryId", e.diaryEntryId)
+                    putNullable("sourceMessageIdsJson", e.sourceMessageIdsJson); putNullable("goalChangeJson", e.goalChangeJson)
+                    putNullable("appliedGoalIdsJson", e.appliedGoalIdsJson); putNullable("planChangeJson", e.planChangeJson)
+                    putNullable("planProgressJson", e.planProgressJson); putNullable("appliedPlanId", e.appliedPlanId)
+                    putNullable("appliedAt", e.appliedAt); putNullable("undoneAt", e.undoneAt)
                 })
             }
         })
