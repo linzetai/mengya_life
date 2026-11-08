@@ -8,3 +8,8 @@
 - SEND 提交改为：RestoreWriteBarrier.withWrite(boundGeneration) 包裹 + Room withTransaction(claimSending、appendAssistant、saveDecision、markDelivered、markStatus)。
 - appendAssistant 使用 boundGeneration；boundOk 失败抛 RESTORE_STALE_RESULT，事务回滚。
 - 仍未做：恢复挂起点逐点 instrumented、通知与数据库跨系统原子（仍 at-most-once）。
+
+## Round 8（设备）
+- Instrumented `sendTransactionRollsBackMessageAndDecisionTogether`：事务内插消息+决策后抛错，消息与决策均回滚为 0。
+- 设备 instrumented：`OK (8 tests)`。
+- 仍未做恢复挂起点交错与通知跨系统原子。

@@ -28,3 +28,7 @@
 ## Round 7
 - Gate D 事务/屏障实现；357 JVM PASS；Debug/QA/lint PASS。
 - 未跑：恢复挂起点设备测试、通知跨系统原子验证。
+
+## Round 8
+- 设备 instrumented `OK (8 tests)`（新增事务回滚）。
+- 仍未：A5/A6 设备恢复、D 恢复挂起点、C 真机跨周、E TIME。

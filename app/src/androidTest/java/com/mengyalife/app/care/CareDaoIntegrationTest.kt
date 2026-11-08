@@ -6,6 +6,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.mengyalife.app.data.local.MengyaDatabase
 import com.mengyalife.app.data.local.care.CareDecisionEntity
 import com.mengyalife.app.data.local.care.CareOpportunityEntity
+import androidx.room.withTransaction
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -30,6 +32,39 @@ class CareDaoIntegrationTest {
 
     @After
     fun tearDown() = db.close()
+
+    @Test
+    fun sendTransactionRollsBackMessageAndDecisionTogether() = runBlocking {
+        val now = System.currentTimeMillis()
+        val oppId = db.careDao().insertOpportunity(
+            CareOpportunityEntity(
+                type = "TEST", sourceId = 9, planId = null, goalId = null, title = "事务",
+                discoveredAt = now, windowStart = now, windowEnd = now + 1000,
+                expiresAt = now + 2000, sensitivity = "NORMAL", status = "PENDING",
+                dedupeKey = "test:9", createdAt = now, updatedAt = now,
+            ),
+        )
+        runCatching {
+            db.withTransaction {
+                db.advisorMessageDao().insert(
+                    com.mengyalife.app.data.local.advisor.AdvisorMessageEntity(
+                        id = "tx-message", role = "ASSISTANT", content = "tx", createdAt = now,
+                        status = "SENT", contextEpoch = 1,
+                    ),
+                )
+                db.careDao().insertDecision(
+                    CareDecisionEntity(
+                        opportunityId = oppId, action = "SEND", reason = "tx", sourceRefs = "tx",
+                        suggestedText = "tx", avoidJson = null, nextWindowStart = null, nextWindowEnd = null,
+                        modelOk = true, createdAt = now,
+                    ),
+                )
+                throw IllegalStateException("inject failure")
+            }
+        }
+        assertEquals(0, db.careDao().recentDecisions().size)
+        assertEquals(0, db.advisorMessageDao().observeAll().first().size)
+    }
 
     @Test
     fun crashAfterClaimBeforeMessageDoesNotResend() = runBlocking {
