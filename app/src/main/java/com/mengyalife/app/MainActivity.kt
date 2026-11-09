@@ -83,6 +83,10 @@ class MainActivity : ComponentActivity() {
                 kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
                     runCatching {
                         app.container.restoreCoordinator.awaitReady()
+                        // 固定基线：确保备份里的 endpoint 是 A，避免上次失败把本机改成 B 后污染 fixture。
+                        app.container.advisorConfigRepository.restoreEndpointAndModel(
+                            "https://api.deepseek.com", "deepseek-flash",
+                        )
                         val pass = "qa-endpoint".toCharArray()
                         val artifact = app.container.backupExporter.build(pass)
                         // 让本机 endpoint 与备份中的 endpoint 不同，再把备份恢复回来。

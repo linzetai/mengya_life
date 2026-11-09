@@ -57,3 +57,8 @@
 ## Round 11
 - 重启设备后 endpoint 钩子不再卡加密，恢复返回 SUCCESS；但恢复后 endpoint 仍为切换后的 B、Key 保留，说明备份中的 endpoint 未被应用或策略未命中，与预期“恢复 A→检测变化→删 Key/reset”不符。
 - 加 applier 日志复测时设备再次掉线，未能读取 before/after；该路径仍 BLOCKED，且新增“恢复是否真的应用 endpoint”待查风险。
+
+## Round 12（修正）
+- 上一轮“恢复后 endpoint 仍为 B”系 QA 钩子状态污染：上次失败已把本机 endpoint 改为 B，后续 build 也以 B 为 fixture，策略 naturally 判定“同 endpoint”保留 Key。
+- 钩子已修正：build 前强制 endpoint 回到 A，再切 B、恢复 A，确保覆盖“不同 endpoint”路径。
+- 设备掉线，未复测；endpoint 设备 e2e 仍 BLOCKED。
