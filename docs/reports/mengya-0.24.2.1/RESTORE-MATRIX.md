@@ -8,3 +8,6 @@
 | 无 Key | 变化 | 无 | reset | 必须重配 |
 | 恢复失败 | 保持旧值 | 保留 | 保持 | 原库不变（设备已验证） |
 | 恢复中 Key 删除失败 | 变化 | 未确认 | 未重置 | COMMITTED_NEEDS_CONVERGENCE，维护态 |
+
+## 设备实测（Round 13）
+- A(endpoint/api.deepseek.com) 备份 → 切 B(other.example.com) → 恢复 A：endpoint 回 A，`hasKey=false`，`consent=false`，epoch=7。符合“不同 endpoint 删 Key + 重新授权”。

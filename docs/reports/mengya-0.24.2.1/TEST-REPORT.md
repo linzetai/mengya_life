@@ -62,3 +62,9 @@
 - 上一轮“恢复后 endpoint 仍为 B”系 QA 钩子状态污染：上次失败已把本机 endpoint 改为 B，后续 build 也以 B 为 fixture，策略 naturally 判定“同 endpoint”保留 Key。
 - 钩子已修正：build 前强制 endpoint 回到 A，再切 B、恢复 A，确保覆盖“不同 endpoint”路径。
 - 设备掉线，未复测；endpoint 设备 e2e 仍 BLOCKED。
+
+## Round 13（最终）
+- endpoint 设备 e2e PASS：A 备份 → 切 B → 恢复 A：
+  `SUCCESS hasKey=false consent=false epoch=7`，endpoint 回到 `https://api.deepseek.com`，Key 删除、授权撤销。
+- 新增 CareDeliveryCoordinator 3 项 JVM：ready/stable、maintenance 不 claim、claim 后恢复→拒绝投递。
+- 最终：JVM 365 tests PASS；instrumented 19 tests PASS；Debug/QA/lint PASS。

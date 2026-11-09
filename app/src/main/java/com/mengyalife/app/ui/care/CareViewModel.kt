@@ -195,13 +195,12 @@ class CareViewModel(
         val barrier = writeBarrier
         val generation = barrier?.generation()
         viewModelScope.launch {
-            if (barrier != null && !com.mengyalife.app.data.care.CareDeliveryGate.canDeliver(
-                    barrier.isReady(), generation ?: 0L, barrier.generation(),
-                )) return@launch
-            if (!careRepository.claimNotification(decisionId)) return@launch
-            if (barrier != null && !com.mengyalife.app.data.care.CareDeliveryGate.canDeliver(
-                    barrier.isReady(), generation ?: 0L, barrier.generation(),
-                )) return@launch
+            val coordinator = barrier?.let {
+                com.mengyalife.app.data.care.CareDeliveryCoordinator(it) { id -> careRepository.claimNotification(id) }
+            }
+            if (coordinator != null) {
+                if (!coordinator.approve(decisionId, generation ?: 0L)) return@launch
+            } else if (!careRepository.claimNotification(decisionId)) return@launch
             com.mengyalife.app.data.care.CareNotification.post(
                 context, card.opportunityId, card.text, settings.lockScreenDetail,
             )
