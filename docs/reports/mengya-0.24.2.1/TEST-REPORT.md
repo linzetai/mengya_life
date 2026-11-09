@@ -68,3 +68,7 @@
   `SUCCESS hasKey=false consent=false epoch=7`，endpoint 回到 `https://api.deepseek.com`，Key 删除、授权撤销。
 - 新增 CareDeliveryCoordinator 3 项 JVM：ready/stable、maintenance 不 claim、claim 后恢复→拒绝投递。
 - 最终：JVM 365 tests PASS；instrumented 19 tests PASS；Debug/QA/lint PASS。
+
+## Round 14
+- 新增授权过期单测：同 endpoint 但 consent 无效时，恢复策略不重置、也不自动 grant；必须用户重新授权。
+- JVM 366 tests PASS；instrumented 19 PASS；Debug/QA/lint PASS。
