@@ -32,7 +32,7 @@ import com.mengyalife.app.ui.components.InlineNote
 import com.mengyalife.app.ui.components.SettingsGroup
 import com.mengyalife.app.ui.components.SettingsRow
 
-/** G4A-2A：恢复只读预览。没有执行按钮，不会写 DB/DataStore。 */
+/** 恢复备份：选择文件 → 口令校验 → 预览覆盖范围 → 确认执行 → 结果。 */
 @Composable
 fun RestoreSection() {
     val vm: RestoreViewModel = viewModel(factory = RestoreViewModel.Factory)
@@ -61,23 +61,30 @@ fun RestoreSection() {
             Column(modifier = Modifier.padding(12.dp)) {
                 Text("恢复完成", style = MaterialTheme.typography.titleMedium)
                 Text(message, style = MaterialTheme.typography.bodySmall)
-                Text("API Key 与 AI 授权不会恢复；旧自动发送已关闭。", style = MaterialTheme.typography.bodySmall)
+                Text(
+                    "备份文件不包含 API Key。恢复后本机凭据按服务地址处理：" +
+                        "地址相同则保留；地址不同会删除旧 Key 并撤销授权；每周 AI 回顾会关闭，需要时可重新开启。",
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 TextButton(onClick = { app.container.restoreCoordinator.clearCompletionMessage() }) { Text("关闭提示") }
             }
         }
     }
 
-    SettingsGroup(title = "恢复备份（只读预览）") {
+    SettingsGroup(title = "恢复备份") {
         SettingsRow(
-            title = "选择 v2 备份预览",
-            subtitle = "仅校验并展示将被覆盖的范围；本阶段不会写入数据",
-            badge = "只读",
+            title = "选择 v2 备份文件",
+            subtitle = "先校验口令并预览会被覆盖的记录，确认后才写入",
+            badge = "校验 → 预览 → 确认",
             testTag = "settings_restore_v2",
             onClick = { picker.launch(arrayOf("*/*")) },
         )
         Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)) {
-            InlineNote("只读取你选择的文件；不申请广泛存储权限；不会恢复 API Key/授权/通知权限。")
-            InlineNote("最终执行按钮在 G4A-2B 开放；本阶段没有写入路径。")
+            InlineNote("只读取你选中的文件；应用不申请广泛存储权限。")
+            InlineNote(
+                "恢复会替换本机全部日记、目标与进展。API Key 不在备份里：" +
+                    "同一服务地址保留本机 Key，不同地址会被删除并撤销授权。",
+            )
         }
     }
 
@@ -128,7 +135,7 @@ fun RestoreSection() {
         AlertDialog(
             modifier = Modifier.testTag("restore_preview"),
             onDismissRequest = { vm.dismissPreview() },
-            title = { Text("恢复预览（只读）") },
+            title = { Text("恢复预览") },
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     Text("备份时间：${preview.backupTimeLabel}", style = MaterialTheme.typography.bodySmall)
@@ -150,7 +157,7 @@ fun RestoreSection() {
                     }
                     if (preview.repairs.isNotEmpty()) {
                         Spacer(Modifier.height(8.dp))
-                        Text("可确定修复（仅计划，不执行）", style = MaterialTheme.typography.labelLarge)
+                        Text("兼容修复（执行时按此计划应用）", style = MaterialTheme.typography.labelLarge)
                         preview.repairs.forEach { r -> Text("${r.action}：${r.count}", style = MaterialTheme.typography.bodySmall) }
                     }
                     if (preview.warnings.isNotEmpty()) {
@@ -170,13 +177,22 @@ fun RestoreSection() {
                             onCheckedChange = { riskAccepted = it },
                             modifier = Modifier.testTag("restore_risk_checkbox"),
                         )
-                        Text("我理解会替换本机数据，且恢复后需要重新配置 API Key/授权",
+                        Text("我理解确认后会用备份替换本机数据",
                             style = MaterialTheme.typography.bodySmall)
                     }
-                    Text("尚未执行恢复；没有写入任何数据。", color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium)
                     if (state.executing) {
-                        Text("正在恢复数据并完成安全重置…", modifier = Modifier.testTag("restore_executing"))
+                        Text(
+                            "正在恢复数据并完成安全重置…",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.testTag("restore_executing"),
+                        )
+                    } else {
+                        Text(
+                            "确认恢复后才会写入；现在还没有改动任何数据。",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
                     }
                 }
             },

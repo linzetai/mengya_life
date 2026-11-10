@@ -51,6 +51,7 @@ import com.mengyalife.app.domain.growth.DiaryAnalysisStatus
 import com.mengyalife.app.domain.growth.GrowthSignal
 import com.mengyalife.app.ui.components.GentleEmptyCard
 import com.mengyalife.app.ui.components.InlineNote
+import com.mengyalife.app.ui.components.rememberToday
 import com.mengyalife.app.ui.components.MorrowIcon
 import com.mengyalife.app.ui.components.MorrowIconKind
 import com.mengyalife.app.ui.components.MorrowPrimaryButton
@@ -92,7 +93,7 @@ fun DiaryScreen(
     modifier: Modifier = Modifier,
 ) {
     val colors = MorrowTheme.colors
-    val today = remember { LocalDate.now() }
+    val today = rememberToday()
     val grouped = remember(state.entries) {
         state.entries
             .sortedByDescending { it.createdAt }

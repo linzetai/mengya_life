@@ -31,7 +31,7 @@ data class RestoreUiState(
 )
 
 /**
- * G4A-2A 只读预览状态机。
+ * 恢复流程状态：选择文件 → 口令校验 → 预览 → 执行。
  *
  * 没有 execute/commit 方法；不持有 DAO/DataStore 写依赖。
  * 口令只在 confirm 调用栈和 CharArray 中存在，I/O 完成后清空。

@@ -41,8 +41,19 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.delay
+import java.time.Duration
+import java.time.LocalDate
+import java.time.LocalDateTime
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -66,7 +77,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mengyalife.app.data.DemoData
 import com.mengyalife.app.ui.theme.MorrowSpacing
 import com.mengyalife.app.ui.theme.MorrowTheme
 import com.mengyalife.app.ui.theme.MorrowType
@@ -80,25 +90,8 @@ val ScreenPadding = PaddingValues(
     bottom = 32.dp,
 )
 
-/** 「演示数据」标记：只在 QA 构建里出现。 */
-@Composable
-fun DemoTag(modifier: Modifier = Modifier) {
-    Surface(
-        modifier = modifier,
-        shape = CircleShape,
-        color = MorrowTheme.colors.nested,
-        contentColor = MorrowTheme.colors.textSecondary,
-    ) {
-        Text(
-            text = DemoData.NOTICE,
-            style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-        )
-    }
-}
-
 /**
- * 轻量顶栏：左侧品牌/页面名，右侧「演示数据」（仅 QA）与纯文字「设置」。
+ * 轻量顶栏：左侧品牌/页面名，右侧「QA」标记（仅 QA 构建）与纯文字「设置」。
  *
  * 顶栏高度 56dp，页面左右边距 22dp；设置文字不包按钮背景、不带图标，
  * 通过 48dp 触控区保证可点击。
@@ -110,7 +103,7 @@ fun MorrowTopBar(
     onBack: (() -> Unit)? = null,
     onSettingsClick: (() -> Unit)? = null,
     brand: Boolean = false,
-    showDemoTag: Boolean = false,
+    qaTag: Boolean = false,
     backTestTag: String = "page_back",
     settingsTestTag: String = "btn_settings",
     horizontalPadding: Dp = 0.dp,
@@ -147,17 +140,17 @@ fun MorrowTopBar(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        if (showDemoTag) {
+        if (qaTag) {
             Surface(
-                modifier = if (fontScale <= 1.1f) Modifier.offset(x = 10.dp) else Modifier,
+                modifier = if (fontScale <= 1.1f) Modifier.offset(x = 6.dp) else Modifier,
                 shape = CircleShape,
                 color = colors.nested,
                 contentColor = colors.textSecondary,
             ) {
                 Text(
-                    text = "演示数据",
-                    style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
+                    text = "QA",
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                 )
             }
             Spacer(Modifier.width(4.dp))
@@ -181,35 +174,6 @@ fun MorrowTopBar(
                 )
             }
         }
-    }
-}
-
-/**
- * 页首：标题 + 一行说明。真实数据页面必须传 [showDemoTag] = false。
- */
-@Composable
-fun PageHeader(
-    title: String,
-    subtitle: String,
-    modifier: Modifier = Modifier,
-    showDemoTag: Boolean = false,
-) {
-    Column(modifier = modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(
-                text = title,
-                style = MorrowType.PageTitle,
-                color = MorrowTheme.colors.textPrimary,
-                modifier = Modifier.weight(1f),
-            )
-            if (showDemoTag) DemoTag()
-        }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = subtitle,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MorrowTheme.colors.textSecondary,
-        )
     }
 }
 
@@ -1075,5 +1039,50 @@ fun MorrowIcon(
                 line(10.8f, 13.2f, 20.5f, 4f)
             }
         }
+    }
+}
+
+/**
+ * 「今天」的日期：跨过午夜、或从后台回到前台时自动更新。
+ *
+ * 日记页与今天页共用，避免出现「过了 0 点仍显示昨天」。
+ */
+@Composable
+fun rememberToday(): LocalDate {
+    var today by remember { mutableStateOf(LocalDate.now()) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) today = LocalDate.now()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(today) {
+        val now = LocalDateTime.now()
+        val nextMidnight = now.toLocalDate().plusDays(1).atStartOfDay()
+        delay(Duration.between(now, nextMidnight).toMillis().coerceAtLeast(1_000L))
+        today = LocalDate.now()
+    }
+    return today
+}
+
+/** 目标状态小标签（全部目标页面共用）。 */
+@Composable
+fun StatusChip(status: com.mengyalife.app.domain.goals.GoalStatus) {
+    val colors = MorrowTheme.colors
+    val (container, content) = when (status) {
+        com.mengyalife.app.domain.goals.GoalStatus.NOT_STARTED -> colors.nested to colors.textSecondary
+        com.mengyalife.app.domain.goals.GoalStatus.IN_PROGRESS -> colors.selectedNav to colors.forest
+        com.mengyalife.app.domain.goals.GoalStatus.DONE -> colors.forest.copy(alpha = 0.14f) to colors.forest
+        com.mengyalife.app.domain.goals.GoalStatus.PAUSED -> colors.nested to colors.textSecondary
+        com.mengyalife.app.domain.goals.GoalStatus.CANCELLED -> colors.card to colors.danger
+    }
+    Surface(shape = CircleShape, color = container, contentColor = content) {
+        Text(
+            text = status.label,
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
+        )
     }
 }

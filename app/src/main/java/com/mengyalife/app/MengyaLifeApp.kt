@@ -456,6 +456,7 @@ fun MengyaLifeApp() {
                     onAdvisorAction = advisorViewModel::onAction,
                     insightState = insightState,
                     onDiscussInsight = discussWithAdvisor,
+                    onTalkToAdvisor = discussWithAdvisor,
                     onDraftInsight = { text ->
                         discussWithAdvisor(text)
                         advisorViewModel.onAction(AdvisorAction.RequestProposal)
@@ -507,6 +508,7 @@ private fun MainShell(
     onAdvisorAction: (AdvisorAction) -> Unit,
     insightState: InsightUiState,
     onDiscussInsight: (String) -> Unit,
+    onTalkToAdvisor: (String) -> Unit,
     onDraftInsight: (String) -> Unit,
     onWriteDiary: () -> Unit,
     onOpenDiaryEntry: (com.mengyalife.app.data.local.JournalEntryEntity) -> Unit,
@@ -563,6 +565,7 @@ private fun MainShell(
                     onOpenTrends = { onTabChange(AppTab.PATH) },
                     onDiscussInsight = onDiscussInsight,
                     onDraftInsight = onDraftInsight,
+                    onTalkToAdvisor = onTalkToAdvisor,
                 )
 
                 AppTab.PATH -> TrajectoryScreen(

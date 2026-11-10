@@ -37,6 +37,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,6 +61,7 @@ import com.mengyalife.app.ui.components.goalDomainIcon
 import com.mengyalife.app.ui.components.MorrowTopBar
 import com.mengyalife.app.ui.components.ScreenPadding
 import com.mengyalife.app.ui.components.SectionHeading
+import com.mengyalife.app.ui.components.StatusChip
 import com.mengyalife.app.ui.components.ThinProgressBar
 import com.mengyalife.app.ui.goals.GoalAction
 import com.mengyalife.app.ui.goals.GoalsUiState
@@ -88,19 +90,22 @@ fun LifePanoramaScreen(
 ) {
     val colors = MorrowTheme.colors
     val roots = state.snapshot.roots
+    // 所有领域都可达：默认展开前两个领域，其余收起但可一键展开。
     val groups = remember(roots) {
         val orderedDomains = roots.map { it.goal.domain }.distinct()
         roots.groupBy { it.goal.domain }
             .toList()
             .sortedBy { (domain, _) -> orderedDomains.indexOf(domain) }
-            .take(4)
     }
-    val shownRootIds = remember(groups) { groups.flatMap { g -> g.second.map { it.goal.id } }.toSet() }
-    val hiddenCount = roots.count { it.goal.id !in shownRootIds }
+    val defaultCollapsed = remember(groups) {
+        if (groups.size > 2) groups.drop(2).map { it.first }.toSet() else emptySet()
+    }
+    var collapsedDomains by rememberSaveable(groups.size) { mutableStateOf(defaultCollapsed) }
+    val allCollapsed = groups.isNotEmpty() && groups.all { it.first in collapsedDomains }
 
     LaunchedEffect(state.focusedGoalId, groups, state.expandedIds) {
         val id = state.focusedGoalId ?: return@LaunchedEffect
-        // 从「今天」点进来时，直接展开该目标（含父级），让详情与「记录进展」立即可见。
+        // 从「今天」点进来时，展开目标所在领域与整条父级路径。
         fun findPath(nodes: List<GoalNode>, target: Long, trail: List<Long>): List<Long>? {
             nodes.forEach { node ->
                 val next = trail + node.goal.id
@@ -110,20 +115,20 @@ fun LifePanoramaScreen(
             return null
         }
         val path = groups.flatMap { it.second }.let { findPath(it, id, emptyList()) }.orEmpty()
-        path.filter { it !in state.expandedIds }.forEach { onAction(GoalAction.ToggleExpand(it)) }
-        var index = 1
-        var target: Int? = null
-        for ((_, nodes) in groups) {
-            index += 1 // 领域标题
-            val position = nodes.indexOfFirst { it.goal.id == id || it.children.any { c -> c.goal.id == id } }
-            if (position >= 0) {
-                target = index + position
-                break
-            }
-            index += nodes.size
+        if (path.isEmpty()) return@LaunchedEffect
+        val rootDomain = groups.firstOrNull { g ->
+            g.second.any { root -> flattenIds(root).any { it == id } }
+        }?.first
+        if (rootDomain != null && rootDomain in collapsedDomains) {
+            collapsedDomains = collapsedDomains - rootDomain
         }
-        if (target != null) {
-            runCatching { listState.animateScrollToItem(target) }
+        path.filter { it !in state.expandedIds }.forEach { onAction(GoalAction.ToggleExpand(it)) }
+        val target = groups.indexOfFirst { it.first == rootDomain }
+        if (target >= 0) {
+            val headerIndex = 1 + groups.take(target).sumOf { (domain, nodes) ->
+                1 + if (domain in collapsedDomains) 0 else nodes.size
+            }
+            runCatching { listState.animateScrollToItem(headerIndex) }
         }
     }
 
@@ -198,12 +203,53 @@ fun LifePanoramaScreen(
                 )
             }
         } else {
+            if (groups.size > 1) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = if (allCollapsed) "全部展开" else "全部收起",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = colors.forest,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    collapsedDomains = if (allCollapsed) {
+                                        emptySet()
+                                    } else {
+                                        groups.map { it.first }.toSet()
+                                    }
+                                }
+                                .padding(vertical = 8.dp, horizontal = 2.dp)
+                                .testTag("panorama_toggle_all"),
+                        )
+                        Spacer(Modifier.weight(1f))
+                        Text(
+                            text = "${groups.size} 个领域",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.textTertiary,
+                        )
+                    }
+                }
+            }
             groups.forEach { (domain, nodes) ->
+                val expanded = domain !in collapsedDomains
                 item(key = "domain_${domain.name}") {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 8.dp),
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                collapsedDomains = if (expanded) {
+                                    collapsedDomains + domain
+                                } else {
+                                    collapsedDomains - domain
+                                }
+                            }
+                            .padding(top = 8.dp, bottom = 2.dp)
+                            .testTag("panorama_domain_${domain.name}"),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(
@@ -224,28 +270,32 @@ fun LifePanoramaScreen(
                             text = domain.label,
                             style = MaterialTheme.typography.titleSmall,
                             color = colors.textPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f),
                         )
                         Text(
-                            text = "${nodes.size} 个方向",
+                            text = summaryLine(nodes),
                             style = MaterialTheme.typography.labelSmall,
                             color = colors.textTertiary,
                         )
+                        Spacer(Modifier.width(6.dp))
+                        MorrowIcon(
+                            kind = if (expanded) MorrowIconKind.CHEVRON_UP else MorrowIconKind.CHEVRON_DOWN,
+                            tint = colors.textTertiary,
+                            modifier = Modifier.size(16.dp),
+                        )
                     }
                 }
-                items(nodes.size, key = { nodes[it].goal.id }) { index ->
-                    GoalNodeCard(
-                        node = nodes[index],
-                        depth = 0,
-                        expandedIds = state.expandedIds,
-                        onAction = onAction,
-                    )
-                }
-            }
-
-            if (hiddenCount > 0) {
-                item {
-                    InlineNote("还有 $hiddenCount 个方向没有在这一屏展示；它们仍完整保存在目标树中。")
+                if (expanded) {
+                    items(nodes.size, key = { nodes[it].goal.id }) { index ->
+                        GoalNodeCard(
+                            node = nodes[index],
+                            depth = 0,
+                            expandedIds = state.expandedIds,
+                            onAction = onAction,
+                        )
+                    }
                 }
             }
         }
@@ -556,3 +606,15 @@ private fun GoalExpandedActions(
         }
     }
 }
+
+private fun flattenIds(node: GoalNode): List<Long> =
+    listOf(node.goal.id) + node.children.flatMap { flattenIds(it) }
+
+private fun summaryLine(nodes: List<GoalNode>): String {
+    val total = nodes.sumOf { flattenIds(it).size }
+    val done = nodes.sumOf { countDone(it) }
+    return if (done > 0) "$total 个 · 已完成 $done" else "$total 个"
+}
+
+private fun countDone(node: GoalNode): Int =
+    (if (node.goal.status == GoalStatus.DONE) 1 else 0) + node.children.sumOf { countDone(it) }

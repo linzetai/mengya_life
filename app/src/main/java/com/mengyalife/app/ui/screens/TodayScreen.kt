@@ -1,13 +1,14 @@
 package com.mengyalife.app.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
@@ -24,7 +25,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -37,10 +37,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.mengyalife.app.BuildConfig
 import com.mengyalife.app.data.local.JournalEntryEntity
 import com.mengyalife.app.data.repository.GoalNode
@@ -51,11 +49,13 @@ import com.mengyalife.app.domain.insight.InsightReportStatus
 import com.mengyalife.app.domain.insight.InsightType
 import com.mengyalife.app.ui.components.MorrowIcon
 import com.mengyalife.app.ui.components.MorrowIconKind
-import com.mengyalife.app.ui.components.goalDomainIcon
+import com.mengyalife.app.ui.components.MorrowPrimaryButton
 import com.mengyalife.app.ui.components.MorrowTopBar
 import com.mengyalife.app.ui.components.ScreenPadding
 import com.mengyalife.app.ui.components.SectionHeading
 import com.mengyalife.app.ui.components.ThinProgressBar
+import com.mengyalife.app.ui.components.goalDomainIcon
+import com.mengyalife.app.ui.components.rememberToday
 import com.mengyalife.app.ui.insight.InsightDetailDialog
 import com.mengyalife.app.ui.insight.InsightUiState
 import com.mengyalife.app.ui.theme.MorrowSpacing
@@ -74,14 +74,13 @@ private val WEEKDAY_LABELS = listOf("星期一", "星期二", "星期三", "星�
 /**
  * 首页「今天」。
  *
- * 所有文案和数字都来自真实状态：
- * - 日期取设备本地日期；
- * - 人生方向取 Goal Repository 的长期目标；
- * - 洞察优先展示当前数据版本生成的洞察卡，没有时退回可核验的本地记录，
- *   再没有就展示温柔空态，不伪造资产/学习/坚持天数；
- * - 日记数量来自本机数据库。
+ * 信息层级只有三层：
+ * 1. 当前关注：本周可核验的洞察、或最近一次真实记录、或「还在认识你」；
+ * 2. 下一步：一个由真实状态推导出的行动（含主动关心卡）；
+ * 3. 成长概览：精简的方向与进展，详情进人生全景。
+ *
+ * 所有数字来自本机 Repository；没有数据时不生成任何判断或数值。
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TodayScreen(
     listState: LazyListState,
@@ -104,10 +103,11 @@ fun TodayScreen(
     onOpenTrends: () -> Unit,
     onDiscussInsight: (String) -> Unit = {},
     onDraftInsight: (String) -> Unit = {},
+    onTalkToAdvisor: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var detailInsight by remember { mutableStateOf<GrowthInsight?>(null) }
-    val today = remember { LocalDate.now() }
+    val today = rememberToday()
     val localeDate = remember(today) {
         "${today.year}年${today.monthValue}月${today.dayOfMonth}日 · " +
             WEEKDAY_LABELS[today.dayOfWeek.value - 1]
@@ -123,6 +123,25 @@ fun TodayScreen(
     ) {
         buildInsightPresentation(insights, goals, entries)
     }
+    val nextStep = buildNextStep(
+        careCard = careCard,
+        plans = plans,
+        goals = goals,
+        entries = entries,
+        today = today,
+        onCareEngage = onCareEngage,
+        onCareIgnore = onCareIgnore,
+        onCareSilence = onCareSilence,
+        onOpenPlan = onOpenPlan,
+        onCreateGoal = onCreateGoal,
+        onOpenGoal = onOpenGoal,
+        onOpenExplore = onOpenExplore,
+        onWriteDiary = onWriteDiary,
+        onTalkToAdvisor = onTalkToAdvisor,
+    )
+    val latestEntryToday = entries.any {
+        Instant.ofEpochMilli(it.createdAt).atZone(ZoneId.systemDefault()).toLocalDate() == today
+    }
 
     LazyColumn(
         modifier = modifier
@@ -130,7 +149,7 @@ fun TodayScreen(
             .testTag("today_screen"),
         state = listState,
         contentPadding = ScreenPadding,
-        verticalArrangement = Arrangement.spacedBy(MorrowSpacing.SectionGap),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         stickyHeader {
             Box(
@@ -142,29 +161,29 @@ fun TodayScreen(
                     label = "MengYa",
                     onSettingsClick = onOpenSettings,
                     brand = true,
-                    showDemoTag = BuildConfig.QA_BUILD,
+                    qaTag = BuildConfig.QA_BUILD,
                 )
             }
         }
+
         item {
-            Column {
-                Spacer(Modifier.height(16.dp))
+            Column(modifier = Modifier.padding(top = 6.dp)) {
                 Text(
                     text = localeDate,
                     style = MorrowType.Eyebrow,
                     color = MorrowTheme.colors.textSecondary,
                     modifier = Modifier.testTag("today_date"),
                 )
-                Spacer(Modifier.height(11.dp))
+                Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "慢慢来，\n你已经走在路上。",
+                    text = greetingFor(today),
                     style = MorrowType.HomeTitle,
                     color = MorrowTheme.colors.textPrimary,
                     modifier = Modifier.testTag("today_title"),
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(6.dp))
                 Text(
-                    text = "不必每天都进步。但值得看见每一点真实的变化。",
+                    text = "不必每天都进步，值得看见每一点真实的变化。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MorrowTheme.colors.textSecondary,
                 )
@@ -172,123 +191,42 @@ fun TodayScreen(
         }
 
         item {
-            InsightCard(
+            FocusCard(
                 presentation = presentation,
                 onClick = {
                     val insight = presentation.insight
                     when {
                         insight != null -> detailInsight = insight
+                        presentation.isLearning -> onTalkToAdvisor("想聊聊最近在意的事。")
                         presentation.isLocal -> onOpenTrends()
-                        else -> onOpenExplore()
+                        else -> onWriteDiary()
                     }
                 },
             )
         }
 
-        if (careCard != null) {
-            item {
-                CareCardSection(
-                    card = careCard,
-                    onEngage = onCareEngage,
-                    onIgnore = onCareIgnore,
-                    onSilence = onCareSilence,
-                )
-            }
-        }
-
-        if (plans.isNotEmpty()) {
-            item { PlanTodaySection(plans = plans, onOpenPlan = onOpenPlan) }
+        item {
+            NextStepCard(step = nextStep)
         }
 
         item {
-            Column {
-                SectionHeading(
-                    title = "我在意的人生方向",
-                    actionLabel = "查看全景",
-                    onAction = onOpenPanorama,
-                    testTag = "today_open_panorama",
-                )
-                Spacer(Modifier.height(12.dp))
-                if (goals.roots.isEmpty()) {
-                    DirectionEmptyRow(onClick = onOpenPanorama)
-                } else {
-                    goals.roots.take(3).forEachIndexed { index, node ->
-                        if (index > 0) Spacer(Modifier.height(8.dp))
-                        DirectionRow(
-                            node = node,
-                            onClick = { onOpenGoal(node.goal.id) },
-                        )
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable(onClick = onCreateGoal)
-                            .padding(vertical = 10.dp)
-                            .testTag("today_add_direction"),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        MorrowIcon(
-                            kind = MorrowIconKind.PLUS,
-                            tint = MorrowTheme.colors.textSecondary,
-                            modifier = Modifier.size(15.dp),
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "添加一个方向",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MorrowTheme.colors.textSecondary,
-                        )
-                    }
-                }
-            }
+            GrowthOverview(
+                goals = goals,
+                entries = entries,
+                onOpenPanorama = onOpenPanorama,
+                onOpenGoal = onOpenGoal,
+                onCreateGoal = onCreateGoal,
+                onOpenTrends = onOpenTrends,
+            )
         }
 
         item {
-            Column {
-                SectionHeading(title = "今天，想从哪里开始？")
-                Spacer(Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    ActionTile(
-                        glyph = MorrowIconKind.COMPASS,
-                        label = "探索\n人生方向",
-                        testTag = "today_explore",
-                        onClick = onOpenExplore,
-                        modifier = Modifier.weight(1f),
-                    )
-                    ActionTile(
-                        glyph = MorrowIconKind.PENCIL,
-                        label = "写一篇\n日记",
-                        testTag = "today_write_diary",
-                        onClick = onWriteDiary,
-                        modifier = Modifier.weight(1f),
-                    )
-                    ActionTile(
-                        glyph = MorrowIconKind.BRANCH,
-                        label = "讨论\n一个决定",
-                        testTag = "today_decide",
-                        onClick = onOpenDecision,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-        }
-
-        item {
-            Column {
-                SectionHeading(
-                    title = "也值得记住的好事",
-                    actionLabel = "更多趋势",
-                    onAction = onOpenTrends,
-                    testTag = "today_open_trends",
-                )
-                Spacer(Modifier.height(12.dp))
-                GoodThingsCard(entries = entries, onWriteDiary = onWriteDiary)
-            }
+            QuietLinks(
+                wroteToday = latestEntryToday,
+                onWriteDiary = onWriteDiary,
+                onOpenExplore = onOpenExplore,
+                onOpenDecision = onOpenDecision,
+            )
         }
     }
 
@@ -312,8 +250,14 @@ fun TodayScreen(
     }
 }
 
+private fun greetingFor(today: LocalDate): String = when (today.dayOfWeek.value) {
+    1, 2, 3, 4, 5 -> "慢慢来，\n你已经走在路上。"
+    6, 7 -> "周末好，\n把这一周轻轻收个尾。"
+    else -> "慢慢来，\n你已经走在路上。"
+}
+
 // ---------------------------------------------------------------------------
-// 洞察卡
+// 当前关注
 // ---------------------------------------------------------------------------
 
 private data class InsightPresentation(
@@ -323,6 +267,7 @@ private data class InsightPresentation(
     val cta: String,
     val insight: GrowthInsight? = null,
     val isLocal: Boolean = false,
+    val isLearning: Boolean = false,
 )
 
 private fun buildInsightPresentation(
@@ -338,7 +283,7 @@ private fun buildInsightPresentation(
             val period = "${SHORT_DATE.format(Instant.ofEpochMilli(report.periodStart).atZone(ZoneId.systemDefault()))}" +
                 "–${SHORT_DATE.format(Instant.ofEpochMilli(report.periodEnd).atZone(ZoneId.systemDefault()))}"
             return InsightPresentation(
-                eyebrow = "本周的一点发现",
+                eyebrow = "这一周的一点发现",
                 quote = insight.title,
                 evidence = "来自 ${report.facts.size} 条可核验事实 · $period",
                 cta = "看看这背后发生了什么",
@@ -348,7 +293,7 @@ private fun buildInsightPresentation(
         if (report.status == InsightReportStatus.FAILED) {
             val fact = report.facts.firstOrNull()
             return InsightPresentation(
-                eyebrow = "本周的一点事实",
+                eyebrow = "这一周的一点事实",
                 quote = fact?.text ?: "这一周，你仍在留下自己的记录。",
                 evidence = "AI 解释尚未生成，这里只呈现本地可核验的事实",
                 cta = "看看这背后发生了什么",
@@ -367,7 +312,7 @@ private fun buildInsightPresentation(
     if (latestCheckin != null && now - latestCheckin <= 14L * 24 * 60 * 60 * 1000) {
         val inWeek = now - latestCheckin <= 7L * 24 * 60 * 60 * 1000
         return InsightPresentation(
-            eyebrow = if (inWeek) "本周的一点发现" else "最近的一点记录",
+            eyebrow = if (inWeek) "本周的一点记录" else "最近的一点记录",
             quote = "你又留下了一次\n真实的进展。",
             evidence = "来自「${latestNode.goal.title}」· ${Timestamps.formatDate(latestCheckin)}",
             cta = "看看这背后发生了什么",
@@ -386,12 +331,22 @@ private fun buildInsightPresentation(
         )
     }
 
+    val empty = goals.roots.isEmpty() && entries.isEmpty()
     return InsightPresentation(
-        eyebrow = "本周的一点发现",
-        quote = "给自己一点时间，\n我们从今天开始记录。",
-        evidence = "记录不必完整，也不必正确。先从一个真实的瞬间开始。",
-        cta = "开始探索",
+        eyebrow = if (empty) "还在认识你" else "本周的一点关注",
+        quote = if (empty) {
+            "从一个真实的瞬间开始，\n我会慢慢记住你。"
+        } else {
+            "最近还没有新的记录，\n不着急。"
+        },
+        evidence = if (empty) {
+            "聊聊最近在意的事，或者写下一句话。"
+        } else {
+            "记录一次进展或写一篇日记后，这里会显示属于自己的观察。"
+        },
+        cta = if (empty) "和 MengYa 聊聊" else "去写一篇日记",
         isLocal = false,
+        isLearning = empty,
     )
 }
 
@@ -399,72 +354,77 @@ private fun flattenNode(node: GoalNode): List<GoalNode> =
     listOf(node) + node.children.flatMap { flattenNode(it) }
 
 @Composable
-private fun InsightCard(
+private fun FocusCard(
     presentation: InsightPresentation,
     onClick: () -> Unit,
 ) {
     val colors = MorrowTheme.colors
     val shape = RoundedCornerShape(MorrowSpacing.InsightRadius)
+    val darkCard = !presentation.isLearning
+    val container = if (darkCard) colors.insightCard else colors.card
+    val titleColor = if (darkCard) colors.insightText else colors.textPrimary
+    val mutedColor = if (darkCard) colors.insightMuted else colors.textSecondary
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(colors.insightCard)
+            .background(container)
             .clickable(onClick = onClick)
             .testTag("today_insight_card"),
     ) {
-        // 右上角很淡的同心弧线，只做安静的装饰。
-        Canvas(modifier = Modifier.matchParentSize()) {
-            val center = Offset(size.width * 1.04f, size.height * 0.06f)
-            val unit = size.width * 0.16f
-            listOf(1.2f, 1.9f, 2.6f).forEachIndexed { index, factor ->
-                drawCircle(
-                    color = colors.insightText.copy(alpha = 0.10f + index * 0.012f),
-                    radius = unit * factor,
-                    center = center,
-                    style = Stroke(width = 1.dp.toPx()),
-                )
+        if (darkCard) {
+            Canvas(modifier = Modifier.matchParentSize()) {
+                val center = Offset(size.width * 1.04f, size.height * 0.06f)
+                val unit = size.width * 0.16f
+                listOf(1.2f, 1.9f, 2.6f).forEachIndexed { index, factor ->
+                    drawCircle(
+                        color = colors.insightText.copy(alpha = 0.10f + index * 0.012f),
+                        radius = unit * factor,
+                        center = center,
+                        style = Stroke(width = 1.dp.toPx()),
+                    )
+                }
             }
         }
-        Column(modifier = Modifier.padding(22.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 22.dp, vertical = 20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 MorrowIcon(
                     kind = MorrowIconKind.SPARKLE,
-                    tint = colors.insightMuted,
+                    tint = mutedColor,
                     modifier = Modifier.size(15.dp),
                 )
                 Spacer(Modifier.width(7.dp))
                 Text(
                     text = presentation.eyebrow,
                     style = MaterialTheme.typography.labelSmall,
-                    color = colors.insightMuted,
+                    color = mutedColor,
                 )
             }
-            Spacer(Modifier.height(15.dp))
+            Spacer(Modifier.height(12.dp))
             Text(
                 text = presentation.quote,
                 style = MorrowType.InsightQuote,
-                color = colors.insightText,
+                color = titleColor,
             )
-            if (presentation.evidence != null) {
-                Spacer(Modifier.height(12.dp))
+            presentation.evidence?.let {
+                Spacer(Modifier.height(10.dp))
                 Text(
-                    text = presentation.evidence,
+                    text = it,
                     style = MaterialTheme.typography.labelSmall,
-                    color = colors.insightMuted.copy(alpha = 0.78f),
+                    color = mutedColor.copy(alpha = 0.82f),
                 )
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(14.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = presentation.cta,
                     style = MaterialTheme.typography.labelLarge,
-                    color = colors.insightText,
+                    color = titleColor,
                     modifier = Modifier.weight(1f),
                 )
                 MorrowIcon(
                     kind = MorrowIconKind.ARROW_RIGHT,
-                    tint = colors.insightText,
+                    tint = titleColor,
                     modifier = Modifier.size(16.dp),
                 )
             }
@@ -473,8 +433,234 @@ private fun InsightCard(
 }
 
 // ---------------------------------------------------------------------------
-// 人生方向
+// 下一步（含主动关心）
 // ---------------------------------------------------------------------------
+
+private class NextStep(
+    val eyebrow: String,
+    val title: String,
+    val body: String,
+    val cta: String,
+    val tag: String,
+    val onPrimary: () -> Unit,
+    val isCare: Boolean = false,
+    val secondary: List<Pair<String, () -> Unit>> = emptyList(),
+)
+
+private fun buildNextStep(
+    careCard: com.mengyalife.app.ui.care.CareCard?,
+    plans: List<PlanTodayItem>,
+    goals: GoalSnapshot,
+    entries: List<JournalEntryEntity>,
+    today: LocalDate,
+    onCareEngage: () -> Unit,
+    onCareIgnore: () -> Unit,
+    onCareSilence: () -> Unit,
+    onOpenPlan: (String) -> Unit,
+    onCreateGoal: () -> Unit,
+    onOpenGoal: (Long) -> Unit,
+    onOpenExplore: () -> Unit,
+    onWriteDiary: () -> Unit,
+    onTalkToAdvisor: (String) -> Unit,
+): NextStep {
+    val spec = decideTodayNextStep(
+        careText = careCard?.text,
+        careSourceType = careCard?.sourceType,
+        plans = plans,
+        goals = goals,
+        entries = entries,
+        today = today,
+    )
+    val primary: () -> Unit = when (spec.kind) {
+        TodayNextStepKind.CARE -> onCareEngage
+        TodayNextStepKind.PLAN -> ({ onOpenPlan(spec.planTitle.orEmpty()) })
+        TodayNextStepKind.CREATE_GOAL -> onCreateGoal
+        TodayNextStepKind.STALE_GOAL -> ({ spec.goalId?.let(onOpenGoal) })
+        TodayNextStepKind.WRITE_DIARY -> onWriteDiary
+        TodayNextStepKind.TALK -> ({ onTalkToAdvisor("最近我注意到一些变化，想和你聊聊。") })
+    }
+    val secondary: List<Pair<String, () -> Unit>> = when (spec.kind) {
+        TodayNextStepKind.CARE -> listOf("暂时忽略" to onCareIgnore, "不再提醒" to onCareSilence)
+        TodayNextStepKind.CREATE_GOAL -> listOf("先探索一下" to onOpenExplore)
+        TodayNextStepKind.WRITE_DIARY -> listOf(
+            "先和 MengYa 聊聊" to { onTalkToAdvisor("今天想聊聊最近的状态。") },
+        )
+        else -> emptyList()
+    }
+    val tag = when (spec.kind) {
+        TodayNextStepKind.CARE -> "today_care_card"
+        TodayNextStepKind.PLAN -> "today_plan_${spec.planId ?: 0}"
+        TodayNextStepKind.CREATE_GOAL -> "today_next_create_goal"
+        TodayNextStepKind.STALE_GOAL -> "today_next_goal_${spec.goalId ?: 0}"
+        TodayNextStepKind.WRITE_DIARY -> "today_next_write_diary"
+        TodayNextStepKind.TALK -> "today_next_talk"
+    }
+    return NextStep(
+        eyebrow = spec.eyebrow,
+        title = spec.title,
+        body = spec.body,
+        cta = spec.cta,
+        tag = tag,
+        onPrimary = primary,
+        isCare = spec.kind == TodayNextStepKind.CARE,
+        secondary = secondary,
+    )
+}
+
+@Composable
+private fun NextStepCard(step: NextStep) {
+    val colors = MorrowTheme.colors
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag(step.tag),
+        shape = RoundedCornerShape(MorrowSpacing.CardRadius),
+        color = colors.card,
+        border = BorderStroke(1.dp, colors.hairline),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
+            Text(
+                text = step.eyebrow,
+                style = MaterialTheme.typography.labelMedium,
+                color = if (step.isCare) colors.forest else colors.textTertiary,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = step.title,
+                style = MaterialTheme.typography.titleSmall,
+                color = colors.textPrimary,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = step.body,
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary,
+            )
+            Spacer(Modifier.height(12.dp))
+            MorrowPrimaryButton(
+                text = step.cta,
+                onClick = step.onPrimary,
+                testTag = "today_next_action",
+            )
+            if (step.secondary.isNotEmpty()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    step.secondary.forEach { (label, action) ->
+                        TextButton(onClick = action) {
+                            Text(
+                                label,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.textTertiary,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 成长概览
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun GrowthOverview(
+    goals: GoalSnapshot,
+    entries: List<JournalEntryEntity>,
+    onOpenPanorama: () -> Unit,
+    onOpenGoal: (Long) -> Unit,
+    onCreateGoal: () -> Unit,
+    onOpenTrends: () -> Unit,
+) {
+    val colors = MorrowTheme.colors
+    Column {
+        SectionHeading(
+            title = "成长概览",
+            actionLabel = "查看全景",
+            onAction = onOpenPanorama,
+            testTag = "today_open_panorama",
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OverviewStat(value = "${goals.longTermCount}", label = "个方向")
+            OverviewDot()
+            OverviewStat(value = "${goals.stageCount}", label = "个阶段")
+            OverviewDot()
+            OverviewStat(value = "${entries.size}", label = "篇日记")
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = goals.lastCheckinAt?.let { "最近一次进展 · " + Timestamps.formatDate(it) }
+                ?: "还没有进展记录",
+            style = MaterialTheme.typography.labelSmall,
+            color = colors.textTertiary,
+        )
+        Spacer(Modifier.height(12.dp))
+        if (goals.roots.isEmpty()) {
+            DirectionEmptyRow(onClick = onOpenPanorama)
+        } else {
+            goals.roots.take(2).forEachIndexed { index, node ->
+                if (index > 0) Spacer(Modifier.height(8.dp))
+                DirectionRow(node = node, onClick = { onOpenGoal(node.goal.id) })
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (goals.roots.size > 2) {
+                    Text(
+                        text = "还有 ${goals.roots.size - 2} 个方向",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.textTertiary,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable(onClick = onOpenPanorama)
+                            .padding(vertical = 8.dp, horizontal = 2.dp),
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = "看轨迹",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.forest,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable(onClick = onOpenTrends)
+                        .padding(vertical = 8.dp, horizontal = 6.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun OverviewStat(value: String, label: String) {
+    val colors = MorrowTheme.colors
+    Row(verticalAlignment = Alignment.Bottom) {
+        Text(
+            text = value,
+            style = MorrowType.DateNumber,
+            color = colors.textPrimary,
+        )
+        Spacer(Modifier.width(3.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = colors.textSecondary,
+            modifier = Modifier.padding(bottom = 2.dp),
+        )
+    }
+}
+
+@Composable
+private fun OverviewDot() {
+    Spacer(Modifier.width(10.dp))
+    Box(
+        modifier = Modifier
+            .size(3.dp)
+            .clip(CircleShape)
+            .background(MorrowTheme.colors.textTertiary),
+    )
+    Spacer(Modifier.width(10.dp))
+}
 
 @Composable
 private fun DirectionRow(
@@ -502,17 +688,17 @@ private fun DirectionRow(
             .testTag("direction_row_${goal.id}"),
         shape = RoundedCornerShape(16.dp),
         color = colors.card,
-        border = androidx.compose.foundation.BorderStroke(1.dp, colors.hairline),
+        border = BorderStroke(1.dp, colors.hairline),
     ) {
         Column(
             modifier = Modifier
-                .defaultMinSize(minHeight = 78.dp)
+                .defaultMinSize(minHeight = 72.dp)
                 .padding(horizontal = 14.dp, vertical = 11.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(34.dp)
                         .clip(CircleShape)
                         .background(colors.nested),
                     contentAlignment = Alignment.Center,
@@ -520,7 +706,7 @@ private fun DirectionRow(
                     MorrowIcon(
                         kind = goalDomainIcon(goal.domain),
                         tint = colors.forest,
-                        modifier = Modifier.size(19.dp),
+                        modifier = Modifier.size(18.dp),
                     )
                 }
                 Spacer(Modifier.width(12.dp))
@@ -532,7 +718,7 @@ private fun DirectionRow(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(3.dp))
                     Text(
                         text = subtitle,
                         style = MaterialTheme.typography.bodySmall,
@@ -541,18 +727,16 @@ private fun DirectionRow(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(8.dp))
                 MorrowIcon(
                     kind = MorrowIconKind.ARROW_RIGHT,
                     tint = colors.textTertiary,
                     modifier = Modifier.size(16.dp),
                 )
             }
-            Spacer(Modifier.height(9.dp))
             if (node.children.isNotEmpty()) {
+                Spacer(Modifier.height(9.dp))
                 ThinProgressBar(progress = progress, color = colors.accent)
-            } else {
-                Spacer(Modifier.height(3.dp))
             }
         }
     }
@@ -568,7 +752,7 @@ private fun DirectionEmptyRow(onClick: () -> Unit) {
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         color = colors.card,
-        border = androidx.compose.foundation.BorderStroke(1.dp, colors.hairline),
+        border = BorderStroke(1.dp, colors.hairline),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 18.dp),
@@ -576,7 +760,7 @@ private fun DirectionEmptyRow(onClick: () -> Unit) {
         ) {
             Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(34.dp)
                     .clip(CircleShape)
                     .background(colors.nested),
                 contentAlignment = Alignment.Center,
@@ -590,7 +774,7 @@ private fun DirectionEmptyRow(onClick: () -> Unit) {
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "还没有设定这个方向",
+                    text = "还没有设定方向",
                     style = MaterialTheme.typography.bodyLarge,
                     color = colors.textPrimary,
                 )
@@ -611,233 +795,35 @@ private fun DirectionEmptyRow(onClick: () -> Unit) {
 }
 
 // ---------------------------------------------------------------------------
-// 日常入口
+// 次要入口
 // ---------------------------------------------------------------------------
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ActionTile(
-    glyph: MorrowIconKind,
-    label: String,
-    testTag: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val colors = MorrowTheme.colors
-    Column(
-        modifier = modifier
-            .height(110.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(colors.card)
-            .border(1.dp, colors.hairline, RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
-            .testTag(testTag)
-            .padding(horizontal = 14.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .clip(CircleShape)
-                .background(colors.nested),
-            contentAlignment = Alignment.Center,
-        ) {
-            MorrowIcon(
-                kind = glyph,
-                tint = colors.forest,
-                modifier = Modifier.size(18.dp),
-            )
-        }
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = colors.textPrimary,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-// ---------------------------------------------------------------------------
-// 正向记忆
-// ---------------------------------------------------------------------------
-
-@Composable
-private fun GoodThingsCard(
-    entries: List<JournalEntryEntity>,
+private fun QuietLinks(
+    wroteToday: Boolean,
     onWriteDiary: () -> Unit,
+    onOpenExplore: () -> Unit,
+    onOpenDecision: () -> Unit,
 ) {
     val colors = MorrowTheme.colors
-    val latest = entries.maxByOrNull { it.updatedAt }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(colors.nested)
-            .clickable(onClick = onWriteDiary)
-            .testTag("today_memory_card")
-            .padding(horizontal = 18.dp, vertical = 17.dp),
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Text(
-            text = if (latest == null) {
-                "还没有写下第一篇。"
-            } else {
-                "你写下的记录，正在慢慢连成一条线。"
-            },
-            style = MaterialTheme.typography.titleSmall,
-            color = colors.textPrimary,
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = if (latest == null) {
-                "今天也可以写下一个瞬间，不必完整，也不必正确。"
-            } else {
-                "已经留下 ${entries.size} 篇日记，最近一次是 ${Timestamps.formatDate(latest.updatedAt)}。" +
-                    "对这些时刻的回看，就是理解自己的开始。"
-            },
-            style = MaterialTheme.typography.bodySmall,
-            color = colors.textSecondary,
-        )
-        Spacer(Modifier.height(12.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        TextButton(onClick = onWriteDiary, modifier = Modifier.testTag("today_write_diary")) {
             Text(
-                text = "写下一篇",
+                text = if (wroteToday) "再写一篇" else "写日记",
                 style = MaterialTheme.typography.labelMedium,
-                color = colors.forest,
-            )
-            Spacer(Modifier.width(5.dp))
-            MorrowIcon(
-                kind = MorrowIconKind.ARROW_RIGHT,
-                tint = colors.forest,
-                modifier = Modifier.size(16.dp),
+                color = colors.textSecondary,
             )
         }
-    }
-}
-
-
-/** 今天页的近期计划条目（由 App 按时间锚定后传入）。 */
-data class PlanTodayItem(
-    val planId: Long,
-    val title: String,
-    val timeScope: String?,
-    val progressCount: Int,
-)
-
-@Composable
-private fun PlanTodaySection(
-    plans: List<PlanTodayItem>,
-    onOpenPlan: (String) -> Unit,
-) {
-    val colors = MorrowTheme.colors
-    var hintDismissed by rememberSaveable { mutableStateOf(false) }
-    SectionHeading(title = "本周的小计划")
-    plans.take(3).forEach { plan ->
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .clickable { onOpenPlan(plan.title) }
-                .testTag("today_plan_${plan.planId}"),
-            shape = RoundedCornerShape(14.dp),
-            color = colors.card,
-            border = androidx.compose.foundation.BorderStroke(1.dp, colors.hairline),
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = plan.title,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.textPrimary,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Spacer(Modifier.height(3.dp))
-                    Text(
-                        text = (plan.timeScope?.takeIf { it.isNotBlank() } ?: "时间未定") +
-                            " · " + if (plan.progressCount > 0) {
-                            "已记录 ${plan.progressCount} 次"
-                        } else {
-                            "尚未记录进展"
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = colors.textTertiary,
-                    )
-                }
-                Text("→", style = MaterialTheme.typography.bodyMedium, color = colors.textTertiary)
-            }
+        TextButton(onClick = onOpenExplore, modifier = Modifier.testTag("today_explore")) {
+            Text("探索方向", style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
         }
-    }
-    val hintPlan = plans.firstOrNull { it.progressCount == 0 }
-    if (hintPlan != null && !hintDismissed) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp)
-                .testTag("today_plan_hint"),
-            shape = RoundedCornerShape(12.dp),
-            color = colors.nested,
-        ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(
-                    text = "「${hintPlan.title}」这周还没记录，要不要聊聊进展？",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.textSecondary,
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { onOpenPlan(hintPlan.title) }) {
-                        Text("去聊聊", color = colors.forest)
-                    }
-                    TextButton(onClick = { hintDismissed = true }) {
-                        Text("忽略", color = colors.textTertiary)
-                    }
-                }
-            }
-        }
-    }
-}
-
-
-@Composable
-private fun CareCardSection(
-    card: com.mengyalife.app.ui.care.CareCard,
-    onEngage: () -> Unit,
-    onIgnore: () -> Unit,
-    onSilence: () -> Unit,
-) {
-    val colors = MorrowTheme.colors
-    Surface(
-        modifier = Modifier.fillMaxWidth().testTag("today_care_card"),
-        shape = RoundedCornerShape(16.dp),
-        color = colors.card,
-        border = androidx.compose.foundation.BorderStroke(1.dp, colors.hairline),
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Text(
-                text = "MengYa 想和你聊聊",
-                style = MaterialTheme.typography.labelMedium,
-                color = colors.forest,
-            )
-            Spacer(Modifier.height(5.dp))
-            Text(
-                text = card.text,
-                style = MaterialTheme.typography.bodyMedium,
-                color = colors.textPrimary,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = if (card.sourceType == "PLAN_CHECKIN") "来自你的小计划" else "来自你的长期目标",
-                style = MaterialTheme.typography.labelSmall,
-                color = colors.textTertiary,
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onEngage) { Text("聊聊", color = colors.forest) }
-                TextButton(onClick = onIgnore) { Text("暂时忽略", color = colors.textTertiary) }
-                TextButton(onClick = onSilence) { Text("不再提醒这个话题", color = colors.textTertiary) }
-            }
+        TextButton(onClick = onOpenDecision, modifier = Modifier.testTag("today_decide")) {
+            Text("讨论一个决定", style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
         }
     }
 }

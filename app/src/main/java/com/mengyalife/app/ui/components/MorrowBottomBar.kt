@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -25,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.mengyalife.app.navigation.AppTab
@@ -70,6 +72,7 @@ fun MorrowBottomBar(
                         tab = tab,
                         selected = currentTab == tab,
                         onClick = { onTabChange(tab) },
+                        modifier = Modifier.weight(1f),
                     )
                 }
             }
@@ -82,6 +85,7 @@ private fun BottomBarItem(
     tab: AppTab,
     selected: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = MorrowTheme.colors
     val tint by animateColorAsState(
@@ -90,8 +94,8 @@ private fun BottomBarItem(
         label = "navTint",
     )
     Column(
-        modifier = Modifier
-            .width(76.dp)
+        modifier = modifier
+            .defaultMinSize(minHeight = 48.dp)
             .clip(RoundedCornerShape(14.dp))
             .selectable(
                 selected = selected,
@@ -120,6 +124,8 @@ private fun BottomBarItem(
             text = tab.label,
             style = MaterialTheme.typography.labelSmall,
             color = tint,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 2.dp),
         )
     }

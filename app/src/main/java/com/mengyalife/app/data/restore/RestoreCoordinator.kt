@@ -308,9 +308,15 @@ class RestoreCoordinator(
                 RestoreJournalPhase.DONE, now()))
             gate.clear(); journal.clear(); finishReady()
             writeQaEvidence(state)
-            _completionMessage.value = "恢复完成，已保留本机 Key 与授权"
-            onSuccess("恢复完成，已保留本机 Key 与授权")
-            return RestoreRunResult(RestoreRunStatus.SUCCESS, "恢复完成，已保留本机 Key 与授权")
+            val completion = when {
+                credential.deleteKey -> "恢复完成；服务地址已变化，旧 Key 已删除，授权已撤销"
+                credential.resetConsent -> "恢复完成；服务地址已变化，授权已撤销，请重新授权"
+                afterEndpoint.isBlank() -> "恢复完成；本机 AI 配置保持不变"
+                else -> "恢复完成，已保留本机 Key 与授权"
+            }
+            _completionMessage.value = completion
+            onSuccess(completion)
+            return RestoreRunResult(RestoreRunStatus.SUCCESS, completion)
         } catch (e: Exception) {
             finishMaintenance()
             writeQaStatus("COMMITTED_NEEDS_CONVERGENCE", state.attemptId, state.generation)

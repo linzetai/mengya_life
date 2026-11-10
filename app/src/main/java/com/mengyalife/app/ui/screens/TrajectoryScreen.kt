@@ -216,7 +216,14 @@ fun TrajectoryScreen(
 
         item {
             Column(modifier = Modifier.testTag("trajectory_weekly")) {
-                SectionHeading(title = "一周回顾")
+                SectionHeading(title = "这段时间的变化")
+                Spacer(Modifier.height(10.dp))
+                ChangesCard(
+                    trends = filtered,
+                    latestNode = latestNode,
+                    entries = entries,
+                    rangeLabel = range.label,
+                )
                 Spacer(Modifier.height(10.dp))
                 WeeklyEntryCard(
                     weekly = weekly,
@@ -227,19 +234,7 @@ fun TrajectoryScreen(
 
         item {
             Column {
-                SectionHeading(title = "我看见的变化")
-                Spacer(Modifier.height(10.dp))
-                ChangesCard(
-                    trends = allTrends,
-                    latestNode = latestNode,
-                    entries = entries,
-                )
-            }
-        }
-
-        item {
-            Column {
-                SectionHeading(title = "为什么会这样")
+                SectionHeading(title = "线索与回溯")
                 Spacer(Modifier.height(10.dp))
                 EvidenceCard(
                     weekly = weeklyReview,
@@ -422,9 +417,10 @@ private fun ChangesCard(
     trends: List<GoalTrend>,
     latestNode: GoalNode?,
     entries: List<JournalEntryEntity>,
+    rangeLabel: String,
 ) {
     val colors = MorrowTheme.colors
-    val changes = remember(trends, latestNode?.goal?.id, entries.size) {
+    val changes = remember(trends, latestNode?.goal?.id, entries.size, rangeLabel) {
         buildChanges(trends, latestNode, entries)
     }
     Column(
@@ -434,6 +430,12 @@ private fun ChangesCard(
             .background(colors.card)
             .padding(18.dp),
     ) {
+        Text(
+            text = "在${rangeLabel}里",
+            style = MaterialTheme.typography.labelSmall,
+            color = colors.textTertiary,
+        )
+        Spacer(Modifier.height(8.dp))
         if (changes.isEmpty()) {
             Text(
                 text = "还没有足够的变化可以描述。",

@@ -1,6 +1,8 @@
 package com.mengyalife.app.ui.screens
 
+import android.content.Intent
 import android.net.Uri
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -42,13 +44,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
 import com.mengyalife.app.BuildConfig
-import com.mengyalife.app.data.DemoData
 import com.mengyalife.app.ui.components.GroupDivider
 import com.mengyalife.app.ui.components.InlineNote
 import com.mengyalife.app.ui.components.KeyValueRow
@@ -105,6 +107,7 @@ fun SettingsScreen(
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     fun notify(message: String) {
         scope.launch { snackbarHostState.showSnackbar(message) }
@@ -156,7 +159,7 @@ fun SettingsScreen(
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    text = "已实现的设置会立即生效并保存在本机；标注「后续接入」的能力尚未实现。",
+                    text = "已实现的设置会立即生效并保存在本机；标注为未实现的能力点击只会说明，不会改变任何数据。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -172,6 +175,7 @@ fun SettingsScreen(
                             text = "日记、目标、密钥与正式版完全隔离",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f, fill = false),
                         )
                     }
                 }
@@ -237,7 +241,7 @@ fun SettingsScreen(
                 BackupSection()
             }
 
-            // ---------------- C. 恢复只读预览 ----------------
+            // ---------------- C. 恢复备份 ----------------
             item {
                 RestoreSection()
             }
@@ -271,10 +275,16 @@ fun SettingsScreen(
                     GroupDivider()
                     SettingsRow(
                         title = "数据采集与授权",
-                        subtitle = "不采集任何数据；INTERNET 仅用于你主动发起的 AI 请求",
+                        subtitle = "不接入任何统计/广告 SDK；联网只发生在你发起的对话、开启的每周 AI 回顾、以及被触发的主动关心",
                         dimmed = true,
                         testTag = "settings_data_policy",
-                        onClick = { notify("不采集任何数据；联网只发生在你主动发送 AI 请求时") },
+                        onClick = {
+                            notify(
+                                "不采集任何数据。会联网的情形：你主动发送的顾问对话、" +
+                                    "你开启的每周 AI 回顾（每周最多一次）、以及你允许的主动关心被触发时；" +
+                                    "请求直达你配置的模型地址。",
+                            )
+                        },
                     )
                     GroupDivider()
                     SettingsRow(
@@ -317,11 +327,16 @@ fun SettingsScreen(
                     GroupDivider()
                     SettingsRow(
                         title = "提醒与通知",
-                        subtitle = "每日回顾提醒、周报摘要",
-                        badge = "后续接入",
-                        dimmed = true,
+                        subtitle = "每周回顾生成后的通知、主动关心的 App 外提醒；锁屏不显示日记或计划细节",
+                        badge = "系统设置",
+                        dimmed = false,
                         testTag = "settings_notification",
-                        onClick = { notify("后续接入：本版本不申请通知权限，也不会发送提醒") },
+                        onClick = {
+                            val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                            runCatching { context.startActivity(intent) }
+                                .onFailure { notify("无法打开系统通知设置") }
+                        },
                     )
                 }
             }
@@ -363,7 +378,10 @@ fun SettingsScreen(
                             StatusPill(text = "无后端")
                         }
                         Spacer(Modifier.height(10.dp))
-                        InlineNote(DemoData.DATA_SCOPE_NOTE)
+                        InlineNote(
+                            "日记、目标与进展记录保存在本机数据库，可随时导出为 JSON，不会上传；" +
+                                "首页、轨迹、日记与顾问只展示你的真实记录，没有预置演示数据。",
+                        )
                     }
                 }
             }

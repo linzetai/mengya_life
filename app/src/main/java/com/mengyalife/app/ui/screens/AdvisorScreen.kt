@@ -185,14 +185,6 @@ fun AdvisorScreen(
                 horizontalPadding = 22.dp,
             )
             Column(modifier = Modifier.padding(horizontal = 22.dp)) {
-                if (!hasMessages) {
-                    Text(
-                        text = "有些事情，\n我们可以慢慢想清楚。",
-                        style = MorrowType.SheetTitle,
-                        color = colors.textPrimary,
-                    )
-                    Spacer(Modifier.height(10.dp))
-                }
                 CompactStatusChip(
                     state = state,
                     onClick = { statusExpanded = !statusExpanded },
@@ -422,15 +414,17 @@ private fun CompactStatusChip(
     val colors = MorrowTheme.colors
     val text = when {
         !state.configured -> "未配置模型"
-        !state.consentValid -> "需要重新授权"
-        else -> "已连接 · ${state.config.model}"
+        !state.consentValid -> "已配置 · 等待授权"
+        else -> "已配置 · ${state.config.model}"
     }
     val dotColor = when {
-        !state.configured || !state.consentValid -> colors.danger
+        !state.configured -> colors.danger
+        !state.consentValid -> colors.textTertiary
         else -> colors.forest
     }
     Surface(
         modifier = Modifier
+            .widthIn(max = 250.dp)
             .clip(RoundedCornerShape(50))
             .clickable(onClick = onClick)
             .testTag("advisor_status_chip"),
@@ -453,6 +447,7 @@ private fun CompactStatusChip(
                 style = MaterialTheme.typography.labelSmall,
                 color = colors.textSecondary,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Spacer(Modifier.width(4.dp))
             Text(
@@ -477,12 +472,13 @@ private fun AdvisorStatusCard(
     val title = when {
         !state.configured -> "还没有配置模型"
         !state.consentValid -> "模型已配置 · 等待授权"
-        else -> "已连接 · ${state.config.model}"
+        else -> "已配置 · ${state.config.model}"
     }
     val subtitle = when {
         !state.configured -> "配置你自己的服务后，才可能开始对话"
         !state.consentValid -> "先确认允许分享的记录，再开始"
-        else -> "可读取：${AiConsentRules.categoriesSummary(state.consent.categories)}"
+        else -> "可读取：${AiConsentRules.categoriesSummary(state.consent.categories)}；" +
+            "发送消息时才会向该地址发起真实请求，这里只表示本机配置齐全"
     }
     Surface(
         modifier = Modifier
