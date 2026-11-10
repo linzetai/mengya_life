@@ -117,7 +117,7 @@ check("演示区有明确标注", has_text("演示区（非真实数据）"))
 shot("01-trends-empty-and-demo")
 
 print("========== 1. 建目标 + 真实数值记录 ==========")
-tap_tag("tab_goals")
+open_goals()
 time.sleep(1.0)
 new_long(GOAL_A)
 a_id = node_ids()[0]
@@ -191,7 +191,7 @@ check("不合成整体评分", not has_text("人生评分") and not has_text("�
 shot("06-trends-real")
 
 print("========== 4. 非法数值在真机被拒绝 ==========")
-tap_tag("tab_goals")
+open_goals()
 time.sleep(1.2)
 before = len(db_trend_rows())
 for bad in ["NaN", "Infinity", "1e999"]:

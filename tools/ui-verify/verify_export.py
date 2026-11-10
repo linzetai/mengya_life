@@ -83,7 +83,7 @@ time.sleep(1.0)
 check("日记已保存", wait_text(DIARY_TITLE, 12))
 
 # 目标 + 两条进展
-tap_tag("tab_goals")
+open_goals()
 time.sleep(1.2)
 tap_tag("goal_new_long_term")
 check("目标面板", wait_tag("goal_editor_title", 8))

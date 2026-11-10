@@ -112,7 +112,7 @@ check("同意后进入对话", has_tag("advisor_consent_summary"))
 shot("g3b1-03-granted")
 
 print("========== 2. 创建目标/进展/日记 ==========")
-tap_tag("tab_goals")
+open_goals()
 time.sleep(1.0)
 tap_tag("goal_new_long_term")
 wait_tag("goal_editor_title", 8)

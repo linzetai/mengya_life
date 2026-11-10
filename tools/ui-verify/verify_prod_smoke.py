@@ -78,7 +78,7 @@ check("总览空状态", wait_text("还没有长期目标", 8))
 check("总览演示区仍标注", has_text("演示"))
 shot("03-prod-overview")
 
-tap_tag("tab_goals")
+open_goals()
 time.sleep(1.2)
 check("目标空状态", wait_text("还没有目标", 8))
 check("没有预置示例目标", not has_text("把身体状态维持在可持续的基准线上"))

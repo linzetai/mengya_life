@@ -167,7 +167,7 @@ check("取消写入 CANCELLED 且无假回复",
 shot("advisor-08-cancelled")
 
 print("========== 4. 目标上下文授权 ==========")
-tap_tag("tab_goals")
+open_goals()
 time.sleep(1.0)
 tap_tag("goal_new_long_term")
 wait_tag("goal_editor_title", 8)

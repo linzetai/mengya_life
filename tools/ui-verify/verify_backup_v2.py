@@ -16,7 +16,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 
 
 def create_goal():
-    tap_tag("tab_goals")
+    open_goals()
     time.sleep(1.2)
     tap_tag("goal_new_long_term")
     if not wait_tag("goal_editor_title", 8):

@@ -165,9 +165,9 @@ def goal_id():
 def create_goal(title):
     if not has_tag("btn_settings"):
         back_to_main()
-        tap_tag("tab_goals")
+        open_goals()
     else:
-        tap_tag("tab_goals")
+        open_goals()
     time.sleep(1.2)
     if not tap_tag("goal_new_long_term"):
         return False

@@ -141,6 +141,24 @@ def tap_tag(tag, wait=1.2):
         time.sleep(0.6)
     return False
 
+
+def open_goals(wait=1.0):
+    """打开目标视图（兼容新旧 IA）。
+
+    新 IA 的底部导航只有 今天/轨迹/日记/顾问，目标与阶段收进
+    「今天 → 人生全景」；旧脚本里的 tab_goals 已移除。
+    """
+    if has_tag("tab_goals"):
+        return tap_tag("tab_goals", wait=wait)
+    if has_tag("life_panorama_screen"):
+        return True
+    tap_tag("tab_today")
+    time.sleep(0.6)
+    if has_tag("today_open_panorama"):
+        tap_tag("today_open_panorama")
+        time.sleep(wait)
+    return has_tag("life_panorama_screen")
+
 def tap_text(text, wait=1.2):
     for _ in range(4):
         for n in nodes(dump()):
