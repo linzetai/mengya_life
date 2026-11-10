@@ -8,8 +8,12 @@ object QaRestoreFaultInjector {
     var pauseAfterCommitMs = 0L
     var pauseAfterConsentMs = 0L
 
+    /** DB 已提交、安全收敛前直接终止进程，用于崩溃重试验证。 */
+    var haltAfterCommitBeforeConverge = false
+
     fun reset() {
         failTransaction = false; failKeyDelete = false; failSettings = false
         pauseAfterCommitMs = 0L; pauseAfterConsentMs = 0L
+        haltAfterCommitBeforeConverge = false
     }
 }

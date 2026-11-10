@@ -138,7 +138,7 @@ class CareRunner(
                         CareOpportunityFactory.Draft(
                             type = "GOAL_STALL", sourceId = goal.id, planId = null, goalId = goal.id,
                             title = goal.title,
-                            dedupeKey = "goal:${goal.id}:${LocalDate.ofInstant(Instant.ofEpochMilli(nowMs), zone).toEpochDay()}",
+                            dedupeKey = "goal:${goal.id}:${Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate().toEpochDay()}",
                             windowStart = nowMs, windowEnd = nowMs + 24 * 3600_000,
                             expiresAt = nowMs + 48 * 3600_000,
                         ),
@@ -173,7 +173,7 @@ class CareRunner(
         android.util.Log.i("CareRun", "pending=${pending.size} drafts=${drafts.size} now=$nowMs")
         if (pending.isEmpty()) return null
 
-        val dayStart = LocalDate.ofInstant(Instant.ofEpochMilli(nowMs), zone)
+        val dayStart = Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate()
             .atStartOfDay(zone).toInstant().toEpochMilli()
         val decisionsToday = careRepository.decisionsSince(dayStart)
         if (decisionsToday >= prefs.dailyDecisionBudget) return null

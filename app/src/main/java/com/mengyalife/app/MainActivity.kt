@@ -31,6 +31,9 @@ class MainActivity : ComponentActivity() {
                 com.mengyalife.app.data.restore.QaRestoreFaultInjector.pauseAfterCommitMs =
                     intent.getLongExtra("qa_restore_pause_after_commit_ms", 0L)
             }
+            if (intent?.getBooleanExtra("qa_restore_halt_after_commit", false) == true) {
+                com.mengyalife.app.data.restore.QaRestoreFaultInjector.haltAfterCommitBeforeConverge = true
+            }
             if (intent?.hasExtra("qa_restore_pause_after_consent_ms") == true) {
                 com.mengyalife.app.data.restore.QaRestoreFaultInjector.pauseAfterConsentMs =
                     intent.getLongExtra("qa_restore_pause_after_consent_ms", 0L)

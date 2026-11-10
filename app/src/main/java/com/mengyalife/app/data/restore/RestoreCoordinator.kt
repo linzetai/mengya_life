@@ -208,7 +208,20 @@ class RestoreCoordinator(
         } catch (e: Exception) {
             return RestoreRunResult(RestoreRunStatus.FAILED_BEFORE_COMMIT, "保护快照生成失败：${e.message ?: "未知错误"}")
         }
-        val gateState = RestoreGateState(attemptId, expectedBackupId, generation, RestoreGatePhase.ARMED, now())
+        val plan = RestorePlanBuilder.build(opened.payload, validation, generation, attemptId, now())
+        // 在 DB 提交前固化凭据意图：崩溃重试不再重新推断“当前 endpoint”。
+        val beforeConfig = configRepository.state.first()
+        val intent = CredentialIntent(
+            beforeEndpoint = beforeConfig.endpoint,
+            targetEndpoint = plan.settings.aiEndpoint,
+            hadKey = beforeConfig.hasKey,
+        )
+        val gateState = RestoreGateState(
+            attemptId, expectedBackupId, generation, RestoreGatePhase.ARMED, now(),
+            beforeEndpoint = intent.beforeEndpoint,
+            targetEndpoint = intent.targetEndpoint,
+            hadKeyAtCommit = intent.hadKey,
+        )
         try {
             gate.write(gateState)
             _startupState.value = RestoreStartupState.RECONCILING
@@ -221,7 +234,6 @@ class RestoreCoordinator(
             if (cleared) finishReady() else finishMaintenance()
             return RestoreRunResult(RestoreRunStatus.FAILED_BEFORE_COMMIT, "无法持久化恢复门禁")
         }
-        val plan = RestorePlanBuilder.build(opened.payload, validation, generation, attemptId, now())
         try {
             transaction.apply(plan, now())
         } catch (e: Exception) {
@@ -241,7 +253,12 @@ class RestoreCoordinator(
             journal.write(RestoreJournalState(attemptId, expectedBackupId, generation,
                 RestoreJournalPhase.DB_COMMITTED, now()))
         }
-        val committed = RestoreGateState(attemptId, expectedBackupId, generation, RestoreGatePhase.RESET_PENDING, now())
+        val committed = RestoreGateState(
+            attemptId, expectedBackupId, generation, RestoreGatePhase.RESET_PENDING, now(),
+            beforeEndpoint = intent.beforeEndpoint,
+            targetEndpoint = intent.targetEndpoint,
+            hadKeyAtCommit = intent.hadKey,
+        )
         try {
             gate.write(committed)
         } catch (e: Exception) {
@@ -255,6 +272,10 @@ class RestoreCoordinator(
             finishMaintenance()
             return RestoreRunResult(RestoreRunStatus.COMMITTED_NEEDS_CONVERGENCE, "数据库已提交但元数据无法确认，保持维护状态")
         }
+        if (com.mengyalife.app.BuildConfig.QA_BUILD && QaRestoreFaultInjector.haltAfterCommitBeforeConverge) {
+            writeQaPhase("HALT_AFTER_COMMIT", attemptId, generation)
+            Runtime.getRuntime().halt(70)
+        }
         return converge(committed, metaAfter.getOrNull())
     }
 
@@ -267,8 +288,7 @@ class RestoreCoordinator(
             gate.write(state.copy(phase = RestoreGatePhase.RESET_PENDING))
             journal.write(RestoreJournalState(state.attemptId, state.backupId, state.generation,
                 RestoreJournalPhase.DB_COMMITTED, now()))
-            // 恢复只替换数据，不清除本机加密 Key，也不强制重新授权；
-            // Key 本就不在备份中，保留本机配置即可。
+            // 凭据只按恢复前固化的意图处理；Key 不在备份中，绝不从备份恢复。
             if (com.mengyalife.app.BuildConfig.QA_BUILD) writeQaPhase("CONSENT_DONE", state.attemptId, state.generation)
             if (com.mengyalife.app.BuildConfig.QA_BUILD && QaRestoreFaultInjector.pauseAfterConsentMs > 0) {
                 kotlinx.coroutines.delay(QaRestoreFaultInjector.pauseAfterConsentMs)
@@ -277,12 +297,14 @@ class RestoreCoordinator(
             gate.write(state.copy(phase = RestoreGatePhase.SETTINGS_PENDING))
             journal.write(RestoreJournalState(state.attemptId, state.backupId, state.generation,
                 RestoreJournalPhase.SECURITY_RESET, now()))
-            val beforeAi = configRepository.state.first()
-            val beforeEndpoint = beforeAi.endpoint
-            val hadKey = beforeAi.hasKey
+            // 只认 Gate 中持久化的凭据意图；兼容旧 Gate（字段为空）时 fail-closed。
+            val intent = CredentialIntent(
+                beforeEndpoint = state.beforeEndpoint,
+                targetEndpoint = state.targetEndpoint,
+                hadKey = state.hadKeyAtCommit,
+            )
             settingsApplier.apply(meta?.restoreSettingsJson)
-            val afterEndpoint = configRepository.state.first().endpoint
-            val credential = RestoreCredentialPolicy.decide(beforeEndpoint, afterEndpoint, hadKey)
+            val credential = PersistedCredentialPolicy.decide(intent)
             if (credential.deleteKey) {
                 val keyResult = configRepository.deleteKeyConfirmed()
                 if (keyResult == KeyDeleteResult.FAILED) {
@@ -311,7 +333,7 @@ class RestoreCoordinator(
             val completion = when {
                 credential.deleteKey -> "恢复完成；服务地址已变化，旧 Key 已删除，授权已撤销"
                 credential.resetConsent -> "恢复完成；服务地址已变化，授权已撤销，请重新授权"
-                afterEndpoint.isBlank() -> "恢复完成；本机 AI 配置保持不变"
+                intent.targetEndpoint.isNullOrBlank() -> "恢复完成；本机 AI 配置保持不变"
                 else -> "恢复完成，已保留本机 Key 与授权"
             }
             _completionMessage.value = completion

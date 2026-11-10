@@ -146,7 +146,7 @@ object CarePreferenceParser {
     }
 
     fun endOfWeek(now: Long, zone: ZoneId): Long {
-        val date = LocalDate.ofInstant(Instant.ofEpochMilli(now), zone)
+        val date = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
         val days = (7 - date.dayOfWeek.value) % 7
         return date.plusDays(days.toLong()).atTime(LocalTime.of(23, 59)).atZone(zone).toInstant().toEpochMilli()
     }

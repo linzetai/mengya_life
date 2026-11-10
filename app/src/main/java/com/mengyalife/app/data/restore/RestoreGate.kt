@@ -21,6 +21,12 @@ data class RestoreGateState(
     val generation: Long,
     val phase: RestoreGatePhase,
     val createdAt: Long,
+    /** 恢复前本机 endpoint；用于崩溃重试时不再依赖“当前 endpoint”。 */
+    val beforeEndpoint: String? = null,
+    /** 备份将恢复成的 endpoint（来自备份 settings）；为空表示备份未携带。 */
+    val targetEndpoint: String? = null,
+    /** 恢复前本机是否有 Key。 */
+    val hadKeyAtCommit: Boolean? = null,
 )
 
 /** noBackupFilesDir/restore/gate.json；临时文件 + fsync + rename。 */
@@ -40,6 +46,11 @@ class RestoreGate(private val dir: File, private val syncParent: (File) -> Unit 
                 generation = root["generation"]?.jsonPrimitive?.longOrNull ?: return null,
                 phase = RestoreGatePhase.valueOf(root["phase"]?.jsonPrimitive?.contentOrNull ?: return null),
                 createdAt = root["createdAt"]?.jsonPrimitive?.longOrNull ?: 0L,
+                beforeEndpoint = root["beforeEndpoint"]?.jsonPrimitive?.contentOrNull,
+                targetEndpoint = root["targetEndpoint"]?.jsonPrimitive?.contentOrNull,
+                hadKeyAtCommit = root["hadKeyAtCommit"]?.jsonPrimitive?.let {
+                    it.contentOrNull?.toBooleanStrictOrNull()
+                },
             )
         }.getOrNull()
     }
@@ -50,6 +61,9 @@ class RestoreGate(private val dir: File, private val syncParent: (File) -> Unit 
             put("attemptId", state.attemptId); put("backupId", state.backupId)
             put("generation", state.generation); put("phase", state.phase.name)
             put("createdAt", state.createdAt)
+            state.beforeEndpoint?.let { put("beforeEndpoint", it) }
+            state.targetEndpoint?.let { put("targetEndpoint", it) }
+            state.hadKeyAtCommit?.let { put("hadKeyAtCommit", it) }
         }
         val bytes = obj.toString().toByteArray(Charsets.UTF_8)
         val tmp = File(dir, "gate.json.tmp")

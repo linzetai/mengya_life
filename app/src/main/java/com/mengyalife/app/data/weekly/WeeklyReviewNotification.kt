@@ -52,8 +52,13 @@ class WeeklyReviewNotifier(private val context: Context) {
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
-        NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
-        return true
+        // 权限可能在检查与发送之间被用户撤销；明确处理 SecurityException，失败就当没发。
+        return try {
+            NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
+            true
+        } catch (e: SecurityException) {
+            false
+        }
     }
 
     private fun ensureChannel() {

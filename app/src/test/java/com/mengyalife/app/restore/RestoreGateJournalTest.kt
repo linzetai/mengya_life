@@ -30,6 +30,25 @@ class RestoreGateJournalTest {
     }
 
     @Test
+    fun `gate persists credential intent across restart`() {
+        val dir = Files.createTempDirectory("gate-intent").toFile()
+        val gate = RestoreGate(dir) { }
+        gate.write(
+            RestoreGateState(
+                "attempt", "backup", 3, RestoreGatePhase.RESET_PENDING, 42,
+                beforeEndpoint = "https://old.example.com/v1",
+                targetEndpoint = "https://new.example.com/v1",
+                hadKeyAtCommit = true,
+            ),
+        )
+        val restored = RestoreGate(dir) { }.read()!!
+        assertEquals("https://old.example.com/v1", restored.beforeEndpoint)
+        assertEquals("https://new.example.com/v1", restored.targetEndpoint)
+        assertEquals(true, restored.hadKeyAtCommit)
+        dir.deleteRecursively()
+    }
+
+    @Test
     fun `gate clear failure is not silent`() {
         val dir = Files.createTempDirectory("gate-fail").toFile()
         val gate = RestoreGate(dir) { }

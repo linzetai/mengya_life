@@ -19,7 +19,7 @@ object CarePolicy {
     sealed interface Result { data object Allow : Result; data class Deny(val reason: String) : Result }
 
     fun inDnd(now: Long, prefs: Prefs, zone: ZoneId = ZoneId.systemDefault()): Boolean {
-        val hour = LocalTime.ofInstant(Instant.ofEpochMilli(now), zone).hour
+        val hour = Instant.ofEpochMilli(now).atZone(zone).toLocalTime().hour
         return if (prefs.dndStartHour > prefs.dndEndHour) {
             hour >= prefs.dndStartHour || hour < prefs.dndEndHour
         } else {
