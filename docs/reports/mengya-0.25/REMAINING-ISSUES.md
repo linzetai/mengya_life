@@ -1,12 +1,10 @@
 # MengYa Life 0.25 · 未完成与风险
 
-## 1. Gate 0：推送未完成（BLOCKED）
+## 1. Gate 0：推送已完成
 
-- 远端 `master` 实测仍为 `ee20bf8`；本地 `c25f290`（0.24.3）与 0.25 提交均未推送；
-- 原因：本机没有 GitHub 凭据。`git@github.com` 的 22/443 端口连接超时，HTTPS push 需要用户名/Token，
-  环境里没有 `gh`、PAT、`.netrc` 或凭证 helper；
-- 未执行 force push / reset / 历史重写；
-- 需要：一个有 `repo` 权限的 Token，或由你在本地执行 push。
+- 2026-11-11 08:26 推送成功：`ee20bf8..b1b38cd master -> master`（fast-forward）；
+- 远端 `refs/heads/master` 复核为 `b1b38cd0b3cd8471a950b20ca7320d422115248b`；
+- 未执行 force push / reset / 历史重写。
 
 ## 2. Gate 1 未完成项
 

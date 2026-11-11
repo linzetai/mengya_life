@@ -32,7 +32,8 @@
 |---|---|
 | 远端 master（`git ls-remote` HTTPS） | `ee20bf8…` |
 | 本地 HEAD（改动前） | `c25f290…`，领先 2 个提交，无分叉 |
-| 推送 | **BLOCKED**：无 GitHub 凭据（SSH 22/443 超时，HTTPS 无 Token，无 gh） |
+| 推送 | ✅ 已推送（fast-forward）：`ee20bf8..b1b38cd` |
+| 推送后远端 SHA | `b1b38cd0b3cd8471a950b20ca7320d422115248b`（`ls-remote` 复核） |
 | force push / reset | 未执行 |
 
 ## Gate 1 · 可靠性收口

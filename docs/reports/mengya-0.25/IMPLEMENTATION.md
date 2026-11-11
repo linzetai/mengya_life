@@ -10,8 +10,8 @@
 | 本地 HEAD | `c25f290d4fbed6ed10810c9cf4f857a8ef5020b4` |
 | 远端 `refs/heads/master`（HTTPS `ls-remote` 实测） | `ee20bf881a993f32443cd6ef47462b2ba828bef3` |
 | 关系 | 本地领先 2 个提交（`9e2e4b9`、`c25f290`），**无分叉**，可 fast-forward |
-| 推送 | **BLOCKED**：本机无 GitHub 凭据；SSH 22/443 超时；HTTPS push 需要用户名/Token，环境无 `gh`/PAT |
-| 远端 SHA 复核 | 已复核，仍为 `ee20bf8`；按用户决定“先跳过推送，继续开发”处理 |
+| 推送 | ✅ 已推送：`ee20bf8..b1b38cd master -> master`（fast-forward，无 force） |
+| 推送后远端 SHA | `b1b38cd0b3cd8471a950b20ca7320d422115248b`（`git ls-remote` 复核一致） |
 
 未执行任何 force push / reset / 重写历史。
 
