@@ -16,16 +16,21 @@
 | 项 | 状态 | 证据 / 限制 |
 |---|---|---|
 | `git diff --check` | **PASS** | 本轮源码补丁无空白错误 |
-| JVM `:app:testDebugUnitTest` | **BLOCKED** | 未进入测试编译；AAPT2 默认 x86_64 二进制无法在本机 aarch64 环境启动。尝试本机 `/usr/bin/aapt2` 后，AAPT2 2.19 无法解析 SDK `platforms/android-35/android.jar` 的资源表（`RES_TABLE_TYPE_TYPE entry offsets overlap`）。 |
-| Instrumented `:app:connectedDebugAndroidTest` | **BLOCKED** | `adb devices -l` 无设备；`localhost:46067` 连接被拒绝，无法安装或运行 QA/测试包。 |
-| `:app:assembleDebug` | **BLOCKED** | 同一 Android 35 / AAPT2 环境问题，停在 `processDebugResources`。 |
-| `:app:assembleQa` | **BLOCKED** | 同一 Android 35 / AAPT2 环境问题，停在 `processQaResources`。 |
-| `:app:lintDebug` | **BLOCKED** | 同一 Android 35 / AAPT2 环境问题，停在 `processDebugResources`，未生成本轮 lint 报告。 |
+| JVM `:app:testDebugUnitTest` | **PASS** | 使用项目 SDK 环境脚本后，**385/385**（0 failures / 0 errors / 0 skipped）。 |
+| Instrumented `:app:connectedDebugAndroidTest` | **BLOCKED** | `compileDebugAndroidTestKotlin` 与测试 APK 打包 PASS；运行阶段失败为 `No connected devices`。以记录的 `127.0.0.1:46067` 重连仍被拒绝，未执行设备用例。 |
+| `:app:assembleDebug` | **PASS** | 使用 `/opt/android-sdk/env.sh` 配置的 `/opt/android-aapt2/aapt2` 构建成功。 |
+| `:app:assembleQa` | **PASS** | 使用项目 SDK 环境脚本构建成功。 |
+| `:app:lintDebug` | **PASS** | lintDebug BUILD SUCCESSFUL：0 errors / 39 warnings。 |
 | QA 提交后 halt → 重启收敛（同 endpoint） | **BLOCKED** | QA 设备不可达，未执行；未操作正式包数据。 |
 | QA 提交后 halt → 重启收敛（跨 endpoint） | **BLOCKED** | QA 设备不可达，未执行；未操作正式包数据。 |
 | Key 删除失败 → 维护态 → 故障解除重启收敛 | **BLOCKED** | QA 故障注入已接线，但设备不可达，未实际运行或核对 Key / consent / Gate / app_meta。 |
 | SAF 真实备份预览/确认流程 | **BLOCKED** | SAF 选择器无法通过现有自动化驱动；底层 QA 链路亦因设备不可达未执行。 |
-| APK SHA256 | **BLOCKED** | 本轮 Debug/QA APK 未能构建，无本轮产物可校验；不沿用旧 APK 的 SHA。 |
+| APK SHA256 | **PASS** | Debug `106ed569bc1d18dc8910c48c2dcdd401d588ac604caeb1bd2bb78cf7fa7a0f88`；QA `cb87cf00b79d2671ebc3293ac6effd63af26b7596065b6f32c21b6f3771e351f`。 |
+
+## 构建与 ADB 环境复核
+
+- 正确的构建/测试入口是从仓库根目录执行 `. ./env.sh`；当前环境在 `PREFIX` 未设置时转用 `/opt/android-sdk/env.sh`，由它指定兼容 API 35 的 `/opt/android-aapt2/aapt2`。此前第一次验收误用系统 `/usr/bin/aapt2`（2.19），导致错误地把资源链接失败判成工具链阻塞；本报告已按正确脚本重跑并更正状态。
+- 仓库 [README 第 8 节](../../../README.md#L207-L218) 规定 `DEV=<手机IP>:<无线调试端口>` 后执行 `adb connect "$DEV"`；历史 [Gate 0 构建报告](../REPORT-G0-Android-Build.md#L253-L262) 记载曾成功连接 `127.0.0.1:46771`，并注明无线调试端口动态变化、应从无线调试页读取。本轮尝试 `127.0.0.1:46067` 被拒绝，`adb devices -l` 为空；这只证明当前执行环境未能建立连接，不证明设备端口本身配置错误。
 
 ## 并发保证与剩余边界
 
@@ -36,4 +41,4 @@
 ## 提交与产物
 
 - 最终 commit SHA：见本轮验收回复（本报告与实现一并提交）。
-- Debug / QA APK SHA256：未生成（见上表）。
+- Debug / QA APK SHA256：见验收结果表；均为本轮代码构建产物。
