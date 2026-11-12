@@ -27,6 +27,7 @@
 | Key 删除失败 → 维护态 → 故障解除重启收敛 | **PASS** | 故障阶段 `COMMITTED_NEEDS_CONVERGENCE`：Key=true、consent=true、gateActive=true；Gate=`SETTINGS_PENDING` 且 `hadKeyAtCommit=true`。移除注入并重启后 attempt `8ae8a441…` generation 10：Key=false、consent=false、AI=false、gateActive=false，Gate/journal 清除；只读查询 `app_meta.restore_converged_at=1794497066788`。`finishMaintenance()` 同步置 startupState=MAINTENANCE、writeBarrier not-ready；UI 订阅同一 `gateActive` 显示维护页；未单独保存 UI 截图。 |
 | SAF 真实备份预览/确认流程 | **BLOCKED** | 系统 SAF 选择器未通过用户界面确认；本轮用已有 QA 入口验证底层链路，不把真实 SAF 流程记为 PASS。 |
 | APK SHA256 | **PASS** | Debug `106ed569bc1d18dc8910c48c2dcdd401d588ac604caeb1bd2bb78cf7fa7a0f88`；QA `cb87cf00b79d2671ebc3293ac6effd63af26b7596065b6f32c21b6f3771e351f`。 |
+| QA 包测试后留存 | **BLOCKED** | instrumented runner 清理后 QA package 不在安装列表；重装返回 `INSTALL_FAILED_USER_RESTRICTED`。QA APK 已在交付 ZIP 中；正式包和正式数据未操作。 |
 
 ## 构建与 ADB 环境复核
 
@@ -38,7 +39,7 @@
 
 - AI 出站：CareRunner 在 `withWrite(boundGeneration)` 内调用 `engine.chat`；restore 的 `withExclusive` 必须等待已开始的请求完成。请求释放后，恢复可先取得栅栏并推进 generation，旧模型结果再经 generation 检查被丢弃。生产容器向 CareRunner 注入共享 barrier；未注入 barrier 的独立测试构造不具备跨恢复互斥保证。
 - 通知：`claimNotification` 是数据库层最多认领一次；`deliver` 将认领和调用通知 post 放进恢复栅栏，保证两者执行期间恢复不能进入维护态。Android 系统通知与 Room 不存在跨系统事务，进程崩溃时仍可能已认领但未成功显示；这不是 exactly-once 或用户必达保证。
-- 同 endpoint / 跨 endpoint / 删除失败后的启动恢复状态与凭据最终值，本轮没有真机证据，不作 PASS 声明。
+- 同 endpoint、跨 endpoint 与删除失败后的重启收敛均有真机 QA 证据（见表）；仍未确认的是 SAF 真实选择器/用户确认流程。
 
 ## 提交与产物
 
