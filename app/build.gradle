@@ -9,6 +9,8 @@ android {
     namespace 'com.mengyalife.app'
     compileSdk 35
     buildToolsVersion '35.0.1'
+    // Keep instrumented runs on the isolated QA package; never launch the user's production data.
+    testBuildType 'qa'
 
     defaultConfig {
         applicationId 'com.mengyalife.app'

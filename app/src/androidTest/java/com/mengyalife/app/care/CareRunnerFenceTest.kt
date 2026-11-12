@@ -110,6 +110,8 @@ class CareRunnerFenceTest {
             dndStartHour = 22
             dndEndHour = 8
             qaDailySendLimit = -1
+            // QA test clock is shared app state; reset it so device history cannot skew fixtures.
+            testNow = 0L
         }
         consent = FakeConsentRepository()
         config = FakeConfigRepository()
@@ -328,15 +330,38 @@ class CareRunnerFenceTest {
     @Test
     fun restoreDuringModelFailureLeavesNoDropDecision() = runBlocking {
         engine.failure = true
+        val chatEntered = CompletableDeferred<Unit>()
+        val chatRelease = CompletableDeferred<Unit>()
         engine.beforeChat = {
-            barrier.withExclusive { db.clearAllTables() }
-            barrier.setReady(true)
+            chatEntered.complete(Unit)
+            chatRelease.await()
         }
         val runner = buildRunner()
-        val result = runCatching { runner.runOnce() }
+        val run = async(Dispatchers.IO) { runCatching { runner.runOnce() } }
+        withTimeout(AWAIT_TIMEOUT_MS) { chatEntered.await() }
+
+        val restoreEntered = CompletableDeferred<Unit>()
+        val restoreBodyStarted = CompletableDeferred<Unit>()
+        val restore = async(Dispatchers.IO) {
+            restoreEntered.complete(Unit)
+            barrier.withExclusive {
+                restoreBodyStarted.complete(Unit)
+                db.clearAllTables()
+            }
+            barrier.setReady(true)
+        }
+        withTimeout(AWAIT_TIMEOUT_MS) { restoreEntered.await() }
+        delay(200)
+        assertFalse("恢复必须等待挂起中的模型请求", restoreBodyStarted.isCompleted)
+        assertTrue("请求结束前维护态不应启动", barrier.isReady())
+
+        chatRelease.complete(Unit)
+        withTimeout(AWAIT_TIMEOUT_MS) { restoreBodyStarted.await() }
+        restore.await()
+        val result = withTimeout(AWAIT_TIMEOUT_MS) { run.await() }
         assertTrue(result.isSuccess)
         assertNull(result.getOrNull())
-        assertEquals(1, engine.calls.size) // 模型被调用；返回失败后 DROP 写被栅栏拒绝
+        assertEquals(1, engine.calls.size) // 模型调用失败；恢复推进代次后 DROP 不得写入
         assertEquals(0, db.careDao().allDecisions().size)
         assertEquals(0, db.advisorMessageDao().loadAll().size)
         assertEquals(0, db.careDao().loadAllOpportunities().size)
