@@ -98,7 +98,9 @@ class DataStoreAdvisorConfigRepository(
 
     override suspend fun deleteKeyConfirmed(): KeyDeleteResult = guarded {
         val existing = storage.load()
-        val confirmed = cipher.deleteKeyConfirmed()
+        val confirmed = if (com.mengyalife.app.BuildConfig.QA_BUILD &&
+            com.mengyalife.app.data.restore.QaRestoreFaultInjector.failKeyDelete
+        ) false else cipher.deleteKeyConfirmed()
         if (!confirmed) return@guarded KeyDeleteResult.FAILED
         storage.save(existing.copy(encryptedKey = null))
         if (existing.encryptedKey.isNullOrBlank()) KeyDeleteResult.ALREADY_ABSENT else KeyDeleteResult.DELETED

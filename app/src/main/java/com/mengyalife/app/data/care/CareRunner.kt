@@ -62,6 +62,7 @@ class CareRunner(
         val startupConfig = configRepository.runtimeConfig() ?: return null
         val boundEndpoint = startupConfig.endpoint
         suspend fun boundOk(): Boolean {
+            if (writeBarrier != null && !writeBarrier.isReady()) return false
             if (!settings.enabled) return false
             if (restoreGeneration() != boundGeneration) return false
             val latest = consentRepository.current()
@@ -210,14 +211,34 @@ class CareRunner(
             userZone = zone.id,
         )
         if (!boundOk()) return null
-        val result = engine.chat(
-            config = config,
-            messages = listOf(
-                AdvisorChatMessage(role = "system", content = prompt),
-                AdvisorChatMessage(role = "user", content = "请基于候选自主决定是否关心用户，只输出 JSON。"),
-            ),
-            maxTokens = 1500,
-        )
+        val result = if (writeBarrier != null) {
+            // Hold the shared barrier over the entire outbound request. A restore may
+            // not enter maintenance after the readiness check but before chat starts,
+            // nor while the request is in flight. This serializes restore behind chat.
+            try {
+                writeBarrier.withWrite(boundGeneration) {
+                    engine.chat(
+                        config = config,
+                        messages = listOf(
+                            AdvisorChatMessage(role = "system", content = prompt),
+                            AdvisorChatMessage(role = "user", content = "请基于候选自主决定是否关心用户，只输出 JSON。"),
+                        ),
+                        maxTokens = 1500,
+                    )
+                }
+            } catch (_: com.mengyalife.app.data.restore.RestoreException) {
+                return null
+            }
+        } else {
+            engine.chat(
+                config = config,
+                messages = listOf(
+                    AdvisorChatMessage(role = "system", content = prompt),
+                    AdvisorChatMessage(role = "user", content = "请基于候选自主决定是否关心用户，只输出 JSON。"),
+                ),
+                maxTokens = 1500,
+            )
+        }
         android.util.Log.i("CareRun", "engine=${result is AdvisorChatResult.Success}")
         if (result !is AdvisorChatResult.Success) {
             saveDecisionFenced(

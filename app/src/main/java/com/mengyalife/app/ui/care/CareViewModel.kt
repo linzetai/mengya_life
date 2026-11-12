@@ -199,11 +199,16 @@ class CareViewModel(
                 com.mengyalife.app.data.care.CareDeliveryCoordinator(it) { id -> careRepository.claimNotification(id) }
             }
             if (coordinator != null) {
-                if (!coordinator.approve(decisionId, generation ?: 0L)) return@launch
-            } else if (!careRepository.claimNotification(decisionId)) return@launch
-            com.mengyalife.app.data.care.CareNotification.post(
-                context, card.opportunityId, card.text, settings.lockScreenDetail,
-            )
+                coordinator.deliver(decisionId, generation ?: 0L) {
+                    com.mengyalife.app.data.care.CareNotification.post(
+                        context, card.opportunityId, card.text, settings.lockScreenDetail,
+                    )
+                }
+            } else if (careRepository.claimNotification(decisionId)) {
+                com.mengyalife.app.data.care.CareNotification.post(
+                    context, card.opportunityId, card.text, settings.lockScreenDetail,
+                )
+            }
         }
     }
 

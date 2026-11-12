@@ -80,4 +80,5 @@
 ## 结论
 
 - 可靠性代码修复与单测：PASS；
-- 真机故障注入、真实恢复预览、instrumented、Gate 2、Gate 3 全矩阵：BLOCKED / FAIL，未以 PASS 记录。
+- 真机故障注入与真实恢复预览：BLOCKED；Gate 2：FAIL；Gate 3 全矩阵：BLOCKED。
+- Instrumented：**PASS（19/19）**，与上文执行记录一致，不属于 BLOCKED 项。

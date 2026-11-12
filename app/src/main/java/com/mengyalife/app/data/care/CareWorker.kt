@@ -41,8 +41,9 @@ class CareWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         if (!card.isNew) return Result.success() // 旧卡片只展示，不再次通知
         // 恢复维护中/代次变化：不投递旧关心。
         val coordinator = CareDeliveryCoordinator(barrier) { container.careRepository.claimNotification(it) }
-        if (!coordinator.approve(decisionId, startGeneration)) return Result.success()
-        CareNotification.post(app, card.opportunityId, card.text, settings.lockScreenDetail)
+        coordinator.deliver(decisionId, startGeneration) {
+            CareNotification.post(app, card.opportunityId, card.text, settings.lockScreenDetail)
+        }
         return Result.success()
     }
 }

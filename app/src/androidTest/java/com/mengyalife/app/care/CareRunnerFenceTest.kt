@@ -148,6 +148,17 @@ class CareRunnerFenceTest {
         assertNotNull(db.careDao().latestSentDecision()!!.notifiedAt)
     }
 
+    @Test
+    fun runnerDoesNotStartModelRequestWhileBarrierNotReady() = runBlocking {
+        barrier.setReady(false) // 对应 UNKNOWN / RECONCILING / MAINTENANCE 的 fail-closed 状态
+        val result = withTimeout(AWAIT_TIMEOUT_MS) { runCatching { buildRunner().runOnce() } }
+        assertTrue(result.isSuccess)
+        assertNull(result.getOrNull())
+        assertEquals(0, engine.calls.size)
+        assertEquals(0, db.careDao().loadAllOpportunities().size)
+        assertEquals(0, db.careDao().allDecisions().size)
+    }
+
     // ---------------------------------------------------------------------
     // a-1. 恢复先完成（含生产语义的授权重置），再调用 runOnce。
     // ---------------------------------------------------------------------
@@ -223,23 +234,30 @@ class CareRunnerFenceTest {
         val run = async(Dispatchers.IO) { runCatching { runner.runOnce() } }
 
         withTimeout(AWAIT_TIMEOUT_MS) { chatEntered.await() }
-        // 模型请求期间 Runner 没有持有写锁，恢复可以完成并使 generation 失效。
-        withTimeout(AWAIT_TIMEOUT_MS) { barrier.withExclusive { } }
-        barrier.setReady(true)
-        assertEquals(1L, barrier.generation())
+        // 请求进入后，恢复必须等待请求结束；释放后恢复可先于旧结果提交，
+        // 旧 generation 随后在 boundOk / 写栅栏处被丢弃。
+        val restoreEntered = CompletableDeferred<Unit>()
+        val restoreFinished = async(Dispatchers.IO) {
+            restoreEntered.complete(Unit)
+            barrier.withExclusive { db.clearAllTables() }
+            barrier.setReady(true)
+        }
+        withTimeout(AWAIT_TIMEOUT_MS) { restoreEntered.await() }
+        delay(200)
+        assertTrue("请求未结束时维护不得进入", barrier.isReady())
+        assertFalse("模型调用仍在途时恢复必须等待", restoreFinished.isCompleted)
 
         chatRelease.complete(Unit)
+        withTimeout(AWAIT_TIMEOUT_MS) { restoreFinished.await() }
         val result = withTimeout(AWAIT_TIMEOUT_MS) { run.await() }
         assertTrue(result.isSuccess)
-        assertNull("恢复前的模型结果必须被丢弃", result.getOrNull())
+        assertNull("恢复后的旧模型结果必须被丢弃", result.getOrNull())
         assertEquals(1, engine.calls.size)
 
         assertEquals(0, db.advisorMessageDao().loadAll().size)
         assertEquals(0, db.careDao().allDecisions().size)
         assertNull(db.careDao().latestSentDecision())
-        val opportunities = db.careDao().loadAllOpportunities()
-        assertEquals(1, opportunities.size)
-        assertEquals("PENDING", opportunities.single().status)
+        assertEquals(0, db.careDao().loadAllOpportunities().size)
     }
 
     // ---------------------------------------------------------------------

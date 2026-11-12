@@ -308,6 +308,8 @@ class RestoreCoordinator(
             if (credential.deleteKey) {
                 val keyResult = configRepository.deleteKeyConfirmed()
                 if (keyResult == KeyDeleteResult.FAILED) {
+                    finishMaintenance()
+                    writeQaStatus("COMMITTED_NEEDS_CONVERGENCE", state.attemptId, state.generation)
                     return RestoreRunResult(
                         RestoreRunStatus.COMMITTED_NEEDS_CONVERGENCE,
                         "endpoint 已变化但旧 Key 删除未确认；保持维护状态",
