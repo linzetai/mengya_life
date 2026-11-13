@@ -23,6 +23,7 @@
 | `:app:assembleQaAndroidTest` | **PASS** | Instrumented APK 已编译和打包。 |
 | `:app:lintDebug` | **PASS** | 0 errors / 40 warnings。 |
 | `:app:connectedQaAndroidTest` 最终重跑 | **PASS** | 最终连接设备 run 完成 21/21 tests，0 failures。包括 `PlanRecordApplyServiceTest` 的 Room 草案编辑、确认与重复应用幂等性验证。 |
+| GitHub master push | **PASS** | 实现提交 `e1fb2d9cb2cc97dc1b5411e57f9bd6a4aee0950f` 已推送并 fetch 验证；本报告的状态更正作为 follow-up commit。 |
 
 ## 真机证据（QA fixture）
 
@@ -44,4 +45,4 @@
 
 ## 最终 Commit
 
-本报告与实现同属一个提交；最终 SHA 由交付说明和 `git rev-parse HEAD` 提供。
+Growth Loop 实现提交为 `e1fb2d9cb2cc97dc1b5411e57f9bd6a4aee0950f`。本验收报告的最终状态更正由 follow-up commit 记录；最终 master SHA 见交付说明及 `git rev-parse HEAD`。
