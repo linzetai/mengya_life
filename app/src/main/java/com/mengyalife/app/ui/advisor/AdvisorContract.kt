@@ -8,6 +8,7 @@ import com.mengyalife.app.domain.advisor.AiConsentState
 import com.mengyalife.app.domain.advisor.ConsentCategory
 import com.mengyalife.app.domain.advisor.GoalProposalDraft
 import com.mengyalife.app.domain.advisor.RecordProposalDraft
+import com.mengyalife.app.domain.insight.InsightReference
 
 /** 记录候选卡片的操作反馈；按 proposalId 隔离，避免串台。 */
 data class RecordActionUiState(
@@ -75,6 +76,7 @@ data class AiSettingsUiState(
 
 sealed interface AdvisorAction {
     data class InputChange(val value: String) : AdvisorAction
+    data class DiscussInsight(val reference: InsightReference) : AdvisorAction
     data object Send : AdvisorAction
     data class Retry(val messageId: String) : AdvisorAction
     data object CancelRequest : AdvisorAction

@@ -2,6 +2,7 @@ package com.mengyalife.app.domain.insight
 
 import com.mengyalife.app.domain.advisor.AdvisorContextSnapshot
 import com.mengyalife.app.domain.advisor.AiConsentState
+import com.mengyalife.app.domain.advisor.AiConsentRules
 import com.mengyalife.app.domain.advisor.ConsentCategory
 import com.mengyalife.app.domain.goals.GoalLevel
 import com.mengyalife.app.domain.goals.GoalStatus
@@ -39,6 +40,9 @@ object InsightRules {
         }
         snapshot.growthMemories.takeIf { consent.enabled(ConsentCategory.JOURNAL) }?.forEach { memory ->
             allowed.add(InsightSourceRef("MEMORY", memory.id, memory.theme))
+        }
+        snapshot.journals.takeIf { consent.enabled(ConsentCategory.JOURNAL) }?.forEach { journal ->
+            allowed.add(InsightSourceRef("JOURNAL", journal.id.toString(), journal.title ?: "无标题日记"))
         }
 
         if (consent.enabled(ConsentCategory.GOALS) && snapshot.goals.isNotEmpty()) {
@@ -109,6 +113,46 @@ object InsightRules {
             }
         }
 
+        if (consent.enabled(ConsentCategory.GOALS) && consent.enabled(ConsentCategory.PROGRESS)) {
+            val childrenByParent = snapshot.goals.mapNotNull { goal ->
+                goal.parentId?.let { it to goal.id }
+            }.groupBy({ it.first }, { it.second })
+            fun goalAndDescendants(rootId: Long): Set<Long> {
+                val result = linkedSetOf(rootId)
+                val pending = mutableListOf(rootId)
+                while (pending.isNotEmpty()) {
+                    val parent = pending.removeAt(pending.lastIndex)
+                    childrenByParent[parent].orEmpty().forEach { child ->
+                        if (result.add(child)) pending += child
+                    }
+                }
+                return result
+            }
+            snapshot.goals
+                .filter { it.status == GoalStatus.IN_PROGRESS }
+                .sortedBy { it.id }
+                .take(4)
+                .forEach { goal ->
+                    val scopeIds = goalAndDescendants(goal.id)
+                    val latest = snapshot.checkins.filter { it.goalId in scopeIds }.maxByOrNull { it.recordedAt }
+                    if (latest == null || latest.recordedAt < periodStart) {
+                        val detail = latest?.let {
+                            "最近可见记录为 ${Timestamps.formatDate(it.recordedAt)}。"
+                        } ?: "目前没有找到进展记录。"
+                        val refs = listOf(InsightSourceRef("GOAL", goal.id.toString(), goal.title)) +
+                            listOfNotNull(latest?.let {
+                                val sourceGoal = goalsById[it.goalId]?.title ?: goal.title
+                                InsightSourceRef("CHECKIN", it.id.toString(), sourceGoal)
+                            })
+                        facts += InsightFact(
+                            id = "no-recent-progress-${goal.id}",
+                            text = "系统记录显示，最近 30 天没有目标「${goal.title}」及其子行动的新进展记录。$detail 这只说明没有记录，不代表没有执行。",
+                            sourceRefs = refs,
+                        )
+                    }
+                }
+        }
+
         if (consent.enabled(ConsentCategory.JOURNAL) && snapshot.growthMemories.isNotEmpty()) {
             facts += InsightFact(
                 "memory-count",
@@ -123,11 +167,16 @@ object InsightRules {
                 .filter { it.corrected || it.theme !in correctedThemes }
                 .take(3)
                 .forEach { memory ->
+                    val rawDiaryRefs = memory.sourceDiaryIds.mapNotNull { id ->
+                        val journal = snapshot.journals.firstOrNull { it.id == id } ?: return@mapNotNull null
+                        InsightSourceRef("JOURNAL", id.toString(), journal.title ?: "无标题日记")
+                    }
                     facts += InsightFact(
                         "memory-content-${memory.id}",
                         "成长记忆「${memory.theme}」${if (memory.corrected) "（用户纠正，优先）" else ""}：${memory.content.take(240)}" +
                             "（来源 ${memory.sourceDiaryIds.size} 篇日记）",
-                        listOf(InsightSourceRef("MEMORY", memory.id, memory.theme)),
+                        listOf(InsightSourceRef("MEMORY", memory.id, memory.theme)) + rawDiaryRefs,
+                        isInference = memory.isInference && !memory.corrected,
                     )
                 }
         }
@@ -168,10 +217,13 @@ object InsightRules {
     ): String {
         val root = buildJsonObject {
             put("categories", consent.categories.sortedBy { it.ordinal }.joinToString(","))
+            put("consentGranted", consent.granted)
+            put("consentEpoch", consent.epoch)
+            put("consentRecipient", AiConsentRules.normalizeRecipient(consent.recipient))
             put("timeBucket", now / (24L * 60 * 60 * 1000))
             put("goals", buildJsonObject {
                 snapshot.goals.sortedBy { it.id }.forEach { goal ->
-                    put(goal.id.toString(), "${goal.title}|${goal.description}|${goal.level}|${goal.status}|${goal.startDate}|${goal.dueDate}|${goal.createdAt}|${goal.parentId}")
+                    put(goal.id.toString(), "${goal.title}|${goal.description}|${goal.level}|${goal.domain}|${goal.status}|${goal.startDate}|${goal.dueDate}|${goal.createdAt}|${goal.updatedAt}|${goal.parentId}")
                 }
             })
             put("checkins", buildJsonObject {
@@ -181,7 +233,14 @@ object InsightRules {
             })
             put("memories", buildJsonObject {
                 snapshot.growthMemories.sortedBy { it.id }.forEach { memory ->
-                    put(memory.id, "${memory.theme}|${memory.content}|${memory.corrected}|${memory.sourceDiaryIds}")
+                    put(memory.id, "${memory.theme}|${memory.content}|${memory.isInference}|${memory.corrected}|${memory.insufficient}|${memory.recentChange}|${memory.sourceDiaryIds}")
+                }
+            })
+            put("journals", buildJsonObject {
+                if (consent.enabled(ConsentCategory.JOURNAL)) {
+                    snapshot.journals.sortedBy { it.id }.forEach { journal ->
+                        put(journal.id.toString(), "${journal.title}|${journal.body}|${journal.updatedAt}")
+                    }
                 }
             })
         }

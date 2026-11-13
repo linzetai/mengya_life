@@ -334,7 +334,7 @@ fun RecordProposalCard(
         }
     }
 
-    if (editing && !draft.isDiary) {
+    if (editing && !draft.isDiary && !draft.isPlan && !draft.isPlanProgress && !draft.isGoal) {
         RecordEditorDialog(
             draft = draft,
             isApplied = proposal.isApplied,

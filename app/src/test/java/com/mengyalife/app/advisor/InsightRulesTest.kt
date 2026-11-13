@@ -77,6 +77,47 @@ class InsightRulesTest {
     }
 
     @Test
+    fun `日记来源随原始记录变化失效并保留推测标记`() {
+        val memory = ContextGrowthMemory(
+            id = "memory-1", theme = "睡眠", content = "可能开始早睡",
+            isInference = true, corrected = false, insufficient = false,
+            recentChange = null, sourceDiaryIds = listOf(10L),
+        )
+        val journal = com.mengyalife.app.domain.advisor.ContextJournalRecord(10L, "睡眠", "原始日记内容", now)
+        val before = InsightRules.build(
+            AdvisorContextSnapshot(goals = listOf(goal), checkins = checkins, journals = listOf(journal), growthMemories = listOf(memory)),
+            consent, now,
+        )
+        val fact = before.facts.single { it.id == "memory-content-memory-1" }
+        assertTrue(fact.isInference)
+        assertTrue(fact.sourceRefs.any { it.type == "JOURNAL" && it.recordId == "10" })
+        val edited = InsightRules.build(
+            AdvisorContextSnapshot(
+                goals = listOf(goal), checkins = checkins,
+                journals = listOf(journal.copy(body = "修改后的日记内容", updatedAt = now + 1)),
+                growthMemories = listOf(memory),
+            ),
+            consent, now,
+        )
+        assertNotEquals(before.dataVersion, edited.dataVersion)
+    }
+
+    @Test
+    fun `长期未更新只描述记录缺口而不推断没有执行`() {
+        val oldCheckins = listOf(
+            ContextCheckinRecord(20, 1, now - 100L * 24 * 60 * 60 * 1000, "早期记录", null, null),
+            ContextCheckinRecord(21, 1, now - 90L * 24 * 60 * 60 * 1000, "最近可见记录", null, null),
+        )
+        val input = InsightRules.build(AdvisorContextSnapshot(goals = listOf(goal), checkins = oldCheckins), consent, now)
+        val fact = input.facts.single { it.id == "no-recent-progress-1" }
+        assertFalse(fact.isInference)
+        assertTrue(fact.text.contains("最近 30 天没有"))
+        assertTrue(fact.text.contains("不代表没有执行"))
+        assertTrue(fact.sourceRefs.any { it.type == "GOAL" && it.recordId == "1" })
+        assertTrue(fact.sourceRefs.any { it.type == "CHECKIN" && it.recordId == "21" })
+    }
+
+    @Test
     fun `只有一个目标没有进展时仍是不足`() {
         val input = InsightRules.build(AdvisorContextSnapshot(goals = listOf(goal)), consent, now)
         assertFalse(input.hasEnoughData)
@@ -136,7 +177,15 @@ class InsightRulesTest {
         )
         val noGoals = consent.copy(categories = consent.categories - ConsentCategory.GOALS)
         val c = InsightRules.build(AdvisorContextSnapshot(goals = listOf(goal), checkins = checkins), noGoals, now)
+        val renewed = InsightRules.build(
+            AdvisorContextSnapshot(goals = listOf(goal), checkins = checkins), consent.copy(epoch = consent.epoch + 1), now,
+        )
+        val newRecipient = InsightRules.build(
+            AdvisorContextSnapshot(goals = listOf(goal), checkins = checkins), consent.copy(recipient = "https://other.example/v1"), now,
+        )
         assertNotEquals(a.dataVersion, b.dataVersion)
         assertNotEquals(a.dataVersion, c.dataVersion)
+        assertNotEquals(a.dataVersion, renewed.dataVersion)
+        assertNotEquals(a.dataVersion, newRecipient.dataVersion)
     }
 }

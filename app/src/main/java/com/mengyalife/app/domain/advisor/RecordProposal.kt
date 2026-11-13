@@ -710,12 +710,13 @@ object GoalIntentGate {
     )
     private val TIMED = Regex("(一|两|三|四|五|六|七|八|九|十|\\d+)\\s*(年|个月|月)内")
     private val DIRECTION = listOf("找到", "完成", "积累", "建立", "成为", "换", "转行", "拿到", "通过", "存到", "减到", "学会")
+    private val NEGATED_ACTION = Regex("(不要|别|先不|不需要|不想|不同意|拒绝)\\s*(直接)?(创建|新增|修改|更新|调整|改成|拆解|设为|设成|加)")
 
     fun explicit(text: String): Boolean = EXPLICIT.any { text.contains(it) }
     fun breakdownRequested(text: String): Boolean = BREAKDOWN.any { text.contains(it) }
     fun looksRelevant(text: String): Boolean {
         val value = text.trim()
-        if (value.isEmpty()) return false
+        if (value.isEmpty() || NEGATED_ACTION.containsMatchIn(value)) return false
         if (explicit(value) || breakdownRequested(value)) return true
         return TIMED.containsMatchIn(value) && DIRECTION.any { value.contains(it) }
     }

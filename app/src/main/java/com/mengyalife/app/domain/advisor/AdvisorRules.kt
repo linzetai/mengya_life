@@ -65,6 +65,17 @@ object AdvisorRules {
     fun validateInput(raw: String): String? =
         if (raw.trim().length > MAX_INPUT_CHARS) ERROR_INPUT_TOO_LONG else null
 
+    private val diagnosticTerms = listOf(
+        "抑郁症", "焦虑症", "双相障碍", "躁郁症", "精神分裂症", "自闭症", "强迫症",
+        "确诊", "诊断为", "ptsd", "adhd", "major depressive disorder", "bipolar disorder",
+    )
+
+    /** Conservative output guard for diagnosis labels in the free-form advisor channel. */
+    fun containsDiagnosticLanguage(text: String): Boolean {
+        val normalized = text.lowercase()
+        return diagnosticTerms.any { it in normalized }
+    }
+
     /**
      * 把用户填写的「基础地址」规范成 Chat Completions URL。
      *
@@ -98,6 +109,7 @@ object AdvisorRules {
         3. 不要给出「人生综合评分」「成长总分」或类似的未经定义的整体量化分数。
         4. 回答使用中文，具体、克制、可执行，避免空泛口号。
         5. 如果用户附带了目标摘要，只基于摘要分析，不要假设未提供的日记或其它目标。
+         6. 不根据日记、情绪表达或零散行为推导心理/医学诊断；若用户询问诊断，说明无法诊断并建议咨询专业人员。
         """.trimIndent()
 
     /** 目标上下文块（只有用户明确授权后才拼进请求）。 */

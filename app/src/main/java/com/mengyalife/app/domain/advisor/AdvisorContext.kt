@@ -14,12 +14,16 @@ enum class AdvisorSourceType(val label: String) {
     CARE("主动关心"),
     GROWTH("成长线索"),
     MEMORY("成长记忆"),
+    INSIGHT("成长建议"),
+    INSIGHT_FACT("洞察依据"),
 }
 
 data class AdvisorSource(
     val type: AdvisorSourceType,
     val recordId: String,
     val label: String,
+    /** Optional stable pointer metadata, encoded in the existing sources_json field. */
+    val metadata: Map<String, String> = emptyMap(),
 )
 
 data class ContextGoalRecord(
@@ -33,6 +37,7 @@ data class ContextGoalRecord(
     val createdAt: Long,
     val startDate: Long? = null,
     val dueDate: Long? = null,
+    val updatedAt: Long = createdAt,
 )
 
 data class ContextCheckinRecord(

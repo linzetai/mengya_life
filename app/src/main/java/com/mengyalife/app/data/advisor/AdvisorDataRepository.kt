@@ -46,6 +46,7 @@ class RoomAdvisorDataRepository(
                     createdAt = it.createdAt,
                     startDate = it.startDate,
                     dueDate = it.dueDate,
+                    updatedAt = it.updatedAt,
                 )
             }
         } else {

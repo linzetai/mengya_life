@@ -63,6 +63,15 @@ import com.mengyalife.app.ui.weekly.WeeklyReviewUiState
 import com.mengyalife.app.util.MetricFormat
 import com.mengyalife.app.util.Timestamps
 
+data class PlanTrajectoryItem(
+    val id: Long,
+    val title: String,
+    val status: String,
+    val timeScope: String?,
+    val createdAt: Long,
+    val progressCount: Int,
+)
+
 private enum class TrajectoryRange(val label: String, val days: Long) {
     WEEK("近一周", 7),
     MONTH("近一月", 30),
@@ -83,6 +92,7 @@ fun TrajectoryScreen(
     goals: GoalSnapshot,
     entries: List<JournalEntryEntity>,
     weekly: WeeklyReviewUiState,
+    plans: List<PlanTrajectoryItem> = emptyList(),
     onOpenSettings: () -> Unit,
     onOpenWeeklyReview: () -> Unit,
     onOpenGoal: (Long) -> Unit,
@@ -215,6 +225,10 @@ fun TrajectoryScreen(
         }
 
         item {
+            ActionPlansSection(plans)
+        }
+
+        item {
             Column(modifier = Modifier.testTag("trajectory_weekly")) {
                 SectionHeading(title = "这段时间的变化")
                 Spacer(Modifier.height(10.dp))
@@ -249,6 +263,55 @@ fun TrajectoryScreen(
 
         item {
             InlineNote("没有足够的记录时，这里不会生成趋势结论，也不会给出「人生整体评分」。")
+        }
+    }
+}
+
+@Composable
+private fun ActionPlansSection(plans: List<PlanTrajectoryItem>) {
+    SectionCard(
+        title = "已确认的行动",
+        subtitle = "来自顾问讨论并由你确认的小计划；执行次数只统计你实际记录的进展",
+        modifier = Modifier.testTag("trajectory_action_plans"),
+        trailing = { StatusPill(text = "真实计划") },
+    ) {
+        if (plans.isEmpty()) {
+            InlineNote("确认行动后会在这里出现。没有执行记录不代表没有执行。")
+        } else {
+            plans.take(8).forEachIndexed { index, plan ->
+                if (index > 0) Spacer(Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        plan.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MorrowTheme.colors.textPrimary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    StatusPill(
+                        text = when (plan.status) {
+                            "COMPLETED" -> "已完成"
+                            "PAUSED" -> "已暂停"
+                            "CANCELLED" -> "已取消"
+                            else -> "进行中"
+                        },
+                    )
+                }
+                Text(
+                    text = (plan.timeScope ?: "时间未定") + " · 创建于 " + Timestamps.formatDate(plan.createdAt),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MorrowTheme.colors.textTertiary,
+                )
+                Text(
+                    text = if (plan.progressCount > 0) {
+                        "已记录 ${plan.progressCount} 次执行"
+                    } else {
+                        "尚无执行记录（不代表没有执行）"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MorrowTheme.colors.textSecondary,
+                    modifier = Modifier.testTag("trajectory_plan_progress_${plan.id}"),
+                )
+            }
         }
     }
 }

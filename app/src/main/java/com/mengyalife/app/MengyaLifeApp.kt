@@ -169,6 +169,18 @@ fun MengyaLifeApp() {
                 )
             }
     }
+    val trajectoryPlans = androidx.compose.runtime.remember(allPlans, planProgressCounts) {
+        allPlans.sortedByDescending { it.updatedAt }.map {
+            com.mengyalife.app.ui.screens.PlanTrajectoryItem(
+                id = it.id,
+                title = it.title,
+                status = it.status,
+                timeScope = it.timeScope,
+                createdAt = it.createdAt,
+                progressCount = planProgressCounts[it.id] ?: 0,
+            )
+        }
+    }
 
 
 
@@ -425,6 +437,7 @@ fun MengyaLifeApp() {
                     onOpenDecision = { showDecision = true },
                     onOpenGoal = { id -> openPanorama(id) },
                     todayPlans = todayPlans,
+                    trajectoryPlans = trajectoryPlans,
                     careCard = careState.card,
                     onCareEngage = careViewModel::engage,
                     onCareIgnore = careViewModel::ignore,
@@ -455,12 +468,17 @@ fun MengyaLifeApp() {
                     advisorState = advisorState,
                     onAdvisorAction = advisorViewModel::onAction,
                     insightState = insightState,
-                    onDiscussInsight = discussWithAdvisor,
-                    onTalkToAdvisor = discussWithAdvisor,
-                    onDraftInsight = { text ->
-                        discussWithAdvisor(text)
-                        advisorViewModel.onAction(AdvisorAction.RequestProposal)
+                    onGenerateInsight = insightViewModel::generate,
+                    onDiscussInsight = { reference ->
+                        showExplore = false
+                        showDecision = false
+                        showPanorama = false
+                        showWeeklyReview = false
+                        showSettings = false
+                        currentTab = AppTab.ADVISOR
+                        advisorViewModel.onAction(AdvisorAction.DiscussInsight(reference))
                     },
+                    onTalkToAdvisor = discussWithAdvisor,
                     onWriteDiary = {
                         currentTab = AppTab.DIARY
                         journalViewModel.onAction(DiaryAction.NewEntry)
@@ -488,6 +506,7 @@ private fun MainShell(
     onOpenDecision: () -> Unit,
     onOpenGoal: (Long) -> Unit,
     todayPlans: List<com.mengyalife.app.ui.screens.PlanTodayItem>,
+    trajectoryPlans: List<com.mengyalife.app.ui.screens.PlanTrajectoryItem>,
     onOpenPlan: (String) -> Unit,
     careCard: com.mengyalife.app.ui.care.CareCard?,
     onCareEngage: () -> Unit,
@@ -507,9 +526,9 @@ private fun MainShell(
     advisorState: AdvisorUiState,
     onAdvisorAction: (AdvisorAction) -> Unit,
     insightState: InsightUiState,
-    onDiscussInsight: (String) -> Unit,
+    onGenerateInsight: () -> Unit,
+    onDiscussInsight: (com.mengyalife.app.domain.insight.InsightReference) -> Unit,
     onTalkToAdvisor: (String) -> Unit,
-    onDraftInsight: (String) -> Unit,
     onWriteDiary: () -> Unit,
     onOpenDiaryEntry: (com.mengyalife.app.data.local.JournalEntryEntity) -> Unit,
 ) {
@@ -563,8 +582,8 @@ private fun MainShell(
                     onWriteDiary = onWriteDiary,
                     onOpenDecision = onOpenDecision,
                     onOpenTrends = { onTabChange(AppTab.PATH) },
+                    onGenerateInsight = onGenerateInsight,
                     onDiscussInsight = onDiscussInsight,
-                    onDraftInsight = onDraftInsight,
                     onTalkToAdvisor = onTalkToAdvisor,
                 )
 
@@ -574,6 +593,7 @@ private fun MainShell(
                     goals = goalsState.snapshot,
                     entries = diaryState.entries,
                     weekly = weeklyState,
+                    plans = trajectoryPlans,
                     onOpenSettings = onOpenSettings,
                     onOpenWeeklyReview = onOpenWeeklyReview,
                     onOpenGoal = onOpenGoal,

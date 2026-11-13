@@ -32,6 +32,24 @@ data class GrowthInsight(
     val factIds: List<String> = emptyList(),
 )
 
+/** Durable pointer carried by the single advisor conversation; never stores a second insight copy. */
+data class InsightReference(
+    val reportId: String,
+    val dataVersion: String,
+    val insightId: String,
+)
+
+data class ResolvedInsightReference(
+    val reference: InsightReference,
+    val insight: GrowthInsight,
+    val facts: List<InsightFact>,
+)
+
+sealed interface InsightReferenceResolution {
+    data class Current(val value: ResolvedInsightReference) : InsightReferenceResolution
+    data class Stale(val reason: String) : InsightReferenceResolution
+}
+
 data class InsightReport(
     val id: String,
     val dataVersion: String,

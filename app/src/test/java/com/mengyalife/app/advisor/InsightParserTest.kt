@@ -18,6 +18,13 @@ class InsightParserTest {
         """{"schemaVersion":1,"summary":"s","insights":[{"type":"POSITIVE","title":"稳步储蓄","body":"$body","isInference":true,"confidence":0.8,"factIds":["f1"],"sources":[{$source}]}]}"""
 
     @Test
+    fun `洞察输出诊断性标签时拒绝保存`() {
+        val result = InsightParser.parse(json(body = "你可能患有抑郁症"), facts, refs) { "i1" }
+        assertTrue(result is InsightParseResult.Failure)
+        assertTrue((result as InsightParseResult.Failure).message.contains("诊断性"))
+    }
+
+    @Test
     fun `合法来源通过`() {
         val result = InsightParser.parse(json(), facts, refs) { "i1" }
         assertTrue(result is InsightParseResult.Success)

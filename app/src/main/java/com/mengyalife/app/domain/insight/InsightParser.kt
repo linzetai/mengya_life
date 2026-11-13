@@ -52,8 +52,14 @@ object InsightParser {
             val body = obj["body"]?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
             if (title.isEmpty() || body.isEmpty()) return InsightParseResult.Failure("insights[$index] 标题/正文为空")
             if (title.length > 80 || body.length > 600) return InsightParseResult.Failure("insights[$index] 过长")
+            if (containsDiagnosisLabel("$title $body")) {
+                return InsightParseResult.Failure("洞察包含诊断性标签，已拒绝保存 AI 结论")
+            }
             val inference = obj["isInference"]?.jsonPrimitive?.booleanOrNull
                 ?: return InsightParseResult.Failure("insights[$index] 缺少 isInference")
+            if (type == InsightType.SUGGESTION && !inference) {
+                return InsightParseResult.Failure("行动建议必须明确标记为 AI 推测")
+            }
             val confidence = obj["confidence"]?.jsonPrimitive?.doubleOrNull?.also {
                 if (!it.isFinite() || it < 0 || it > 1) return InsightParseResult.Failure("confidence 非法")
             }
@@ -112,8 +118,19 @@ object InsightParser {
         return InsightParseResult.Success(summary, result)
     }
 
+    private val diagnosisTerms = listOf(
+        "抑郁症", "焦虑症", "双相障碍", "躁郁症", "精神分裂症", "自闭症", "强迫症",
+        "诊断为", "确诊", "ptsd", "adhd", "major depressive disorder", "bipolar disorder", "anxiety disorder",
+    )
+
+    private fun containsDiagnosisLabel(text: String): Boolean {
+        val normalized = text.lowercase()
+        return diagnosisTerms.any { it in normalized }
+    }
+
     fun prompt(input: InsightInput): String = buildString {
         appendLine("你是长期成长顾问。以下 facts 是规则层根据用户数据计算出的可核验事实；")
+        appendLine("dataSufficient=${input.hasEnoughData}")
         appendLine("只能解释这些事实、提出行动建议，不能编造事实，不能声称已完成任何目标/进展。")
         appendLine("只输出严格 JSON，不要 Markdown。schemaVersion=1：")
         appendLine("{\"schemaVersion\":1,\"summary\":\"...\",\"insights\":[{\"type\":\"POSITIVE|RISK|SUGGESTION\",\"title\":\"...\",\"body\":\"...\",\"isInference\":true,\"confidence\":0.0,\"sources\":[{\"type\":\"GOAL|CHECKIN|MEMORY\",\"id\":\"...\",\"label\":\"...\"}]}]}")
@@ -121,11 +138,14 @@ object InsightParser {
         appendLine("缺少 factIds 或引用不存在的事实会被拒绝；sources 必须来自 allowedSources，且必须是 factIds 所指事实的 sourceRefs；")
         appendLine("如果只引用 insufficient 事实，sources 可以为空；其他情况 sources 不得为空；不同单位不得比较/相加；")
         appendLine("可用 factIds：${input.facts.joinToString(",") { it.id }}")
-        appendLine("数据不足时明确说「信息不足」；建议必须是 isInference=true。")
+        appendLine("数据不足时明确说「信息不足」；建议必须是 isInference=true。日记或情绪内容不可推出心理/医学诊断，不得使用诊断性标签。")
         appendLine("允许来源：")
         input.allowedSources.forEach { appendLine("- ${it.type}:${it.recordId} (${it.label})") }
         appendLine("事实：")
-        input.facts.forEach { appendLine("- [${it.id}] ${it.text}") }
+        input.facts.forEach {
+            appendLine("- [${it.id}] ${if (it.isInference) "AI 推测" else "规则事实"}：${it.text}")
+            appendLine("  factSources: ${it.sourceRefs.joinToString(",") { source -> "${source.type}:${source.recordId}" }}")
+        }
         appendLine("时间范围：${input.periodStart}..${input.periodEnd}")
     }
 }

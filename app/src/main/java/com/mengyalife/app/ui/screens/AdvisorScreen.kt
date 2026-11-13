@@ -1008,12 +1008,16 @@ private fun MessageRow(
             val progress = message.sources.count { it.type == AdvisorSourceType.PROGRESS }
             val signals = message.sources.count { it.type == AdvisorSourceType.GROWTH }
             val memories = message.sources.count { it.type == AdvisorSourceType.MEMORY }
+            val insights = message.sources.count { it.type == AdvisorSourceType.INSIGHT }
+            val insightFacts = message.sources.count { it.type == AdvisorSourceType.INSIGHT_FACT }
             val summary = buildList {
                 if (goals > 0) add("$goals 个目标")
                 if (journals > 0) add("$journals 篇日记")
                 if (progress > 0) add("$progress 条进展")
                 if (signals > 0) add("$signals 条成长线索")
                 if (memories > 0) add("$memories 条成长记忆")
+                if (insights > 0) add("$insights 条成长建议")
+                if (insightFacts > 0) add("$insightFacts 条洞察依据")
             }.joinToString("、")
             TextButton(
                 onClick = onOpenSources,
@@ -1090,7 +1094,7 @@ private fun SourceDialog(message: AdvisorMessage, onDismiss: () -> Unit) {
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 Text(
-                    "只展示来源引用，不包含完整正文副本；这些引用不会再次自动发送给其它服务。",
+                    "这里只保存来源 ID。继续讨论时，应用会按当前授权重新核验并仅发送本轮所需依据；不会复制或发送完整数据库。",
                     style = MaterialTheme.typography.labelSmall,
                     color = colors.textSecondary,
                 )

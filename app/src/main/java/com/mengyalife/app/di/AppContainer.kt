@@ -209,6 +209,12 @@ class AppContainer(context: Context) {
         com.mengyalife.app.data.qa.QaRestoreSecuritySeeder.seed(this)
     }
 
+    suspend fun qaSeedGrowthLoopFixture() {
+        if (!BuildConfig.QA_BUILD) return
+        check(restoreCoordinator.awaitReady()) { "恢复尚未就绪，QA growth fixture未写入" }
+        com.mengyalife.app.data.qa.QaGrowthLoopFixtureSeeder.seed(database)
+    }
+
     /** G4A-1.1 QA-only：10 表全字段非空夹具；正式包忽略。 */
     suspend fun qaSeedBackupFixture() {
         if (!BuildConfig.QA_BUILD) return

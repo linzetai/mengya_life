@@ -111,6 +111,9 @@ class RoomRecordProposalRepository(
                 pendingJson = encodePending(draft.pendingFields),
                 diaryTitle = draft.diaryTitle,
                 diaryBody = draft.diaryBody,
+                goalChangeJson = GoalChangeCodec.encode(draft.goalChange),
+                planChangeJson = PlanChangeCodec.encode(draft.planChange),
+                planProgressJson = PlanChangeCodec.encodeProgress(draft.planProgress),
             ) > 0
         }
         return writeBarrier?.withWrite(generation) { write() } ?: write()

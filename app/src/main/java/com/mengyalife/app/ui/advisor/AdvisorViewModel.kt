@@ -24,9 +24,13 @@ import com.mengyalife.app.data.advisor.RecordProposalRepository
 import com.mengyalife.app.data.advisor.RecordUndoResult
 import com.mengyalife.app.data.advisor.StoredRecordProposal
 import com.mengyalife.app.data.consent.AiConsentRepository
+import com.mengyalife.app.data.insight.InsightService
 import com.mengyalife.app.domain.advisor.AdvisorChatResult
 import com.mengyalife.app.domain.advisor.AdvisorContextAssembler
 import com.mengyalife.app.domain.advisor.AdvisorContextSnapshot
+import com.mengyalife.app.domain.advisor.AdvisorContextEntry
+import com.mengyalife.app.domain.advisor.AdvisorSource
+import com.mengyalife.app.domain.advisor.AdvisorSourceType
 import com.mengyalife.app.domain.advisor.AdvisorError
 import com.mengyalife.app.domain.advisor.AdvisorMessage
 import com.mengyalife.app.domain.advisor.AdvisorMessageStatus
@@ -53,6 +57,9 @@ import com.mengyalife.app.domain.advisor.RecordProposalDraft
 import com.mengyalife.app.domain.advisor.RecordProposalParseResult
 import com.mengyalife.app.domain.advisor.RecordProposalParser
 import com.mengyalife.app.domain.advisor.RecordProposalRules
+import com.mengyalife.app.domain.insight.InsightReference
+import com.mengyalife.app.domain.insight.InsightReferenceResolution
+import com.mengyalife.app.domain.insight.ResolvedInsightReference
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -95,6 +102,7 @@ class AdvisorViewModel(
     private val fakeEngine: AdvisorEngine?,
     private val restoreGeneration: () -> Long = { 0L },
     private val restoreWriteBarrier: com.mengyalife.app.data.restore.RestoreWriteBarrier? = null,
+    private val insightService: InsightService? = null,
 ) : ViewModel() {
 
     private data class LocalState(
@@ -194,6 +202,7 @@ class AdvisorViewModel(
     fun onAction(action: AdvisorAction) {
         when (action) {
             is AdvisorAction.InputChange -> local.update { it.copy(input = action.value) }
+            is AdvisorAction.DiscussInsight -> discussInsight(action.reference)
             AdvisorAction.Send -> send()
             is AdvisorAction.Retry -> retry(action.messageId)
             AdvisorAction.CancelRequest -> cancelRequest()
@@ -227,6 +236,170 @@ class AdvisorViewModel(
             AdvisorAction.DismissInfo -> local.update { it.copy(infoMessage = null) }
         }
     }
+
+    private fun discussInsight(reference: InsightReference) {
+        if (local.value.sending) return
+        viewModelScope.launch {
+            val service = insightService
+            if (service == null) {
+                local.update { it.copy(errorMessage = "当前无法验证建议来源，请重新生成洞察") }
+                return@launch
+            }
+            val resolved = when (val resolution = service.resolveCurrentReference(reference)) {
+                is InsightReferenceResolution.Stale -> {
+                    local.update { it.copy(errorMessage = resolution.reason) }
+                    return@launch
+                }
+                is InsightReferenceResolution.Current -> resolution.value
+            }
+            val alreadyInConversation = conversations.loadAll().any { message ->
+                message.role == AdvisorRole.USER && message.sources.any { source ->
+                    source.type == AdvisorSourceType.INSIGHT &&
+                        source.metadata["dataVersion"] == reference.dataVersion &&
+                        source.label == resolved.insight.title
+                }
+            }
+            if (alreadyInConversation) {
+                local.update {
+                    it.copy(infoMessage = "这条建议已在顾问对话中；继续在同一对话补充，不会重复创建记录。")
+                }
+                return@launch
+            }
+            startRequest(
+                input = "请先解释我选中的成长建议如何从依据得出，并区分已记录事实与 AI 推测。允许我质疑或修改前提；未经我确认，不要修改目标、计划或进展。",
+                insertUser = true,
+                excludeMessageId = null,
+                proposalMode = false,
+                insightReference = reference,
+            )
+        }
+    }
+
+    private fun requiresInsightContinuity(input: String, proposalMode: Boolean): Boolean =
+        proposalMode ||
+            PlanIntentGate.looksLikeCreate(input) ||
+            GoalIntentGate.looksRelevant(input) ||
+            listOf("不同意", "不认同", "质疑", "这条建议", "这个建议", "修改前提", "调整前提", "解释依据", "怎么得出", "为什么")
+                .any { input.contains(it) }
+
+    private fun insightReferenceIn(sources: List<AdvisorSource>): InsightReference? =
+        sources.firstOrNull { it.type == AdvisorSourceType.INSIGHT }?.metadata?.let { metadata ->
+            val reportId = metadata["reportId"] ?: return@let null
+            val version = metadata["dataVersion"] ?: return@let null
+            val insightId = metadata["insightId"] ?: return@let null
+            InsightReference(reportId, version, insightId)
+        }
+
+    private fun findActiveInsightReference(messages: List<AdvisorMessage>): InsightReference? =
+        messages.asReversed().asSequence()
+            .filter { it.role == AdvisorRole.USER && it.status == AdvisorMessageStatus.SENT }
+            .take(6)
+            .mapNotNull { insightReferenceIn(it.sources) }
+            .firstOrNull()
+
+    private suspend fun findInsightReferenceForMessages(messageIds: List<String>): InsightReference? {
+        if (messageIds.isEmpty()) return null
+        val allowed = messageIds.toSet()
+        return conversations.loadAll().asReversed()
+            .firstOrNull { it.id in allowed }
+            ?.let { insightReferenceIn(it.sources) }
+    }
+
+    private suspend fun insightReferenceError(reference: InsightReference): String? {
+        val service = insightService ?: return "成长建议来源无法验证，请重新生成洞察"
+        return when (val resolution = service.resolveCurrentReference(reference)) {
+            is InsightReferenceResolution.Current -> null
+            is InsightReferenceResolution.Stale -> resolution.reason
+        }
+    }
+
+    private fun advisorSourcesForInsight(
+        resolved: ResolvedInsightReference,
+        isHandoff: Boolean = false,
+    ): List<AdvisorSource> = buildList {
+        val reference = resolved.reference
+        add(
+            AdvisorSource(
+                type = AdvisorSourceType.INSIGHT,
+                recordId = resolved.insight.id,
+                label = resolved.insight.title,
+                metadata = mapOf(
+                    "reportId" to reference.reportId,
+                    "dataVersion" to reference.dataVersion,
+                    "insightId" to reference.insightId,
+                    "factIds" to resolved.insight.factIds.joinToString(","),
+                ) + if (isHandoff) mapOf("handoff" to "true") else emptyMap(),
+            ),
+        )
+        resolved.facts.forEach { fact ->
+            add(
+                AdvisorSource(
+                    type = AdvisorSourceType.INSIGHT_FACT,
+                    recordId = fact.id,
+                    label = if (fact.isInference) "AI 推测" else "规则事实",
+                ),
+            )
+        }
+        resolved.insight.sources.forEach { source ->
+            val type = when (source.type.uppercase()) {
+                "GOAL" -> AdvisorSourceType.GOAL
+                "CHECKIN", "PROGRESS" -> AdvisorSourceType.PROGRESS
+                "JOURNAL" -> AdvisorSourceType.JOURNAL
+                "GROWTH" -> AdvisorSourceType.GROWTH
+                "MEMORY" -> AdvisorSourceType.MEMORY
+                else -> return@forEach
+            }
+            add(AdvisorSource(type, source.recordId, source.label))
+        }
+    }.distinctBy { it.type to it.recordId }
+
+    private fun advisorContextEntriesForInsight(resolved: ResolvedInsightReference): List<AdvisorContextEntry> {
+        val sources = advisorSourcesForInsight(resolved).associateBy { it.type to it.recordId }
+        val entries = mutableListOf<AdvisorContextEntry>()
+        val insight = resolved.insight
+        entries += AdvisorContextEntry(
+            "用户选中的成长建议（${insight.type.label}，${if (insight.isInference) "AI 推测" else "建议整理"}）：" +
+                "${insight.title}：${insight.body}",
+            sources[AdvisorSourceType.INSIGHT to insight.id],
+        )
+        resolved.facts.forEach { fact ->
+            val kind = if (fact.isInference) "AI 推测" else "规则事实"
+            entries += AdvisorContextEntry(
+                "[$kind#${fact.id}] ${fact.text}",
+                sources[AdvisorSourceType.INSIGHT_FACT to fact.id],
+            )
+        }
+        insight.sources.forEach { source ->
+            val type = when (source.type.uppercase()) {
+                "GOAL" -> AdvisorSourceType.GOAL
+                "CHECKIN", "PROGRESS" -> AdvisorSourceType.PROGRESS
+                "JOURNAL" -> AdvisorSourceType.JOURNAL
+                "GROWTH" -> AdvisorSourceType.GROWTH
+                "MEMORY" -> AdvisorSourceType.MEMORY
+                else -> return@forEach
+            }
+            entries += AdvisorContextEntry(
+                "[原始来源引用] ${source.type}#${source.recordId} ${source.label}",
+                sources[type to source.recordId],
+            )
+        }
+        return entries
+    }
+
+    private fun insightDiscussionSystemPrompt(resolved: ResolvedInsightReference): String = buildString {
+        appendLine("当前对话由用户主动打开一条成长建议（report=${resolved.reference.reportId}，insight=${resolved.reference.insightId}）。")
+        appendLine("只能基于本轮列出的规则事实和原始来源解释建议；清楚区分记录事实与 AI 推测。")
+        appendLine("事实缺失时承认信息不足；不得给日记内容下心理/医学诊断，不得把建议写成已经发生的进展。")
+        append("用户可以反对或修改前提；不要自动创建、更新目标/计划/进展，正式写入必须等待独立草案确认。")
+    }
+
+    private fun insightDiscussionMessage(resolved: ResolvedInsightReference): String = buildString {
+        val insight = resolved.insight
+        appendLine("我想讨论这条成长建议：「${insight.title}」")
+        appendLine("建议内容：${insight.body}")
+        appendLine("引用的事实 ID：${insight.factIds.joinToString("、")}（完整依据和原始来源已随本条消息关联）")
+        append("请解释建议与依据的关系，并区分事实与推测；允许我质疑或修改前提。我未确认前，不要创建或修改正式数据。")
+    }.take(2_500)
 
     private fun send() {
         val text = local.value.input.trim()
@@ -273,6 +446,7 @@ class AdvisorViewModel(
         insertUser: Boolean,
         excludeMessageId: String?,
         proposalMode: Boolean,
+        insightReference: InsightReference? = null,
     ) {
         if (local.value.sending) return
         val state = uiState.value
@@ -305,16 +479,54 @@ class AdvisorViewModel(
                 val history = conversations.loadAll()
                     .filter { it.id != excludeMessageId }
                 val data = dataRepository.snapshot(consent).copy(history = history)
+                val carriesInsightContext = insightReference != null ||
+                    (requiresInsightContinuity(input, proposalMode) && findActiveInsightReference(history) != null)
+                val referenceToValidate = insightReference ?: if (carriesInsightContext) {
+                    findActiveInsightReference(history)
+                } else {
+                    null
+                }
+                val resolvedInsight = referenceToValidate?.let { reference ->
+                    val service = insightService
+                    if (service == null) {
+                        local.update { it.copy(sending = false, errorMessage = "当前无法验证建议来源，请重新生成洞察") }
+                        return@launch
+                    }
+                    when (val resolution = service.resolveCurrentReference(reference)) {
+                        is InsightReferenceResolution.Current -> resolution.value
+                        is InsightReferenceResolution.Stale -> {
+                            local.update {
+                                it.copy(sending = false, errorMessage = resolution.reason)
+                            }
+                            return@launch
+                        }
+                    }
+                }
+                val freshConsent = consentRepository.current()
+                if (resolvedInsight != null &&
+                    (freshConsent.epoch != epoch || !freshConsent.isValidFor(sendConfig.endpoint))
+                ) {
+                    local.update { it.copy(sending = false, errorMessage = "授权已变化，这条建议不能继续用于讨论") }
+                    return@launch
+                }
+                val requestInput = if (insightReference != null && resolvedInsight != null) {
+                    insightDiscussionMessage(resolvedInsight)
+                } else {
+                    input
+                }
+                val insightSources = resolvedInsight?.let {
+                    advisorSourcesForInsight(it, isHandoff = insightReference != null)
+                }.orEmpty()
 
                 // 0.24 自然语言关心偏好：只识别明确表达，保存后直接确认，不交给模型扩写。
-                val pref = com.mengyalife.app.domain.care.CarePreferenceParser.parse(
-                    text = input,
+                val pref = if (resolvedInsight == null) com.mengyalife.app.domain.care.CarePreferenceParser.parse(
+                    text = requestInput,
                     plans = data.plans.map { it.id to it.title },
                     goals = data.goals.map { it.id to it.title },
                     now = System.currentTimeMillis(),
-                )
+                ) else null
                 if (pref != null && careRepository != null && carePreferenceRepository != null) {
-                    if (insertUser) conversations.appendUser(input, null, epoch, expectedRestoreGeneration)
+                    if (insertUser) conversations.appendUser(requestInput, null, epoch, expectedRestoreGeneration)
                     if (pref.kind == "FEEDBACK") {
                         val decision = careRepository.latestSentDecision()
                         if (decision == null) {
@@ -364,10 +576,23 @@ class AdvisorViewModel(
                     return@launch
                 }
 
-                val assembled = assembler.assemble(input, consent, data)
+                val assembled = assembler.assemble(requestInput, consent, data)
+                val insightEntries = resolvedInsight?.let(::advisorContextEntriesForInsight).orEmpty()
+                // The selected, still-valid Insight evidence has priority over generic retrieved context.
+                val contextEntries = insightEntries + assembled.entries
+                val extraPrompt = buildList {
+                    if (proposalMode) add(AdvisorRules.proposalSystemPrompt())
+                    resolvedInsight?.let { add(insightDiscussionSystemPrompt(it)) }
+                }.joinToString("\n\n").takeIf { it.isNotBlank() }
 
                 if (insertUser) {
-                    conversations.appendUser(input, null, epoch, expectedRestoreGeneration)
+                    conversations.appendUser(
+                        content = requestInput,
+                        contextGoalId = null,
+                        contextEpoch = epoch,
+                        expectedRestoreGeneration = expectedRestoreGeneration,
+                        sources = insightSources,
+                    )
                 }
 
                 val runtime = configRepository.runtimeConfig()
@@ -405,16 +630,21 @@ class AdvisorViewModel(
 
                 val builtRequest = AdvisorRules.buildRequest(
                     history = assembled.history,
-                    currentInput = input,
-                    contextEntries = assembled.entries,
-                    extraSystemPrompt = if (proposalMode) AdvisorRules.proposalSystemPrompt() else null,
+                    currentInput = requestInput,
+                    contextEntries = contextEntries,
+                    extraSystemPrompt = extraPrompt,
                 )
                 val chat = suspend {
-                    engine.chat(
-                        runtime,
-                        builtRequest.messages,
-                        maxTokens = if (proposalMode) 3_000 else AdvisorRules.MAX_OUTPUT_TOKENS,
-                    )
+                    val staleInsight = referenceToValidate?.let { insightReferenceError(it) }
+                    if (staleInsight != null) {
+                        AdvisorChatResult.Failure(AdvisorError(AdvisorError.CANCELLED, staleInsight))
+                    } else {
+                        engine.chat(
+                            runtime,
+                            builtRequest.messages,
+                            maxTokens = if (proposalMode) 3_000 else AdvisorRules.MAX_OUTPUT_TOKENS,
+                        )
+                    }
                 }
                 val result = restoreWriteBarrier?.withWrite(expectedRestoreGeneration) { chat() } ?: chat()
                 when (result) {
@@ -433,6 +663,42 @@ class AdvisorViewModel(
                                 expectedRestoreGeneration = expectedRestoreGeneration,
                             )
                             local.update { it.copy(sending = false) }
+                            return@launch
+                        }
+                        if (referenceToValidate != null) {
+                            when (val validation = insightService?.resolveCurrentReference(referenceToValidate)) {
+                                is InsightReferenceResolution.Current -> Unit
+                                is InsightReferenceResolution.Stale -> {
+                                    conversations.appendFailure(
+                                        AdvisorError(AdvisorError.CANCELLED, validation.reason),
+                                        cancelled = true,
+                                        contextEpoch = epoch,
+                                        proposalMode = proposalMode,
+                                        expectedRestoreGeneration = expectedRestoreGeneration,
+                                    )
+                                    local.update { it.copy(sending = false, errorMessage = validation.reason) }
+                                    return@launch
+                                }
+                                null -> {
+                                    local.update { it.copy(sending = false, errorMessage = "建议来源无法验证，未保存回复") }
+                                    return@launch
+                                }
+                            }
+                        }
+                        val usesJournalEvidence = builtRequest.usedSources.any {
+                            it.type == AdvisorSourceType.JOURNAL || it.type == AdvisorSourceType.MEMORY ||
+                                it.type == AdvisorSourceType.GROWTH
+                        }
+                        if (usesJournalEvidence && AdvisorRules.containsDiagnosticLanguage(result.content)) {
+                            val safeReply = "我不能根据日记或成长记忆判断心理/医学诊断。我们可以继续讨论你亲自记录的具体事件、感受和想采取的行动；如担心健康问题，请咨询专业人员。"
+                            conversations.appendAssistant(
+                                content = safeReply,
+                                contextEpoch = epoch,
+                                sources = builtRequest.usedSources,
+                                proposalMode = false,
+                                expectedRestoreGeneration = expectedRestoreGeneration,
+                            )
+                            local.update { it.copy(sending = false, infoMessage = "已拦截缺乏依据的诊断性表述") }
                             return@launch
                         }
                         if (proposalMode) {
@@ -454,12 +720,13 @@ class AdvisorViewModel(
                             )
                             // 聊天已经完成；提取候选不应让发送态一直挂着。
                             local.update { it.copy(sending = false) }
+                            if (insightReference == null) {
                             // 记录候选：只提取，不改变这一轮聊天的成功与否。
                             // 只整理“这一次”的对话：限制在最近 15 分钟内，避免把更早的无关话题写进日记。
                             val cutoff = System.currentTimeMillis() - 15 * 60 * 1000L
                             // 只用用户自己说过的话作为事实来源；顾问的建议不能被写成“我的反思”。
-                            val recentMessages = uiState.value.messages
-                                .filter { it.createdAt >= cutoff && it.role == AdvisorRole.USER }
+                            val recentMessages = conversations.loadAll()
+                                .filter { it.createdAt >= cutoff && it.role == AdvisorRole.USER && it.status == AdvisorMessageStatus.SENT }
                                 .takeLast(6)
                             val recent = recentMessages.map { "用户：" + it.content }
                             val recentIds = recentMessages.map { it.id }
@@ -490,9 +757,15 @@ class AdvisorViewModel(
                             } else if (data.plans.isNotEmpty() &&
                                 PlanIntentGate.looksLikeStatusUpdate(input)
                             ) {
-                                maybeExtractPlan(input, assistant.id, recentIds, epoch, data, runtime, engine, expectedRestoreGeneration)
+                                maybeExtractPlan(
+                                    input, assistant.id, recentIds, epoch, data, runtime, engine,
+                                    expectedRestoreGeneration, referenceToValidate,
+                                )
                             } else if (PlanIntentGate.looksLikeCreate(input)) {
-                                maybeExtractPlan(input, assistant.id, recentIds, epoch, data, runtime, engine, expectedRestoreGeneration)
+                                maybeExtractPlan(
+                                    input, assistant.id, recentIds, epoch, data, runtime, engine,
+                                    expectedRestoreGeneration, referenceToValidate,
+                                )
                             } else if (GoalIntentGate.looksRelevant(input)) {
                                 maybeExtractGoal(
                                     userText = input,
@@ -503,6 +776,7 @@ class AdvisorViewModel(
                                     runtime = runtime,
                                     engine = engine,
                                     expectedRestoreGeneration = expectedRestoreGeneration,
+                                    insightReference = referenceToValidate,
                                 )
                             } else {
                                 maybeExtractRecord(
@@ -517,9 +791,10 @@ class AdvisorViewModel(
                             }
                         }
                     }
+                    }
                     is AdvisorChatResult.Failure -> conversations.appendFailure(
                         error = result.error,
-                        cancelled = false,
+                        cancelled = result.error.code == AdvisorError.CANCELLED,
                         contextEpoch = epoch,
                         proposalMode = proposalMode,
                         expectedRestoreGeneration = expectedRestoreGeneration,
@@ -649,6 +924,20 @@ class AdvisorViewModel(
         }
         viewModelScope.launch {
             try {
+            val stored = proposalRepository.findById(proposalId)
+            val proposalMessage = stored?.let { item ->
+                conversations.loadAll().firstOrNull { it.id == item.messageId }
+            }
+            val insightReference = proposalMessage?.let { insightReferenceIn(it.sources) }
+            if (insightReference != null) {
+                val staleReason = insightReferenceError(insightReference)
+                if (staleReason != null) {
+                    local.update {
+                        it.copy(applyState = ProposalApplyUiState(proposalId = proposalId, error = "$staleReason；目标未修改"))
+                    }
+                    return@launch
+                }
+            }
             val saved = proposalRepository.updateDraft(proposalId, draft, selected)
             if (!saved) {
                 local.update {
@@ -987,6 +1276,7 @@ class AdvisorViewModel(
         runtime: com.mengyalife.app.domain.advisor.AdvisorRuntimeConfig,
         engine: AdvisorEngine,
         expectedRestoreGeneration: Long,
+        insightReference: InsightReference? = null,
     ) {
         val explicit = com.mengyalife.app.domain.advisor.PlanDraftFactory.explicitCreate(userText)
         val statusIntent = com.mengyalife.app.domain.advisor.PlanDraftFactory.statusIntent(userText)
@@ -995,6 +1285,20 @@ class AdvisorViewModel(
         if (!consent.enabled(ConsentCategory.GOALS)) {
             local.update { it.copy(infoMessage = "未授权「目标」类别，本次没有生成小计划草稿。") }
             return
+        }
+        suspend fun insightStillCurrent(): Boolean {
+            val reference = insightReference ?: return true
+            val service = insightService ?: run {
+                local.update { it.copy(infoMessage = "成长建议来源无法验证；计划草稿未保存。") }
+                return false
+            }
+            return when (val resolution = service.resolveCurrentReference(reference)) {
+                is InsightReferenceResolution.Current -> true
+                is InsightReferenceResolution.Stale -> {
+                    local.update { it.copy(infoMessage = "${resolution.reason}；计划草稿未保存。") }
+                    false
+                }
+            }
         }
         suspend fun fallback(reason: String) {
             val draft = when {
@@ -1016,6 +1320,7 @@ class AdvisorViewModel(
                 local.update { it.copy(infoMessage = reason) }
                 return
             }
+            if (!insightStillCurrent()) return
             val stored = runCatching {
                 recordRepository.save(assistantMessageId, draft.copy(sourceMessageIds = sourceIds), expectedRestoreGeneration)
             }.getOrNull()
@@ -1071,6 +1376,7 @@ class AdvisorViewModel(
         if (parsedDraft == null || !parsedDraft.isPlan) {
             return fallback("这次没有整理出计划草稿，可以换句话再说一次。")
         }
+        if (!insightStillCurrent()) return
         val planChange = parsedDraft.planChange
         val enriched = if (planChange?.change == PlanChangeKind.STATUS) {
             val target = data.plans.firstOrNull { it.id == planChange.targetPlanId }
@@ -1111,6 +1417,7 @@ class AdvisorViewModel(
         runtime: com.mengyalife.app.domain.advisor.AdvisorRuntimeConfig,
         engine: AdvisorEngine,
         expectedRestoreGeneration: Long,
+        insightReference: InsightReference? = null,
     ) {
         val consent = consentRepository.current()
         if (consent.epoch != epoch) return
@@ -1204,6 +1511,13 @@ class AdvisorViewModel(
             ),
             sourceMessageIds = sourceIds,
         )
+        insightReference?.let { reference ->
+            val staleReason = insightReferenceError(reference)
+            if (staleReason != null) {
+                local.update { it.copy(infoMessage = "$staleReason；目标草稿未保存") }
+                return
+            }
+        }
         val stored = runCatching {
             recordRepository.save(assistantMessageId, enriched, expectedRestoreGeneration)
         }.getOrNull() ?: return
@@ -1240,6 +1554,15 @@ class AdvisorViewModel(
         local.update { it.copy(recordAction = RecordActionUiState(proposalId = proposalId, loading = true)) }
         viewModelScope.launch {
             try {
+                findInsightReferenceForMessages(stored.draft.sourceMessageIds)?.let { reference ->
+                    val staleReason = insightReferenceError(reference)
+                    if (staleReason != null) {
+                        local.update {
+                            it.copy(recordAction = RecordActionUiState(proposalId = proposalId, error = "$staleReason；草案未保存"))
+                        }
+                        return@launch
+                    }
+                }
                 if (stored.draft.isPlanProgress) {
                     val out = planApplyService.applyProgress(proposalId)
                     local.update {
@@ -1259,7 +1582,11 @@ class AdvisorViewModel(
                     return@launch
                 }
                 if (stored.draft.isPlan) {
-                    val out = planApplyService.apply(proposalId)
+                    val out = if (stored.isDraft && !recordRepository.updateDraft(proposalId, draft)) {
+                        PlanApplyResult.Failure("候选已被处理或状态已变化，请重新打开")
+                    } else {
+                        planApplyService.apply(proposalId)
+                    }
                     local.update {
                         it.copy(
                             recordAction = when (out) {
@@ -1439,11 +1766,15 @@ class AdvisorViewModel(
             }
         // 不删除失败消息：保留原始错误证据；重试只追加新的助手消息，
         // 且草案失败必须继续用 proposalMode，不能退化成普通聊天。
+        val insightReference = userMessage.sources
+            .firstOrNull { it.type == AdvisorSourceType.INSIGHT && it.metadata["handoff"] == "true" }
+            ?.let { insightReferenceIn(listOf(it)) }
         startRequest(
             input = userMessage.content,
             insertUser = false,
             excludeMessageId = userMessage.id,
             proposalMode = failed.proposalMode,
+            insightReference = insightReference,
         )
         local.update {
             it.copy(
@@ -1488,6 +1819,7 @@ class AdvisorViewModel(
                     fakeEngine = app.container.fakeAdvisorEngine,
                     restoreGeneration = { app.container.restoreWriteBarrier.generation() },
                     restoreWriteBarrier = app.container.restoreWriteBarrier,
+                    insightService = app.container.insightService,
                 )
             }
         }

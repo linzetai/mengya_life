@@ -19,6 +19,8 @@ import com.mengyalife.app.domain.goals.GoalDomain
 import com.mengyalife.app.domain.goals.GoalLevel
 import com.mengyalife.app.domain.goals.GoalStatus
 import com.mengyalife.app.domain.insight.InsightReportStatus
+import com.mengyalife.app.domain.insight.InsightReference
+import com.mengyalife.app.domain.insight.InsightReferenceResolution
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -27,7 +29,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-private class FakeInsightDao : InsightReportDao {
+class FakeInsightDao : InsightReportDao {
     val rows = MutableStateFlow<List<InsightReportEntity>>(emptyList())
     override fun observeLatest(): Flow<InsightReportEntity?> = rows.map { it.lastOrNull() }
     override suspend fun latest(): InsightReportEntity? = rows.value.lastOrNull()
@@ -116,6 +118,18 @@ class InsightServiceTest {
         assertEquals(1, eng.calls.size)
         assertEquals(InsightReportStatus.READY, (second as InsightGenerationResult.Ready).report.status)
         assertEquals(1, dao.rows.value.size)
+    }
+
+    @Test
+    fun `数据不足时保留规则事实但不发起 AI 请求`() = runTest {
+        val sparse = FakeAdvisorDataRepository(snapshot.copy(checkins = snapshot.checkins.take(1), journals = emptyList()))
+        val engine = ScriptedAdvisorEngine().apply { enqueue(AdvisorChatResult.Success(validJson())) }
+        val (svc, _, dao) = service(engine, data = sparse)
+        val result = svc.generate(force = true) as InsightGenerationResult.Failed
+        assertEquals(0, engine.calls.size)
+        assertTrue(result.report!!.facts.any { it.id == "insufficient" })
+        assertTrue(result.report!!.insights.isEmpty())
+        assertTrue(dao.rows.value.single().status == "FAILED")
     }
 
     @Test
@@ -226,5 +240,78 @@ class InsightServiceTest {
         assertTrue(result is InsightGenerationResult.Failed)
         assertEquals(1, base.calls.size)
         assertTrue(dao.rows.value.none { it.status == "READY" })
+    }
+
+    private data class ReferenceFixture(
+        val service: InsightService,
+        val data: FakeAdvisorDataRepository,
+        val consent: FakeConsentRepository,
+        val reference: InsightReference,
+    )
+
+    private suspend fun referenceFixture(): ReferenceFixture {
+        val data = FakeAdvisorDataRepository(snapshot)
+        val consent = FakeConsentRepository().apply { grant(endpoint, AiConsentRules.allCategories) }
+        val config = FakeConfigRepository().apply { save(endpoint, "model", "sk-test") }
+        val dao = FakeInsightDao()
+        var id = 0
+        val engine = ScriptedAdvisorEngine().apply {
+            enqueue(
+                AdvisorChatResult.Success(
+                    """{"schemaVersion":1,"summary":"记录有变化","insights":[{"type":"SUGGESTION","title":"尝试稳定节奏","body":"可以继续记录稳定的一周节奏。","isInference":true,"confidence":0.7,"factIds":["trend-1-CNY"],"sources":[{"type":"CHECKIN","id":"2","label":"长期储蓄"}]}]}""",
+                ),
+            )
+        }
+        val service = InsightService(
+            dataRepository = data,
+            consentRepository = consent,
+            configRepository = config,
+            networkEngine = engine,
+            fakeEngine = null,
+            dao = dao,
+            now = { now },
+            newId = { "insight-${++id}" },
+        )
+        val report = (service.generate(force = true) as InsightGenerationResult.Ready).report
+        return ReferenceFixture(
+            service,
+            data,
+            consent,
+            InsightReference(report.id, report.dataVersion, report.insights.single().id),
+        )
+    }
+
+    @Test
+    fun `当前有来源的建议可以解析为结构化引用`() = runTest {
+        val fixture = referenceFixture()
+        val result = fixture.service.resolveCurrentReference(fixture.reference)
+        assertTrue(result is InsightReferenceResolution.Current)
+        val resolved = (result as InsightReferenceResolution.Current).value
+        assertEquals("trend-1-CNY", resolved.insight.factIds.single())
+        assertTrue(resolved.facts.single().sourceRefs.any { it.type == "CHECKIN" && it.recordId == "2" })
+    }
+
+    @Test
+    fun `来源进展删除或目标修改后旧建议失效`() = runTest {
+        val deleted = referenceFixture()
+        deleted.data.snapshot = snapshot.copy(checkins = snapshot.checkins.filterNot { it.id == 2L })
+        assertTrue(deleted.service.resolveCurrentReference(deleted.reference) is InsightReferenceResolution.Stale)
+
+        val edited = referenceFixture()
+        edited.data.snapshot = snapshot.copy(goals = snapshot.goals.map { it.copy(title = "已调整的目标") })
+        assertTrue(edited.service.resolveCurrentReference(edited.reference) is InsightReferenceResolution.Stale)
+    }
+
+    @Test
+    fun `来源类别授权关闭或事实不足后旧建议失效`() = runTest {
+        val revoked = referenceFixture()
+        revoked.consent.setCategory(ConsentCategory.PROGRESS, false)
+        assertTrue(revoked.service.resolveCurrentReference(revoked.reference) is InsightReferenceResolution.Stale)
+
+        val insufficient = referenceFixture()
+        insufficient.data.snapshot = snapshot.copy(checkins = snapshot.checkins.take(1), growthMemories = emptyList())
+        val result = insufficient.service.resolveCurrentReference(insufficient.reference)
+        assertTrue(result is InsightReferenceResolution.Stale)
+        assertTrue((result as InsightReferenceResolution.Stale).reason.contains("不足"))
     }
 }

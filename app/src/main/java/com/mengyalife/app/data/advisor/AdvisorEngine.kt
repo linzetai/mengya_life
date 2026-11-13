@@ -188,6 +188,7 @@ class NetworkAdvisorEngine(
 class FakeAdvisorEngine(
     private val delayMs: Long = 250,
 ) : AdvisorEngine {
+    private var growthInsightRequests = 0
 
     override suspend fun chat(
         config: AdvisorRuntimeConfig,
@@ -228,6 +229,78 @@ class FakeAdvisorEngine(
                                 put("evidence", evidence)
                                 put("isInference", true)
                                 put("confidence", 0.4)
+                            },
+                        )
+                    },
+                )
+            }
+            return AdvisorChatResult.Success(json.toString())
+        }
+        val growthPrompt = messages.firstOrNull {
+            it.role == "system" && it.content.contains("GROWTH_INSIGHT_V1")
+        }?.let { messages.lastOrNull { m -> m.role == "user" }?.content.orEmpty() }
+        if (growthPrompt != null) {
+            if (Regex("(?m)^dataSufficient=false$").containsMatchIn(growthPrompt)) {
+                return AdvisorChatResult.Failure(AdvisorError.invalidResponse())
+            }
+            val factIds = Regex("(?m)^可用 factIds：([^\\n]+)$")
+                .find(growthPrompt)?.groupValues?.get(1)?.split(',').orEmpty()
+            val staleFact = factIds.firstOrNull { it.startsWith("no-recent-progress-") }
+            val progressFact = factIds.firstOrNull { it.startsWith("trend-") }
+                ?: factIds.firstOrNull { it == "progress-count" }
+                ?: factIds.firstOrNull { it != "insufficient" }
+            val factId = if (growthInsightRequests++ % 2 == 0) {
+                staleFact ?: progressFact
+            } else {
+                progressFact ?: staleFact
+            } ?: return AdvisorChatResult.Failure(AdvisorError.invalidResponse())
+            val factBlock = Regex(
+                "(?m)^- \\[${Regex.escape(factId)}] ([^\\n]*)\\n\\s+factSources: ([^\\n]*)",
+            ).find(growthPrompt) ?: return AdvisorChatResult.Failure(AdvisorError.invalidResponse())
+            val factText = factBlock.groupValues[1].substringAfter('：').trim()
+            val sourceRefs = factBlock.groupValues[2].split(',').filter { it.contains(':') }
+            if (sourceRefs.isEmpty()) return AdvisorChatResult.Failure(AdvisorError.invalidResponse())
+            val allowedSources = sourceRefs.map { sourceRef ->
+                val sourceLabel = Regex("(?m)^- ${Regex.escape(sourceRef)} \\(([^)]*)\\)$")
+                    .find(growthPrompt)?.groupValues?.get(1).orEmpty()
+                Triple(sourceRef.substringBefore(':'), sourceRef.substringAfter(':'), sourceLabel)
+            }
+            val noRecentProgress = factId.startsWith("no-recent-progress-")
+            val json = kotlinx.serialization.json.buildJsonObject {
+                put("schemaVersion", 1)
+                put("summary", "QA 离线建议（只基于当前数据事实）")
+                put(
+                    "insights",
+                    buildJsonArray {
+                        add(
+                            kotlinx.serialization.json.buildJsonObject {
+                                put("type", "SUGGESTION")
+                                put("title", if (noRecentProgress) "是否愿意为这个目标安排一个小步骤？" else "可以怎样延续已有变化？")
+                                put(
+                                    "body",
+                                    if (noRecentProgress) {
+                                        "$factText 你可以考虑是否安排一个小步骤，也可以不同意或先观察。"
+                                    } else {
+                                        "$factText 这是本地 QA 引擎的建议，不会写入任何业务数据。"
+                                    },
+                                )
+                                put("isInference", true)
+                                put("confidence", 0.6)
+                                put("factIds", buildJsonArray { add(kotlinx.serialization.json.JsonPrimitive(factId)) })
+                                put(
+                                    "sources",
+                                    buildJsonArray {
+                                        allowedSources.forEach { (type, id, label) ->
+                                            add(
+                                                kotlinx.serialization.json.buildJsonObject {
+                                                    put("type", type)
+                                                    put("id", id)
+                                                    put("label", label)
+                                                },
+                                            )
+                                        }
+                                    },
+                                )
                             },
                         )
                     },

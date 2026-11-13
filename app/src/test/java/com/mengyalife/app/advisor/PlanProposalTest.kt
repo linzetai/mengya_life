@@ -2,6 +2,7 @@ package com.mengyalife.app.advisor
 
 import com.mengyalife.app.domain.advisor.PlanChangeKind
 import com.mengyalife.app.domain.advisor.PlanIntentGate
+import com.mengyalife.app.domain.advisor.GoalIntentGate
 import com.mengyalife.app.domain.advisor.RecordProposalParseResult
 import com.mengyalife.app.domain.advisor.RecordProposalParser
 import org.junit.Assert.assertEquals
@@ -37,6 +38,7 @@ class PlanProposalTest {
         assertTrue(PlanIntentGate.looksLikeStatusUpdate("跑步计划先暂停一下。"))
         assertFalse(PlanIntentGate.looksLikeCreate("今天练了半小时。"))
         assertFalse(PlanIntentGate.looksLikeCreate("最近有点想学吉他。"))
+        assertFalse(GoalIntentGate.looksRelevant("我不同意这个建议，不要调整原目标。"))
         assertTrue(PlanIntentGate.looksLikeProgress("昨天练了一次吉他。"))
         assertTrue(PlanIntentGate.looksLikeProgress("这周已经练了两次。"))
         assertFalse(PlanIntentGate.looksLikeProgress("三次都练完了。"))

@@ -16,8 +16,8 @@ android {
         applicationId 'com.mengyalife.app'
         minSdk 26
         targetSdk 35
-        versionCode 36
-        versionName '0.25'
+        versionCode 37
+        versionName '0.25.2'
 
         // Gate 2C：QA 构建通过独立 applicationId + 独立库名做真机破坏性测试，
         // 保证测试永远不会碰正式版里用户自己的日记与目标。

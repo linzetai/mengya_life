@@ -22,7 +22,13 @@ import java.util.UUID
 
 interface ConversationRepository {
     fun observeMessages(): Flow<List<AdvisorMessage>>
-    suspend fun appendUser(content: String, contextGoalId: Long?, contextEpoch: Long = 0, expectedRestoreGeneration: Long? = null): AdvisorMessage
+    suspend fun appendUser(
+        content: String,
+        contextGoalId: Long?,
+        contextEpoch: Long = 0,
+        expectedRestoreGeneration: Long? = null,
+        sources: List<AdvisorSource> = emptyList(),
+    ): AdvisorMessage
     suspend fun appendAssistant(
         content: String,
         contextEpoch: Long,
@@ -60,6 +66,7 @@ class RoomConversationRepository(
         contextGoalId: Long?,
         contextEpoch: Long,
         expectedRestoreGeneration: Long?,
+        sources: List<AdvisorSource>,
     ): AdvisorMessage =
         insert(
             AdvisorMessageEntity(
@@ -70,6 +77,7 @@ class RoomConversationRepository(
                 status = AdvisorMessageStatus.SENT.name,
                 contextGoalId = contextGoalId,
                 contextEpoch = contextEpoch,
+                sourcesJson = encodeSources(sources),
             ), expectedRestoreGeneration,
         )
 
@@ -166,6 +174,11 @@ class RoomConversationRepository(
                         put("type", source.type.name)
                         put("id", source.recordId)
                         put("label", source.label)
+                        if (source.metadata.isNotEmpty()) {
+                            put("metadata", kotlinx.serialization.json.buildJsonObject {
+                                source.metadata.forEach { (key, value) -> put(key, value) }
+                            })
+                        }
                     },
                 )
             }
@@ -180,10 +193,14 @@ class RoomConversationRepository(
                 val type = AdvisorSourceType.entries.firstOrNull {
                     it.name == obj["type"]?.jsonPrimitive?.contentOrNull
                 } ?: return@mapNotNull null
+                val metadata = obj["metadata"]?.jsonObject?.mapNotNull { (key, value) ->
+                    value.jsonPrimitive.contentOrNull?.let { key to it }
+                }?.toMap().orEmpty()
                 AdvisorSource(
                     type = type,
                     recordId = obj["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null,
                     label = obj["label"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                    metadata = metadata,
                 )
             }
         }.getOrDefault(emptyList())

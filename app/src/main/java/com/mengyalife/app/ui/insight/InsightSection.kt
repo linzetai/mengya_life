@@ -33,6 +33,7 @@ import com.mengyalife.app.domain.insight.InsightFact
 import com.mengyalife.app.domain.insight.InsightReport
 import com.mengyalife.app.domain.insight.InsightReportStatus
 import com.mengyalife.app.domain.insight.InsightType
+import com.mengyalife.app.domain.insight.InsightReference
 import com.mengyalife.app.ui.components.InlineNote
 import com.mengyalife.app.ui.components.SectionCard
 import com.mengyalife.app.ui.components.StatusPill
@@ -45,8 +46,7 @@ fun InsightSection(
     onOpenGoals: () -> Unit,
     onOpenGoal: (Long) -> Unit = {},
     onOpenTrends: () -> Unit,
-    onDiscuss: (String) -> Unit,
-    onDraft: (String) -> Unit,
+    onDiscuss: (InsightReference) -> Unit,
 ) {
     var detail by remember { mutableStateOf<GrowthInsight?>(null) }
     val report = state.report
@@ -81,6 +81,9 @@ fun InsightSection(
             Spacer(Modifier.height(6.dp))
             Text("以下仍是你可核验的规则分析，不是 AI 洞察。", style = MaterialTheme.typography.labelSmall)
             report.facts.take(4).forEach { fact -> FactLine(fact) }
+        } else if (report != null && report.facts.any { it.id == "insufficient" }) {
+            InlineNote("数据还不足，暂不展示行动建议为确定结论。请先继续记录真实进展。")
+            report.facts.filter { it.id == "insufficient" }.forEach { FactLine(it) }
         } else if (report != null && report.insights.isEmpty()) {
             InlineNote("这次没有形成可靠的洞察；可以补充目标、进展或日记后再试。")
         } else if (report != null) {
@@ -118,8 +121,7 @@ fun InsightSection(
             onOpenGoals = onOpenGoals,
             onOpenGoal = onOpenGoal,
             onOpenTrends = onOpenTrends,
-            onDiscuss = { onDiscuss(insight.title + "：" + insight.body); detail = null },
-            onDraft = { onDraft(insight.title + "：" + insight.body); detail = null },
+            onDiscuss = { reference -> onDiscuss(reference); detail = null },
         )
     }
 }
@@ -158,12 +160,22 @@ private fun InsightCard(insight: GrowthInsight, index: Int, onClick: () -> Unit)
 
 @Composable
 private fun FactLine(fact: InsightFact) {
-    Text(
-        "• ${fact.text}",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(vertical = 2.dp),
-    )
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Text(
+            if (fact.isInference) "AI 推测 · " else "规则事实 · ",
+            style = MaterialTheme.typography.labelSmall,
+            color = if (fact.isInference) MaterialTheme.colorScheme.tertiary
+            else MaterialTheme.colorScheme.primary,
+        )
+        Text(
+            fact.text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 @Composable
@@ -174,8 +186,7 @@ fun InsightDetailDialog(
     onOpenGoals: () -> Unit,
     onOpenGoal: (Long) -> Unit,
     onOpenTrends: () -> Unit,
-    onDiscuss: () -> Unit,
-    onDraft: () -> Unit,
+    onDiscuss: (InsightReference) -> Unit,
 ) {
     AlertDialog(
         modifier = Modifier
@@ -235,15 +246,20 @@ fun InsightDetailDialog(
                         Text("趋势")
                     }
                 }
-                if (insight.type == InsightType.SUGGESTION) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = onDiscuss, modifier = Modifier.testTag("insight_discuss")) {
-                            Text("和顾问讨论")
-                        }
-                        TextButton(onClick = onDraft, modifier = Modifier.testTag("insight_draft")) {
-                            Text("整理为目标草案")
-                        }
+                if (insight.type == InsightType.SUGGESTION && report != null) {
+                    TextButton(
+                        onClick = {
+                            onDiscuss(InsightReference(report.id, report.dataVersion, insight.id))
+                        },
+                        modifier = Modifier.testTag("insight_discuss"),
+                    ) {
+                        Text("和顾问讨论")
                     }
+                    Text(
+                        "确认行动前会先讨论；这里不会直接修改目标或计划。",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         },

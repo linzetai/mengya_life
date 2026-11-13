@@ -29,7 +29,9 @@ interface RecordProposalDao {
         SET goal_id = :goalId, goal_title = :goalTitle, goal_candidates_json = :candidatesJson,
             amount_kind = :amountKind, metric_value = :metricValue, metric_unit = :metricUnit,
             note = :note, occurred_at = :occurredAt, pending_fields_json = :pendingJson,
-            diary_title = :diaryTitle, diary_body = :diaryBody
+            diary_title = :diaryTitle, diary_body = :diaryBody,
+            goal_change_json = :goalChangeJson, plan_change_json = :planChangeJson,
+            plan_progress_json = :planProgressJson
         WHERE id = :id AND status = 'DRAFT'
         """
     )
@@ -46,6 +48,9 @@ interface RecordProposalDao {
         pendingJson: String?,
         diaryTitle: String?,
         diaryBody: String?,
+        goalChangeJson: String?,
+        planChangeJson: String?,
+        planProgressJson: String?,
     ): Int
 
     /** 原子状态迁移：只有 DRAFT 才能变成 APPLIED。 */

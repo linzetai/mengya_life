@@ -170,6 +170,30 @@ class MainActivity : ComponentActivity() {
                     container.qaSeedRestoreSecurity()
                 }
             }
+            // QA only: enable the local scripted engine for offline growth-loop device walkthroughs.
+            if (intent?.getBooleanExtra("qa_growth_fake_engine", false) == true) {
+                val container = (application as MengyaApplication).container
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    runCatching {
+                        check(container.restoreCoordinator.awaitReady())
+                        val endpoint = "https://qa-growth.invalid/v1"
+                        check(container.advisorConfigRepository.save(endpoint, "qa-growth-offline", "qa-placeholder-key").ok)
+                        container.aiConsentRepository.grant(
+                            endpoint,
+                            com.mengyalife.app.domain.advisor.AiConsentRules.allCategories,
+                        )
+                        container.advisorConfigRepository.setUseFakeEngine(true)
+                        android.util.Log.i("GrowthLoopQA", "offline advisor configured; no network call")
+                    }.onFailure { android.util.Log.e("GrowthLoopQA", "QA fake engine setup failed", it) }
+                }
+            }
+            if (intent?.getBooleanExtra("qa_seed_growth_loop_fixture", false) == true) {
+                val container = (application as MengyaApplication).container
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    runCatching { container.qaSeedGrowthLoopFixture() }
+                        .onFailure { android.util.Log.e("GrowthLoopQA", "QA fixture seed failed", it) }
+                }
+            }
             if (intent?.hasExtra("qa_run_weekly_review") == true) {
                 (application as MengyaApplication).container.weeklyReviewScheduler.runNowForQa()
             }

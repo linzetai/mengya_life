@@ -63,7 +63,7 @@ fun decideTodayNextStep(
             kind = TodayNextStepKind.PLAN,
             eyebrow = "这周的小计划",
             title = stalePlan.title,
-            body = "还没有记录进展 · ${stalePlan.timeScope?.takeIf { it.isNotBlank() } ?: "时间未定"}",
+            body = "尚无执行记录（不代表没有执行） · ${stalePlan.timeScope?.takeIf { it.isNotBlank() } ?: "时间未定"}",
             cta = "和 MengYa 聊聊进展",
             planTitle = stalePlan.title,
             planId = stalePlan.planId,

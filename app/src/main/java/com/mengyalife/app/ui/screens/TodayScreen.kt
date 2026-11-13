@@ -47,6 +47,7 @@ import com.mengyalife.app.domain.goals.GoalStatus
 import com.mengyalife.app.domain.insight.GrowthInsight
 import com.mengyalife.app.domain.insight.InsightReportStatus
 import com.mengyalife.app.domain.insight.InsightType
+import com.mengyalife.app.domain.insight.InsightReference
 import com.mengyalife.app.ui.components.MorrowIcon
 import com.mengyalife.app.ui.components.MorrowIconKind
 import com.mengyalife.app.ui.components.MorrowPrimaryButton
@@ -101,8 +102,8 @@ fun TodayScreen(
     onWriteDiary: () -> Unit,
     onOpenDecision: () -> Unit,
     onOpenTrends: () -> Unit,
-    onDiscussInsight: (String) -> Unit = {},
-    onDraftInsight: (String) -> Unit = {},
+    onGenerateInsight: () -> Unit = {},
+    onDiscussInsight: (InsightReference) -> Unit = {},
     onTalkToAdvisor: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -193,6 +194,9 @@ fun TodayScreen(
         item {
             FocusCard(
                 presentation = presentation,
+                loading = insights.loading,
+                error = insights.error,
+                onGenerate = onGenerateInsight,
                 onClick = {
                     val insight = presentation.insight
                     when {
@@ -238,12 +242,8 @@ fun TodayScreen(
             onOpenGoals = onOpenPanorama,
             onOpenGoal = onOpenGoal,
             onOpenTrends = onOpenTrends,
-            onDiscuss = {
-                onDiscussInsight(insight.title + "：" + insight.body)
-                detailInsight = null
-            },
-            onDraft = {
-                onDraftInsight(insight.title + "：" + insight.body)
+            onDiscuss = { reference ->
+                onDiscussInsight(reference)
                 detailInsight = null
             },
         )
@@ -277,26 +277,43 @@ private fun buildInsightPresentation(
 ): InsightPresentation {
     val report = state.report
     if (state.hasReport && report != null) {
+        if (report.status == InsightReportStatus.READY && report.facts.any { it.id == "insufficient" }) {
+            val fact = report.facts.first { it.id == "insufficient" }
+            return InsightPresentation(
+                eyebrow = "数据不足 · 暂不下结论",
+                quote = "先看见已经留下的真实记录。",
+                evidence = fact.text,
+                cta = "看看已有记录",
+                isLocal = true,
+            )
+        }
         if (report.status == InsightReportStatus.READY && report.insights.isNotEmpty()) {
-            val insight = report.insights.firstOrNull { it.type == InsightType.POSITIVE }
+            val insight = report.insights.firstOrNull { it.type == InsightType.SUGGESTION }
+                ?: report.insights.firstOrNull { it.type == InsightType.POSITIVE }
                 ?: report.insights.first()
             val period = "${SHORT_DATE.format(Instant.ofEpochMilli(report.periodStart).atZone(ZoneId.systemDefault()))}" +
                 "–${SHORT_DATE.format(Instant.ofEpochMilli(report.periodEnd).atZone(ZoneId.systemDefault()))}"
             return InsightPresentation(
-                eyebrow = "这一周的一点发现",
+                eyebrow = when {
+                    insight.type == InsightType.SUGGESTION -> "下一步建议 · 需由你决定"
+                    insight.isInference -> "AI 推测 · 不是既定事实"
+                    else -> "规则事实 · 可追溯记录"
+                },
                 quote = insight.title,
-                evidence = "来自 ${report.facts.size} 条可核验事实 · $period",
-                cta = "看看这背后发生了什么",
+                evidence = "引用 ${insight.factIds.size} 条依据 · $period",
+                cta = if (insight.type == InsightType.SUGGESTION) "和顾问讨论这条建议" else "查看依据与来源",
                 insight = insight,
             )
         }
         if (report.status == InsightReportStatus.FAILED) {
-            val fact = report.facts.firstOrNull()
+            val fact = report.facts.firstOrNull { it.id == "insufficient" } ?: report.facts.firstOrNull()
+            val insufficient = fact?.id == "insufficient"
             return InsightPresentation(
-                eyebrow = "这一周的一点事实",
-                quote = fact?.text ?: "这一周，你仍在留下自己的记录。",
-                evidence = "AI 解释尚未生成，这里只呈现本地可核验的事实",
-                cta = "看看这背后发生了什么",
+                eyebrow = if (insufficient) "数据不足 · 暂不下结论" else "这一周的一点事实",
+                quote = if (insufficient) "先看见已经留下的真实记录。"
+                else fact?.text ?: "这一周，你仍在留下自己的记录。",
+                evidence = if (insufficient) fact?.text.orEmpty() else "AI 解释尚未生成，这里只呈现本地可核验的事实",
+                cta = if (insufficient) "补充记录后再评估" else "看看这背后发生了什么",
                 insight = null,
                 isLocal = true,
             )
@@ -356,6 +373,9 @@ private fun flattenNode(node: GoalNode): List<GoalNode> =
 @Composable
 private fun FocusCard(
     presentation: InsightPresentation,
+    loading: Boolean,
+    error: String?,
+    onGenerate: () -> Unit,
     onClick: () -> Unit,
 ) {
     val colors = MorrowTheme.colors
@@ -426,6 +446,21 @@ private fun FocusCard(
                     kind = MorrowIconKind.ARROW_RIGHT,
                     tint = titleColor,
                     modifier = Modifier.size(16.dp),
+                )
+            }
+            TextButton(
+                onClick = onGenerate,
+                enabled = !loading,
+                modifier = Modifier.testTag("today_insight_generate"),
+            ) {
+                Text(if (loading) "正在重新评估…" else "生成 / 更新洞察")
+            }
+            error?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (darkCard) colors.insightMuted else colors.textSecondary,
+                    modifier = Modifier.testTag("today_insight_error"),
                 )
             }
         }

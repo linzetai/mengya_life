@@ -15,6 +15,10 @@ import com.mengyalife.app.domain.insight.InsightCodec
 import com.mengyalife.app.domain.insight.InsightFact
 import com.mengyalife.app.domain.insight.InsightInput
 import com.mengyalife.app.domain.insight.InsightParseResult
+import com.mengyalife.app.domain.insight.InsightReference
+import com.mengyalife.app.domain.insight.InsightReferenceResolution
+import com.mengyalife.app.domain.insight.ResolvedInsightReference
+import com.mengyalife.app.domain.insight.InsightType
 import com.mengyalife.app.domain.insight.InsightParser
 import com.mengyalife.app.domain.insight.InsightReport
 import com.mengyalife.app.domain.insight.InsightReportStatus
@@ -58,6 +62,51 @@ class InsightService(
         return dao.findByDataVersion(input.dataVersion)?.toDomain()
     }
 
+    /** Resolve a UI pointer against current authorized facts; cached labels alone are never trusted. */
+    suspend fun resolveCurrentReference(reference: InsightReference): InsightReferenceResolution {
+        val consent = consentRepository.current()
+        if (!consent.granted) {
+            return InsightReferenceResolution.Stale("AI 授权已关闭，请重新生成洞察")
+        }
+        val input = InsightRules.build(dataRepository.snapshot(consent), consent, now())
+        if (!input.hasEnoughData) {
+            return InsightReferenceResolution.Stale("可用数据不足，请补充真实记录后重新评估")
+        }
+        if (input.dataVersion != reference.dataVersion) {
+            return InsightReferenceResolution.Stale("原始记录或授权已变化，这条建议需要重新评估")
+        }
+        val report = dao.findByDataVersion(input.dataVersion)?.toDomain()
+            ?: return InsightReferenceResolution.Stale("当前数据版本没有可用洞察，请重新生成")
+        if (report.id != reference.reportId || report.status != InsightReportStatus.READY) {
+            return InsightReferenceResolution.Stale("洞察报告已更新，请从当前建议重新开始")
+        }
+        val insight = report.insights.firstOrNull { it.id == reference.insightId }
+            ?.takeIf { it.type == InsightType.SUGGESTION }
+            ?: return InsightReferenceResolution.Stale("这条行动建议已不存在，请重新评估")
+        if (insight.type == InsightType.SUGGESTION && !insight.isInference) {
+            return InsightReferenceResolution.Stale("行动建议未标记为推测，不能作为确定事实")
+        }
+        if (insight.factIds.isEmpty()) {
+            return InsightReferenceResolution.Stale("建议缺少可核验事实，不能作为行动依据")
+        }
+        val factsById = input.facts.associateBy { it.id }
+        val facts = insight.factIds.mapNotNull(factsById::get)
+        if (facts.size != insight.factIds.distinct().size) {
+            return InsightReferenceResolution.Stale("建议引用的事实已失效，请重新生成洞察")
+        }
+        val allowed = input.allowedSources.toSet()
+        val factSources = facts.flatMap { it.sourceRefs }.toSet()
+        if (facts.none { it.sourceRefs.isNotEmpty() } ||
+            factSources.any { it !in allowed } ||
+            insight.sources.isEmpty() || insight.sources.any { it !in factSources || it !in allowed }
+        ) {
+            return InsightReferenceResolution.Stale("建议来源已失效或授权范围已变化，请重新评估")
+        }
+        return InsightReferenceResolution.Current(
+            ResolvedInsightReference(reference, insight, facts),
+        )
+    }
+
     suspend fun generate(force: Boolean = false): InsightGenerationResult {
         val restoreGeneration = writeBarrier?.generation()
         val consent = consentRepository.current()
@@ -78,6 +127,9 @@ class InsightService(
         ) {
             return saveFailed(input, "尚未授权任何成长数据类别", null, restoreGeneration)
         }
+        if (!input.hasEnoughData) {
+            return saveFailed(input, "数据不足；已保留本地规则事实，本次未请求 AI", null, restoreGeneration)
+        }
         if (!boundConfig.configured || boundRuntime == null ||
             boundRuntime.endpoint != boundConfig.endpoint ||
             !boundConsent.isValidFor(boundRuntime.endpoint)
@@ -95,7 +147,7 @@ class InsightService(
             engine.chat(
                 config = boundRuntime,
                 messages = listOf(
-                    AdvisorChatMessage("system", "只输出严格 JSON；只解释给定事实，不编造。"),
+                    AdvisorChatMessage("system", "GROWTH_INSIGHT_V1；只输出严格 JSON；只解释给定事实，不编造、不诊断。"),
                     AdvisorChatMessage("user", prompt),
                 ),
                 maxTokens = 2_500,
