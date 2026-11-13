@@ -6,6 +6,7 @@ import com.mengyalife.app.data.restore.RestoreWriteBarrier
 import com.mengyalife.app.domain.advisor.RecordGoalCandidate
 import com.mengyalife.app.domain.advisor.RecordProposalDraft
 import com.mengyalife.app.domain.advisor.RecordProposalStatus
+import com.mengyalife.app.domain.insight.InsightReference
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
@@ -82,7 +83,8 @@ class RoomRecordProposalRepository(
     ): StoredRecordProposal {
         val existing = dao.findByMessage(messageId)?.let(::toDomain)
         if (existing != null) return existing
-        val entity = toEntity(newId(), messageId, now(), draft)
+        val durableDraft = draft.copy(sourceLinkKnown = true)
+        val entity = toEntity(newId(), messageId, now(), durableDraft)
         val write: suspend () -> Unit = { dao.insert(entity) }
         if (writeBarrier != null) writeBarrier.withWrite(expectedRestoreGeneration) { write() } else write()
         return dao.findByMessage(messageId)?.let(::toDomain)
@@ -90,7 +92,7 @@ class RoomRecordProposalRepository(
                 id = entity.id,
                 messageId = entity.messageId,
                 createdAt = entity.createdAt,
-                draft = draft,
+                draft = durableDraft,
                 status = entity.status,
             )
     }
@@ -182,7 +184,7 @@ class RoomRecordProposalRepository(
             originalText = draft.originalText,
             diaryTitle = draft.diaryTitle,
             diaryBody = draft.diaryBody,
-            sourceMessageIdsJson = encodeIds(draft.sourceMessageIds),
+            sourceMessageIdsJson = RecordProposalSourceCodec.encode(draft),
             goalChangeJson = GoalChangeCodec.encode(draft.goalChange),
             planChangeJson = PlanChangeCodec.encode(draft.planChange),
             planProgressJson = PlanChangeCodec.encodeProgress(draft.planProgress),
@@ -219,6 +221,7 @@ class RoomRecordProposalRepository(
             .firstOrNull { it.name.equals(entity.intent, ignoreCase = true) }
             ?: com.mengyalife.app.domain.advisor.RecordIntent.SUGGESTED
         if (entity.note.isBlank()) return null
+        val sourceLink = RecordProposalSourceCodec.decode(entity.sourceMessageIdsJson)
         return RecordProposalDraft(
             kind = kind,
             goalId = entity.goalId,
@@ -235,7 +238,10 @@ class RoomRecordProposalRepository(
             diaryTitle = entity.diaryTitle,
             diaryBody = entity.diaryBody,
             diaryEntryId = entity.diaryEntryId,
-            sourceMessageIds = decodeIds(entity.sourceMessageIdsJson),
+            sourceMessageIds = sourceLink.messageIds,
+            sourceLinkKnown = sourceLink.known,
+            sourceLinkInvalid = sourceLink.invalid,
+            sourceInsightReference = sourceLink.insightReference,
             goalChange = GoalChangeCodec.decode(entity.goalChangeJson),
             appliedGoalIds = entity.appliedGoalIdsJson?.split(',')?.mapNotNull { it.trim().toLongOrNull() }.orEmpty(),
             planChange = PlanChangeCodec.decode(entity.planChangeJson),
@@ -272,19 +278,6 @@ class RoomRecordProposalRepository(
         }.getOrDefault(emptyList())
     }
 
-    private fun encodeIds(ids: List<String>): String? =
-        if (ids.isEmpty()) null else
-            kotlinx.serialization.json.buildJsonArray {
-                ids.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) }
-            }.toString()
-
-    private fun decodeIds(raw: String?): List<String> {
-        if (raw.isNullOrBlank()) return emptyList()
-        return runCatching {
-            Json.parseToJsonElement(raw).jsonArray.mapNotNull { it.jsonPrimitive.content }
-        }.getOrDefault(emptyList())
-    }
-
     private fun encodePending(fields: List<String>): String? =
         if (fields.isEmpty()) null else
             kotlinx.serialization.json.buildJsonArray {
@@ -296,6 +289,73 @@ class RoomRecordProposalRepository(
         return runCatching {
             Json.parseToJsonElement(raw).jsonArray.mapNotNull { it.jsonPrimitive.content }
         }.getOrDefault(emptyList())
+    }
+}
+
+internal data class DecodedRecordSourceLink(
+    val messageIds: List<String> = emptyList(),
+    val known: Boolean = false,
+    val invalid: Boolean = false,
+    val insightReference: InsightReference? = null,
+)
+
+/** Backward-compatible envelope in the existing source_message_ids_json TEXT column. */
+internal object RecordProposalSourceCodec {
+    fun encode(draft: RecordProposalDraft): String? {
+        if (draft.sourceMessageIds.isEmpty() && !draft.sourceLinkKnown &&
+            draft.sourceInsightReference == null && !draft.sourceLinkInvalid
+        ) return null
+        return kotlinx.serialization.json.buildJsonObject {
+            put("format", "record-source-v1")
+            put("messageIds", kotlinx.serialization.json.buildJsonArray {
+                draft.sourceMessageIds.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) }
+            })
+            put("sourceLinkKnown", draft.sourceLinkKnown || draft.sourceInsightReference != null)
+            put("sourceLinkInvalid", draft.sourceLinkInvalid)
+            put("insightReference", draft.sourceInsightReference?.let { reference ->
+                kotlinx.serialization.json.buildJsonObject {
+                    put("reportId", reference.reportId)
+                    put("dataVersion", reference.dataVersion)
+                    put("insightId", reference.insightId)
+                }
+            } ?: kotlinx.serialization.json.JsonNull)
+        }.toString()
+    }
+
+    fun decode(raw: String?): DecodedRecordSourceLink {
+        if (raw.isNullOrBlank()) return DecodedRecordSourceLink()
+        val element = runCatching { Json.parseToJsonElement(raw) }.getOrNull()
+            ?: return DecodedRecordSourceLink(invalid = true)
+        if (element is kotlinx.serialization.json.JsonArray) {
+            return DecodedRecordSourceLink(
+                messageIds = element.mapNotNull { runCatching { it.jsonPrimitive.content }.getOrNull() },
+            )
+        }
+        val obj = element as? kotlinx.serialization.json.JsonObject
+            ?: return DecodedRecordSourceLink(invalid = true)
+        val format = runCatching { obj["format"]?.jsonPrimitive?.content }.getOrNull()
+        if (format != "record-source-v1") return DecodedRecordSourceLink(invalid = true)
+        val ids = runCatching {
+            obj["messageIds"]?.jsonArray?.mapNotNull { it.jsonPrimitive.content }.orEmpty()
+        }.getOrDefault(emptyList())
+        val known = runCatching { obj["sourceLinkKnown"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() }.getOrNull()
+        val markedInvalid = runCatching { obj["sourceLinkInvalid"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() }.getOrNull()
+        if (known == null || markedInvalid == null || !known) {
+            return DecodedRecordSourceLink(ids, known = known == true, invalid = true)
+        }
+        if (markedInvalid) return DecodedRecordSourceLink(ids, known = true, invalid = true)
+        val linkElement = obj["insightReference"]
+        if (linkElement == null) return DecodedRecordSourceLink(ids, known, invalid = true)
+        if (linkElement == kotlinx.serialization.json.JsonNull) return DecodedRecordSourceLink(ids, known)
+        val link = runCatching {
+            val ref = linkElement.jsonObject
+            val reportId = ref["reportId"]?.jsonPrimitive?.content ?: return@runCatching null
+            val version = ref["dataVersion"]?.jsonPrimitive?.content ?: return@runCatching null
+            val insightId = ref["insightId"]?.jsonPrimitive?.content ?: return@runCatching null
+            InsightReference(reportId, version, insightId)
+        }.getOrNull()
+        return if (link == null) DecodedRecordSourceLink(ids, known, invalid = true)
+        else DecodedRecordSourceLink(ids, known, insightReference = link)
     }
 }
 

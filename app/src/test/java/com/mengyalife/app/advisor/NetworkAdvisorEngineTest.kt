@@ -69,6 +69,7 @@ class NetworkAdvisorEngineTest {
     fun `请求体包含模型与消息，Authorization 使用 Bearer`() = runTest {
         val transport = FakeTransport().apply { response = HttpResponse(200, successBody()) }
         NetworkAdvisorEngine(transport).chat(config, messages, maxTokens = 123)
+        assertEquals(1, transport.calls)
         assertTrue(transport.lastHeaders["Authorization"]!!.startsWith("Bearer sk-"))
         val body = Json.parseToJsonElement(transport.lastBody).jsonObject
         assertEquals("deepseek-chat", body["model"]!!.jsonPrimitive.content)

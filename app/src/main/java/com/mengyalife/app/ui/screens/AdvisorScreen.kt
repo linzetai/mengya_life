@@ -269,6 +269,8 @@ fun AdvisorScreen(
                                         it.status == AdvisorMessageStatus.FAILED ||
                                             it.status == AdvisorMessageStatus.CANCELLED
                                     }
+                                val showTimestamp = index == state.messages.lastIndex || index == 0 ||
+                                    Timestamps.formatDate(message.createdAt) != Timestamps.formatDate(state.messages[index - 1].createdAt)
                                 val proposal = state.proposals[message.id]
                                 val lastProposal = proposal != null &&
                                     state.messages.drop(index + 1).none { state.proposals[it.id] != null }
@@ -276,6 +278,7 @@ fun AdvisorScreen(
                                     message = message,
                                     lastFailed = lastFailed,
                                     lastWithSources = lastWithSources,
+                                    showTimestamp = showTimestamp,
                                     lastProposal = lastProposal,
                                     proposal = proposal,
                                     record = state.records[message.id],
@@ -923,6 +926,7 @@ private fun MessageRow(
     message: AdvisorMessage,
     lastFailed: Boolean,
     lastWithSources: Boolean,
+    showTimestamp: Boolean,
     lastProposal: Boolean,
     proposal: StoredGoalProposal?,
     record: StoredRecordProposal?,
@@ -1003,29 +1007,20 @@ private fun MessageRow(
         }
 
         if (message.sources.isNotEmpty()) {
-            val goals = message.sources.count { it.type == AdvisorSourceType.GOAL }
-            val journals = message.sources.count { it.type == AdvisorSourceType.JOURNAL }
-            val progress = message.sources.count { it.type == AdvisorSourceType.PROGRESS }
-            val signals = message.sources.count { it.type == AdvisorSourceType.GROWTH }
-            val memories = message.sources.count { it.type == AdvisorSourceType.MEMORY }
-            val insights = message.sources.count { it.type == AdvisorSourceType.INSIGHT }
-            val insightFacts = message.sources.count { it.type == AdvisorSourceType.INSIGHT_FACT }
-            val summary = buildList {
-                if (goals > 0) add("$goals 个目标")
-                if (journals > 0) add("$journals 篇日记")
-                if (progress > 0) add("$progress 条进展")
-                if (signals > 0) add("$signals 条成长线索")
-                if (memories > 0) add("$memories 条成长记忆")
-                if (insights > 0) add("$insights 条成长建议")
-                if (insightFacts > 0) add("$insightFacts 条洞察依据")
-            }.joinToString("、")
+            val insightBacked = message.sources.any {
+                it.type == AdvisorSourceType.INSIGHT || it.type == AdvisorSourceType.INSIGHT_FACT
+            }
             TextButton(
                 onClick = onOpenSources,
                 modifier = Modifier.testTag(
                     if (lastWithSources) "advisor_sources_last" else "advisor_sources",
                 ),
             ) {
-                Text("参考了 $summary", style = MaterialTheme.typography.labelSmall, color = colors.textSecondary)
+                Text(
+                    if (insightBacked) "查看建议依据" else "查看本轮依据",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textSecondary,
+                )
             }
         }
         if (message.proposalError != null) {
@@ -1072,12 +1067,14 @@ private fun MessageRow(
                 onOpenGoal = { proposalId -> onOpenGoal(proposalId) },
             )
         }
-        Text(
-            text = Timestamps.formatDateTime(message.createdAt),
-            style = MaterialTheme.typography.labelSmall,
-            color = colors.textTertiary,
-            modifier = Modifier.padding(top = 3.dp, start = 4.dp, end = 4.dp),
-        )
+        if (showTimestamp) {
+            Text(
+                text = Timestamps.formatDateTime(message.createdAt),
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.textTertiary,
+                modifier = Modifier.padding(top = 3.dp, start = 4.dp, end = 4.dp),
+            )
+        }
     }
 }
 

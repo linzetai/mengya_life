@@ -17,6 +17,7 @@ import com.mengyalife.app.data.advisor.ProgressRecordApply
 import com.mengyalife.app.data.advisor.StoredGoalProposal
 import com.mengyalife.app.data.advisor.StoredRecordProposal
 import com.mengyalife.app.data.consent.AiConsentRepository
+import com.mengyalife.app.data.restore.RestoreWriteBarrier
 import com.mengyalife.app.data.advisor.SecretCipher
 import com.mengyalife.app.data.advisor.StoredAiConfig
 import com.mengyalife.app.data.local.advisor.AdvisorMessageDao
@@ -72,11 +73,13 @@ class FakeAiConfigStorage(initial: StoredAiConfig = StoredAiConfig()) : AiConfig
 class FakeConfigRepository(
     val storage: FakeAiConfigStorage = FakeAiConfigStorage(),
     val cipher: FakeSecretCipher = FakeSecretCipher(),
+    writeBarrier: RestoreWriteBarrier? = null,
 ) : AdvisorConfigRepository {
     private val real = com.mengyalife.app.data.advisor.DataStoreAdvisorConfigRepository(
         storage = storage,
         cipher = cipher,
         allowFakeEngine = true,
+        writeBarrier = writeBarrier,
     )
 
     override val state: Flow<AiConfigState> = real.state
@@ -98,6 +101,7 @@ class FakeConfigRepository(
 
 class FakeConversationDao : AdvisorMessageDao {
     private val rows = MutableStateFlow<List<AdvisorMessageEntity>>(emptyList())
+    var beforeInsert: (suspend (AdvisorMessageEntity) -> Unit)? = null
 
     override fun observeAll(): Flow<List<AdvisorMessageEntity>> =
         rows.map { it.sortedWith(compareBy<AdvisorMessageEntity> { m -> m.createdAt }.thenBy { m -> m.id }) }
@@ -106,6 +110,7 @@ class FakeConversationDao : AdvisorMessageDao {
         rows.value.sortedWith(compareBy<AdvisorMessageEntity> { it.createdAt }.thenBy { it.id })
 
     override suspend fun insert(message: AdvisorMessageEntity) {
+        beforeInsert?.invoke(message)
         rows.value = rows.value + message
     }
 
@@ -122,6 +127,10 @@ class FakeConversationDao : AdvisorMessageDao {
         rows.value = emptyList()
         return n
     }
+
+    suspend fun setCreatedAt(id: String, createdAt: Long) {
+        rows.value = rows.value.map { if (it.id == id) it.copy(createdAt = createdAt) else it }
+    }
 }
 
 /** 记录调用的假引擎；按脚本返回结果。 */
@@ -131,6 +140,8 @@ class ScriptedAdvisorEngine(
     val calls = mutableListOf<List<AdvisorChatMessage>>()
     var testResult: AdvisorTestResult = AdvisorTestResult(true, "ok")
     var blockUntilCancelled: Boolean = false
+    var blockOnCall: Int? = null
+    var beforeChat: suspend (Int, List<AdvisorChatMessage>) -> Unit = { _, _ -> }
 
     fun enqueue(result: AdvisorChatResult) {
         results.add(result)
@@ -142,7 +153,8 @@ class ScriptedAdvisorEngine(
         maxTokens: Int,
     ): AdvisorChatResult {
         calls.add(messages)
-        if (blockUntilCancelled) {
+        beforeChat(calls.size, messages)
+        if (blockUntilCancelled || blockOnCall == calls.size) {
             kotlinx.coroutines.awaitCancellation()
         }
         return results.removeFirstOrNull() ?: AdvisorChatResult.Success("default reply")
@@ -176,11 +188,16 @@ fun sampleGoal(id: Long = 1L, title: String = "健康") = AdvisorGoalChoice(id, 
 
 class FakeConsentRepository(
     initial: AiConsentState = AiConsentState(),
+    private val writeBarrier: RestoreWriteBarrier? = null,
 ) : AiConsentRepository {
     private val flow = MutableStateFlow(initial)
+
+    private suspend fun write(block: suspend () -> Unit) {
+        if (writeBarrier != null) writeBarrier.withWrite { block() } else block()
+    }
     override val state: Flow<AiConsentState> = flow
     override suspend fun current(): AiConsentState = flow.value
-    override suspend fun grant(recipient: String, categories: Set<ConsentCategory>) {
+    override suspend fun grant(recipient: String, categories: Set<ConsentCategory>) = write {
         flow.value = AiConsentState(
             granted = true,
             textVersion = AiConsentRules.TEXT_VERSION,
@@ -191,7 +208,7 @@ class FakeConsentRepository(
             epoch = flow.value.epoch + 1,
         )
     }
-    override suspend fun setCategory(category: ConsentCategory, enabled: Boolean) {
+    override suspend fun setCategory(category: ConsentCategory, enabled: Boolean) = write {
         val current = flow.value.categories.toMutableSet()
         if (enabled) current.add(category) else current.remove(category)
         flow.value = flow.value.copy(categories = current, epoch = flow.value.epoch + 1)
@@ -200,7 +217,7 @@ class FakeConsentRepository(
         return com.mengyalife.app.data.consent.ConsentResetResult.RESET
     }
 
-    override suspend fun withdraw() {
+    override suspend fun withdraw() = write {
         flow.value = AiConsentState(epoch = flow.value.epoch + 1)
     }
 }
@@ -241,6 +258,7 @@ class FakeGoalProposalRepository : GoalProposalRepository {
 class FakeGoalProposalApply : GoalProposalApply {
     var applyCalls = 0
     var undoCalls = 0
+    var beforeSourceValidation: suspend () -> Unit = {}
     var applyResult: ProposalApplyResult = ProposalApplyResult.Success(
         listOf(com.mengyalife.app.data.advisor.AppliedGoal("g1", 1L, "健康", com.mengyalife.app.domain.goals.GoalLevel.LONG_TERM)),
     )
@@ -248,6 +266,15 @@ class FakeGoalProposalApply : GoalProposalApply {
     override suspend fun apply(proposalId: String, selectedTempIds: Set<String>): ProposalApplyResult {
         applyCalls++
         return applyResult
+    }
+    override suspend fun applyValidated(
+        proposalId: String,
+        selectedTempIds: Set<String>,
+        validateSource: suspend () -> String?,
+    ): ProposalApplyResult {
+        beforeSourceValidation()
+        val stale = validateSource()
+        return if (stale != null) ProposalApplyResult.Failure(stale) else apply(proposalId, selectedTempIds)
     }
     override suspend fun undo(proposalId: String): ProposalUndoResult {
         undoCalls++
@@ -320,6 +347,7 @@ class FakeRecordProposalRepository : RecordProposalRepository {
 
 class FakePlanRecordApply : com.mengyalife.app.data.advisor.PlanRecordApply {
     var calls = 0
+    var beforeSourceValidation: suspend () -> Unit = {}
     override suspend fun apply(proposalId: String): com.mengyalife.app.data.advisor.PlanApplyResult {
         calls++
         return com.mengyalife.app.data.advisor.PlanApplyResult.Success(21L)
@@ -328,6 +356,28 @@ class FakePlanRecordApply : com.mengyalife.app.data.advisor.PlanRecordApply {
     override suspend fun applyProgress(proposalId: String): com.mengyalife.app.data.advisor.PlanApplyResult {
         calls++
         return com.mengyalife.app.data.advisor.PlanApplyResult.Success(21L)
+    }
+
+    override suspend fun applyValidated(
+        proposalId: String,
+        expectedRestoreGeneration: Long,
+        validateSource: suspend () -> String?,
+    ): com.mengyalife.app.data.advisor.PlanApplyResult {
+        beforeSourceValidation()
+        val stale = validateSource()
+        return if (stale != null) com.mengyalife.app.data.advisor.PlanApplyResult.Failure(stale)
+        else apply(proposalId)
+    }
+
+    override suspend fun applyProgressValidated(
+        proposalId: String,
+        expectedRestoreGeneration: Long,
+        validateSource: suspend () -> String?,
+    ): com.mengyalife.app.data.advisor.PlanApplyResult {
+        beforeSourceValidation()
+        val stale = validateSource()
+        return if (stale != null) com.mengyalife.app.data.advisor.PlanApplyResult.Failure(stale)
+        else applyProgress(proposalId)
     }
 }
 

@@ -12,6 +12,8 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.security.MessageDigest
+import java.time.Instant
+import java.time.ZoneId
 
 object InsightRules {
     private val json = Json
@@ -20,10 +22,14 @@ object InsightRules {
         snapshot: AdvisorContextSnapshot,
         consent: AiConsentState,
         now: Long,
+        zone: ZoneId = ZoneId.systemDefault(),
     ): InsightInput {
         val facts = mutableListOf<InsightFact>()
         val allowed = mutableListOf<InsightSourceRef>()
-        val periodStart = now - 30L * 24 * 60 * 60 * 1000
+        val localToday = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+        val todayStart = localToday.atStartOfDay(zone).toInstant().toEpochMilli()
+        val deadlineWindowEnd = localToday.plusDays(15).atStartOfDay(zone).toInstant().toEpochMilli() - 1
+        val periodStart = localToday.minusDays(30).atStartOfDay(zone).toInstant().toEpochMilli()
         val goalsById = snapshot.goals.associateBy { it.id }
 
         snapshot.goals.takeIf { consent.enabled(ConsentCategory.GOALS) }?.forEach { goal ->
@@ -53,12 +59,12 @@ object InsightRules {
                 snapshot.goals.take(6).map { InsightSourceRef("GOAL", it.id.toString(), it.title) },
             )
             snapshot.goals.filter {
-                it.dueDate != null && it.dueDate in now..(now + 14L * 24 * 60 * 60 * 1000) &&
+                it.dueDate != null && it.dueDate in todayStart..deadlineWindowEnd &&
                     it.status != GoalStatus.DONE && it.status != GoalStatus.CANCELLED
             }.take(3).forEach { goal ->
                 facts += InsightFact(
                     "deadline-${goal.id}",
-                    "目标「${goal.title}」将在 ${Timestamps.formatDate(goal.dueDate!!)} 到期，当前状态为 ${goal.status.label}。",
+                    "目标「${goal.title}」将在 ${Timestamps.formatDate(goal.dueDate!!, zone)} 到期，当前状态为 ${goal.status.label}。",
                     listOf(InsightSourceRef("GOAL", goal.id.toString(), goal.title)),
                 )
             }
@@ -198,7 +204,8 @@ object InsightRules {
             )
         }
 
-        val version = dataVersion(snapshot, consent, now)
+        val sourceFingerprint = sourceFingerprint(snapshot, consent)
+        val version = dataVersion(snapshot, consent, now, zone)
         return InsightInput(
             dataVersion = version,
             periodStart = periodStart,
@@ -207,33 +214,36 @@ object InsightRules {
             insights = emptyList(),
             allowedSources = allowed.distinctBy { it.type + ":" + it.recordId },
             hasEnoughData = hasEnough,
+            sourceFingerprint = sourceFingerprint,
         )
     }
 
-    fun dataVersion(
-        snapshot: AdvisorContextSnapshot,
-        consent: AiConsentState,
-        now: Long = System.currentTimeMillis(),
-    ): String {
+    /** Source/authorization fingerprint, deliberately independent of the observation date window. */
+    fun sourceFingerprint(snapshot: AdvisorContextSnapshot, consent: AiConsentState): String {
         val root = buildJsonObject {
             put("categories", consent.categories.sortedBy { it.ordinal }.joinToString(","))
             put("consentGranted", consent.granted)
             put("consentEpoch", consent.epoch)
             put("consentRecipient", AiConsentRules.normalizeRecipient(consent.recipient))
-            put("timeBucket", now / (24L * 60 * 60 * 1000))
             put("goals", buildJsonObject {
-                snapshot.goals.sortedBy { it.id }.forEach { goal ->
-                    put(goal.id.toString(), "${goal.title}|${goal.description}|${goal.level}|${goal.domain}|${goal.status}|${goal.startDate}|${goal.dueDate}|${goal.createdAt}|${goal.updatedAt}|${goal.parentId}")
+                if (consent.enabled(ConsentCategory.GOALS)) {
+                    snapshot.goals.sortedBy { it.id }.forEach { goal ->
+                        put(goal.id.toString(), "${goal.title}|${goal.description}|${goal.level}|${goal.domain}|${goal.status}|${goal.startDate}|${goal.dueDate}|${goal.createdAt}|${goal.updatedAt}|${goal.parentId}")
+                    }
                 }
             })
             put("checkins", buildJsonObject {
-                snapshot.checkins.sortedBy { it.id }.forEach { checkin ->
-                    put(checkin.id.toString(), "${checkin.goalId}|${checkin.recordedAt}|${checkin.note}|${checkin.metricValue}|${checkin.metricUnit}")
+                if (consent.enabled(ConsentCategory.PROGRESS)) {
+                    snapshot.checkins.sortedBy { it.id }.forEach { checkin ->
+                        put(checkin.id.toString(), "${checkin.goalId}|${checkin.recordedAt}|${checkin.note}|${checkin.metricValue}|${checkin.metricUnit}")
+                    }
                 }
             })
             put("memories", buildJsonObject {
-                snapshot.growthMemories.sortedBy { it.id }.forEach { memory ->
-                    put(memory.id, "${memory.theme}|${memory.content}|${memory.isInference}|${memory.corrected}|${memory.insufficient}|${memory.recentChange}|${memory.sourceDiaryIds}")
+                if (consent.enabled(ConsentCategory.JOURNAL)) {
+                    snapshot.growthMemories.sortedBy { it.id }.forEach { memory ->
+                        put(memory.id, "${memory.theme}|${memory.content}|${memory.isInference}|${memory.corrected}|${memory.insufficient}|${memory.recentChange}|${memory.sourceDiaryIds}")
+                    }
                 }
             })
             put("journals", buildJsonObject {
@@ -244,8 +254,29 @@ object InsightRules {
                 }
             })
         }
-        return MessageDigest.getInstance("SHA-256")
-            .digest(root.toString().toByteArray(Charsets.UTF_8))
-            .joinToString("") { "%02x".format(it) }
+        return hash(root.toString())
     }
+
+    fun timeWindowKey(now: Long, zone: ZoneId = ZoneId.systemDefault()): String {
+        val localDate = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+        val start = localDate.minusDays(30).atStartOfDay(zone).toInstant().toEpochMilli()
+        val end = localDate.plusDays(15).atStartOfDay(zone).toInstant().toEpochMilli() - 1
+        return "${zone.id}|$localDate|$start|$end"
+    }
+
+    fun dataVersion(
+        snapshot: AdvisorContextSnapshot,
+        consent: AiConsentState,
+        now: Long = System.currentTimeMillis(),
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): String = "${sourceFingerprint(snapshot, consent)}|${timeWindowKey(now, zone)}"
+
+    fun sourceFingerprintFromDataVersion(dataVersion: String): String? =
+        dataVersion.substringBefore('|').takeIf {
+            dataVersion.contains('|') && it.length == 64 && it.all { char -> char in '0'..'9' || char in 'a'..'f' }
+        }
+
+    private fun hash(value: String): String = MessageDigest.getInstance("SHA-256")
+        .digest(value.toByteArray(Charsets.UTF_8))
+        .joinToString("") { "%02x".format(it) }
 }

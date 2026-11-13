@@ -43,6 +43,7 @@ class CareRunner(
     private val settings: CareSettings,
     private val preferences: CarePreferenceRepository,
     private val restoreGeneration: () -> Long = { 0L },
+    private val restoreReady: () -> Boolean = { true },
     private val database: com.mengyalife.app.data.local.MengyaDatabase? = null,
     private val writeBarrier: com.mengyalife.app.data.restore.RestoreWriteBarrier? = null,
     /** QA/instrumented 专用事务挂起点；生产为 null。 */
@@ -58,28 +59,53 @@ class CareRunner(
         if (!consent.enabled(ConsentCategory.GOALS)) { android.util.Log.i("CareRun", "no consent"); return null }
         // QA 构建使用独立测试预算，但不放宽免打扰/授权/静音等生产约束。
         val boundEpoch = consent.epoch
+        val boundCategories = consent.categories
         val boundGeneration = restoreGeneration()
-        val startupConfig = configRepository.runtimeConfig() ?: return null
-        val boundEndpoint = startupConfig.endpoint
+        val boundConfig = configRepository.state.first()
+        val boundRuntime = configRepository.runtimeConfig() ?: return null
+        if (!boundConfig.configured || boundRuntime.endpoint != boundConfig.endpoint ||
+            boundRuntime.model != boundConfig.model || !consent.isValidFor(boundRuntime.endpoint)
+        ) return null
+        val boundEndpoint = boundRuntime.endpoint
+        val progressAuthorized = consent.enabled(ConsentCategory.PROGRESS)
+        var boundSnapshot: com.mengyalife.app.domain.advisor.AdvisorContextSnapshot? = null
+        var boundProgressCounts: Map<Long, Int>? = null
+        var promptInputsStillCurrent: suspend () -> Boolean = { true }
+        var careCommitInProgress = false
         suspend fun boundOk(): Boolean {
+            if (!restoreReady()) return false
             if (writeBarrier != null && !writeBarrier.isReady()) return false
             if (!settings.enabled) return false
             if (restoreGeneration() != boundGeneration) return false
             val latest = consentRepository.current()
-            if (!latest.granted || latest.epoch != boundEpoch) return false
+            if (!latest.granted || latest.epoch != boundEpoch || latest.categories != boundCategories) return false
             if (!latest.enabled(ConsentCategory.GOALS)) return false
             if (!latest.isValidFor(boundEndpoint)) return false
             val cfg = configRepository.state.first()
-            return cfg.endpoint == boundEndpoint
+            val runtime = configRepository.runtimeConfig()
+            if (cfg != boundConfig || runtime != boundRuntime) return false
+            val expected = boundSnapshot
+            if (expected != null) {
+                val current = dataRepository.snapshot(latest)
+                if (current.goals != expected.goals || current.plans != expected.plans ||
+                    progressAuthorized && current.checkins != expected.checkins
+                ) return false
+            }
+            val expectedCounts = boundProgressCounts
+            if (progressAuthorized && expectedCounts != null &&
+                planRepository.observeProgressCounts().first() != expectedCounts
+            ) return false
+            return true
         }
         if (!boundOk()) return null
         suspend fun <T> fenced(block: suspend () -> T): T? {
-            if (!boundOk()) return null
-            return if (writeBarrier != null) {
-                runCatching { writeBarrier!!.withWrite(boundGeneration) { block() } }
-                    .onFailure { android.util.Log.w("CareRun", "stale write dropped") }
-                    .getOrNull()
-            } else block()
+            val barrier = writeBarrier ?: return null
+            if (!boundOk() || !careCommitInProgress && !promptInputsStillCurrent()) return null
+            return runCatching {
+                barrier.withWrite(boundGeneration) {
+                    if (!boundOk() || !careCommitInProgress && !promptInputsStillCurrent()) null else block()
+                }
+            }.onFailure { android.util.Log.w("CareRun", "stale write dropped") }.getOrNull()
         }
         suspend fun saveDecisionFenced(
             opportunityId: Long, action: String, reason: String, sourceRefs: String,
@@ -95,6 +121,7 @@ class CareRunner(
         if (CarePolicy.inDnd(nowMs, prefs, zone)) { android.util.Log.i("CareRun", "dnd"); return null }
 
         val snapshot = dataRepository.snapshot(consent)
+        boundSnapshot = snapshot
         val activePrefs = preferences.active()
         fun suppressed(planId: Long?, goalId: Long?, title: String): Boolean = activePrefs.any { pref ->
             if (pref.value != "PAUSED" && pref.value != "SILENCED") return@any false
@@ -116,8 +143,8 @@ class CareRunner(
                 )
         }
         val timeNote = activePrefs.firstOrNull { it.kind == "TIME" }?.windowNote
-        val progressAuthorized = consent.enabled(ConsentCategory.PROGRESS)
         val progressCounts = if (progressAuthorized) planRepository.observeProgressCounts().first() else emptyMap()
+        boundProgressCounts = progressCounts
         val drafts = buildList {
             snapshot.plans.filter { it.status == "ACTIVE" && !suppressed(it.id, it.goalId, it.title) }.forEach { plan ->
                 val range = PlanTime.resolve(plan.timeScope, plan.createdAt, zone) ?: return@forEach
@@ -151,8 +178,9 @@ class CareRunner(
         fun suppressedOpportunity(oppId: Long, planId: Long?, goalId: Long?, title: String): Boolean {
             return suppressed(planId, goalId, title)
         }
+        val pendingSourceSnapshot = careRepository.pending().sortedBy { it.id }
         val pending = buildList {
-            for (opp in careRepository.pending()) {
+            for (opp in pendingSourceSnapshot) {
                 if (opp.expiresAt < nowMs) continue
                 if (suppressedOpportunity(opp.id, opp.planId, opp.goalId, opp.title)) continue
                 val latest = careRepository.latestDecision(opp.id)
@@ -173,6 +201,9 @@ class CareRunner(
         }
         android.util.Log.i("CareRun", "pending=${pending.size} drafts=${drafts.size} now=$nowMs")
         if (pending.isEmpty()) return null
+        val boundPendingStates = pending.associate { opportunity ->
+            opportunity.id to (careRepository.latestDecision(opportunity.id) to careRepository.latestFeedback(opportunity.id))
+        }
 
         val dayStart = Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate()
             .atStartOfDay(zone).toInstant().toEpochMilli()
@@ -196,10 +227,23 @@ class CareRunner(
                 (c.progressCount?.let { "$it 次" } ?: "UNKNOWN_DUE_TO_CONSENT") +
                 "｜窗口结束=${fmt(c.windowEnd)}"
         }
-        val config = configRepository.runtimeConfig()
-        if (config == null) { android.util.Log.i("CareRun", "no config"); return null }
-        val history = careRepository.sentSince(nowMs - 14L * 24 * 3600_000)
-            .take(5)
+        val config = boundRuntime
+        val recentSentSnapshot = careRepository.sentSince(nowMs - 14L * 24 * 3600_000).take(5)
+        val silencedTopicsSnapshot = careRepository.silencedTopics()
+        promptInputsStillCurrent = {
+            val currentPrefs = settings.policyPrefs().let {
+                if (BuildConfig.QA_BUILD) it.copy(dailyDecisionBudget = 20) else it
+            }
+            val currentPending = careRepository.pending().sortedBy { it.id }
+            val currentSent = careRepository.sentSince(nowMs - 14L * 24 * 3600_000).take(5)
+            val currentPendingStates = pending.associate { opportunity ->
+                opportunity.id to (careRepository.latestDecision(opportunity.id) to careRepository.latestFeedback(opportunity.id))
+            }
+            currentPrefs == prefs && preferences.active() == activePrefs &&
+                currentPending == pendingSourceSnapshot && currentSent == recentSentSnapshot &&
+                currentPendingStates == boundPendingStates
+        }
+        val history = recentSentSnapshot
             .map { "已发过：机会#${it.opportunityId}｜${fmt(it.createdAt)}｜${it.suggestedText.orEmpty().take(24)}" }
         val prompt = AdvisorRules.carePlannerPrompt(
             candidateLines = candidateLines + buildList {
@@ -210,35 +254,26 @@ class CareRunner(
             nowText = fmt(nowMs),
             userZone = zone.id,
         )
-        if (!boundOk()) return null
-        val result = if (writeBarrier != null) {
-            // Hold the shared barrier over the entire outbound request. A restore may
-            // not enter maintenance after the readiness check but before chat starts,
-            // nor while the request is in flight. This serializes restore behind chat.
-            try {
-                writeBarrier.withWrite(boundGeneration) {
-                    engine.chat(
-                        config = config,
-                        messages = listOf(
-                            AdvisorChatMessage(role = "system", content = prompt),
-                            AdvisorChatMessage(role = "user", content = "请基于候选自主决定是否关心用户，只输出 JSON。"),
-                        ),
-                        maxTokens = 1500,
-                    )
-                }
-            } catch (_: com.mengyalife.app.data.restore.RestoreException) {
-                return null
+        if (!boundOk() || !promptInputsStillCurrent()) return null
+        val barrier = writeBarrier ?: return null
+        var sent = false
+        val result = try {
+            barrier.withWrite(boundGeneration) {
+                if (!promptInputsStillCurrent() || !boundOk()) return@withWrite null
+                sent = true
+                engine.chat(
+                    config = config,
+                    messages = listOf(
+                        AdvisorChatMessage(role = "system", content = prompt),
+                        AdvisorChatMessage(role = "user", content = "请基于候选自主决定是否关心用户，只输出 JSON。"),
+                    ),
+                    maxTokens = 1500,
+                )
             }
-        } else {
-            engine.chat(
-                config = config,
-                messages = listOf(
-                    AdvisorChatMessage(role = "system", content = prompt),
-                    AdvisorChatMessage(role = "user", content = "请基于候选自主决定是否关心用户，只输出 JSON。"),
-                ),
-                maxTokens = 1500,
-            )
+        } catch (_: com.mengyalife.app.data.restore.RestoreException) {
+            return null
         }
+        if (!sent || result == null) return null
         android.util.Log.i("CareRun", "engine=${result is AdvisorChatResult.Success}")
         if (result !is AdvisorChatResult.Success) {
             saveDecisionFenced(
@@ -248,7 +283,7 @@ class CareRunner(
             )
             return null
         }
-        if (!boundOk()) return null
+        if (!boundOk() || !promptInputsStillCurrent()) return null
         val decision = CareParser.parse(result.content, candidates.map { it.opportunityId }.toSet())
             ?: run {
                 saveDecisionFenced(
@@ -301,7 +336,7 @@ class CareRunner(
                     )
                     return null
                 }
-                if (!boundOk()) return null
+                if (!boundOk() || !promptInputsStillCurrent()) return null
                 val latestPrefs = preferences.active()
                 val stillSuppressed = latestPrefs.any { pref ->
                     pref.topicKey != null &&
@@ -370,9 +405,18 @@ class CareRunner(
                     return CareCard(opp.id, opp.title, text, opp.type, isNew = true, decisionId = decisionId)
                 }
                 val write: suspend () -> CareCard? = {
-                    if (database != null) database.withTransaction { commitSend() } else commitSend()
+                    if (!boundOk() || !promptInputsStillCurrent()) {
+                        null
+                    } else {
+                        careCommitInProgress = true
+                        try {
+                            if (database != null) database.withTransaction { commitSend() } else commitSend()
+                        } finally {
+                            careCommitInProgress = false
+                        }
+                    }
                 }
-                return if (writeBarrier != null) writeBarrier.withWrite(boundGeneration) { write() } else write()
+                return writeBarrier.withWrite(boundGeneration) { write() }
             }
             saveDecisionFenced(
                 opportunityId = opp.id, action = "DEFER",

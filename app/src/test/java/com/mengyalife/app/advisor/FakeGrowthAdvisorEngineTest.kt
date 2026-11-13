@@ -8,6 +8,9 @@ import com.mengyalife.app.domain.advisor.AdvisorRuntimeConfig
 import com.mengyalife.app.domain.advisor.AiConsentRules
 import com.mengyalife.app.domain.advisor.AiConsentState
 import com.mengyalife.app.domain.advisor.ConsentCategory
+import com.mengyalife.app.domain.advisor.AdvisorRules
+import com.mengyalife.app.domain.advisor.RecordProposalParseResult
+import com.mengyalife.app.domain.advisor.RecordProposalParser
 import com.mengyalife.app.domain.advisor.ContextCheckinRecord
 import com.mengyalife.app.domain.advisor.ContextGoalRecord
 import com.mengyalife.app.domain.goals.GoalDomain
@@ -71,6 +74,24 @@ class FakeGrowthAdvisorEngineTest {
             input.facts.filter { it.id in suggestion.factIds }.any { fact -> source in fact.sourceRefs }
         })
         assertFalse(suggestion.body.contains("已经完成"))
+    }
+
+    @Test
+    fun `QA plan extraction returns only the explicit user action for UI regression`() = runTest {
+        val userText = "这周读三次书"
+        val engine = FakeAdvisorEngine(delayMs = 0)
+        val result = engine.chat(
+            AdvisorRuntimeConfig("https://qa.example/v1", "qa-growth-offline", "qa-placeholder"),
+            listOf(
+                AdvisorChatMessage("system", AdvisorRules.planExtractionPrompt(emptyList(), emptyList(), "2026-11-13")),
+                AdvisorChatMessage("user", userText),
+            ),
+        ) as AdvisorChatResult.Success
+
+        val parsed = RecordProposalParser.parse(result.content, userText)
+        assertTrue(parsed is RecordProposalParseResult.Success)
+        assertTrue((parsed as RecordProposalParseResult.Success).draft?.isPlan == true)
+        assertTrue(result.content.contains("这周读三次书"))
     }
 
     @Test

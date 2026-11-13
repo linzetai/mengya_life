@@ -43,6 +43,36 @@ class RestoreWriteBarrierTest {
     }
 
     @Test
+    fun `撤权排队在请求返回后先于结果接受`() = runTest {
+        val barrier = RestoreWriteBarrier(initiallyReady = true)
+        val generation = barrier.generation()
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        var authorized = true
+        var calls = 0
+        var accepted = false
+        val request = launch {
+            barrier.withWrite(generation) {
+                calls++
+                entered.complete(Unit)
+                release.await()
+            }
+            barrier.withWrite(generation) { accepted = authorized }
+        }
+        entered.await()
+        val revoke = launch {
+            barrier.withWrite(generation) { authorized = false }
+        }
+        kotlinx.coroutines.yield() // enqueue withdrawal behind the in-flight request
+        release.complete(Unit)
+        request.join()
+        revoke.join()
+        assertEquals(1, calls)
+        assertFalse(authorized)
+        assertFalse(accepted)
+    }
+
+    @Test
     fun `exclusive restore waits existing write and invalidates stale work`() = runTest {
         val barrier = RestoreWriteBarrier(initiallyReady = true)
         val generation = barrier.generation()

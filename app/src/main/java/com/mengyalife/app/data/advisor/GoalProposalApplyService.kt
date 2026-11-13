@@ -2,6 +2,7 @@ package com.mengyalife.app.data.advisor
 
 import androidx.room.withTransaction
 import com.mengyalife.app.data.local.MengyaDatabase
+import com.mengyalife.app.data.restore.RestoreException
 import com.mengyalife.app.data.restore.RestoreWriteBarrier
 import com.mengyalife.app.data.local.proposal.GoalProposalDao
 import com.mengyalife.app.data.repository.GoalDraft
@@ -18,6 +19,7 @@ import com.mengyalife.app.domain.goals.GoalStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.time.LocalDate
@@ -43,6 +45,13 @@ sealed interface ProposalUndoResult {
 interface GoalProposalApply {
     suspend fun apply(proposalId: String, selectedTempIds: Set<String>): ProposalApplyResult
     suspend fun undo(proposalId: String): ProposalUndoResult
+
+    /** Source validation is run inside the same Room transaction as goal creation. */
+    suspend fun applyValidated(
+        proposalId: String,
+        selectedTempIds: Set<String>,
+        validateSource: suspend () -> String?,
+    ): ProposalApplyResult = apply(proposalId, selectedTempIds)
 }
 
 /**
@@ -65,14 +74,37 @@ class GoalProposalApplyService(
     private val mutex = Mutex()
 
     override suspend fun apply(proposalId: String, selectedTempIds: Set<String>): ProposalApplyResult =
-        if (writeBarrier != null) writeBarrier.withWrite { applyLocked(proposalId, selectedTempIds) }
-        else applyLocked(proposalId, selectedTempIds)
+        applyInternal(proposalId, selectedTempIds, null)
 
-    private suspend fun applyLocked(proposalId: String, selectedTempIds: Set<String>): ProposalApplyResult =
+    override suspend fun applyValidated(
+        proposalId: String,
+        selectedTempIds: Set<String>,
+        validateSource: suspend () -> String?,
+    ): ProposalApplyResult = applyInternal(proposalId, selectedTempIds, validateSource)
+
+    private suspend fun applyInternal(
+        proposalId: String,
+        selectedTempIds: Set<String>,
+        validateSource: (suspend () -> String?)?,
+    ): ProposalApplyResult {
+        val barrier = writeBarrier ?: return ProposalApplyResult.Failure("恢复安全边界不可用，目标未创建")
+        return try {
+            barrier.withWrite { applyLocked(proposalId, selectedTempIds, validateSource) }
+        } catch (error: RestoreException) {
+            ProposalApplyResult.Failure("${error.message ?: "恢复 generation 已变化"}；目标未创建")
+        }
+    }
+
+    private suspend fun applyLocked(
+        proposalId: String,
+        selectedTempIds: Set<String>,
+        validateSource: (suspend () -> String?)?,
+    ): ProposalApplyResult =
         mutex.withLock {
             if (!canWrite()) return@withLock ProposalApplyResult.Failure("恢复维护中，禁止应用草案")
             try {
                 database.withTransaction {
+                    validateSource?.invoke()?.let { return@withTransaction ProposalApplyResult.Failure(it) }
                     val entity = proposalDao.findById(proposalId)
                         ?: return@withTransaction ProposalApplyResult.Failure("草案不存在")
                     if (entity.status != "DRAFT") {
@@ -82,6 +114,11 @@ class GoalProposalApplyService(
                                 "UNDONE" -> "该草案已撤销，不能再次创建；请重新生成草案"
                                 else -> "草案状态不允许创建"
                             },
+                        )
+                    }
+                    if (validateSource == null && requiresInsightValidator(entity.messageId)) {
+                        return@withTransaction ProposalApplyResult.Failure(
+                            "此来源相关目标草案必须经过 Insight 来源验证",
                         )
                     }
                     val draft = GoalProposalParser.decode(
@@ -159,9 +196,14 @@ class GoalProposalApplyService(
             }
         }
 
-    override suspend fun undo(proposalId: String): ProposalUndoResult =
-        if (writeBarrier != null) writeBarrier.withWrite { undoLocked(proposalId) }
-        else undoLocked(proposalId)
+    override suspend fun undo(proposalId: String): ProposalUndoResult {
+        val barrier = writeBarrier ?: return ProposalUndoResult.Failure("恢复安全边界不可用，无法撤销")
+        return try {
+            barrier.withWrite { undoLocked(proposalId) }
+        } catch (error: RestoreException) {
+            ProposalUndoResult.Failure("${error.message ?: "恢复状态已变化"}；无法撤销")
+        }
+    }
 
     private suspend fun undoLocked(proposalId: String): ProposalUndoResult = mutex.withLock {
         if (!canWrite()) return@withLock ProposalUndoResult.Failure("恢复维护中，禁止撤销草案")
@@ -237,6 +279,17 @@ class GoalProposalApplyService(
     ): String? {
         val refs = existing.mapValues { (_, goal) -> GoalRef(goal.id, goal.level, goal.parentId) }
         return GoalProposalApplyRules.validate(draft, selected, nodesById, refs)
+    }
+
+    private suspend fun requiresInsightValidator(messageId: String): Boolean {
+        val message = database.advisorMessageDao().loadAll().firstOrNull { it.id == messageId } ?: return true
+        val raw = message.sourcesJson?.takeIf { it.isNotBlank() } ?: return false
+        return runCatching {
+            kotlinx.serialization.json.Json.parseToJsonElement(raw).jsonArray.any { item ->
+                val type = item.jsonObject["type"]?.jsonPrimitive?.content
+                type == "INSIGHT" || type == "INSIGHT_FACT"
+            }
+        }.getOrElse { true }
     }
 
     private fun decodeMapping(raw: String?): Map<String, Long> =

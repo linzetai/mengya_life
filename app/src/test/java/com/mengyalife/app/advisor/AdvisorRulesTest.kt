@@ -85,6 +85,27 @@ class AdvisorRulesTest {
     }
 
     @Test
+    fun `上下文预算报告哪些依据被截掉供 Insight handoff fail closed`() {
+        val required = com.mengyalife.app.domain.advisor.AdvisorContextEntry(
+            text = "完整 Insight 事实依据" + "x".repeat(1_000),
+            source = com.mengyalife.app.domain.advisor.AdvisorSource(
+                com.mengyalife.app.domain.advisor.AdvisorSourceType.INSIGHT_FACT, "fact-1", "规则事实",
+            ),
+        )
+        val current = "请基于这条建议继续讨论"
+        val max = AdvisorRules.systemPrompt().length + current.length + 100
+        val built = AdvisorRules.buildRequest(
+            history = emptyList(),
+            currentInput = current,
+            contextEntries = listOf(required),
+            maxChars = max,
+        )
+        assertEquals(1, built.droppedContextEntries)
+        assertFalse(required in built.includedEntries)
+        assertFalse(built.truncated)
+    }
+
+    @Test
     fun `失败与取消消息不会进入上下文`() {
         val history = listOf(
             AdvisorMessage("1", AdvisorRole.USER, "正常问题", 1, AdvisorMessageStatus.SENT),

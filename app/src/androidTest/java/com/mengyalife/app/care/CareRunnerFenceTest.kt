@@ -118,7 +118,9 @@ class CareRunnerFenceTest {
         data = FakeAdvisorDataRepository()
         engine = FakeCareEngine()
         careRepository = CareRepository(db.careDao(), now = { CARE_FENCE_NOW })
-        preferences = CarePreferenceRepository(db.carePreferenceDao(), now = { CARE_FENCE_NOW })
+        preferences = CarePreferenceRepository(
+            db.carePreferenceDao(), now = { CARE_FENCE_NOW }, writeBarrier = barrier,
+        )
     }
 
     @After

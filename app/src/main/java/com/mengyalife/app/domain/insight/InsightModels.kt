@@ -72,4 +72,6 @@ data class InsightInput(
     val insights: List<GrowthInsight>,
     val allowedSources: List<InsightSourceRef>,
     val hasEnoughData: Boolean,
+    /** Hash of authorized source facts, excluding the observation-window date. */
+    val sourceFingerprint: String = "",
 )

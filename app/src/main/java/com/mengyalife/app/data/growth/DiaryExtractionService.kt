@@ -65,13 +65,16 @@ class DiaryExtractionService(
     private val transaction: suspend (suspend () -> Unit) -> Unit = { it() },
     private val onSignalsChanged: suspend () -> Unit = {},
     private val preRequestHook: suspend () -> Unit = {},
+    private val beforeRequest: suspend () -> Unit = {},
     private val writeBarrier: RestoreWriteBarrier? = null,
 ) : DiaryExtractor {
     private val mutex = Mutex()
 
     override suspend fun extract(diaryId: Long, force: Boolean): DiaryExtractionOutcome =
         mutex.withLock {
-            val restoreGeneration = writeBarrier?.generation()
+            val requestBarrier = writeBarrier ?: return@withLock DiaryExtractionOutcome.Skipped("恢复安全边界不可用")
+            val restoreGeneration = requestBarrier.generation()
+            if (!requestBarrier.isReady()) return@withLock DiaryExtractionOutcome.Skipped("恢复未就绪，未读取/发送日记")
             val journal = journalRepository.getEntry(diaryId)
                 ?: return@withLock DiaryExtractionOutcome.Skipped("日记不存在")
             val hash = contentHash(journal.title, journal.body)
@@ -106,6 +109,7 @@ class DiaryExtractionService(
                 val boundConsent = consentRepository.current()
                 if (boundRuntime == null ||
                     boundRuntime.endpoint != boundConfig.endpoint ||
+                    boundRuntime.model != boundConfig.model ||
                     !boundConsent.isValidFor(boundRuntime.endpoint) ||
                     !boundConsent.enabled(ConsentCategory.JOURNAL)
                 ) {
@@ -121,8 +125,9 @@ class DiaryExtractionService(
                     delay(QaExtractionGate.delayBeforeRequestMs)
                 }
                 preRequestHook()
+                beforeRequest()
                 currentCoroutineContext().ensureActive()
-                val bindingProblem = preRequestProblem(boundRuntime, boundConsent, diaryId, hash)
+                val bindingProblem = preRequestProblem(boundConfig, boundRuntime, boundConsent, diaryId, hash)
                 if (bindingProblem != null) {
                     journalRepository.markAnalysisFailed(diaryId, hash, bindingProblem, restoreGeneration)
                     return@withLock DiaryExtractionOutcome.Failed(bindingProblem)
@@ -139,17 +144,26 @@ class DiaryExtractionService(
                     )
                 }
                 // 保持恢复对 AI 请求入口的串行化；请求返回后的数据写回仍用旧 generation fencing。
-                val result = if (writeBarrier != null) {
-                    writeBarrier.withWrite(restoreGeneration) { request() }
-                } else request()
+                val result = requestBarrier.withWrite(restoreGeneration) {
+                    beforeRequest()
+                    val finalProblem = preRequestProblem(boundConfig, boundRuntime, boundConsent, diaryId, hash)
+                    if (finalProblem != null) {
+                        AdvisorChatResult.Failure(AdvisorError(AdvisorError.CANCELLED, finalProblem))
+                    } else {
+                        currentCoroutineContext().ensureActive()
+                        request()
+                    }
+                }
                 // 请求期间授权/配置/日记变化：丢弃结果
                 val afterConfig = configRepository.state.first()
+                val afterRuntime = configRepository.runtimeConfig()
                 val afterConsent = consentRepository.current()
                 val afterJournal = journalRepository.getEntry(diaryId)
                 if (afterJournal == null || contentHash(afterJournal.title, afterJournal.body) != hash) {
                     return@withLock DiaryExtractionOutcome.Failed("日记已在分析期间变化，请重新分析")
                 }
-                if (afterConfig.endpoint != boundRuntime.endpoint ||
+                if (afterConfig != boundConfig || afterRuntime != boundRuntime ||
+                    afterConsent.epoch != boundConsent.epoch || afterConsent.categories != boundConsent.categories ||
                     !afterConsent.isValidFor(boundRuntime.endpoint) ||
                     !afterConsent.enabled(ConsentCategory.JOURNAL)
                 ) {
@@ -175,6 +189,10 @@ class DiaryExtractionService(
                                 var inserted = 0
                                 val writeBatch: suspend () -> Unit = {
                                 transaction {
+                                    beforeWrite()
+                                    if (preRequestProblem(boundConfig, boundRuntime, boundConsent, diaryId, hash) != null) {
+                                        throw StaleExtraction()
+                                    }
                                     // 与日记删除/编辑并发时，在事务内再次确认来源版本
                                     val inTransaction = journalRepository.getEntry(diaryId)
                                     if (inTransaction == null ||
@@ -212,7 +230,7 @@ class DiaryExtractionService(
                                     }
                                 }
                                 }
-                                if (writeBarrier != null) writeBarrier.withWrite(restoreGeneration) { writeBatch() } else writeBatch()
+                                requestBarrier.withWrite(restoreGeneration) { writeBatch() }
                                 runCatching { onSignalsChanged() }
                                 DiaryExtractionOutcome.Success(inserted, parsed.signals.size)
                             }
@@ -236,6 +254,7 @@ class DiaryExtractionService(
         }
 
     private suspend fun preRequestProblem(
+        boundConfig: AiConfigState,
         boundRuntime: com.mengyalife.app.domain.advisor.AdvisorRuntimeConfig,
         boundConsent: com.mengyalife.app.domain.advisor.AiConsentState,
         diaryId: Long,
@@ -245,11 +264,11 @@ class DiaryExtractionService(
         val currentRuntime = configRepository.runtimeConfig()
         val currentConsent = consentRepository.current()
         val currentJournal = journalRepository.getEntry(diaryId)
-        if (currentRuntime == null || currentRuntime.endpoint != boundRuntime.endpoint) {
-            return "模型服务地址已变化"
+        if (currentRuntime == null || currentRuntime != boundRuntime) {
+            return "模型服务 endpoint/model/key 已变化"
         }
-        if (currentConfig.endpoint != boundRuntime.endpoint) return "模型服务配置已变化"
-        if (currentConsent.epoch != boundConsent.epoch ||
+        if (currentConfig != boundConfig) return "模型服务配置已变化"
+        if (currentConsent.epoch != boundConsent.epoch || currentConsent.categories != boundConsent.categories ||
             !currentConsent.isValidFor(boundRuntime.endpoint) ||
             !currentConsent.enabled(ConsentCategory.JOURNAL)
         ) {
@@ -270,7 +289,7 @@ class DiaryExtractionService(
         val config = configRepository.state.first()
         if (!config.configured) return "尚未配置 AI 服务"
         val runtime = configRepository.runtimeConfig() ?: return "API Key 不可用"
-        if (runtime.endpoint != config.endpoint) return "模型服务配置已变化"
+        if (runtime.endpoint != config.endpoint || runtime.model != config.model) return "模型服务配置已变化"
         val consent = consentRepository.current()
         if (!consent.isValidFor(runtime.endpoint)) return "授权已失效或接收方已变化"
         if (!consent.enabled(ConsentCategory.JOURNAL)) return "未开启日记数据授权"

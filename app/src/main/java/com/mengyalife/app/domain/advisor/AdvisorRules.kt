@@ -143,6 +143,7 @@ object AdvisorRules {
         val historyMessages: Int,
         val droppedContextEntries: Int,
         val truncated: Boolean,
+        val includedEntries: List<AdvisorContextEntry> = emptyList(),
     )
 
     /**
@@ -216,6 +217,7 @@ object AdvisorRules {
             historyMessages = selectedHistory.size,
             droppedContextEntries = dropped,
             truncated = fixed > maxChars,
+            includedEntries = includedEntries.toList(),
         )
     }
 

@@ -2,6 +2,7 @@ package com.mengyalife.app.advisor
 
 import com.mengyalife.app.data.insight.InsightGenerationResult
 import com.mengyalife.app.data.insight.InsightService
+import com.mengyalife.app.data.restore.RestoreWriteBarrier
 import com.mengyalife.app.data.local.insight.InsightReportDao
 import com.mengyalife.app.data.local.insight.InsightReportEntity
 import com.mengyalife.app.data.advisor.AdvisorConfigRepository
@@ -26,8 +27,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.ZoneId
 
 class FakeInsightDao : InsightReportDao {
     val rows = MutableStateFlow<List<InsightReportEntity>>(emptyList())
@@ -59,6 +62,7 @@ class InsightServiceTest {
     ): Triple<InsightService, ScriptedAdvisorEngine, FakeInsightDao> {
         val config = FakeConfigRepository().apply { save(endpoint, "model", "sk-test") }
         val consent = FakeConsentRepository().apply { grant(endpoint, AiConsentRules.allCategories) }
+        val barrier = RestoreWriteBarrier(initiallyReady = true)
         return Triple(
             InsightService(
                 dataRepository = data,
@@ -69,6 +73,7 @@ class InsightServiceTest {
                 dao = dao,
                 now = { now },
                 newId = { "r${dao.rows.value.size + 1}" },
+                writeBarrier = barrier,
             ),
             engine,
             dao,
@@ -91,6 +96,7 @@ class InsightServiceTest {
         dao = dao,
         now = { now },
         beforeRequest = before,
+        writeBarrier = RestoreWriteBarrier(initiallyReady = true),
     )
 
     private suspend fun boundFakes(): Triple<FakeAdvisorDataRepository, FakeConsentRepository, FakeConfigRepository> {
@@ -201,6 +207,17 @@ class InsightServiceTest {
     }
 
     @Test
+    fun `请求前模型名变化不调用引擎`() = runTest {
+        val (data, consent, config) = boundFakes()
+        val engine = ScriptedAdvisorEngine().apply { enqueue(AdvisorChatResult.Success(validJson())) }
+        val result = serviceBound(engine, data, consent, config, FakeInsightDao()) {
+            config.save(endpoint, "changed-model", "sk-test")
+        }.generate(force = true)
+        assertTrue(result is InsightGenerationResult.Failed)
+        assertEquals(0, engine.calls.size)
+    }
+
+    @Test
     fun `请求前编辑进展不调用引擎`() = runTest {
         val (data, consent, config) = boundFakes()
         val engine = ScriptedAdvisorEngine().apply { enqueue(AdvisorChatResult.Success(validJson())) }
@@ -213,6 +230,38 @@ class InsightServiceTest {
         val result = svc.generate(force = true)
         assertTrue(result is InsightGenerationResult.Failed)
         assertEquals(0, engine.calls.size)
+        assertTrue(dao.rows.value.isEmpty())
+    }
+
+    @Test
+    fun `Insight 网络失败后的事实变化不会保存旧 FAILED 事实`() = runTest {
+        val (data, consent, config) = boundFakes()
+        val engine = ScriptedAdvisorEngine().apply {
+            enqueue(AdvisorChatResult.Failure(
+                com.mengyalife.app.domain.advisor.AdvisorError(
+                    com.mengyalife.app.domain.advisor.AdvisorError.OFFLINE, "网络不可用",
+                ),
+            ))
+        }
+        val dao = FakeInsightDao()
+        val service = InsightService(
+            dataRepository = data,
+            consentRepository = consent,
+            configRepository = config,
+            networkEngine = engine,
+            fakeEngine = null,
+            dao = dao,
+            now = { now },
+            beforeWrite = {
+                data.snapshot = snapshot.copy(checkins = snapshot.checkins.dropLast(1))
+            },
+            writeBarrier = RestoreWriteBarrier(initiallyReady = true),
+        )
+
+        val result = service.generate(force = true)
+        assertEquals(1, engine.calls.size)
+        assertTrue(result is InsightGenerationResult.Failed)
+        assertNull((result as InsightGenerationResult.Failed).report)
         assertTrue(dao.rows.value.isEmpty())
     }
 
@@ -242,11 +291,14 @@ class InsightServiceTest {
         assertTrue(dao.rows.value.none { it.status == "READY" })
     }
 
+    private class MutableClock(var value: Long)
+
     private data class ReferenceFixture(
         val service: InsightService,
         val data: FakeAdvisorDataRepository,
         val consent: FakeConsentRepository,
         val reference: InsightReference,
+        val clock: MutableClock,
     )
 
     private suspend fun referenceFixture(): ReferenceFixture {
@@ -255,6 +307,7 @@ class InsightServiceTest {
         val config = FakeConfigRepository().apply { save(endpoint, "model", "sk-test") }
         val dao = FakeInsightDao()
         var id = 0
+        val clock = MutableClock(now)
         val engine = ScriptedAdvisorEngine().apply {
             enqueue(
                 AdvisorChatResult.Success(
@@ -269,8 +322,10 @@ class InsightServiceTest {
             networkEngine = engine,
             fakeEngine = null,
             dao = dao,
-            now = { now },
+            now = { clock.value },
+            zone = { ZoneId.of("Asia/Shanghai") },
             newId = { "insight-${++id}" },
+            writeBarrier = RestoreWriteBarrier(initiallyReady = true),
         )
         val report = (service.generate(force = true) as InsightGenerationResult.Ready).report
         return ReferenceFixture(
@@ -278,6 +333,7 @@ class InsightServiceTest {
             data,
             consent,
             InsightReference(report.id, report.dataVersion, report.insights.single().id),
+            clock,
         )
     }
 
@@ -292,6 +348,18 @@ class InsightServiceTest {
     }
 
     @Test
+    fun `跨天仅窗口过期而事实来源未变`() = runTest {
+        val fixture = referenceFixture()
+        fixture.clock.value += 24L * 60 * 60 * 1000
+        val result = fixture.service.resolveCurrentReference(fixture.reference)
+        assertTrue(result is InsightReferenceResolution.Stale)
+        val reason = (result as InsightReferenceResolution.Stale).reason
+        assertTrue(reason.contains("时间窗口"))
+        assertTrue(!reason.contains("原始记录已修改"))
+        assertTrue(fixture.service.staleReportReason().orEmpty().contains("原始记录未变"))
+    }
+
+    @Test
     fun `来源进展删除或目标修改后旧建议失效`() = runTest {
         val deleted = referenceFixture()
         deleted.data.snapshot = snapshot.copy(checkins = snapshot.checkins.filterNot { it.id == 2L })
@@ -299,7 +367,9 @@ class InsightServiceTest {
 
         val edited = referenceFixture()
         edited.data.snapshot = snapshot.copy(goals = snapshot.goals.map { it.copy(title = "已调整的目标") })
-        assertTrue(edited.service.resolveCurrentReference(edited.reference) is InsightReferenceResolution.Stale)
+        val editedResult = edited.service.resolveCurrentReference(edited.reference)
+        assertTrue(editedResult is InsightReferenceResolution.Stale)
+        assertTrue((editedResult as InsightReferenceResolution.Stale).reason.contains("原始记录或授权"))
     }
 
     @Test

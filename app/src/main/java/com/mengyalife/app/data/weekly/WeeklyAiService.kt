@@ -34,10 +34,13 @@ class WeeklyAiService(
 ) {
     private data class Bound(
         val consent: com.mengyalife.app.domain.advisor.AiConsentState,
+        val config: com.mengyalife.app.domain.advisor.AiConfigState,
+        val runtime: com.mengyalife.app.domain.advisor.AdvisorRuntimeConfig,
         val endpoint: String,
         val model: String,
         val configHash: String,
         val dataVersion: String,
+        val restoreGeneration: Long?,
         val auto: Boolean,
     )
 
@@ -45,7 +48,7 @@ class WeeklyAiService(
         val c = consentRepository.current()
         val cfg = configRepository.state.first()
         val rt = configRepository.runtimeConfig()
-        return c.granted && cfg.configured && rt != null && rt.endpoint == cfg.endpoint &&
+        return c.granted && cfg.configured && rt != null && rt.endpoint == cfg.endpoint && rt.model == cfg.model &&
             c.isValidFor(rt.endpoint) && c.categories.isNotEmpty()
     }
 
@@ -64,19 +67,26 @@ class WeeklyAiService(
     fun observeLatest() = dao.observeLatest().map { it?.toDomain() }
 
     suspend fun generateIfAllowed(autoRequest: Boolean = false): WeeklyAiReview? {
-        val restoreGeneration = writeBarrier?.generation()
+        val requestBarrier = writeBarrier ?: return null
+        val restoreGeneration = requestBarrier.generation()
         val initialConsent = consentRepository.current()
         val initialConfig = configRepository.state.first()
         val initialRuntime = configRepository.runtimeConfig()
         if (!initialConsent.granted || !initialConfig.configured || initialRuntime == null ||
-            initialRuntime.endpoint != initialConfig.endpoint || !initialConsent.isValidFor(initialRuntime.endpoint) ||
+            initialRuntime.endpoint != initialConfig.endpoint || initialRuntime.model != initialConfig.model ||
+            !initialConsent.isValidFor(initialRuntime.endpoint) ||
             initialConsent.categories.isEmpty() || (autoRequest && !autoEnabled())
         ) return null
         val bound = Bound(
-            initialConsent, initialRuntime.endpoint, initialConfig.model,
-            configHash(initialConfig.endpoint, initialConfig.model),
-            buildInput(initialConsent).dataVersion,
-            autoRequest,
+            consent = initialConsent,
+            config = initialConfig,
+            runtime = initialRuntime,
+            endpoint = initialRuntime.endpoint,
+            model = initialConfig.model,
+            configHash = configHash(initialConfig.endpoint, initialConfig.model),
+            dataVersion = buildInput(initialConsent).dataVersion,
+            restoreGeneration = restoreGeneration,
+            auto = autoRequest,
         )
         val review = buildInput(initialConsent)
         val existing = dao.findByPeriod(review.periodKey)
@@ -126,26 +136,37 @@ class WeeklyAiService(
                 maxTokens = 900,
                 )
             }
-            val result = writeBarrier?.withWrite(restoreGeneration) { chat() } ?: chat()
+            val result = requestBarrier.withWrite(restoreGeneration) {
+                beforeRequest()
+                val atBoundary = validate(bound, autoRequest)
+                if (atBoundary != null) {
+                    AdvisorChatResult.Failure(
+                        com.mengyalife.app.domain.advisor.AdvisorError(
+                            com.mengyalife.app.domain.advisor.AdvisorError.CANCELLED,
+                            "$atBoundary；没有调用模型",
+                        ),
+                    )
+                } else chat()
+            }
             beforeComplete()
             val after = validate(bound, autoRequest)
             if (after != null) {
-                complete(reserved, "FAILED", "", emptyList(), "", "请求后状态变化，AI 结果已丢弃", initialConfig.model, bound.configHash, expectedGeneration = restoreGeneration)
+                complete(reserved, "FAILED", "", emptyList(), "", "请求后状态变化，AI 结果已丢弃", initialConfig.model, bound.configHash, expectedGeneration = restoreGeneration, bound = bound)
                 return dao.findByPeriod(review.periodKey)?.toDomain()
             }
             when (result) {
-                is AdvisorChatResult.Failure -> complete(reserved, "FAILED", "", emptyList(), "", result.error.userMessage, initialConfig.model, bound.configHash, expectedGeneration = restoreGeneration)
+                is AdvisorChatResult.Failure -> complete(reserved, "FAILED", "", emptyList(), "", result.error.userMessage, initialConfig.model, bound.configHash, expectedGeneration = restoreGeneration, bound = bound)
                 is AdvisorChatResult.Success -> when (val parsed = WeeklyAiParser.parse(result.content, facts, reserved.categories)) {
-                    is WeeklyAiParseResult.Failure -> complete(reserved, "FAILED", "", emptyList(), "", parsed.message, initialConfig.model, bound.configHash, expectedGeneration = restoreGeneration)
-                    is WeeklyAiParseResult.Success -> complete(reserved, "READY", parsed.summary, parsed.highlights, parsed.suggestion, null, initialConfig.model, bound.configHash, parsed.factIds, expectedGeneration = restoreGeneration)
+                    is WeeklyAiParseResult.Failure -> complete(reserved, "FAILED", "", emptyList(), "", parsed.message, initialConfig.model, bound.configHash, expectedGeneration = restoreGeneration, bound = bound)
+                    is WeeklyAiParseResult.Success -> complete(reserved, "READY", parsed.summary, parsed.highlights, parsed.suggestion, null, initialConfig.model, bound.configHash, parsed.factIds, expectedGeneration = restoreGeneration, bound = bound)
                 }
             }
             dao.findByPeriod(review.periodKey)?.toDomain()
         } catch (cancelled: CancellationException) {
-            complete(reserved, "FAILED", "", emptyList(), "", "请求已取消；服务端是否接收未知，预算已占用", null, bound.configHash, expectedGeneration = restoreGeneration)
+            complete(reserved, "FAILED", "", emptyList(), "", "请求已取消；服务端是否接收未知，预算已占用", null, bound.configHash, expectedGeneration = restoreGeneration, bound = bound)
             throw cancelled
         } catch (e: Exception) {
-            complete(reserved, "FAILED", "", emptyList(), "", e.message ?: "AI 请求失败", null, bound.configHash, expectedGeneration = restoreGeneration)
+            complete(reserved, "FAILED", "", emptyList(), "", e.message ?: "AI 请求失败", null, bound.configHash, expectedGeneration = restoreGeneration, bound = bound)
             dao.findByPeriod(review.periodKey)?.toDomain()
         }
     }
@@ -154,9 +175,12 @@ class WeeklyAiService(
         val c = consentRepository.current()
         val cfg = configRepository.state.first()
         val rt = configRepository.runtimeConfig()
+        if (bound.restoreGeneration != null &&
+            (writeBarrier?.isReady() == false || writeBarrier?.generation() != bound.restoreGeneration)
+        ) return "恢复 generation 已变化"
         if (!c.granted || c.epoch != bound.consent.epoch || c.categories != bound.consent.categories) return "授权已变化"
         if (!c.isValidFor(bound.endpoint)) return "接收方授权失效"
-        if (rt == null || rt.endpoint != bound.endpoint || cfg.endpoint != bound.endpoint || cfg.model != bound.model) return "模型配置已变化"
+        if (cfg != bound.config || rt != bound.runtime) return "模型配置 endpoint/model/API Key 已变化"
         if (autoRequest && !autoEnabled()) return "自动 AI 已关闭"
         val current = buildInput(c)
         if (current.dataVersion != bound.dataVersion || current.aiConsentVersion != bound.consent.consentVersion()) return "数据或授权版本已变化"
@@ -186,10 +210,19 @@ class WeeklyAiService(
         suggestion: String, error: String?, model: String?, configHash: String,
         factIds: List<String> = emptyList(),
         expectedGeneration: Long? = null,
+        bound: Bound? = null,
     ) {
         guardedWrite(expectedGeneration) {
-            dao.complete(base.periodKey, status, now(), summary, WeeklyAiParser.highlightsJson(highlights),
-                suggestion, WeeklyAiParser.encodeFactIds(factIds), error, model, configHash)
+            val finalProblem = bound?.let { validate(it, it.auto) }
+            if (finalProblem != null) {
+                dao.complete(
+                    base.periodKey, "FAILED", now(), "", "[]", "", "[]",
+                    "$finalProblem；AI 结果已丢弃", null, configHash,
+                )
+            } else {
+                dao.complete(base.periodKey, status, now(), summary, WeeklyAiParser.highlightsJson(highlights),
+                    suggestion, WeeklyAiParser.encodeFactIds(factIds), error, model, configHash)
+            }
             Unit
         }
     }

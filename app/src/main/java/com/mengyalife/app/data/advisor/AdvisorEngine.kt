@@ -198,6 +198,12 @@ class FakeAdvisorEngine(
         delay(delayMs)
         val last = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
         if (last.contains("[slow]")) delay(10_000)
+        val planPrompt = messages.firstOrNull {
+            it.role == "system" && it.content.contains("你是小计划整理器")
+        }?.content
+        if (planPrompt != null) {
+            return AdvisorChatResult.Success(fakePlanExtraction(last))
+        }
         val extractPrompt = messages.firstOrNull {
             it.role == "system" && it.content.contains("记录提取器")
         }?.content
@@ -369,6 +375,28 @@ class FakeAdvisorEngine(
         }
     }
 
+
+    /** QA-only plan parser fixture; never used by release builds or described as real-model quality. */
+    private fun fakePlanExtraction(userText: String): String {
+        if (!com.mengyalife.app.domain.advisor.PlanIntentGate.looksLikeCreate(userText)) {
+            return """{"schemaVersion":1,"record":null}"""
+        }
+        val scope = listOf("今天", "明天", "这周", "本周", "周末", "下周", "每天")
+            .firstOrNull(userText::contains).orEmpty()
+        val intent = if (listOf("记成小计划", "记一条计划", "记下来").any(userText::contains)) "EXPLICIT" else "SUGGESTED"
+        val record = kotlinx.serialization.json.buildJsonObject {
+            put("type", "PLAN")
+            put("change", "CREATE")
+            put("title", userText.trim().take(100))
+            put("timeScope", scope)
+            put("goalId", kotlinx.serialization.json.JsonNull)
+            put("intent", intent)
+        }
+        return kotlinx.serialization.json.buildJsonObject {
+            put("schemaVersion", 1)
+            put("record", record)
+        }.toString()
+    }
 
     /**
      * QA 专用：确定性的记录候选提取。只覆盖验收需要的几条自然表达，

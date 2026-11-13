@@ -71,7 +71,7 @@ class WeeklyAiTest {
         val engine = ScriptedAdvisorEngine().apply { enqueue(AdvisorChatResult.Success(valid)) }
         val dao = FakeAiDao()
         val config = FakeConfigRepository().apply { save("https://api.example.com/v1", "m", "sk") }
-        val svc = WeeklyAiService(AiSource(snapshot), FakeConsentRepository().apply { grant("https://api.example.com/v1", AiConsentRules.allCategories) }, config, engine, dao, now = { now })
+        val svc = WeeklyAiService(AiSource(snapshot), FakeConsentRepository().apply { grant("https://api.example.com/v1", AiConsentRules.allCategories) }, config, engine, dao, now = { now }, writeBarrier = RestoreWriteBarrier(initiallyReady = true))
         val a = svc.generateIfAllowed()
         val b = svc.generateIfAllowed()
         assertEquals("READY", a?.status)
@@ -105,7 +105,7 @@ class WeeklyAiTest {
         val engine = ScriptedAdvisorEngine().apply { enqueue(AdvisorChatResult.Success(valid)) }
         val config = FakeConfigRepository().apply { save("https://api.example.com/v1", "m", "sk") }
         val goalsOnly = consent.copy(categories = setOf(ConsentCategory.GOALS))
-        WeeklyAiService(AiSource(snapshot), FakeConsentRepository().apply { grant("https://api.example.com/v1", setOf(ConsentCategory.GOALS)) }, config, engine, FakeAiDao()) { now }.generateIfAllowed()
+        WeeklyAiService(AiSource(snapshot), FakeConsentRepository().apply { grant("https://api.example.com/v1", setOf(ConsentCategory.GOALS)) }, config, engine, FakeAiDao(), writeBarrier = RestoreWriteBarrier(initiallyReady = true)) { now }.generateIfAllowed()
         val prompt = engine.calls.joinToString(" ") { it.joinToString(" ") { m -> m.content } }
         assertTrue(prompt.contains("GOAL") || prompt.contains("储蓄"))
         assertTrue(!prompt.contains("CHECKIN:"))
@@ -119,6 +119,7 @@ class WeeklyAiTest {
         return WeeklyAiService(
             source, FakeConsentRepository().apply { grant("https://api.example.com/v1", AiConsentRules.allCategories) },
             config, engine, dao, now = { now }, beforeRequest = before, beforeComplete = after,
+            writeBarrier = RestoreWriteBarrier(initiallyReady = true),
         )
     }
 
@@ -128,7 +129,7 @@ class WeeklyAiTest {
         val dao = FakeAiDao(); val source = AiSource(snapshot)
         val consent = FakeConsentRepository().apply { grant("https://api.example.com/v1", AiConsentRules.allCategories) }
         val config = FakeConfigRepository().apply { save("https://api.example.com/v1", "m", "sk") }
-        val svc = WeeklyAiService(source, consent, config, engine, dao, now = { now }, beforeRequest = { consent.withdraw() })
+        val svc = WeeklyAiService(source, consent, config, engine, dao, now = { now }, beforeRequest = { consent.withdraw() }, writeBarrier = RestoreWriteBarrier(initiallyReady = true))
         assertEquals(null, svc.generateIfAllowed())
         assertEquals(0, engine.calls.size)
         assertEquals(0, dao.rows.value.size)
@@ -140,8 +141,24 @@ class WeeklyAiTest {
         val dao = FakeAiDao(); val source = AiSource(snapshot)
         val consent = FakeConsentRepository().apply { grant("https://api.example.com/v1", AiConsentRules.allCategories) }
         val config = FakeConfigRepository().apply { save("https://api.example.com/v1", "m", "sk") }
-        val svc = WeeklyAiService(source, consent, config, engine, dao, beforeRequest = { config.save("https://other.example.com/v1", "m", null) }) { now }
+        val svc = WeeklyAiService(source, consent, config, engine, dao, beforeRequest = { config.save("https://other.example.com/v1", "m", null) }, writeBarrier = RestoreWriteBarrier(initiallyReady = true)) { now }
         assertEquals(null, svc.generateIfAllowed())
+        assertEquals(0, engine.calls.size)
+    }
+
+    @Test
+    fun `请求前切换模型名不调用引擎`() = runTest {
+        val engine = ScriptedAdvisorEngine().apply { enqueue(AdvisorChatResult.Success(valid)) }
+        val dao = FakeAiDao()
+        val consent = FakeConsentRepository().apply { grant("https://api.example.com/v1", AiConsentRules.allCategories) }
+        val config = FakeConfigRepository().apply { save("https://api.example.com/v1", "m", "sk") }
+        val service = WeeklyAiService(
+            AiSource(snapshot), consent, config, engine, dao,
+            now = { now },
+            beforeRequest = { config.save("https://api.example.com/v1", "new-model", null) },
+            writeBarrier = RestoreWriteBarrier(initiallyReady = true),
+        )
+        assertEquals(null, service.generateIfAllowed())
         assertEquals(0, engine.calls.size)
     }
 
@@ -153,6 +170,7 @@ class WeeklyAiTest {
             source, FakeConsentRepository().apply { grant("https://api.example.com/v1", AiConsentRules.allCategories) },
             FakeConfigRepository().apply { save("https://api.example.com/v1", "m", "sk") }, engine, dao,
             beforeRequest = { source.s = snapshot.copy(checkins = snapshot.checkins + WeeklyCheckin(9, 1, now, "new", 30.0, "CNY")) },
+            writeBarrier = RestoreWriteBarrier(initiallyReady = true),
         ) { now }
         assertEquals(null, svc.generateIfAllowed())
         assertEquals(0, engine.calls.size)
@@ -167,6 +185,7 @@ class WeeklyAiTest {
             FakeConfigRepository().apply { save("https://api.example.com/v1", "m", "sk") }, engine, dao,
             now = { now },
             beforeComplete = { source.s = snapshot.copy(checkins = snapshot.checkins + WeeklyCheckin(9, 1, now, "new", 30.0, "CNY")) },
+            writeBarrier = RestoreWriteBarrier(initiallyReady = true),
         )
         val result = svc.generateIfAllowed()
         assertEquals(1, engine.calls.size)
@@ -180,7 +199,7 @@ class WeeklyAiTest {
         val consent = FakeConsentRepository().apply { grant("https://api.example.com/v1", AiConsentRules.allCategories) }
         val config = FakeConfigRepository().apply { save("https://api.example.com/v1", "m", "sk") }
         dao.onMarkSent = { config.save("https://other.example.com/v1", "m", null) }
-        val svc = WeeklyAiService(source, consent, config, engine, dao, now = { now })
+        val svc = WeeklyAiService(source, consent, config, engine, dao, now = { now }, writeBarrier = RestoreWriteBarrier(initiallyReady = true))
         val result = svc.generateIfAllowed()
         assertEquals(0, engine.calls.size)
         assertTrue(result?.status != "READY")
@@ -194,7 +213,7 @@ class WeeklyAiTest {
         val dao = FakeAiDao(); val source = AiSource(snapshot)
         val consent = FakeConsentRepository().apply { grant("https://api.example.com/v1", AiConsentRules.allCategories) }
         val config = FakeConfigRepository().apply { save("https://api.example.com/v1", "m", "sk") }
-        val svc = WeeklyAiService(source, consent, config, engine, dao, now = { now })
+        val svc = WeeklyAiService(source, consent, config, engine, dao, now = { now }, writeBarrier = RestoreWriteBarrier(initiallyReady = true))
         kotlinx.coroutines.coroutineScope {
             launch { svc.generateIfAllowed() }
             launch { svc.generateIfAllowed() }

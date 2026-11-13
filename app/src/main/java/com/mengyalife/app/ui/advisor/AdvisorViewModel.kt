@@ -25,6 +25,8 @@ import com.mengyalife.app.data.advisor.RecordUndoResult
 import com.mengyalife.app.data.advisor.StoredRecordProposal
 import com.mengyalife.app.data.consent.AiConsentRepository
 import com.mengyalife.app.data.insight.InsightService
+import com.mengyalife.app.data.restore.RestoreException
+import com.mengyalife.app.data.restore.RestoreWriteBarrier
 import com.mengyalife.app.domain.advisor.AdvisorChatResult
 import com.mengyalife.app.domain.advisor.AdvisorContextAssembler
 import com.mengyalife.app.domain.advisor.AdvisorContextSnapshot
@@ -36,8 +38,10 @@ import com.mengyalife.app.domain.advisor.AdvisorMessage
 import com.mengyalife.app.domain.advisor.AdvisorMessageStatus
 import com.mengyalife.app.domain.advisor.AdvisorRole
 import com.mengyalife.app.domain.advisor.AdvisorRules
+import com.mengyalife.app.domain.advisor.AdvisorRuntimeConfig
 import com.mengyalife.app.domain.advisor.AiConsentRules
 import com.mengyalife.app.domain.advisor.AiConsentState
+import com.mengyalife.app.domain.advisor.AiConfigState
 import com.mengyalife.app.domain.advisor.ConsentCategory
 import com.mengyalife.app.domain.advisor.GoalProposalParseResult
 import com.mengyalife.app.domain.advisor.GoalProposalDraft
@@ -47,7 +51,6 @@ import com.mengyalife.app.domain.advisor.GoalBeforeSnapshot
 import com.mengyalife.app.domain.advisor.GoalChangeKind
 import com.mengyalife.app.domain.advisor.GoalIntentGate
 import com.mengyalife.app.domain.advisor.PlanChangeKind
-import com.mengyalife.app.domain.advisor.PlanDraftFactory
 import com.mengyalife.app.domain.advisor.PlanIntentGate
 import com.mengyalife.app.domain.advisor.RecordAmountKind
 import com.mengyalife.app.domain.advisor.RecordIntent
@@ -61,7 +64,10 @@ import com.mengyalife.app.domain.insight.InsightReference
 import com.mengyalife.app.domain.insight.InsightReferenceResolution
 import com.mengyalife.app.domain.insight.ResolvedInsightReference
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -101,7 +107,8 @@ class AdvisorViewModel(
     private val networkEngine: AdvisorEngine,
     private val fakeEngine: AdvisorEngine?,
     private val restoreGeneration: () -> Long = { 0L },
-    private val restoreWriteBarrier: com.mengyalife.app.data.restore.RestoreWriteBarrier? = null,
+    private val restoreWriteBarrier: RestoreWriteBarrier? = null,
+    private val restoreGateActive: () -> Boolean = { false },
     private val insightService: InsightService? = null,
 ) : ViewModel() {
 
@@ -114,6 +121,21 @@ class AdvisorViewModel(
         val recordAction: RecordActionUiState? = null,
         val planSuggestion: Boolean = false,
         val planSuggestionDismissed: Boolean = false,
+    )
+
+    /** Immutable security/config/data binding shared by the main chat and every extra extraction. */
+    private data class AiRequestBinding(
+        val config: AiConfigState,
+        val runtime: AdvisorRuntimeConfig,
+        val consent: AiConsentState,
+        val restoreGeneration: Long,
+        val data: AdvisorContextSnapshot,
+        val engine: AdvisorEngine,
+    )
+
+    private data class LegacyInsightLink(
+        val hasInsightMarker: Boolean,
+        val reference: InsightReference?,
     )
 
     private val local = MutableStateFlow(LocalState())
@@ -290,19 +312,57 @@ class AdvisorViewModel(
             InsightReference(reportId, version, insightId)
         }
 
-    private fun findActiveInsightReference(messages: List<AdvisorMessage>): InsightReference? =
-        messages.asReversed().asSequence()
-            .filter { it.role == AdvisorRole.USER && it.status == AdvisorMessageStatus.SENT }
-            .take(6)
-            .mapNotNull { insightReferenceIn(it.sources) }
-            .firstOrNull()
+    private fun isExplicitTopicSwitch(text: String): Boolean = listOf(
+        "换个话题", "换个问题", "聊点别的", "聊个别的", "另一个话题", "另一个问题",
+        "先聊点别的", "先不聊这个", "不谈刚才那个", "这和前面无关", "与前面无关",
+        "不相关的话题", "说个无关的", "另有一件事", "我有另一个问题", "新问题是",
+    ).any { phrase -> text.contains(phrase) }
 
-    private suspend fun findInsightReferenceForMessages(messageIds: List<String>): InsightReference? {
-        if (messageIds.isEmpty()) return null
-        val allowed = messageIds.toSet()
-        return conversations.loadAll().asReversed()
-            .firstOrNull { it.id in allowed }
-            ?.let { insightReferenceIn(it.sources) }
+    private fun historyForCurrentTopic(
+        history: List<AdvisorMessage>,
+        input: String,
+        directInsightHandoff: Boolean,
+    ): List<AdvisorMessage> {
+        if (directInsightHandoff || isExplicitTopicSwitch(input)) return emptyList()
+        val boundary = history.indexOfLast {
+            it.role == AdvisorRole.USER && isExplicitTopicSwitch(it.content)
+        }
+        return if (boundary >= 0) history.drop(boundary) else history
+    }
+
+    private fun messagesForCurrentTopic(messages: List<AdvisorMessage>, input: String): List<AdvisorMessage> {
+        if (isExplicitTopicSwitch(input)) return emptyList()
+        val boundary = messages.indexOfLast {
+            it.role == AdvisorRole.USER && isExplicitTopicSwitch(it.content)
+        }
+        return if (boundary >= 0) messages.drop(boundary) else messages
+    }
+
+    private fun findActiveInsightReference(messages: List<AdvisorMessage>): InsightReference? {
+        for (message in messages.asReversed()) {
+            if (message.role != AdvisorRole.USER || message.status != AdvisorMessageStatus.SENT) continue
+            if (isExplicitTopicSwitch(message.content)) return null
+            insightReferenceIn(message.sources)?.let { return it }
+        }
+        return null
+    }
+
+    private suspend fun findLegacyInsightLink(
+        messageIds: List<String>,
+        proposalMessageId: String,
+    ): LegacyInsightLink {
+        val allowed = messageIds.toSet() + proposalMessageId
+        val related = conversations.loadAll().asReversed().filter { it.id in allowed }
+        for (message in related) {
+            if (message.role == AdvisorRole.USER && isExplicitTopicSwitch(message.content)) {
+                return LegacyInsightLink(hasInsightMarker = false, reference = null)
+            }
+            val marker = message.sources.any {
+                it.type == AdvisorSourceType.INSIGHT || it.type == AdvisorSourceType.INSIGHT_FACT
+            }
+            if (marker) return LegacyInsightLink(true, insightReferenceIn(message.sources))
+        }
+        return LegacyInsightLink(false, null)
     }
 
     private suspend fun insightReferenceError(reference: InsightReference): String? {
@@ -386,6 +446,167 @@ class AdvisorViewModel(
         return entries
     }
 
+    private suspend fun captureAiRequestBinding(
+        expectedConfig: AiConfigState,
+        expectedConsent: AiConsentState,
+        expectedRestoreGeneration: Long,
+        data: AdvisorContextSnapshot,
+    ): AiRequestBinding? {
+        val barrier = restoreWriteBarrier
+        if (barrier == null || restoreGateActive() || !barrier.isReady() ||
+            restoreGeneration() != expectedRestoreGeneration
+        ) {
+            local.update { it.copy(errorMessage = "恢复状态未就绪或已变化，本次没有请求模型") }
+            return null
+        }
+        val firstConfig = configRepository.state.first()
+        val runtime = configRepository.runtimeConfig()
+        val secondConfig = configRepository.state.first()
+        val consent = consentRepository.current()
+        if (firstConfig != expectedConfig || secondConfig != expectedConfig ||
+            consent.epoch != expectedConsent.epoch || consent.categories != expectedConsent.categories ||
+            !consent.isValidFor(expectedConfig.endpoint) || runtime == null ||
+            runtime.endpoint != secondConfig.endpoint || runtime.model != secondConfig.model
+        ) {
+            local.update { it.copy(errorMessage = "服务配置或授权已变化，本次没有请求模型") }
+            return null
+        }
+        val currentData = authorizedSnapshot(dataRepository.snapshot(consent), consent, data.history)
+        if (!sameAuthorizedData(data, currentData, consent.categories)) {
+            local.update { it.copy(errorMessage = "授权数据已变化，请重新发送") }
+            return null
+        }
+        return AiRequestBinding(
+            config = secondConfig,
+            runtime = runtime,
+            consent = consent,
+            restoreGeneration = expectedRestoreGeneration,
+            data = data,
+            engine = engineFor(secondConfig),
+        )
+    }
+
+    private fun authorizedSnapshot(
+        snapshot: AdvisorContextSnapshot,
+        consent: AiConsentState,
+        history: List<AdvisorMessage>,
+    ): AdvisorContextSnapshot = snapshot.copy(
+        goals = snapshot.goals.takeIf { consent.enabled(ConsentCategory.GOALS) }.orEmpty(),
+        plans = snapshot.plans.takeIf { consent.enabled(ConsentCategory.GOALS) }.orEmpty(),
+        checkins = snapshot.checkins.takeIf { consent.enabled(ConsentCategory.PROGRESS) }.orEmpty(),
+        journals = snapshot.journals.takeIf { consent.enabled(ConsentCategory.JOURNAL) }.orEmpty(),
+        growthSignals = snapshot.growthSignals.takeIf { consent.enabled(ConsentCategory.JOURNAL) }.orEmpty(),
+        growthMemories = snapshot.growthMemories.takeIf { consent.enabled(ConsentCategory.JOURNAL) }.orEmpty(),
+        history = history.takeIf { consent.enabled(ConsentCategory.CONVERSATION) }.orEmpty(),
+    )
+
+    private fun sameAuthorizedData(
+        expected: AdvisorContextSnapshot,
+        current: AdvisorContextSnapshot,
+        categories: Set<ConsentCategory>,
+    ): Boolean =
+        (ConsentCategory.GOALS !in categories ||
+            expected.goals == current.goals && expected.plans == current.plans) &&
+            (ConsentCategory.PROGRESS !in categories || expected.checkins == current.checkins) &&
+            (ConsentCategory.JOURNAL !in categories ||
+                expected.journals == current.journals &&
+                expected.growthSignals == current.growthSignals &&
+                expected.growthMemories == current.growthMemories)
+
+    private fun requiredCategoriesForSources(
+        sources: List<AdvisorSource>,
+    ): Set<ConsentCategory> = buildSet {
+        sources.forEach { source ->
+            when (source.type) {
+                AdvisorSourceType.GOAL, AdvisorSourceType.PLAN, AdvisorSourceType.CARE -> add(ConsentCategory.GOALS)
+                AdvisorSourceType.PROGRESS -> add(ConsentCategory.PROGRESS)
+                AdvisorSourceType.JOURNAL, AdvisorSourceType.GROWTH, AdvisorSourceType.MEMORY ->
+                    add(ConsentCategory.JOURNAL)
+                else -> Unit
+            }
+        }
+    }
+
+    private suspend fun aiBindingProblem(
+        binding: AiRequestBinding,
+        requiredCategories: Set<ConsentCategory>,
+    ): String? {
+        val barrier = restoreWriteBarrier ?: return "恢复安全边界不可用"
+        if (restoreGateActive() || !barrier.isReady() || restoreGeneration() != binding.restoreGeneration) {
+            return "恢复状态或 generation 已变化"
+        }
+        val config = configRepository.state.first()
+        val runtime = configRepository.runtimeConfig()
+        val consent = consentRepository.current()
+        if (config != binding.config || runtime != binding.runtime) return "endpoint/model/API Key 配置已变化"
+        if (!consent.granted || consent.epoch != binding.consent.epoch ||
+            consent.categories != binding.consent.categories || !consent.isValidFor(binding.runtime.endpoint)
+        ) return "授权 epoch、接收方或数据类别已变化"
+        if (requiredCategories.any { !consent.enabled(it) }) return "本轮所需数据类别未授权"
+        val current = authorizedSnapshot(dataRepository.snapshot(consent), consent, binding.data.history)
+        if (!sameAuthorizedData(binding.data, current, requiredCategories)) return "请求所依据的目标/进展/日记已变化"
+        if (ConsentCategory.CONVERSATION in requiredCategories) {
+            val stored = conversations.loadAll().associateBy { it.id }
+            if (binding.data.history.any { stored[it.id] != it }) return "历史对话来源已变化"
+        }
+        return null
+    }
+
+    /** Shared outbound boundary for the main reply and all four advisor extraction calls. */
+    private suspend fun <T : Any> withAiRequestBoundary(
+        binding: AiRequestBinding,
+        requiredCategories: Set<ConsentCategory>,
+        block: suspend () -> T,
+    ): T? {
+        val barrier = restoreWriteBarrier ?: run {
+            local.update { it.copy(errorMessage = "恢复安全边界不可用，本次没有请求模型") }
+            return null
+        }
+        return try {
+            barrier.withWrite(binding.restoreGeneration) {
+                val problem = aiBindingProblem(binding, requiredCategories)
+                if (problem != null) {
+                    local.update { it.copy(errorMessage = "$problem；本次没有继续发送或保存") }
+                    null
+                } else {
+                    currentCoroutineContext().ensureActive()
+                    block()
+                }
+            }
+        } catch (error: RestoreException) {
+            local.update { it.copy(errorMessage = "${error.message ?: "恢复维护中"}；本次没有保存") }
+            null
+        }
+    }
+
+    private suspend fun requestAi(
+        binding: AiRequestBinding,
+        requiredCategories: Set<ConsentCategory>,
+        messages: List<com.mengyalife.app.domain.advisor.AdvisorChatMessage>,
+        maxTokens: Int,
+        insightReference: InsightReference? = null,
+    ): AdvisorChatResult? {
+        val response = withAiRequestBoundary(binding, requiredCategories) {
+            val stale = insightReference?.let { reference -> insightReferenceError(reference) }
+            if (stale != null) {
+                local.update { it.copy(errorMessage = stale) }
+                AdvisorChatResult.Failure(AdvisorError(AdvisorError.CANCELLED, stale))
+            } else {
+                binding.engine.chat(binding.runtime, messages, maxTokens)
+            }
+        } ?: return null
+        currentCoroutineContext().ensureActive()
+        // Re-acquire after network so queued consent/config/restore writes win before accepting it.
+        return withAiRequestBoundary(binding, requiredCategories) {
+            currentCoroutineContext().ensureActive()
+            val stale = insightReference?.let { reference -> insightReferenceError(reference) }
+            if (stale != null) {
+                local.update { it.copy(errorMessage = stale) }
+                AdvisorChatResult.Failure(AdvisorError(AdvisorError.CANCELLED, stale))
+            } else response
+        }
+    }
+
     private fun insightDiscussionSystemPrompt(resolved: ResolvedInsightReference): String = buildString {
         appendLine("当前对话由用户主动打开一条成长建议（report=${resolved.reference.reportId}，insight=${resolved.reference.insightId}）。")
         appendLine("只能基于本轮列出的规则事实和原始来源解释建议；清楚区分记录事实与 AI 推测。")
@@ -393,13 +614,8 @@ class AdvisorViewModel(
         append("用户可以反对或修改前提；不要自动创建、更新目标/计划/进展，正式写入必须等待独立草案确认。")
     }
 
-    private fun insightDiscussionMessage(resolved: ResolvedInsightReference): String = buildString {
-        val insight = resolved.insight
-        appendLine("我想讨论这条成长建议：「${insight.title}」")
-        appendLine("建议内容：${insight.body}")
-        appendLine("引用的事实 ID：${insight.factIds.joinToString("、")}（完整依据和原始来源已随本条消息关联）")
-        append("请解释建议与依据的关系，并区分事实与推测；允许我质疑或修改前提。我未确认前，不要创建或修改正式数据。")
-    }.take(2_500)
+    private fun insightDiscussionMessage(resolved: ResolvedInsightReference): String =
+        "我想聊聊这条建议。你能结合我记录的依据解释一下吗？我也可以质疑或调整前提。"
 
     private fun send() {
         val text = local.value.input.trim()
@@ -462,7 +678,6 @@ class AdvisorViewModel(
         val epoch = consent.epoch
         val expectedRestoreGeneration = restoreGeneration()
         val sendConfig = state.config
-        val engine = engineFor(sendConfig)
         activeEpoch = epoch
 
         local.update {
@@ -474,13 +689,36 @@ class AdvisorViewModel(
             )
         }
 
-        requestJob = viewModelScope.launch {
+        val launched = viewModelScope.launch(start = CoroutineStart.LAZY) {
+            val thisJob = currentCoroutineContext()[Job]
             try {
-                val history = conversations.loadAll()
-                    .filter { it.id != excludeMessageId }
-                val data = dataRepository.snapshot(consent).copy(history = history)
+                if (restoreWriteBarrier == null || restoreGateActive() || !restoreWriteBarrier.isReady() ||
+                    restoreGeneration() != expectedRestoreGeneration
+                ) {
+                    local.update { it.copy(errorMessage = "恢复状态未就绪或已变化，本次没有请求模型") }
+                    return@launch
+                }
+                val freshConsent = consentRepository.current()
+                if (freshConsent.epoch != epoch || !freshConsent.isValidFor(sendConfig.endpoint)) {
+                    local.update { it.copy(errorMessage = "授权或接收方已变化，本次没有请求模型") }
+                    return@launch
+                }
+                val history = if (freshConsent.enabled(ConsentCategory.CONVERSATION)) {
+                    conversations.loadAll().filter { it.id != excludeMessageId }
+                } else emptyList()
+                val contextHistory = historyForCurrentTopic(history, input, insightReference != null)
+                val data = authorizedSnapshot(
+                    dataRepository.snapshot(freshConsent), freshConsent, contextHistory,
+                )
+                val binding = captureAiRequestBinding(
+                    expectedConfig = sendConfig,
+                    expectedConsent = consent,
+                    expectedRestoreGeneration = expectedRestoreGeneration,
+                    data = data,
+                ) ?: return@launch
                 val carriesInsightContext = insightReference != null ||
-                    (requiresInsightContinuity(input, proposalMode) && findActiveInsightReference(history) != null)
+                    (!isExplicitTopicSwitch(input) && requiresInsightContinuity(input, proposalMode) &&
+                        findActiveInsightReference(history) != null)
                 val referenceToValidate = insightReference ?: if (carriesInsightContext) {
                     findActiveInsightReference(history)
                 } else {
@@ -489,24 +727,22 @@ class AdvisorViewModel(
                 val resolvedInsight = referenceToValidate?.let { reference ->
                     val service = insightService
                     if (service == null) {
-                        local.update { it.copy(sending = false, errorMessage = "当前无法验证建议来源，请重新生成洞察") }
+                        local.update { it.copy(errorMessage = "当前无法验证建议来源，请重新生成洞察") }
                         return@launch
                     }
                     when (val resolution = service.resolveCurrentReference(reference)) {
                         is InsightReferenceResolution.Current -> resolution.value
                         is InsightReferenceResolution.Stale -> {
-                            local.update {
-                                it.copy(sending = false, errorMessage = resolution.reason)
-                            }
+                            local.update { it.copy(errorMessage = resolution.reason) }
                             return@launch
                         }
                     }
                 }
-                val freshConsent = consentRepository.current()
+                val consentAfterInsight = consentRepository.current()
                 if (resolvedInsight != null &&
-                    (freshConsent.epoch != epoch || !freshConsent.isValidFor(sendConfig.endpoint))
+                    (consentAfterInsight.epoch != epoch || !consentAfterInsight.isValidFor(sendConfig.endpoint))
                 ) {
-                    local.update { it.copy(sending = false, errorMessage = "授权已变化，这条建议不能继续用于讨论") }
+                    local.update { it.copy(errorMessage = "授权已变化，这条建议不能继续用于讨论") }
                     return@launch
                 }
                 val requestInput = if (insightReference != null && resolvedInsight != null) {
@@ -526,57 +762,63 @@ class AdvisorViewModel(
                     now = System.currentTimeMillis(),
                 ) else null
                 if (pref != null && careRepository != null && carePreferenceRepository != null) {
-                    if (insertUser) conversations.appendUser(requestInput, null, epoch, expectedRestoreGeneration)
-                    if (pref.kind == "FEEDBACK") {
-                        val decision = careRepository.latestSentDecision()
-                        if (decision == null) {
+                    val handled = withAiRequestBoundary(binding, emptySet()) {
+                        if (insertUser) conversations.appendUser(
+                            requestInput, null, epoch, expectedRestoreGeneration, sources = insightSources,
+                        )
+                        if (pref.kind == "FEEDBACK") {
+                            val decision = careRepository.latestSentDecision()
+                            if (decision == null) {
+                                conversations.appendAssistant(
+                                    content = "我还不能确定你指的是哪一次关心。你可以在今天页的关心卡上选择，或说得更具体一点。",
+                                    contextEpoch = epoch, sources = emptyList(), proposalMode = false,
+                                    expectedRestoreGeneration = expectedRestoreGeneration,
+                                )
+                            } else {
+                                val opp = careRepository.find(decision.opportunityId)
+                                carePreferenceRepository.save(
+                                    kind = "FEEDBACK",
+                                    topicKey = opp?.planId?.let { "plan:$it" } ?: opp?.goalId?.let { "goal:$it" },
+                                    topicLabel = opp?.title, value = "WELCOME", source = "USER_FEEDBACK",
+                                    sourceMessageId = decision.messageId, sourceExcerpt = input,
+                                )
+                                conversations.appendAssistant(
+                                    content = "记下了，这次「${opp?.title ?: "关心"}」对你有用。",
+                                    contextEpoch = epoch, sources = emptyList(), proposalMode = false,
+                                    expectedRestoreGeneration = expectedRestoreGeneration,
+                                )
+                            }
+                        } else if (pref.kind == "REVOKE") {
+                            pref.topicKey?.let { carePreferenceRepository.revokeByTopic(it) }
                             conversations.appendAssistant(
-                                content = "我还不能确定你指的是哪一次关心。你可以在今天页的关心卡上选择，或说得更具体一点。",
-                                contextEpoch = epoch, sources = emptyList(), proposalMode = false,
-                                expectedRestoreGeneration = expectedRestoreGeneration,
+                                content = pref.reply, contextEpoch = epoch, sources = emptyList(),
+                                proposalMode = false, expectedRestoreGeneration = expectedRestoreGeneration,
+                            )
+                        } else if (pref.kind == "CLARIFY") {
+                            conversations.appendAssistant(
+                                content = pref.reply, contextEpoch = epoch, sources = emptyList(),
+                                proposalMode = false, expectedRestoreGeneration = expectedRestoreGeneration,
                             )
                         } else {
-                            val opp = careRepository.find(decision.opportunityId)
                             carePreferenceRepository.save(
-                                kind = "FEEDBACK",
-                                topicKey = (opp?.planId?.let { "plan:$it" } ?: opp?.goalId?.let { "goal:$it" }) as String?,
-                                topicLabel = opp?.title, value = "WELCOME", source = "USER_FEEDBACK",
-                                sourceMessageId = decision.messageId, sourceExcerpt = input,
+                                kind = pref.kind, topicKey = pref.topicKey, topicLabel = pref.topicLabel,
+                                value = pref.value, source = "USER_EXPLICIT", sourceMessageId = null,
+                                sourceExcerpt = pref.sourceExcerpt, windowNote = pref.windowNote,
+                                expiresAt = pref.expiresAt,
                             )
                             conversations.appendAssistant(
-                                content = "记下了，这次「${opp?.title ?: "关心"}」对你有用。",
-                                contextEpoch = epoch, sources = emptyList(), proposalMode = false,
-                                expectedRestoreGeneration = expectedRestoreGeneration,
+                                content = pref.reply, contextEpoch = epoch, sources = emptyList(),
+                                proposalMode = false, expectedRestoreGeneration = expectedRestoreGeneration,
                             )
                         }
-                    } else if (pref.kind == "REVOKE") {
-                        pref.topicKey?.let { carePreferenceRepository.revokeByTopic(it) }
-                        conversations.appendAssistant(
-                            content = pref.reply, contextEpoch = epoch, sources = emptyList(),
-                            proposalMode = false, expectedRestoreGeneration = expectedRestoreGeneration,
-                        )
-                    } else if (pref.kind == "CLARIFY") {
-                        conversations.appendAssistant(
-                            content = pref.reply, contextEpoch = epoch, sources = emptyList(),
-                            proposalMode = false, expectedRestoreGeneration = expectedRestoreGeneration,
-                        )
-                    } else {
-                        carePreferenceRepository.save(
-                            kind = pref.kind, topicKey = pref.topicKey, topicLabel = pref.topicLabel,
-                            value = pref.value, source = "USER_EXPLICIT", sourceMessageId = null,
-                            sourceExcerpt = pref.sourceExcerpt, windowNote = pref.windowNote,
-                            expiresAt = pref.expiresAt,
-                        )
-                        conversations.appendAssistant(
-                            content = pref.reply, contextEpoch = epoch, sources = emptyList(),
-                            proposalMode = false, expectedRestoreGeneration = expectedRestoreGeneration,
-                        )
+                        local.update { it.copy(input = "") }
+                        true
                     }
-                    local.update { it.copy(sending = false, input = "") }
+                    if (handled != true) return@launch
                     return@launch
                 }
 
-                val assembled = assembler.assemble(requestInput, consent, data)
+                val assembled = assembler.assemble(requestInput, binding.consent, data)
                 val insightEntries = resolvedInsight?.let(::advisorContextEntriesForInsight).orEmpty()
                 // The selected, still-valid Insight evidence has priority over generic retrieved context.
                 val contextEntries = insightEntries + assembled.entries
@@ -585,250 +827,229 @@ class AdvisorViewModel(
                     resolvedInsight?.let { add(insightDiscussionSystemPrompt(it)) }
                 }.joinToString("\n\n").takeIf { it.isNotBlank() }
 
-                if (insertUser) {
-                    conversations.appendUser(
-                        content = requestInput,
-                        contextGoalId = null,
-                        contextEpoch = epoch,
-                        expectedRestoreGeneration = expectedRestoreGeneration,
-                        sources = insightSources,
-                    )
-                }
-
-                val runtime = configRepository.runtimeConfig()
-                if (runtime == null) {
-                    conversations.appendFailure(
-                        AdvisorError(AdvisorError.NOT_CONFIGURED, "密钥不可用，请到设置页重新保存 API Key。"),
-                        cancelled = false,
-                        contextEpoch = epoch,
-                        proposalMode = proposalMode,
-                        expectedRestoreGeneration = expectedRestoreGeneration,
-                    )
-                    local.update { it.copy(sending = false) }
-                    return@launch
-                }
-
-                // 关键竞态修复：发起请求的 runtime endpoint 必须仍然是
-                // 用户当初授权时确认的接收方，且与 UI 快照一致。
-                val currentConfig = configRepository.state.first()
-                val currentConsent = consentRepository.current()
-                if (runtime.endpoint != sendConfig.endpoint ||
-                    currentConfig.endpoint != runtime.endpoint ||
-                    !currentConsent.isValidFor(runtime.endpoint) ||
-                    currentConsent.epoch != epoch
-                ) {
-                    conversations.appendFailure(
-                        AdvisorError(AdvisorError.CANCELLED, "服务配置或授权已变化，本次请求未发送。"),
-                        cancelled = true,
-                        contextEpoch = epoch,
-                        proposalMode = proposalMode,
-                        expectedRestoreGeneration = expectedRestoreGeneration,
-                    )
-                    local.update { it.copy(sending = false) }
-                    return@launch
-                }
-
                 val builtRequest = AdvisorRules.buildRequest(
                     history = assembled.history,
                     currentInput = requestInput,
                     contextEntries = contextEntries,
                     extraSystemPrompt = extraPrompt,
                 )
-                val chat = suspend {
-                    val staleInsight = referenceToValidate?.let { insightReferenceError(it) }
-                    if (staleInsight != null) {
-                        AdvisorChatResult.Failure(AdvisorError(AdvisorError.CANCELLED, staleInsight))
-                    } else {
-                        engine.chat(
-                            runtime,
-                            builtRequest.messages,
-                            maxTokens = if (proposalMode) 3_000 else AdvisorRules.MAX_OUTPUT_TOKENS,
+                if (resolvedInsight != null &&
+                    (builtRequest.truncated || insightEntries.any { it !in builtRequest.includedEntries })
+                ) {
+                    local.update { it.copy(errorMessage = "所选建议的完整依据超出上下文上限，本次没有发送；请缩短对话后重试。") }
+                    return@launch
+                }
+                val requiredCategories = requiredCategoriesForSources(builtRequest.usedSources) +
+                    (if (proposalMode) setOf(ConsentCategory.GOALS) else emptySet()) +
+                    (if (assembled.history.isNotEmpty()) setOf(ConsentCategory.CONVERSATION) else emptySet())
+                var currentUserMessageId: String? = excludeMessageId
+                if (insertUser) {
+                    val appended = withAiRequestBoundary(binding, requiredCategories) {
+                        conversations.appendUser(
+                            content = requestInput,
+                            contextGoalId = null,
+                            contextEpoch = epoch,
+                            expectedRestoreGeneration = expectedRestoreGeneration,
+                            sources = insightSources,
                         )
+                    } ?: return@launch
+                    currentUserMessageId = appended.id
+                }
+
+                referenceToValidate?.let { reference ->
+                    val staleReason = insightReferenceError(reference)
+                    if (staleReason != null) {
+                        local.update { it.copy(errorMessage = staleReason) }
+                        return@launch
                     }
                 }
-                val result = restoreWriteBarrier?.withWrite(expectedRestoreGeneration) { chat() } ?: chat()
-                when (result) {
-                    is AdvisorChatResult.Success -> {
-                        val afterConfig = configRepository.state.first()
-                        val after = consentRepository.current()
-                        if (afterConfig.endpoint != runtime.endpoint ||
-                            !after.isValidFor(runtime.endpoint) ||
-                            after.epoch != epoch
-                        ) {
+                val result = requestAi(
+                    binding = binding,
+                    requiredCategories = requiredCategories,
+                    messages = builtRequest.messages,
+                    maxTokens = if (proposalMode) 3_000 else AdvisorRules.MAX_OUTPUT_TOKENS,
+                    insightReference = referenceToValidate,
+                ) ?: run {
+                    withContext(NonCancellable) {
+                        runCatching {
                             conversations.appendFailure(
-                                AdvisorError(AdvisorError.CANCELLED, "服务配置或授权已变化，本次回复未保存。"),
+                                AdvisorError(AdvisorError.CANCELLED, "服务配置、授权或恢复状态已变化，本次回复未保存。"),
                                 cancelled = true,
                                 contextEpoch = epoch,
                                 proposalMode = proposalMode,
                                 expectedRestoreGeneration = expectedRestoreGeneration,
                             )
-                            local.update { it.copy(sending = false) }
-                            return@launch
                         }
-                        if (referenceToValidate != null) {
-                            when (val validation = insightService?.resolveCurrentReference(referenceToValidate)) {
-                                is InsightReferenceResolution.Current -> Unit
-                                is InsightReferenceResolution.Stale -> {
-                                    conversations.appendFailure(
-                                        AdvisorError(AdvisorError.CANCELLED, validation.reason),
-                                        cancelled = true,
-                                        contextEpoch = epoch,
-                                        proposalMode = proposalMode,
-                                        expectedRestoreGeneration = expectedRestoreGeneration,
-                                    )
-                                    local.update { it.copy(sending = false, errorMessage = validation.reason) }
-                                    return@launch
-                                }
-                                null -> {
-                                    local.update { it.copy(sending = false, errorMessage = "建议来源无法验证，未保存回复") }
-                                    return@launch
-                                }
-                            }
-                        }
+                    }
+                    return@launch
+                }
+                when (result) {
+                    is AdvisorChatResult.Success -> {
                         val usesJournalEvidence = builtRequest.usedSources.any {
                             it.type == AdvisorSourceType.JOURNAL || it.type == AdvisorSourceType.MEMORY ||
                                 it.type == AdvisorSourceType.GROWTH
                         }
-                        if (usesJournalEvidence && AdvisorRules.containsDiagnosticLanguage(result.content)) {
-                            val safeReply = "我不能根据日记或成长记忆判断心理/医学诊断。我们可以继续讨论你亲自记录的具体事件、感受和想采取的行动；如担心健康问题，请咨询专业人员。"
-                            conversations.appendAssistant(
-                                content = safeReply,
-                                contextEpoch = epoch,
-                                sources = builtRequest.usedSources,
-                                proposalMode = false,
-                                expectedRestoreGeneration = expectedRestoreGeneration,
-                            )
-                            local.update { it.copy(sending = false, infoMessage = "已拦截缺乏依据的诊断性表述") }
-                            return@launch
-                        }
-                        if (proposalMode) {
-                            handleProposalResult(
-                                raw = result.content,
-                                epoch = epoch,
-                                sources = builtRequest.usedSources,
-                                existingGoals = data.goals.associate { it.id to it.level },
-                                contextChars = builtRequest.contextChars,
-                                expectedRestoreGeneration = expectedRestoreGeneration,
-                            )
-                        } else {
-                            val assistant = conversations.appendAssistant(
-                                content = AdvisorRules.stripMarkdown(result.content),
-                                contextEpoch = epoch,
-                                sources = builtRequest.usedSources,
-                                proposalMode = false,
-                                expectedRestoreGeneration = expectedRestoreGeneration,
-                            )
-                            // 聊天已经完成；提取候选不应让发送态一直挂着。
-                            local.update { it.copy(sending = false) }
-                            if (insightReference == null) {
-                            // 记录候选：只提取，不改变这一轮聊天的成功与否。
-                            // 只整理“这一次”的对话：限制在最近 15 分钟内，避免把更早的无关话题写进日记。
-                            val cutoff = System.currentTimeMillis() - 15 * 60 * 1000L
-                            // 只用用户自己说过的话作为事实来源；顾问的建议不能被写成“我的反思”。
-                            val recentMessages = conversations.loadAll()
-                                .filter { it.createdAt >= cutoff && it.role == AdvisorRole.USER && it.status == AdvisorMessageStatus.SENT }
-                                .takeLast(6)
-                            val recent = recentMessages.map { "用户：" + it.content }
-                            val recentIds = recentMessages.map { it.id }
-                            val willExtract = DiaryIntentGate.looksRelevant(input) ||
-                                GoalIntentGate.looksRelevant(input) ||
-                                RecordIntentGate.looksRelevant(input)
-                            if (!willExtract &&
-                                !local.value.planSuggestionDismissed &&
-                                AdvisorRules.shouldSuggestPlanDraft(input)
-                            ) {
-                                local.update { it.copy(planSuggestion = true) }
+                        var assistant: AdvisorMessage? = null
+                        val accepted = withAiRequestBoundary(binding, requiredCategories) {
+                            val staleReason = referenceToValidate?.let { reference -> insightReferenceError(reference) }
+                            if (staleReason != null) {
+                                local.update { it.copy(errorMessage = staleReason) }
+                                false
+                            } else if (usesJournalEvidence && AdvisorRules.containsDiagnosticLanguage(result.content)) {
+                                val safeReply = "我不能根据日记或成长记忆判断心理/医学诊断。我们可以继续讨论你亲自记录的具体事件、感受和想采取的行动；如担心健康问题，请咨询专业人员。"
+                                conversations.appendAssistant(
+                                    content = safeReply,
+                                    contextEpoch = epoch,
+                                    sources = builtRequest.usedSources,
+                                    proposalMode = false,
+                                    expectedRestoreGeneration = expectedRestoreGeneration,
+                                )
+                                local.update { it.copy(infoMessage = "已拦截缺乏依据的诊断性表述") }
+                                false
+                            } else if (proposalMode) {
+                                handleProposalResult(
+                                    raw = result.content,
+                                    epoch = epoch,
+                                    sources = builtRequest.usedSources,
+                                    existingGoals = data.goals.associate { it.id to it.level },
+                                    contextChars = builtRequest.contextChars,
+                                    expectedRestoreGeneration = expectedRestoreGeneration,
+                                )
+                                true
+                            } else {
+                                assistant = conversations.appendAssistant(
+                                    content = AdvisorRules.stripMarkdown(result.content),
+                                    contextEpoch = epoch,
+                                    sources = builtRequest.usedSources,
+                                    proposalMode = false,
+                                    expectedRestoreGeneration = expectedRestoreGeneration,
+                                )
+                                true
                             }
-                            if (DiaryIntentGate.looksRelevant(input)) {
-                                maybeExtractDiary(
+                        } ?: return@launch
+                        if (!accepted || proposalMode) return@launch
+                        val assistantMessage = assistant ?: return@launch
+                        val allMessages = if (binding.consent.enabled(ConsentCategory.CONVERSATION)) {
+                            conversations.loadAll()
+                        } else emptyList()
+                        val topicMessages = messagesForCurrentTopic(allMessages, input)
+                        val recentMessages = if (binding.consent.enabled(ConsentCategory.CONVERSATION)) {
+                            val cutoff = System.currentTimeMillis() - 15 * 60 * 1000L
+                            topicMessages.filter {
+                                it.createdAt >= cutoff && it.role == AdvisorRole.USER && it.status == AdvisorMessageStatus.SENT
+                            }.takeLast(6)
+                        } else {
+                            listOfNotNull(currentUserMessageId?.let { id -> allMessages.firstOrNull { it.id == id } })
+                        }
+                        val recent = if (binding.consent.enabled(ConsentCategory.CONVERSATION)) {
+                            recentMessages.map { "用户：" + it.content }
+                        } else listOf("用户：$input")
+                        val originMessageId = referenceToValidate?.let { reference ->
+                            allMessages.firstOrNull { message ->
+                                message.role == AdvisorRole.USER &&
+                                    insightReferenceIn(message.sources) == reference &&
+                                    message.sources.any { it.type == AdvisorSourceType.INSIGHT && it.metadata["handoff"] == "true" }
+                            }?.id
+                        }
+                        val recentIds = (recentMessages.map { it.id } + listOfNotNull(currentUserMessageId, originMessageId)).distinct()
+                        val willExtract = DiaryIntentGate.looksRelevant(input) ||
+                            GoalIntentGate.looksRelevant(input) ||
+                            RecordIntentGate.looksRelevant(input)
+                        if (!willExtract &&
+                            !local.value.planSuggestionDismissed &&
+                            AdvisorRules.shouldSuggestPlanDraft(input)
+                        ) {
+                            local.update { it.copy(planSuggestion = true) }
+                        }
+                        if (insightReference == null) {
+                            when {
+                                DiaryIntentGate.looksRelevant(input) -> maybeExtractDiary(
                                     userText = input,
-                                    assistantMessageId = assistant.id,
+                                    assistantMessageId = assistantMessage.id,
                                     transcript = recent,
                                     sourceIds = recentIds,
-                                    epoch = epoch,
-                                    runtime = runtime,
-                                    engine = engine,
-                                    expectedRestoreGeneration = expectedRestoreGeneration,
-                                )
-                            } else if (data.plans.any { it.status == "ACTIVE" } &&
-                                PlanIntentGate.looksLikeProgress(input)
-                            ) {
-                                maybeExtractPlanProgress(input, assistant.id, recentIds, data)
-                            } else if (data.plans.isNotEmpty() &&
-                                PlanIntentGate.looksLikeStatusUpdate(input)
-                            ) {
-                                maybeExtractPlan(
-                                    input, assistant.id, recentIds, epoch, data, runtime, engine,
-                                    expectedRestoreGeneration, referenceToValidate,
-                                )
-                            } else if (PlanIntentGate.looksLikeCreate(input)) {
-                                maybeExtractPlan(
-                                    input, assistant.id, recentIds, epoch, data, runtime, engine,
-                                    expectedRestoreGeneration, referenceToValidate,
-                                )
-                            } else if (GoalIntentGate.looksRelevant(input)) {
-                                maybeExtractGoal(
-                                    userText = input,
-                                    assistantMessageId = assistant.id,
-                                    sourceIds = recentIds,
-                                    epoch = epoch,
-                                    data = data,
-                                    runtime = runtime,
-                                    engine = engine,
-                                    expectedRestoreGeneration = expectedRestoreGeneration,
+                                    binding = binding,
                                     insightReference = referenceToValidate,
                                 )
-                            } else {
-                                maybeExtractRecord(
+                                binding.data.plans.any { it.status == "ACTIVE" } && PlanIntentGate.looksLikeProgress(input) ->
+                                    maybeExtractPlanProgress(
+                                        input, assistantMessage.id, recentIds, binding.data, binding, referenceToValidate,
+                                    )
+                                binding.data.plans.isNotEmpty() && PlanIntentGate.looksLikeStatusUpdate(input) ->
+                                    maybeExtractPlan(
+                                        input, assistantMessage.id, recentIds, binding, referenceToValidate,
+                                    )
+                                PlanIntentGate.looksLikeCreate(input) -> maybeExtractPlan(
+                                    input, assistantMessage.id, recentIds, binding, referenceToValidate,
+                                )
+                                GoalIntentGate.looksRelevant(input) -> maybeExtractGoal(
                                     userText = input,
-                                    assistantMessageId = assistant.id,
-                                    epoch = epoch,
-                                    data = data,
-                                    runtime = runtime,
-                                    engine = engine,
-                                    expectedRestoreGeneration = expectedRestoreGeneration,
+                                    assistantMessageId = assistantMessage.id,
+                                    sourceIds = recentIds,
+                                    data = binding.data,
+                                    binding = binding,
+                                    insightReference = referenceToValidate,
+                                )
+                                else -> maybeExtractRecord(
+                                    userText = input,
+                                    assistantMessageId = assistantMessage.id,
+                                    data = binding.data,
+                                    binding = binding,
+                                    insightReference = referenceToValidate,
+                                    sourceIds = recentIds,
                                 )
                             }
                         }
                     }
+                    is AdvisorChatResult.Failure -> {
+                        withAiRequestBoundary(binding, requiredCategories) {
+                            conversations.appendFailure(
+                                error = result.error,
+                                cancelled = result.error.code == AdvisorError.CANCELLED,
+                                contextEpoch = epoch,
+                                proposalMode = proposalMode,
+                                expectedRestoreGeneration = expectedRestoreGeneration,
+                            )
+                        }
                     }
-                    is AdvisorChatResult.Failure -> conversations.appendFailure(
-                        error = result.error,
-                        cancelled = result.error.code == AdvisorError.CANCELLED,
-                        contextEpoch = epoch,
-                        proposalMode = proposalMode,
-                        expectedRestoreGeneration = expectedRestoreGeneration,
-                    )
                 }
-                local.update { it.copy(sending = false) }
             } catch (cancelled: CancellationException) {
                 withContext(NonCancellable) {
-                    conversations.appendFailure(
-                        AdvisorError.cancelled(),
-                        cancelled = true,
-                        contextEpoch = epoch,
-                        proposalMode = proposalMode,
-                        expectedRestoreGeneration = expectedRestoreGeneration,
-                    )
+                    runCatching {
+                        conversations.appendFailure(
+                            AdvisorError.cancelled(),
+                            cancelled = true,
+                            contextEpoch = epoch,
+                            proposalMode = proposalMode,
+                            expectedRestoreGeneration = expectedRestoreGeneration,
+                        )
+                    }
                 }
-                local.update { it.copy(sending = false, infoMessage = "已取消本次请求。") }
+                local.update { it.copy(infoMessage = "已取消本次请求。") }
                 throw cancelled
             } catch (error: Throwable) {
                 withContext(NonCancellable) {
-                    conversations.appendFailure(
-                        AdvisorError.unknown(),
-                        cancelled = false,
-                        contextEpoch = epoch,
-                        proposalMode = proposalMode,
-                        expectedRestoreGeneration = expectedRestoreGeneration,
-                    )
+                    runCatching {
+                        conversations.appendFailure(
+                            AdvisorError.unknown(),
+                            cancelled = false,
+                            contextEpoch = epoch,
+                            proposalMode = proposalMode,
+                            expectedRestoreGeneration = expectedRestoreGeneration,
+                        )
+                    }
                 }
-                local.update { it.copy(sending = false) }
+                local.update { it.copy(errorMessage = error.message ?: "请求失败") }
             } finally {
-                requestJob = null
-                activeEpoch = null
+                if (requestJob === thisJob) {
+                    requestJob = null
+                    activeEpoch = null
+                    local.update { it.copy(sending = false) }
+                }
             }
         }
+        requestJob = launched
+        launched.start()
     }
 
     private suspend fun handleProposalResult(
@@ -922,54 +1143,62 @@ class AdvisorViewModel(
                 applyState = ProposalApplyUiState(proposalId = proposalId, loading = true),
             )
         }
+        val expectedGeneration = restoreGeneration()
         viewModelScope.launch {
             try {
-            val stored = proposalRepository.findById(proposalId)
-            val proposalMessage = stored?.let { item ->
-                conversations.loadAll().firstOrNull { it.id == item.messageId }
-            }
-            val insightReference = proposalMessage?.let { insightReferenceIn(it.sources) }
-            if (insightReference != null) {
-                val staleReason = insightReferenceError(insightReference)
-                if (staleReason != null) {
-                    local.update {
-                        it.copy(applyState = ProposalApplyUiState(proposalId = proposalId, error = "$staleReason；目标未修改"))
-                    }
+                val barrier = restoreWriteBarrier
+                if (barrier == null) {
+                    local.update { it.copy(applyState = ProposalApplyUiState(proposalId, error = "恢复安全边界不可用，目标未修改")) }
                     return@launch
                 }
-            }
-            val saved = proposalRepository.updateDraft(proposalId, draft, selected)
-            if (!saved) {
-                local.update {
-                    it.copy(
-                        applyState = ProposalApplyUiState(
-                            proposalId = proposalId,
-                            error = "草案已处理或状态已变化，请重新打开",
-                        ),
-                    )
+                barrier.withWrite(expectedGeneration) {
+                    if (restoreGateActive()) {
+                        local.update { it.copy(applyState = ProposalApplyUiState(proposalId, error = "恢复维护中，目标未修改")) }
+                        return@withWrite
+                    }
+                    val stored = proposalRepository.findById(proposalId)
+                    if (stored == null || !stored.isDraft) {
+                        local.update { it.copy(applyState = ProposalApplyUiState(proposalId, error = "草案已处理或不存在")) }
+                        return@withWrite
+                    }
+                    val proposalMessage = conversations.loadAll().firstOrNull { it.id == stored.messageId }
+                    val hasInsightMarker = proposalMessage?.sources?.any {
+                        it.type == AdvisorSourceType.INSIGHT || it.type == AdvisorSourceType.INSIGHT_FACT
+                    } == true
+                    val insightReference = proposalMessage?.let { insightReferenceIn(it.sources) }
+                    if (hasInsightMarker && insightReference == null) {
+                        local.update { it.copy(applyState = ProposalApplyUiState(proposalId, error = "洞察来源链不完整，目标未修改")) }
+                        return@withWrite
+                    }
+                    if (insightReference != null) {
+                        val staleReason = insightReferenceError(insightReference)
+                        if (staleReason != null) {
+                            local.update { it.copy(applyState = ProposalApplyUiState(proposalId, error = "$staleReason；目标未修改")) }
+                            return@withWrite
+                        }
+                    }
+                    if (!proposalRepository.updateDraft(proposalId, draft, selected)) {
+                        local.update { it.copy(applyState = ProposalApplyUiState(proposalId, error = "草案已处理或状态已变化，请重新打开")) }
+                        return@withWrite
+                    }
+                    when (val result = proposalApplyService.applyValidated(proposalId, selected) {
+                        insightReference?.let { reference -> insightReferenceError(reference) }
+                    }) {
+                        is com.mengyalife.app.data.advisor.ProposalApplyResult.Success -> local.update {
+                            it.copy(applyState = ProposalApplyUiState(
+                                proposalId = proposalId,
+                                message = "已创建 ${result.created.size} 个目标",
+                                createdTitles = result.created.map { goal -> goal.title },
+                                canUndo = true,
+                            ))
+                        }
+                        is com.mengyalife.app.data.advisor.ProposalApplyResult.Failure -> local.update {
+                            it.copy(applyState = ProposalApplyUiState(proposalId = proposalId, error = result.message))
+                        }
+                    }
                 }
-                return@launch
-            }
-            when (val result = proposalApplyService.apply(proposalId, selected)) {
-                is com.mengyalife.app.data.advisor.ProposalApplyResult.Success -> local.update {
-                    it.copy(
-                        applyState = ProposalApplyUiState(
-                            proposalId = proposalId,
-                            message = "已创建 ${result.created.size} 个目标",
-                            createdTitles = result.created.map { goal -> goal.title },
-                            canUndo = true,
-                        ),
-                    )
-                }
-                is com.mengyalife.app.data.advisor.ProposalApplyResult.Failure -> local.update {
-                    it.copy(
-                        applyState = ProposalApplyUiState(
-                            proposalId = proposalId,
-                            error = result.message,
-                        ),
-                    )
-                }
-            }
+            } catch (error: RestoreException) {
+                local.update { it.copy(applyState = ProposalApplyUiState(proposalId, error = "${error.message}；目标未修改")) }
             } finally {
                 applying = false
             }
@@ -1024,29 +1253,19 @@ class AdvisorViewModel(
     private suspend fun maybeExtractRecord(
         userText: String,
         assistantMessageId: String,
-        epoch: Long,
         data: AdvisorContextSnapshot,
-        runtime: com.mengyalife.app.domain.advisor.AdvisorRuntimeConfig,
-        engine: AdvisorEngine,
-        expectedRestoreGeneration: Long,
+        binding: AiRequestBinding,
+        insightReference: InsightReference?,
+        sourceIds: List<String>,
     ) {
         if (!RecordIntentGate.looksRelevant(userText)) return
-        val consent = consentRepository.current()
-        if (consent.epoch != epoch) return
-        if (!consent.enabled(ConsentCategory.PROGRESS)) {
-            local.update {
-                it.copy(
-                    infoMessage = "未授权「进展」类别，本次没有生成记录候选；可在设置 → AI 与隐私中开启。",
-                )
-            }
+        val required = setOf(ConsentCategory.GOALS, ConsentCategory.PROGRESS)
+        if (!binding.consent.enabled(ConsentCategory.PROGRESS)) {
+            local.update { it.copy(infoMessage = "未授权「进展」类别，本次没有生成记录候选。") }
             return
         }
-        if (!consent.enabled(ConsentCategory.GOALS)) {
-            local.update {
-                it.copy(
-                    infoMessage = "未授权「目标」类别，无法判断这条进展属于哪个目标；本次没有写入。",
-                )
-            }
+        if (!binding.consent.enabled(ConsentCategory.GOALS)) {
+            local.update { it.copy(infoMessage = "未授权「目标」类别，本次没有生成记录候选。") }
             return
         }
         val goals = data.goals
@@ -1054,15 +1273,12 @@ class AdvisorViewModel(
         val goalLines = goals.take(20).map { goal ->
             "[目标#${goal.id}] ${goal.level.label}：${goal.title}（${goal.status.label}）"
         }
-        val checkinLines = data.checkins
-            .sortedByDescending { it.recordedAt }
-            .take(6)
-            .map { checkin ->
-                val amount = checkin.metricValue?.let { value ->
-                    " " + com.mengyalife.app.util.MetricFormat.withUnit(value, checkin.metricUnit)
-                }.orEmpty()
-                "${com.mengyalife.app.util.Timestamps.formatDate(checkin.recordedAt)} ${checkin.note.take(60)}$amount"
-            }
+        val checkinLines = data.checkins.sortedByDescending { it.recordedAt }.take(6).map { checkin ->
+            val amount = checkin.metricValue?.let { value ->
+                " " + com.mengyalife.app.util.MetricFormat.withUnit(value, checkin.metricUnit)
+            }.orEmpty()
+            "${com.mengyalife.app.util.Timestamps.formatDate(checkin.recordedAt)} ${checkin.note.take(60)}$amount"
+        }
         val prompt = AdvisorRules.recordExtractionPrompt(
             goalLines = goalLines,
             recentCheckinLines = checkinLines,
@@ -1070,70 +1286,63 @@ class AdvisorViewModel(
         )
         local.update { it.copy(infoMessage = "正在整理记录…") }
         val result = try {
-            engine.chat(
-                config = runtime,
+            requestAi(
+                binding = binding,
+                requiredCategories = required,
                 messages = listOf(
                     com.mengyalife.app.domain.advisor.AdvisorChatMessage(role = "system", content = prompt),
                     com.mengyalife.app.domain.advisor.AdvisorChatMessage(role = "user", content = userText),
                 ),
                 maxTokens = 600,
+                insightReference = insightReference,
             )
         } finally {
-            local.update { state ->
-                state.copy(infoMessage = state.infoMessage?.takeIf { it != "正在整理记录…" })
-            }
-        }
+            local.update { state -> state.copy(infoMessage = state.infoMessage?.takeIf { it != "正在整理记录…" }) }
+        } ?: return
         if (result !is AdvisorChatResult.Success) {
-            local.update { it.copy(infoMessage = "记录整理失败，这一轮没有生成记录；聊天内容不受影响。") }
+            local.update { it.copy(infoMessage = "记录整理失败；没有创建草案或应用记录。") }
             return
         }
-        // 提取期间授权/接收方变化：放弃，不写任何东西。
-        val after = consentRepository.current()
-        if (after.epoch != epoch ||
-            !after.isValidFor(runtime.endpoint) ||
-            !after.enabled(ConsentCategory.PROGRESS)
-        ) {
-            return
-        }
-        val allowedIds = goals.map { it.id }.toSet()
-        val draft = when (val parsed = RecordProposalParser.parse(result.content, userText, allowedGoalIds = allowedIds)) {
-            is RecordProposalParseResult.Success -> parsed.draft ?: return
-            is RecordProposalParseResult.Failure -> {
-                local.update { it.copy(infoMessage = "没有整理出可写入的记录；可补充目标、数值和单位后再试。") }
-                return
+        withAiRequestBoundary(binding, required) {
+            val stale = insightReference?.let { reference -> insightReferenceError(reference) }
+            if (stale != null) {
+                local.update { it.copy(infoMessage = "$stale；没有创建记录草案") }
+                return@withAiRequestBoundary
             }
-        }
-        val stored = runCatching {
-            recordRepository.save(assistantMessageId, draft, expectedRestoreGeneration)
-        }.getOrNull() ?: return
-
-        val autoApply = RecordProposalRules.shouldAutoApply(draft, after.enabled(ConsentCategory.PROGRESS))
-        if (!autoApply) {
-            local.update {
-                it.copy(
-                    recordAction = RecordActionUiState(
+            val allowedIds = data.goals.map { it.id }.toSet()
+            val parsedDraft = when (val parsed = RecordProposalParser.parse(result.content, userText, allowedGoalIds = allowedIds)) {
+                is RecordProposalParseResult.Success -> parsed.draft
+                is RecordProposalParseResult.Failure -> {
+                    local.update { it.copy(infoMessage = "没有整理出可写入的记录；没有创建草案。") }
+                    null
+                }
+            } ?: return@withAiRequestBoundary
+            val draft = parsedDraft.copy(
+                sourceMessageIds = sourceIds,
+                sourceLinkKnown = true,
+                sourceInsightReference = insightReference,
+            )
+            val stored = recordRepository.save(assistantMessageId, draft, binding.restoreGeneration)
+            val autoApply = RecordProposalRules.shouldAutoApply(draft, binding.consent.enabled(ConsentCategory.PROGRESS))
+            if (!autoApply) {
+                local.update {
+                    it.copy(recordAction = RecordActionUiState(
                         proposalId = stored.id,
-                        message = if (draft.pendingFields.isNotEmpty()) {
-                            "需要你确认记录信息"
-                        } else {
-                            "建议记录一条进展，确认后才会写入"
-                        },
-                    ),
-                )
+                        message = if (draft.pendingFields.isNotEmpty()) "需要你确认记录信息" else "建议记录一条进展，确认后才会写入",
+                    ))
+                }
+                return@withAiRequestBoundary
             }
-            return
-        }
-        when (val applied = recordApplyService.apply(stored.id, draft)) {
-            is RecordApplyResult.Success -> local.update {
-                it.copy(
-                    recordAction = RecordActionUiState(
+            when (val applied = recordApplyService.apply(stored.id, draft)) {
+                is RecordApplyResult.Success -> local.update {
+                    it.copy(recordAction = RecordActionUiState(
                         proposalId = stored.id,
                         message = "已记录到「${applied.goalTitle}」，可修改或撤销",
-                    ),
-                )
-            }
-            is RecordApplyResult.Failure -> local.update {
-                it.copy(recordAction = RecordActionUiState(proposalId = stored.id, error = applied.message))
+                    ))
+                }
+                is RecordApplyResult.Failure -> local.update {
+                    it.copy(recordAction = RecordActionUiState(proposalId = stored.id, error = applied.message))
+                }
             }
         }
     }
@@ -1147,75 +1356,66 @@ class AdvisorViewModel(
         assistantMessageId: String,
         transcript: List<String>,
         sourceIds: List<String>,
-        epoch: Long,
-        runtime: com.mengyalife.app.domain.advisor.AdvisorRuntimeConfig,
-        engine: AdvisorEngine,
-        expectedRestoreGeneration: Long,
+        binding: AiRequestBinding,
+        insightReference: InsightReference?,
     ) {
-        val consent = consentRepository.current()
-        if (consent.epoch != epoch) return
-        if (!consent.enabled(ConsentCategory.JOURNAL)) {
-            local.update {
-                it.copy(infoMessage = "未授权「日记」类别，本次没有整理日记；可在设置 → AI 与隐私中开启。")
-            }
+        if (!binding.consent.enabled(ConsentCategory.JOURNAL)) {
+            local.update { it.copy(infoMessage = "未授权「日记」类别，本次没有整理日记。") }
             return
         }
+        val required = setOf(ConsentCategory.JOURNAL) +
+            if (transcript.size > 1) setOf(ConsentCategory.CONVERSATION) else emptySet()
         local.update { it.copy(infoMessage = "正在整理日记…") }
         val prompt = AdvisorRules.diaryExtractionPrompt(
             transcriptLines = transcript,
             today = java.time.LocalDate.now().toString(),
         )
         val result = try {
-            engine.chat(
-                config = runtime,
+            requestAi(
+                binding = binding,
+                requiredCategories = required,
                 messages = listOf(
                     com.mengyalife.app.domain.advisor.AdvisorChatMessage(role = "system", content = prompt),
-                    com.mengyalife.app.domain.advisor.AdvisorChatMessage(
-                        role = "user",
-                        content = transcript.joinToString("\n"),
-                    ),
+                    com.mengyalife.app.domain.advisor.AdvisorChatMessage(role = "user", content = transcript.joinToString("\n")),
                 ),
                 maxTokens = 900,
+                insightReference = insightReference,
             )
         } finally {
-            local.update { state ->
-                state.copy(infoMessage = state.infoMessage?.takeIf { it != "正在整理日记…" })
-            }
-        }
+            local.update { state -> state.copy(infoMessage = state.infoMessage?.takeIf { it != "正在整理日记…" }) }
+        } ?: return
         if (result !is AdvisorChatResult.Success) {
-            local.update { it.copy(infoMessage = "日记整理失败，这一轮没有生成草稿；聊天内容不受影响。") }
+            local.update { it.copy(infoMessage = "日记整理失败；没有创建草稿。") }
             return
         }
-        val after = consentRepository.current()
-        if (after.epoch != epoch || !after.isValidFor(runtime.endpoint) || !after.enabled(ConsentCategory.JOURNAL)) {
-            return
-        }
-        val draft = when (val parsed = RecordProposalParser.parse(result.content, userText)) {
-            is RecordProposalParseResult.Success -> parsed.draft ?: return
-            is RecordProposalParseResult.Failure -> {
-                local.update { it.copy(infoMessage = "没有整理出日记草稿，可以多聊几句再试。") }
-                return
+        withAiRequestBoundary(binding, required) {
+            val stale = insightReference?.let { reference -> insightReferenceError(reference) }
+            if (stale != null) {
+                local.update { it.copy(infoMessage = "$stale；没有创建日记草稿") }
+                return@withAiRequestBoundary
             }
-        }
-        if (!draft.isDiary || draft.diaryBody.isNullOrBlank()) return
-        val stored = runCatching {
-            recordRepository.save(
-                assistantMessageId,
-                draft.copy(sourceMessageIds = sourceIds),
-                expectedRestoreGeneration,
+            val parsedDraft = when (val parsed = RecordProposalParser.parse(result.content, userText)) {
+                is RecordProposalParseResult.Success -> parsed.draft
+                is RecordProposalParseResult.Failure -> {
+                    local.update { it.copy(infoMessage = "没有整理出日记草稿；没有创建候选。") }
+                    null
+                }
+            } ?: return@withAiRequestBoundary
+            if (!parsedDraft.isDiary || parsedDraft.diaryBody.isNullOrBlank()) return@withAiRequestBoundary
+            val draft = parsedDraft.copy(
+                sourceMessageIds = sourceIds,
+                sourceLinkKnown = true,
+                sourceInsightReference = insightReference,
             )
-        }.getOrNull() ?: return
-        local.update {
-            it.copy(
-                recordAction = RecordActionUiState(
+            val stored = recordRepository.save(assistantMessageId, draft, binding.restoreGeneration)
+            local.update {
+                it.copy(recordAction = RecordActionUiState(
                     proposalId = stored.id,
                     message = if (draft.intent == com.mengyalife.app.domain.advisor.RecordIntent.EXPLICIT) {
                         "日记草稿已生成，确认后保存到日记"
-                    } else {
-                        "这段经历可以整理成日记，确认后才会保存"
-                    },
-                ),
-            )
+                    } else "这段经历可以整理成日记，确认后才会保存",
+                ))
+            }
         }
     }
 
@@ -1228,42 +1428,45 @@ class AdvisorViewModel(
         assistantMessageId: String,
         sourceIds: List<String>,
         data: AdvisorContextSnapshot,
+        binding: AiRequestBinding,
+        insightReference: InsightReference?,
     ) {
-        val active = data.plans.filter { it.status == "ACTIVE" }
-        if (active.isEmpty()) return
-        val chosen = if (active.size == 1) {
-            active.single()
-        } else {
-            active.firstOrNull { plan ->
+        withAiRequestBoundary(binding, setOf(ConsentCategory.GOALS)) {
+            val stale = insightReference?.let { reference -> insightReferenceError(reference) }
+            if (stale != null) {
+                local.update { it.copy(infoMessage = "$stale；没有创建执行草案") }
+                return@withAiRequestBoundary
+            }
+            val active = data.plans.filter { it.status == "ACTIVE" }
+            if (active.isEmpty()) return@withAiRequestBoundary
+            val chosen = if (active.size == 1) active.single() else active.firstOrNull { plan ->
                 val keyword = plan.title.replace(Regex("[\\s\\p{Punct}，。]"), "").take(6)
                 keyword.isNotEmpty() && userText.contains(keyword.take(2))
             }
-        }
-        if (chosen == null) {
-            local.update { it.copy(infoMessage = "有多个进行中的计划，请说清是哪一个。") }
-            return
-        }
-        val draft = RecordProposalDraft(
-            kind = RecordKind.PLAN_PROGRESS,
-            goalId = null, goalTitle = null, goalCandidates = emptyList(),
-            amountKind = RecordAmountKind.NONE, metricValue = null, metricUnit = null,
-            note = userText.trim(), occurredAt = null, pendingFields = emptyList(),
-            intent = RecordIntent.EXPLICIT, originalText = userText.trim(),
-            planProgress = com.mengyalife.app.domain.advisor.PlanProgressDraft(
-                planId = chosen.id, planTitle = chosen.title, note = userText.trim(),
-            ),
-            sourceMessageIds = sourceIds,
-        )
-        val stored = runCatching {
-            recordRepository.save(assistantMessageId, draft, null)
-        }.getOrNull() ?: return
-        local.update {
-            it.copy(
-                recordAction = RecordActionUiState(
+            if (chosen == null) {
+                local.update { it.copy(infoMessage = "有多个进行中的计划，请说清是哪一个。") }
+                return@withAiRequestBoundary
+            }
+            val draft = RecordProposalDraft(
+                kind = RecordKind.PLAN_PROGRESS,
+                goalId = null, goalTitle = null, goalCandidates = emptyList(),
+                amountKind = RecordAmountKind.NONE, metricValue = null, metricUnit = null,
+                note = userText.trim(), occurredAt = null, pendingFields = emptyList(),
+                intent = RecordIntent.EXPLICIT, originalText = userText.trim(),
+                planProgress = com.mengyalife.app.domain.advisor.PlanProgressDraft(
+                    planId = chosen.id, planTitle = chosen.title, note = userText.trim(),
+                ),
+                sourceMessageIds = sourceIds,
+                sourceLinkKnown = true,
+                sourceInsightReference = insightReference,
+            )
+            val stored = recordRepository.save(assistantMessageId, draft, binding.restoreGeneration)
+            local.update {
+                it.copy(recordAction = RecordActionUiState(
                     proposalId = stored.id,
                     message = "记下这次执行？确认后计入「${chosen.title}」",
-                ),
-            )
+                ))
+            }
         }
     }
 
@@ -1271,140 +1474,74 @@ class AdvisorViewModel(
         userText: String,
         assistantMessageId: String,
         sourceIds: List<String>,
-        epoch: Long,
-        data: AdvisorContextSnapshot,
-        runtime: com.mengyalife.app.domain.advisor.AdvisorRuntimeConfig,
-        engine: AdvisorEngine,
-        expectedRestoreGeneration: Long,
+        binding: AiRequestBinding,
         insightReference: InsightReference? = null,
     ) {
-        val explicit = com.mengyalife.app.domain.advisor.PlanDraftFactory.explicitCreate(userText)
-        val statusIntent = com.mengyalife.app.domain.advisor.PlanDraftFactory.statusIntent(userText)
-        val consent = consentRepository.current()
-        if (consent.epoch != epoch) return
-        if (!consent.enabled(ConsentCategory.GOALS)) {
+        val required = setOf(ConsentCategory.GOALS)
+        if (!binding.consent.enabled(ConsentCategory.GOALS)) {
             local.update { it.copy(infoMessage = "未授权「目标」类别，本次没有生成小计划草稿。") }
             return
         }
-        suspend fun insightStillCurrent(): Boolean {
-            val reference = insightReference ?: return true
-            val service = insightService ?: run {
-                local.update { it.copy(infoMessage = "成长建议来源无法验证；计划草稿未保存。") }
-                return false
-            }
-            return when (val resolution = service.resolveCurrentReference(reference)) {
-                is InsightReferenceResolution.Current -> true
-                is InsightReferenceResolution.Stale -> {
-                    local.update { it.copy(infoMessage = "${resolution.reason}；计划草稿未保存。") }
-                    false
-                }
-            }
-        }
-        suspend fun fallback(reason: String) {
-            val draft = when {
-                statusIntent != null -> com.mengyalife.app.domain.advisor.PlanDraftFactory.buildStatus(
-                    plans = data.plans,
-                    newStatus = statusIntent,
-                    text = userText,
-                    intent = if (explicit) RecordIntent.EXPLICIT else RecordIntent.SUGGESTED,
-                )
-                com.mengyalife.app.domain.advisor.PlanIntentGate.looksLikeCreate(userText) -> {
-                    com.mengyalife.app.domain.advisor.PlanDraftFactory.buildCreate(
-                        text = userText,
-                        intent = if (explicit) RecordIntent.EXPLICIT else RecordIntent.SUGGESTED,
-                    )
-                }
-                else -> null
-            }
-            if (draft == null) {
-                local.update { it.copy(infoMessage = reason) }
-                return
-            }
-            if (!insightStillCurrent()) return
-            val stored = runCatching {
-                recordRepository.save(assistantMessageId, draft.copy(sourceMessageIds = sourceIds), expectedRestoreGeneration)
-            }.getOrNull()
-            if (stored == null) {
-                local.update { it.copy(infoMessage = "计划草稿保存失败，请再试一次。") }
-                return
-            }
-            val change = draft.planChange
-            local.update {
-                it.copy(
-                    recordAction = RecordActionUiState(
-                        proposalId = stored.id,
-                        message = if (change?.change == PlanChangeKind.STATUS) {
-                            "计划状态变更草稿，确认后才会更新"
-                        } else if (draft.intent == RecordIntent.EXPLICIT) {
-                            "好，先记作「${change?.title.orEmpty()}」；确认后才会保存"
-                        } else {
-                            "要把这件事记成小计划吗？确认后才会保存"
-                        },
-                    ),
-                )
-            }
-        }
-
-        val planLines = data.plans.take(10).map {
-            "[计划#${it.id}] ${it.title}（${it.status}${it.timeScope?.let { s0 -> "，$s0" } ?: ""}）"
+        val planLines = binding.data.plans.take(10).map {
+            "[计划#${it.id}] ${it.title}（${it.status}${it.timeScope?.let { scope -> "，$scope" } ?: ""}）"
         }
         val prompt = AdvisorRules.planExtractionPrompt(
             planLines = planLines,
-            goalLines = data.goals.take(12).map { "[目标#${it.id}] ${it.title}" },
+            goalLines = binding.data.goals.take(12).map { "[目标#${it.id}] ${it.title}" },
             today = java.time.LocalDate.now().toString(),
         )
         local.update { it.copy(infoMessage = "正在整理小计划…") }
         val result = try {
-            engine.chat(
-                config = runtime,
+            requestAi(
+                binding = binding,
+                requiredCategories = required,
                 messages = listOf(
                     com.mengyalife.app.domain.advisor.AdvisorChatMessage(role = "system", content = prompt),
                     com.mengyalife.app.domain.advisor.AdvisorChatMessage(role = "user", content = userText),
                 ),
                 maxTokens = 700,
+                insightReference = insightReference,
             )
         } finally {
-            local.update { s0 -> s0.copy(infoMessage = s0.infoMessage?.takeIf { it != "正在整理小计划…" }) }
-        }
+            local.update { state -> state.copy(infoMessage = state.infoMessage?.takeIf { it != "正在整理小计划…" }) }
+        } ?: return
         if (result !is AdvisorChatResult.Success) {
-            return fallback("小计划整理失败，已尝试用你的原话生成草稿。")
+            local.update { it.copy(infoMessage = "小计划提取失败；未创建草案。") }
+            return
         }
-        val parsedDraft = when (val parsed = RecordProposalParser.parse(result.content, userText)) {
-            is RecordProposalParseResult.Success -> parsed.draft
-            is RecordProposalParseResult.Failure -> null
-        }
-        if (parsedDraft == null || !parsedDraft.isPlan) {
-            return fallback("这次没有整理出计划草稿，可以换句话再说一次。")
-        }
-        if (!insightStillCurrent()) return
-        val planChange = parsedDraft.planChange
-        val enriched = if (planChange?.change == PlanChangeKind.STATUS) {
-            val target = data.plans.firstOrNull { it.id == planChange.targetPlanId }
-            parsedDraft.copy(planChange = planChange.copy(title = target?.title ?: planChange.title))
-        } else {
-            parsedDraft
-        }
-        val stored = runCatching {
-            recordRepository.save(
-                assistantMessageId,
-                enriched.copy(sourceMessageIds = sourceIds),
-                expectedRestoreGeneration = expectedRestoreGeneration,
+        withAiRequestBoundary(binding, required) {
+            val stale = insightReference?.let { reference -> insightReferenceError(reference) }
+            if (stale != null) {
+                local.update { it.copy(infoMessage = "$stale；未创建计划草案") }
+                return@withAiRequestBoundary
+            }
+            val parsedDraft = when (val parsed = RecordProposalParser.parse(result.content, userText)) {
+                is RecordProposalParseResult.Success -> parsed.draft
+                is RecordProposalParseResult.Failure -> null
+            }
+            if (parsedDraft == null || !parsedDraft.isPlan) {
+                local.update { it.copy(infoMessage = "这次没有整理出计划草案；没有创建候选。") }
+                return@withAiRequestBoundary
+            }
+            val planChange = parsedDraft.planChange
+            val enriched = if (planChange?.change == PlanChangeKind.STATUS) {
+                val target = binding.data.plans.firstOrNull { it.id == planChange.targetPlanId }
+                parsedDraft.copy(planChange = planChange.copy(title = target?.title ?: planChange.title))
+            } else parsedDraft
+            val draft = enriched.copy(
+                sourceMessageIds = sourceIds,
+                sourceLinkKnown = true,
+                sourceInsightReference = insightReference,
             )
-        }.getOrNull()
-        if (stored == null) {
-            return fallback("计划草稿保存失败，已尝试用你的原话生成草稿。")
-        }
-        local.update {
-            it.copy(
-                recordAction = RecordActionUiState(
+            val stored = recordRepository.save(assistantMessageId, draft, binding.restoreGeneration)
+            local.update {
+                it.copy(recordAction = RecordActionUiState(
                     proposalId = stored.id,
                     message = if (planChange?.change == PlanChangeKind.STATUS) {
                         "计划状态变更草稿，确认后才会更新"
-                    } else {
-                        "要记下这件事吗？确认后才会保存"
-                    },
-                ),
-            )
+                    } else "要记下这件事吗？确认后才会保存",
+                ))
+            }
         }
     }
 
@@ -1412,19 +1549,13 @@ class AdvisorViewModel(
         userText: String,
         assistantMessageId: String,
         sourceIds: List<String>,
-        epoch: Long,
         data: AdvisorContextSnapshot,
-        runtime: com.mengyalife.app.domain.advisor.AdvisorRuntimeConfig,
-        engine: AdvisorEngine,
-        expectedRestoreGeneration: Long,
+        binding: AiRequestBinding,
         insightReference: InsightReference? = null,
     ) {
-        val consent = consentRepository.current()
-        if (consent.epoch != epoch) return
-        if (!consent.enabled(ConsentCategory.GOALS)) {
-            local.update {
-                it.copy(infoMessage = "未授权「目标」类别，本次没有生成目标草稿；可在设置 → AI 与隐私中开启。")
-            }
+        val required = setOf(ConsentCategory.GOALS)
+        if (!binding.consent.enabled(ConsentCategory.GOALS)) {
+            local.update { it.copy(infoMessage = "未授权「目标」类别，本次没有生成目标草稿。") }
             return
         }
         val goals = data.goals
@@ -1439,95 +1570,74 @@ class AdvisorViewModel(
         )
         local.update { it.copy(infoMessage = "正在整理目标…") }
         val result = try {
-            engine.chat(
-                config = runtime,
+            requestAi(
+                binding = binding,
+                requiredCategories = required,
                 messages = listOf(
                     com.mengyalife.app.domain.advisor.AdvisorChatMessage(role = "system", content = prompt),
                     com.mengyalife.app.domain.advisor.AdvisorChatMessage(role = "user", content = userText),
                 ),
                 maxTokens = 800,
+                insightReference = insightReference,
             )
         } finally {
-            local.update { state ->
-                state.copy(infoMessage = state.infoMessage?.takeIf { it != "正在整理目标…" })
-            }
-        }
+            local.update { state -> state.copy(infoMessage = state.infoMessage?.takeIf { it != "正在整理目标…" }) }
+        } ?: return
         if (result !is AdvisorChatResult.Success) {
-            local.update { it.copy(infoMessage = "目标整理失败，这一轮没有生成草稿；聊天内容不受影响。") }
+            local.update { it.copy(infoMessage = "目标提取失败；没有创建草案。") }
             return
         }
-        val after = consentRepository.current()
-        if (after.epoch != epoch || !after.isValidFor(runtime.endpoint) || !after.enabled(ConsentCategory.GOALS)) {
-            return
-        }
-        val draft = when (val parsed = RecordProposalParser.parse(
-            raw = result.content,
-            originalText = userText,
-            allowedGoalIds = goals.map { it.id }.toSet(),
-        )) {
-            is RecordProposalParseResult.Success -> parsed.draft ?: return
-            is RecordProposalParseResult.Failure -> {
-                local.update { it.copy(infoMessage = "没有整理出目标草稿，可以再明确一点想改什么。") }
-                return
+        withAiRequestBoundary(binding, required) {
+            val stale = insightReference?.let { reference -> insightReferenceError(reference) }
+            if (stale != null) {
+                local.update { it.copy(infoMessage = "$stale；目标草稿未保存") }
+                return@withAiRequestBoundary
             }
-        }
-        if (!draft.isGoal) return
-        val change = draft.goalChange ?: return
-        if (change.change == GoalChangeKind.CREATE) {
-            val duplicate = goals.any { it.title.trim() == change.title?.trim() }
-            if (duplicate) {
+            val draft = when (val parsed = RecordProposalParser.parse(
+                raw = result.content,
+                originalText = userText,
+                allowedGoalIds = goals.map { it.id }.toSet(),
+            )) {
+                is RecordProposalParseResult.Success -> parsed.draft
+                is RecordProposalParseResult.Failure -> {
+                    local.update { it.copy(infoMessage = "没有整理出目标草稿；没有创建候选。") }
+                    null
+                }
+            } ?: return@withAiRequestBoundary
+            if (!draft.isGoal) return@withAiRequestBoundary
+            val change = draft.goalChange ?: return@withAiRequestBoundary
+            if (change.change == GoalChangeKind.CREATE && goals.any { it.title.trim() == change.title?.trim() }) {
                 local.update { it.copy(infoMessage = "已经有同名目标，没有重复创建；可以直接说想怎么调整它。") }
-                return
+                return@withAiRequestBoundary
             }
-        }
-        val similar = if (change.change == GoalChangeKind.CREATE) {
-            goals.firstOrNull { existing ->
+            val similar = if (change.change == GoalChangeKind.CREATE) goals.firstOrNull { existing ->
                 val a = existing.title.replace(Regex("[\\s\\p{Punct}，。]"), "")
                 val b = change.title.orEmpty().replace(Regex("[\\s\\p{Punct}，。]"), "")
                 a.length >= 4 && b.length >= 4 && (a.contains(b) || b.contains(a)) && a != b
+            } else null
+            val target = goals.firstOrNull { it.id == change.targetGoalId }
+            if (change.change != GoalChangeKind.CREATE && target == null) {
+                local.update { it.copy(infoMessage = "没找到要修改的目标，请说出它的完整名称再试。") }
+                return@withAiRequestBoundary
             }
-        } else {
-            null
-        }
-        val similarWarning = similar?.let { "与已有目标「${it.title}」相近，请确认是否同一个" }
-        val target = goals.firstOrNull { it.id == change.targetGoalId }
-        if (change.change != GoalChangeKind.CREATE && target == null) {
-            local.update { it.copy(infoMessage = "没找到要修改的目标，请说出它的完整名称再试。") }
-            return
-        }
-        val enriched = draft.copy(
-            goalChange = change.copy(
-                uncertain = change.uncertain + listOfNotNull(similarWarning),
-                before = target?.let {
-                    GoalBeforeSnapshot(
-                        goalId = it.id,
-                        title = it.title,
-                        levelName = it.level.name,
-                        domainName = it.domain.name,
-                        dueAt = it.dueDate,
-                        parentId = it.parentId,
-                    )
-                },
-            ),
-            sourceMessageIds = sourceIds,
-        )
-        insightReference?.let { reference ->
-            val staleReason = insightReferenceError(reference)
-            if (staleReason != null) {
-                local.update { it.copy(infoMessage = "$staleReason；目标草稿未保存") }
-                return
+            val enriched = draft.copy(
+                goalChange = change.copy(
+                    uncertain = change.uncertain + listOfNotNull(similar?.let { "与已有目标「${it.title}」相近，请确认是否同一个" }),
+                    before = target?.let {
+                        GoalBeforeSnapshot(it.id, it.title, it.level.name, it.domain.name, it.dueDate, it.parentId)
+                    },
+                ),
+                sourceMessageIds = sourceIds,
+                sourceLinkKnown = true,
+                sourceInsightReference = insightReference,
+            )
+            val stored = recordRepository.save(assistantMessageId, enriched, binding.restoreGeneration)
+            val message = when (change.change) {
+                GoalChangeKind.CREATE -> "目标草稿已生成，确认后写入目标树"
+                GoalChangeKind.UPDATE -> "目标变更草稿已生成，确认后才会修改"
+                GoalChangeKind.BREAKDOWN -> "拆解建议已生成，选择后才会创建"
             }
-        }
-        val stored = runCatching {
-            recordRepository.save(assistantMessageId, enriched, expectedRestoreGeneration)
-        }.getOrNull() ?: return
-        val promptText = when (change.change) {
-            GoalChangeKind.CREATE -> "目标草稿已生成，确认后写入目标树"
-            GoalChangeKind.UPDATE -> "目标变更草稿已生成，确认后才会修改"
-            GoalChangeKind.BREAKDOWN -> "拆解建议已生成，选择后才会创建"
-        }
-        local.update {
-            it.copy(recordAction = RecordActionUiState(proposalId = stored.id, message = promptText))
+            local.update { it.copy(recordAction = RecordActionUiState(proposalId = stored.id, message = message)) }
         }
     }
 
@@ -1549,135 +1659,140 @@ class AdvisorViewModel(
 
     private fun confirmRecord(proposalId: String, draft: RecordProposalDraft) {
         if (recording || applying) return
-        val stored = uiState.value.records.values.firstOrNull { it.id == proposalId } ?: return
+        if (uiState.value.records.values.none { it.id == proposalId }) return
         recording = true
         local.update { it.copy(recordAction = RecordActionUiState(proposalId = proposalId, loading = true)) }
+        val expectedGeneration = restoreGeneration()
         viewModelScope.launch {
             try {
-                findInsightReferenceForMessages(stored.draft.sourceMessageIds)?.let { reference ->
-                    val staleReason = insightReferenceError(reference)
-                    if (staleReason != null) {
-                        local.update {
-                            it.copy(recordAction = RecordActionUiState(proposalId = proposalId, error = "$staleReason；草案未保存"))
+                val barrier = restoreWriteBarrier
+                if (barrier == null) {
+                    local.update { it.copy(recordAction = RecordActionUiState(proposalId, error = "恢复安全边界不可用，草案未保存")) }
+                    return@launch
+                }
+                barrier.withWrite(expectedGeneration) {
+                    if (restoreGateActive()) {
+                        local.update { it.copy(recordAction = RecordActionUiState(proposalId, error = "恢复维护中，草案未保存")) }
+                        return@withWrite
+                    }
+                    val stored = recordRepository.findById(proposalId)
+                    if (stored == null) {
+                        local.update { it.copy(recordAction = RecordActionUiState(proposalId, error = "草案不存在，未写入")) }
+                        return@withWrite
+                    }
+                    val explicitNoLinkHasInsightMarker = stored.draft.sourceLinkKnown &&
+                        stored.draft.sourceInsightReference == null &&
+                        findLegacyInsightLink(stored.draft.sourceMessageIds, stored.messageId).hasInsightMarker
+                    val link = when {
+                        stored.draft.sourceLinkInvalid -> LegacyInsightLink(true, null)
+                        stored.draft.sourceLinkKnown -> LegacyInsightLink(
+                            hasInsightMarker = stored.draft.sourceInsightReference != null,
+                            reference = stored.draft.sourceInsightReference,
+                        )
+                        else -> findLegacyInsightLink(stored.draft.sourceMessageIds, stored.messageId)
+                    }
+                    if (stored.draft.sourceLinkInvalid || explicitNoLinkHasInsightMarker ||
+                        (link.hasInsightMarker && link.reference == null)
+                    ) {
+                        local.update { it.copy(recordAction = RecordActionUiState(
+                            proposalId = proposalId, error = "洞察来源链无法验证，草案未保存",
+                        )) }
+                        return@withWrite
+                    }
+                    link.reference?.let { reference ->
+                        val stale = insightReferenceError(reference)
+                        if (stale != null) {
+                            local.update { it.copy(recordAction = RecordActionUiState(
+                                proposalId = proposalId, error = "$stale；草案未保存",
+                            )) }
+                            return@withWrite
                         }
-                        return@launch
                     }
-                }
-                if (stored.draft.isPlanProgress) {
-                    val out = planApplyService.applyProgress(proposalId)
-                    local.update {
-                        it.copy(
-                            recordAction = when (out) {
-                                is PlanApplyResult.Success -> RecordActionUiState(
-                                    proposalId = proposalId,
-                                    message = "记下了这次执行，计划仍保持原状态",
-                                )
-                                is PlanApplyResult.Failure -> RecordActionUiState(
-                                    proposalId = proposalId,
-                                    error = out.message,
-                                )
-                            },
-                        )
-                    }
-                    return@launch
-                }
-                if (stored.draft.isPlan) {
-                    val out = if (stored.isDraft && !recordRepository.updateDraft(proposalId, draft)) {
-                        PlanApplyResult.Failure("候选已被处理或状态已变化，请重新打开")
-                    } else {
-                        planApplyService.apply(proposalId)
-                    }
-                    local.update {
-                        it.copy(
-                            recordAction = when (out) {
-                                is PlanApplyResult.Success -> RecordActionUiState(
-                                    proposalId = proposalId,
-                                    message = "已记下这件事，之后可以接着说进展",
-                                )
-                                is PlanApplyResult.Failure -> RecordActionUiState(
-                                    proposalId = proposalId,
-                                    error = out.message,
-                                )
-                            },
-                        )
-                    }
-                    return@launch
-                }
-                if (stored.draft.isGoal) {
-                    val out = goalApplyService.apply(proposalId)
-                    local.update {
-                        it.copy(
-                            recordAction = when (out) {
-                                is GoalApplyResult.Success -> RecordActionUiState(
-                                    proposalId = proposalId,
-                                    message = "已保存到目标，可查看或继续调整",
-                                    openGoalId = out.goalIds.firstOrNull(),
-                                )
-                                is GoalApplyResult.Failure -> RecordActionUiState(
-                                    proposalId = proposalId,
-                                    error = out.message,
-                                )
-                            },
-                        )
-                    }
-                    return@launch
-                }
-                if (stored.draft.isDiary) {
-                    val out = if (stored.isApplied) {
-                        diaryApplyService.editApplied(proposalId, draft)
-                    } else if (!recordRepository.updateDraft(proposalId, draft)) {
-                        DiaryApplyResult.Failure("候选已被处理或状态已变化，请重新打开")
-                    } else {
-                        diaryApplyService.apply(proposalId)
-                    }
-                    local.update {
-                        it.copy(
-                            recordAction = when (out) {
-                                is DiaryApplyResult.Success -> RecordActionUiState(
-                                    proposalId = proposalId,
-                                    message = if (stored.isApplied) "已更新这篇日记" else "已保存到日记，可在日记页查看",
-                                    openDiaryEntryId = out.entryId,
-                                )
-                                is DiaryApplyResult.Failure -> RecordActionUiState(
-                                    proposalId = proposalId,
-                                    error = out.message,
-                                )
-                            },
-                        )
-                    }
-                    return@launch
-                }
-                val outcome: RecordApplyResult = if (stored.isApplied) {
-                    recordApplyService.editApplied(proposalId, draft)
-                } else {
-                    if (!recordRepository.updateDraft(proposalId, draft)) {
-                        RecordApplyResult.Failure("候选已被处理或状态已变化，请重新打开")
-                    } else {
-                        recordApplyService.apply(proposalId, draft)
-                    }
-                }
-                local.update {
-                    it.copy(
-                        recordAction = when (outcome) {
-                            is RecordApplyResult.Success -> RecordActionUiState(
-                                proposalId = proposalId,
-                                message = if (stored.isApplied) {
-                                    "已更新这条进展记录"
-                                } else {
-                                    "已记录到「${outcome.goalTitle}」，可修改或撤销"
-                                },
-                            )
-                            is RecordApplyResult.Failure -> RecordActionUiState(
-                                proposalId = proposalId,
-                                error = outcome.message,
-                            )
-                        },
+                    val durableDraft = draft.copy(
+                        sourceMessageIds = stored.draft.sourceMessageIds,
+                        sourceLinkKnown = stored.draft.sourceLinkKnown,
+                        sourceLinkInvalid = stored.draft.sourceLinkInvalid,
+                        sourceInsightReference = stored.draft.sourceInsightReference,
                     )
+                    confirmStoredRecord(stored, durableDraft, link.reference, expectedGeneration)
                 }
+            } catch (error: RestoreException) {
+                local.update { it.copy(recordAction = RecordActionUiState(
+                    proposalId = proposalId, error = "${error.message ?: "恢复维护中"}；草案未保存",
+                )) }
             } finally {
                 recording = false
             }
         }
+    }
+
+    private suspend fun confirmStoredRecord(
+        stored: StoredRecordProposal,
+        draft: RecordProposalDraft,
+        insightReference: InsightReference?,
+        expectedRestoreGeneration: Long,
+    ) {
+        val proposalId = stored.id
+        if (stored.draft.isPlanProgress) {
+            val out = planApplyService.applyProgressValidated(proposalId, expectedRestoreGeneration) {
+                insightReference?.let { insightReferenceError(it) }
+            }
+            local.update { it.copy(recordAction = when (out) {
+                is PlanApplyResult.Success -> RecordActionUiState(proposalId, message = "记下了这次执行，计划仍保持原状态")
+                is PlanApplyResult.Failure -> RecordActionUiState(proposalId, error = out.message)
+            }) }
+            return
+        }
+        if (stored.draft.isPlan) {
+            val out = if (stored.isDraft && !recordRepository.updateDraft(proposalId, draft)) {
+                PlanApplyResult.Failure("候选已被处理或状态已变化，请重新打开")
+            } else planApplyService.applyValidated(proposalId, expectedRestoreGeneration) {
+                insightReference?.let { insightReferenceError(it) }
+            }
+            local.update { it.copy(recordAction = when (out) {
+                is PlanApplyResult.Success -> RecordActionUiState(proposalId, message = "已记下这件事，之后可以接着说进展")
+                is PlanApplyResult.Failure -> RecordActionUiState(proposalId, error = out.message)
+            }) }
+            return
+        }
+        if (stored.draft.isGoal) {
+            val out = goalApplyService.apply(proposalId)
+            local.update { it.copy(recordAction = when (out) {
+                is GoalApplyResult.Success -> RecordActionUiState(
+                    proposalId, message = "已保存到目标，可查看或继续调整", openGoalId = out.goalIds.firstOrNull(),
+                )
+                is GoalApplyResult.Failure -> RecordActionUiState(proposalId, error = out.message)
+            }) }
+            return
+        }
+        if (stored.draft.isDiary) {
+            val out = if (stored.isApplied) {
+                diaryApplyService.editApplied(proposalId, draft)
+            } else if (!recordRepository.updateDraft(proposalId, draft)) {
+                DiaryApplyResult.Failure("候选已被处理或状态已变化，请重新打开")
+            } else diaryApplyService.apply(proposalId)
+            local.update { it.copy(recordAction = when (out) {
+                is DiaryApplyResult.Success -> RecordActionUiState(
+                    proposalId,
+                    message = if (stored.isApplied) "已更新这篇日记" else "已保存到日记，可在日记页查看",
+                    openDiaryEntryId = out.entryId,
+                )
+                is DiaryApplyResult.Failure -> RecordActionUiState(proposalId, error = out.message)
+            }) }
+            return
+        }
+        val outcome = if (stored.isApplied) {
+            recordApplyService.editApplied(proposalId, draft)
+        } else if (!recordRepository.updateDraft(proposalId, draft)) {
+            RecordApplyResult.Failure("候选已被处理或状态已变化，请重新打开")
+        } else recordApplyService.apply(proposalId, draft)
+        local.update { it.copy(recordAction = when (outcome) {
+            is RecordApplyResult.Success -> RecordActionUiState(
+                proposalId,
+                message = if (stored.isApplied) "已更新这条进展记录" else "已记录到「${outcome.goalTitle}」，可修改或撤销",
+            )
+            is RecordApplyResult.Failure -> RecordActionUiState(proposalId, error = outcome.message)
+        }) }
     }
 
     private fun updateRecordDraft(proposalId: String, draft: RecordProposalDraft) {
@@ -1819,6 +1934,7 @@ class AdvisorViewModel(
                     fakeEngine = app.container.fakeAdvisorEngine,
                     restoreGeneration = { app.container.restoreWriteBarrier.generation() },
                     restoreWriteBarrier = app.container.restoreWriteBarrier,
+                    restoreGateActive = { app.container.restoreCoordinator.isGateActive() },
                     insightService = app.container.insightService,
                 )
             }

@@ -16,6 +16,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.Instant
+import java.time.ZoneId
 
 class InsightRulesTest {
     private val now = 1_800_000_000_000L
@@ -187,5 +189,28 @@ class InsightRulesTest {
         assertNotEquals(a.dataVersion, c.dataVersion)
         assertNotEquals(a.dataVersion, renewed.dataVersion)
         assertNotEquals(a.dataVersion, newRecipient.dataVersion)
+    }
+
+    @Test
+    fun `跨午夜与跨时区只改变观察窗口版本不伪报来源修改`() {
+        val payload = AdvisorContextSnapshot(goals = listOf(goal), checkins = checkins)
+        val beforeMidnight = Instant.parse("2026-11-13T15:59:00Z").toEpochMilli()
+        val afterMidnight = Instant.parse("2026-11-13T16:01:00Z").toEpochMilli()
+        val before = InsightRules.build(payload, consent, beforeMidnight, ZoneId.of("Asia/Shanghai"))
+        val after = InsightRules.build(payload, consent, afterMidnight, ZoneId.of("Asia/Shanghai"))
+        assertNotEquals(before.dataVersion, after.dataVersion)
+        assertEquals(before.sourceFingerprint, after.sourceFingerprint)
+
+        val crossZoneInstant = Instant.parse("2026-11-13T16:30:00Z").toEpochMilli()
+        val sameInstantShanghai = InsightRules.build(payload, consent, crossZoneInstant, ZoneId.of("Asia/Shanghai"))
+        val sameInstantUtc = InsightRules.build(payload, consent, crossZoneInstant, ZoneId.of("UTC"))
+        assertNotEquals(sameInstantShanghai.dataVersion, sameInstantUtc.dataVersion)
+        assertEquals(sameInstantShanghai.sourceFingerprint, sameInstantUtc.sourceFingerprint)
+
+        val sameLocalDateInstant = Instant.parse("2026-11-13T04:00:00Z").toEpochMilli()
+        val shanghaiSameDate = InsightRules.build(payload, consent, sameLocalDateInstant, ZoneId.of("Asia/Shanghai"))
+        val utcSameDate = InsightRules.build(payload, consent, sameLocalDateInstant, ZoneId.of("UTC"))
+        assertNotEquals(shanghaiSameDate.dataVersion, utcSameDate.dataVersion)
+        assertEquals(shanghaiSameDate.sourceFingerprint, utcSameDate.sourceFingerprint)
     }
 }

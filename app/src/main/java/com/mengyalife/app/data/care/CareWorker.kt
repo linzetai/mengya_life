@@ -31,6 +31,7 @@ class CareWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             settings = settings,
             preferences = container.carePreferenceRepository,
             restoreGeneration = { container.restoreWriteBarrier.generation() },
+            restoreReady = { !container.restoreCoordinator.isGateActive() },
             database = container.databaseHandle,
             writeBarrier = container.restoreWriteBarrier,
         )

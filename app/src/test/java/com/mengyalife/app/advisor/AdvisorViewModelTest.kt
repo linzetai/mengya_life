@@ -4,6 +4,7 @@ import com.mengyalife.app.domain.advisor.AdvisorContextAssembler
 import com.mengyalife.app.data.advisor.RoomConversationRepository
 import com.mengyalife.app.data.insight.InsightGenerationResult
 import com.mengyalife.app.data.insight.InsightService
+import com.mengyalife.app.data.restore.RestoreWriteBarrier
 import com.mengyalife.app.domain.advisor.AdvisorChatResult
 import com.mengyalife.app.domain.advisor.AdvisorContextSnapshot
 import com.mengyalife.app.domain.advisor.AdvisorError
@@ -21,6 +22,7 @@ import com.mengyalife.app.domain.goals.GoalLevel
 import com.mengyalife.app.domain.goals.GoalStatus
 import com.mengyalife.app.ui.advisor.AdvisorAction
 import com.mengyalife.app.ui.advisor.AdvisorViewModel
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -63,20 +65,24 @@ class AdvisorViewModelTest {
         val engine: ScriptedAdvisorEngine,
         val apply: FakeGoalProposalApply,
         val planApply: FakePlanRecordApply,
+        val progressApply: FakeProgressRecordApply,
         val insightService: InsightService,
         val insightEngine: ScriptedAdvisorEngine,
+        val barrier: RestoreWriteBarrier,
     )
 
     private suspend fun build(
         configured: Boolean = true,
         granted: Boolean = true,
+        categories: Set<ConsentCategory> = AiConsentRules.allCategories,
         engine: ScriptedAdvisorEngine = ScriptedAdvisorEngine(),
         snapshot: AdvisorContextSnapshot = snapshot(),
     ): Fixture {
-        val config = FakeConfigRepository()
+        val barrier = RestoreWriteBarrier(initiallyReady = true)
+        val config = FakeConfigRepository(writeBarrier = barrier)
         if (configured) config.save(endpoint, "deepseek-chat", "sk-test")
-        val consent = FakeConsentRepository()
-        if (granted) consent.grant(endpoint, AiConsentRules.allCategories)
+        val consent = FakeConsentRepository(writeBarrier = barrier)
+        if (granted) consent.grant(endpoint, categories)
         val dao = FakeConversationDao()
         val repository = RoomConversationRepository(dao, now = { System.currentTimeMillis() })
         val data = FakeAdvisorDataRepository(snapshot)
@@ -97,6 +103,7 @@ class AdvisorViewModelTest {
             fakeEngine = null,
             dao = insightDao,
             now = { 1_800_000_000_000L },
+            writeBarrier = barrier,
             newId = { "vm-insight-${++insightId}" },
         )
         val vm = AdvisorViewModel(
@@ -115,10 +122,13 @@ class AdvisorViewModelTest {
             assembler = AdvisorContextAssembler(),
             networkEngine = engine,
             fakeEngine = null,
+            restoreGeneration = { barrier.generation() },
+            restoreWriteBarrier = barrier,
+            restoreGateActive = { !barrier.isReady() },
         )
         return Fixture(
             vm, dao, config, consent, data, proposals, records, engine, apply,
-            planApply, insightService, insightEngine,
+            planApply, recordApply, insightService, insightEngine, barrier,
         )
     }
 
@@ -212,6 +222,91 @@ class AdvisorViewModelTest {
         assertEquals(0, f.engine.calls.size)
         assertNotNull(f.vm.uiState.value.errorMessage)
         assertFalse(f.vm.uiState.value.consentValid)
+    }
+
+    @Test
+    fun `Insight handoff 气泡简短自然而系统仍取得完整依据`() = runTest {
+        val fixture = build(snapshot = growthSnapshot())
+        val (reference, _) = startInsightDiscussion(fixture)
+        val handoff = fixture.vm.uiState.value.messages.first { it.role == AdvisorRole.USER }
+
+        assertTrue(handoff.content.length < 100)
+        assertFalse(handoff.content.contains("factIds"))
+        assertFalse(handoff.content.contains("report="))
+        assertFalse(handoff.content.contains(reference.reportId))
+        assertEquals(reference.reportId, handoff.sources.single { it.type == AdvisorSourceType.INSIGHT }.metadata["reportId"])
+        val actualCall = fixture.engine.calls.single().joinToString("\n") { it.content }
+        assertTrue(actualCall.contains("no-recent-progress-7"))
+        assertTrue(actualCall.contains(reference.reportId))
+    }
+
+    @Test
+    fun `Insight goal proposal 在最终 validator 处发现事实变化时不应用`() = runTest {
+        val fixture = build(snapshot = growthSnapshot())
+        startInsightDiscussion(fixture)
+        fixture.engine.enqueue(AdvisorChatResult.Success(proposalJson()))
+        fixture.vm.onAction(AdvisorAction.RequestProposal)
+        advanceUntilIdle()
+        val proposal = fixture.vm.uiState.value.proposals.values.single()
+        fixture.apply.beforeSourceValidation = {
+            fixture.data.snapshot = growthSnapshot().copy(checkins = emptyList())
+        }
+
+        fixture.vm.onAction(AdvisorAction.ApplyProposal(
+            proposalId = proposal.id,
+            draft = proposal.draft,
+            selected = proposal.selectedTempIds,
+        ))
+        advanceUntilIdle()
+
+        assertEquals(0, fixture.apply.applyCalls)
+        assertTrue(fixture.vm.uiState.value.applyState?.error.orEmpty().isNotBlank())
+    }
+
+    @Test
+    fun `Insight 依据超过上下文预算时不静默截断也不发送`() = runTest {
+        val longGoals = (1L..6L).map { id ->
+            ContextGoalRecord(
+                id = id,
+                title = "QA 长来源$id " + "读".repeat(8_000),
+                description = null,
+                level = GoalLevel.LONG_TERM,
+                parentId = null,
+                domain = GoalDomain.LEARNING,
+                status = GoalStatus.IN_PROGRESS,
+                createdAt = 1_700_000_000_000L,
+            )
+        }
+        val snapshot = AdvisorContextSnapshot(
+            goals = longGoals,
+            checkins = listOf(
+                ContextCheckinRecord(51, 1, 1_700_000_000_000L, "第一条真实 QA 记录", 1.0, "次"),
+                ContextCheckinRecord(52, 1, 1_700_086_400_000L, "第二条真实 QA 记录", 2.0, "次"),
+            ),
+        )
+        val fixture = build(snapshot = snapshot)
+        collectVm(fixture.vm)
+        advanceUntilIdle()
+        val input = fixture.insightService.currentInput()
+        val fact = input.facts.first { it.id == "goal-count" }
+        val sources = fact.sourceRefs.take(1).joinToString(",") {
+            """{"type":"${it.type}","id":"${it.recordId}","label":"${it.label}"}"""
+        }
+        fixture.insightEngine.enqueue(AdvisorChatResult.Success(
+            """{"schemaVersion":1,"summary":"来自原始记录的 QA 建议","insights":[{"type":"SUGGESTION","title":"试试小步骤","body":"可由你决定是否尝试。","isInference":true,"confidence":0.7,"factIds":["goal-count"],"sources":[$sources]}]}""",
+        ))
+        val report = (fixture.insightService.generate(force = true) as InsightGenerationResult.Ready).report
+        fixture.vm.onAction(AdvisorAction.DiscussInsight(
+            InsightReference(report.id, report.dataVersion, report.insights.single().id),
+        ))
+        advanceUntilIdle()
+
+        assertEquals(0, fixture.engine.calls.size)
+        assertTrue(fixture.vm.uiState.value.messages.isEmpty())
+        assertTrue(
+            "error=${fixture.vm.uiState.value.errorMessage}; info=${fixture.vm.uiState.value.infoMessage}",
+            fixture.vm.uiState.value.errorMessage.orEmpty().contains("上下文上限"),
+        )
     }
 
     @Test
@@ -348,6 +443,37 @@ class AdvisorViewModelTest {
     }
 
     @Test
+    fun `未授权的日记进展目标数据不进入主请求且不触发对应提取`() = runTest {
+        val secretSnapshot = snapshot().copy(
+            goals = snapshot().goals.map { it.copy(title = "SECRET_GOALS_PRIVATE") },
+            checkins = snapshot().checkins.map { it.copy(note = "SECRET_PROGRESS_PRIVATE") },
+            journals = snapshot().journals.map { it.copy(body = "SECRET_JOURNAL_PRIVATE") },
+        )
+        val cases = listOf(
+            Triple(ConsentCategory.JOURNAL, "帮我把这段记成日记", "SECRET_JOURNAL_PRIVATE"),
+            Triple(ConsentCategory.PROGRESS, "我完成了 3 次跑步", "SECRET_PROGRESS_PRIVATE"),
+            Triple(ConsentCategory.GOALS, "我打算这周读三次书", "SECRET_GOALS_PRIVATE"),
+        )
+        for ((disabled, input, secret) in cases) {
+            val fixture = build(
+                categories = AiConsentRules.allCategories - disabled,
+                snapshot = secretSnapshot,
+            )
+            collectVm(fixture.vm)
+            advanceUntilIdle()
+            fixture.engine.enqueue(AdvisorChatResult.Success("收到。"))
+            fixture.vm.onAction(AdvisorAction.InputChange(input))
+            advanceUntilIdle()
+            fixture.vm.onAction(AdvisorAction.Send)
+            advanceUntilIdle()
+
+            assertEquals("$disabled: primary only", 1, fixture.engine.calls.size)
+            assertFalse(fixture.engine.calls.flatten().any { it.content.contains(secret) })
+            assertEquals(0, fixture.records.saveCalls)
+        }
+    }
+
+    @Test
     fun `runtime endpoint 与授权接收方不一致时不发送`() = runTest {
         val f = build()
         collectVm(f.vm)
@@ -361,27 +487,226 @@ class AdvisorViewModelTest {
         advanceUntilIdle()
 
         assertEquals(0, f.engine.calls.size)
-        val last = f.vm.uiState.value.messages.last()
-        assertEquals(AdvisorMessageStatus.CANCELLED, last.status)
-        assertTrue(last.errorMessage.orEmpty().contains("服务配置或授权已变化"))
+        assertTrue(f.vm.uiState.value.messages.isEmpty())
+        assertTrue(f.vm.uiState.value.errorMessage.orEmpty().contains("服务配置或授权已变化"))
     }
 
     @Test
-    fun `请求中服务地址变化会取消，不保存旧回复`() = runTest {
-        val f = build(engine = ScriptedAdvisorEngine().apply { blockUntilCancelled = true })
+    fun `取消进展附加提取不会自动写入或留候选`() = runTest {
+        val engine = ScriptedAdvisorEngine().apply {
+            enqueue(AdvisorChatResult.Success("主回复"))
+            blockOnCall = 2
+        }
+        val fixture = build(engine = engine)
+        collectVm(fixture.vm)
+        advanceUntilIdle()
+        fixture.vm.onAction(AdvisorAction.InputChange("我今天完成了三次训练，帮我记一下"))
+        advanceUntilIdle()
+        fixture.vm.onAction(AdvisorAction.Send)
+        advanceUntilIdle()
+
+        assertEquals(2, fixture.engine.calls.size)
+        assertTrue(fixture.vm.uiState.value.sending)
+        fixture.vm.onAction(AdvisorAction.CancelRequest)
+        advanceUntilIdle()
+        assertEquals(0, fixture.records.saveCalls)
+        assertEquals(0, fixture.progressApply.applyCalls)
+        assertTrue(fixture.vm.uiState.value.records.isEmpty())
+    }
+
+    @Test
+    fun `请求中排队的 endpoint 变更先于旧回复验收`() = runTest {
+        val engine = ScriptedAdvisorEngine().apply { enqueue(AdvisorChatResult.Success("旧 endpoint 回复")) }
+        val f = build(engine = engine)
         collectVm(f.vm)
         advanceUntilIdle()
+        val started = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        engine.beforeChat = { call, _ -> if (call == 1) { started.complete(Unit); release.await() } }
         f.vm.onAction(AdvisorAction.InputChange("hi"))
         advanceUntilIdle()
         f.vm.onAction(AdvisorAction.Send)
         advanceUntilIdle()
+        assertTrue(started.isCompleted)
         assertEquals(1, f.engine.calls.size)
 
-        f.config.save("https://new.example.com/v1", "new-model", null)
+        val configChange = launch { f.config.save("https://new.example.com/v1", "new-model", "sk-new") }
         advanceUntilIdle()
-        val last = f.vm.uiState.value.messages.last()
-        assertEquals(AdvisorMessageStatus.CANCELLED, last.status)
-        assertTrue(f.vm.uiState.value.messages.none { it.content == "default reply" })
+        release.complete(Unit)
+        advanceUntilIdle()
+        configChange.join()
+
+        assertEquals(1, f.engine.calls.size)
+        assertTrue(f.vm.uiState.value.messages.any { it.status == AdvisorMessageStatus.CANCELLED })
+        assertTrue(f.vm.uiState.value.messages.none { it.content == "旧 endpoint 回复" })
+    }
+
+    @Test
+    fun `主回复落下后撤权阻止附加计划提取`() = runTest {
+        val engine = ScriptedAdvisorEngine().apply {
+            enqueue(AdvisorChatResult.Success("主回复"))
+            enqueue(AdvisorChatResult.Success(planExtractionJson()))
+        }
+        val fixture = build(engine = engine)
+        collectVm(fixture.vm)
+        advanceUntilIdle()
+        var revoked = false
+        fixture.dao.beforeInsert = { message ->
+            if (!revoked && message.role == "ASSISTANT" && message.content == "主回复") {
+                revoked = true
+                fixture.consent.setCategory(ConsentCategory.GOALS, false)
+            }
+        }
+        fixture.vm.onAction(AdvisorAction.InputChange("这周读三次书"))
+        advanceUntilIdle()
+        fixture.vm.onAction(AdvisorAction.Send)
+        advanceUntilIdle()
+
+        assertEquals(1, fixture.engine.calls.size)
+        assertEquals(0, fixture.records.saveCalls)
+        assertEquals(0, fixture.planApply.calls)
+        assertFalse(fixture.vm.uiState.value.sending)
+    }
+
+    @Test
+    fun `附加提取期间撤权不会保存或自动应用候选`() = runTest {
+        val engine = ScriptedAdvisorEngine().apply {
+            enqueue(AdvisorChatResult.Success("主回复"))
+            enqueue(AdvisorChatResult.Success(planExtractionJson()))
+        }
+        val fixture = build(engine = engine)
+        collectVm(fixture.vm)
+        advanceUntilIdle()
+        engine.beforeChat = { call, _ ->
+            if (call == 2) fixture.consent.setCategory(ConsentCategory.GOALS, false)
+        }
+        fixture.vm.onAction(AdvisorAction.InputChange("这周读三次书"))
+        advanceUntilIdle()
+        fixture.vm.onAction(AdvisorAction.Send)
+        advanceUntilIdle()
+
+        assertEquals(2, fixture.engine.calls.size)
+        assertEquals(0, fixture.records.saveCalls)
+        assertEquals(0, fixture.planApply.calls)
+        assertTrue(fixture.vm.uiState.value.records.isEmpty())
+    }
+
+    @Test
+    fun `主回复后切换 endpoint 不向新配置发附加提取`() = runTest {
+        val engine = ScriptedAdvisorEngine().apply {
+            enqueue(AdvisorChatResult.Success("主回复"))
+            enqueue(AdvisorChatResult.Success(planExtractionJson()))
+        }
+        val fixture = build(engine = engine)
+        collectVm(fixture.vm)
+        advanceUntilIdle()
+        var switched = false
+        fixture.dao.beforeInsert = { message ->
+            if (!switched && message.role == "ASSISTANT" && message.content == "主回复") {
+                switched = true
+                fixture.config.save("https://new.example.com/v1", "new-model", "sk-new")
+            }
+        }
+        fixture.vm.onAction(AdvisorAction.InputChange("这周读三次书"))
+        advanceUntilIdle()
+        fixture.vm.onAction(AdvisorAction.Send)
+        advanceUntilIdle()
+
+        assertEquals(1, fixture.engine.calls.size)
+        assertEquals(0, fixture.records.saveCalls)
+        assertEquals(0, fixture.planApply.calls)
+    }
+
+    @Test
+    fun `主回复后模型名变化阻止向旧模型发起附加提取`() = runTest {
+        val engine = ScriptedAdvisorEngine().apply {
+            enqueue(AdvisorChatResult.Success("主回复"))
+            enqueue(AdvisorChatResult.Success(planExtractionJson()))
+        }
+        val fixture = build(engine = engine)
+        collectVm(fixture.vm)
+        advanceUntilIdle()
+        var switched = false
+        fixture.dao.beforeInsert = { message ->
+            if (!switched && message.role == "ASSISTANT" && message.content == "主回复") {
+                switched = true
+                fixture.config.save(endpoint, "new-model", "sk-new")
+            }
+        }
+        fixture.vm.onAction(AdvisorAction.InputChange("这周读三次书"))
+        advanceUntilIdle()
+        fixture.vm.onAction(AdvisorAction.Send)
+        advanceUntilIdle()
+
+        assertEquals(1, fixture.engine.calls.size)
+        assertEquals(0, fixture.records.saveCalls)
+        assertEquals(0, fixture.planApply.calls)
+    }
+
+    @Test
+    fun `Restore 排队进入附加提取后旧 generation 不能创建草案`() = runTest {
+        val engine = ScriptedAdvisorEngine().apply {
+            enqueue(AdvisorChatResult.Success("主回复"))
+            enqueue(AdvisorChatResult.Success(planExtractionJson()))
+        }
+        val fixture = build(engine = engine)
+        collectVm(fixture.vm)
+        advanceUntilIdle()
+        val extractionStarted = CompletableDeferred<Unit>()
+        val releaseExtraction = CompletableDeferred<Unit>()
+        engine.beforeChat = { call, _ ->
+            if (call == 2) {
+                extractionStarted.complete(Unit)
+                releaseExtraction.await()
+            }
+        }
+        fixture.vm.onAction(AdvisorAction.InputChange("这周读三次书"))
+        advanceUntilIdle()
+        fixture.vm.onAction(AdvisorAction.Send)
+        advanceUntilIdle()
+        assertTrue(extractionStarted.isCompleted)
+
+        var restoreFinished = false
+        launch {
+            fixture.barrier.withExclusive {
+                fixture.barrier.setReady(true)
+                restoreFinished = true
+            }
+        }
+        advanceUntilIdle()
+        assertFalse(restoreFinished)
+        releaseExtraction.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(restoreFinished)
+        assertEquals(2, fixture.engine.calls.size)
+        assertEquals(0, fixture.records.saveCalls)
+        assertEquals(0, fixture.planApply.calls)
+        assertTrue(fixture.vm.uiState.value.records.isEmpty())
+    }
+
+    @Test
+    fun `取消附加提取时 sending 仍有效且无候选`() = runTest {
+        val engine = ScriptedAdvisorEngine().apply {
+            enqueue(AdvisorChatResult.Success("主回复"))
+            enqueue(AdvisorChatResult.Success(planExtractionJson()))
+            blockOnCall = 2
+        }
+        val fixture = build(engine = engine)
+        collectVm(fixture.vm)
+        advanceUntilIdle()
+        fixture.vm.onAction(AdvisorAction.InputChange("这周读三次书"))
+        advanceUntilIdle()
+        fixture.vm.onAction(AdvisorAction.Send)
+        advanceUntilIdle()
+
+        assertEquals(2, fixture.engine.calls.size)
+        assertTrue(fixture.vm.uiState.value.sending)
+        fixture.vm.onAction(AdvisorAction.CancelRequest)
+        advanceUntilIdle()
+        assertFalse(fixture.vm.uiState.value.sending)
+        assertEquals(0, fixture.records.saveCalls)
+        assertEquals(0, fixture.planApply.calls)
     }
 
     @Test
@@ -508,6 +833,26 @@ class AdvisorViewModelTest {
     }
 
     @Test
+    fun `附加计划提取网络超时不回退创建草案且调用数可见`() = runTest {
+        val engine = ScriptedAdvisorEngine().apply {
+            enqueue(AdvisorChatResult.Success("主回复完成"))
+            enqueue(AdvisorChatResult.Failure(AdvisorError.timeout()))
+        }
+        val fixture = build(engine = engine)
+        collectVm(fixture.vm)
+        advanceUntilIdle()
+        fixture.vm.onAction(AdvisorAction.InputChange("这周读三次书"))
+        advanceUntilIdle()
+        fixture.vm.onAction(AdvisorAction.Send)
+        advanceUntilIdle()
+
+        assertEquals(2, fixture.engine.calls.size)
+        assertEquals(0, fixture.records.saveCalls)
+        assertTrue(fixture.vm.uiState.value.records.isEmpty())
+        assertEquals(0, fixture.planApply.calls)
+    }
+
+    @Test
     fun `用户反对洞察建议只讨论不创建业务候选`() = runTest {
         val fixture = build(snapshot = growthSnapshot())
         startInsightDiscussion(fixture, factPrefix = "trend-")
@@ -520,6 +865,56 @@ class AdvisorViewModelTest {
         assertTrue(fixture.vm.uiState.value.proposals.isEmpty())
         assertEquals(0, fixture.planApply.calls)
         assertEquals(4, fixture.vm.uiState.value.messages.size)
+    }
+
+    @Test
+    fun `跨过六轮和十五分钟的同一洞察对话仍保存稳定来源`() = runTest {
+        val fixture = build(snapshot = growthSnapshot())
+        val (reference, handoffId) = startInsightDiscussion(fixture)
+        fixture.dao.setCreatedAt(handoffId, System.currentTimeMillis() - 2L * 24 * 60 * 60 * 1000)
+        repeat(7) {
+            fixture.vm.onAction(AdvisorAction.InputChange("我再想想这个节奏"))
+            advanceUntilIdle()
+            fixture.vm.onAction(AdvisorAction.Send)
+            advanceUntilIdle()
+        }
+        fixture.engine.enqueue(AdvisorChatResult.Success("可以按自己的节奏尝试。"))
+        fixture.engine.enqueue(AdvisorChatResult.Success(planExtractionJson()))
+        fixture.vm.onAction(AdvisorAction.InputChange("这周读三次书"))
+        advanceUntilIdle()
+        fixture.vm.onAction(AdvisorAction.Send)
+        advanceUntilIdle()
+
+        val proposal = fixture.vm.uiState.value.records.values.single()
+        assertEquals(reference, proposal.draft.sourceInsightReference)
+        assertTrue(proposal.draft.sourceLinkKnown)
+        assertTrue(proposal.draft.sourceMessageIds.contains(handoffId))
+        assertEquals(10, fixture.engine.calls.size)
+        assertEquals(0, fixture.planApply.calls)
+    }
+
+    @Test
+    fun `显式切换到无关话题的新计划不继承旧 Insight`() = runTest {
+        val fixture = build(snapshot = growthSnapshot())
+        val (reference, handoffId) = startInsightDiscussion(fixture)
+        fixture.engine.enqueue(AdvisorChatResult.Success("好的，我们开始新的主题。"))
+        fixture.engine.enqueue(AdvisorChatResult.Success(planExtractionJson("新话题里的读书安排")))
+        fixture.vm.onAction(AdvisorAction.InputChange("聊个别的，我想这周读三次书"))
+        advanceUntilIdle()
+        fixture.vm.onAction(AdvisorAction.Send)
+        advanceUntilIdle()
+
+        val proposal = fixture.vm.uiState.value.records.values.single()
+        assertTrue(proposal.draft.sourceLinkKnown)
+        assertNull(proposal.draft.sourceInsightReference)
+        assertFalse(proposal.draft.sourceMessageIds.contains(handoffId))
+        assertFalse(fixture.engine.calls.drop(1).flatten().any { it.content.contains(reference.reportId) })
+        fixture.data.snapshot = growthSnapshot().copy(checkins = emptyList())
+        fixture.vm.onAction(AdvisorAction.ConfirmRecord(proposal.id, proposal.draft))
+        advanceUntilIdle()
+        assertEquals(1, fixture.planApply.calls)
+        assertEquals(reference.insightId, fixture.vm.uiState.value.messages.first().sources
+            .single { it.type == AdvisorSourceType.INSIGHT }.recordId)
     }
 
     @Test
@@ -568,6 +963,104 @@ class AdvisorViewModelTest {
         assertTrue(answer.sources.any { it.type == AdvisorSourceType.JOURNAL })
         assertFalse(answer.content.contains("抑郁症"))
         assertTrue(answer.content.contains("不能根据日记"))
+    }
+
+    @Test
+    fun `旧草案最新来源消息无 Insight 时仍检查更早有效引用`() = runTest {
+        val fixture = build(snapshot = growthSnapshot())
+        val (reference, handoffId) = startInsightDiscussion(fixture)
+        fixture.engine.enqueue(AdvisorChatResult.Success("普通对话回复"))
+        fixture.vm.onAction(AdvisorAction.InputChange("今天安排不错"))
+        advanceUntilIdle()
+        fixture.vm.onAction(AdvisorAction.Send)
+        advanceUntilIdle()
+        val latestUser = fixture.vm.uiState.value.messages.last { it.role == AdvisorRole.USER }
+        val legacyDraft = com.mengyalife.app.domain.advisor.RecordProposalDraft(
+            kind = com.mengyalife.app.domain.advisor.RecordKind.PLAN,
+            goalId = null, goalTitle = null, goalCandidates = emptyList(),
+            amountKind = com.mengyalife.app.domain.advisor.RecordAmountKind.NONE,
+            metricValue = null, metricUnit = null, note = "计划", occurredAt = null,
+            pendingFields = emptyList(), intent = com.mengyalife.app.domain.advisor.RecordIntent.EXPLICIT,
+            originalText = "旧 Insight 计划草案",
+            sourceMessageIds = listOf(handoffId, latestUser.id),
+            planChange = com.mengyalife.app.domain.advisor.PlanChangeDraft(
+                com.mengyalife.app.domain.advisor.PlanChangeKind.CREATE, title = "旧 Insight 计划草案",
+            ),
+        )
+        val legacy = com.mengyalife.app.data.advisor.StoredRecordProposal(
+            id = "legacy-insight-plan", messageId = "missing-source-assistant", createdAt = 1L,
+            draft = legacyDraft, status = "DRAFT",
+        )
+        fixture.records.seed(legacy)
+        advanceUntilIdle()
+        fixture.data.snapshot = growthSnapshot().copy(checkins = emptyList())
+
+        fixture.vm.onAction(AdvisorAction.ConfirmRecord(legacy.id, legacyDraft))
+        advanceUntilIdle()
+        assertEquals(0, fixture.planApply.calls)
+        assertTrue(fixture.vm.uiState.value.recordAction?.error.orEmpty().contains("已变化") ||
+            fixture.vm.uiState.value.recordAction?.error.orEmpty().contains("不足"))
+        assertTrue(reference.reportId.isNotBlank())
+    }
+
+    @Test
+    fun `final Room source validation catches source edit after pre-confirm check`() = runTest {
+        val fixture = build(snapshot = growthSnapshot())
+        startInsightDiscussion(fixture)
+        fixture.engine.enqueue(AdvisorChatResult.Success("可以按自己的节奏试试。"))
+        fixture.engine.enqueue(AdvisorChatResult.Success(planExtractionJson()))
+        fixture.vm.onAction(AdvisorAction.InputChange("这周读三次书"))
+        advanceUntilIdle()
+        fixture.vm.onAction(AdvisorAction.Send)
+        advanceUntilIdle()
+        val proposal = fixture.vm.uiState.value.records.values.single()
+        fixture.planApply.beforeSourceValidation = {
+            fixture.data.snapshot = growthSnapshot().copy(checkins = growthSnapshot().checkins.dropLast(1))
+        }
+
+        fixture.vm.onAction(AdvisorAction.ConfirmRecord(proposal.id, proposal.draft))
+        advanceUntilIdle()
+        assertEquals(0, fixture.planApply.calls)
+        assertTrue(fixture.vm.uiState.value.recordAction?.error.orEmpty().contains("已变化") ||
+            fixture.vm.uiState.value.recordAction?.error.orEmpty().contains("不足"))
+    }
+
+    @Test
+    fun `旧版无 Insight 来源的普通计划草案仍可确认`() = runTest {
+        val fixture = build()
+        collectVm(fixture.vm)
+        advanceUntilIdle()
+        val legacyDraft = com.mengyalife.app.domain.advisor.RecordProposalDraft(
+            kind = com.mengyalife.app.domain.advisor.RecordKind.PLAN,
+            goalId = null,
+            goalTitle = null,
+            goalCandidates = emptyList(),
+            amountKind = com.mengyalife.app.domain.advisor.RecordAmountKind.NONE,
+            metricValue = null,
+            metricUnit = null,
+            note = "旧草案",
+            occurredAt = null,
+            pendingFields = emptyList(),
+            intent = com.mengyalife.app.domain.advisor.RecordIntent.EXPLICIT,
+            originalText = "旧版用户草案",
+            planChange = com.mengyalife.app.domain.advisor.PlanChangeDraft(
+                com.mengyalife.app.domain.advisor.PlanChangeKind.CREATE,
+                title = "旧版用户草案",
+            ),
+        )
+        val legacy = com.mengyalife.app.data.advisor.StoredRecordProposal(
+            id = "legacy-proposal",
+            messageId = "legacy-assistant-message",
+            createdAt = 1L,
+            draft = legacyDraft,
+            status = "DRAFT",
+        )
+        fixture.records.seed(legacy)
+        advanceUntilIdle()
+
+        fixture.vm.onAction(AdvisorAction.ConfirmRecord(legacy.id, legacyDraft))
+        advanceUntilIdle()
+        assertEquals(1, fixture.planApply.calls)
     }
 
     @Test

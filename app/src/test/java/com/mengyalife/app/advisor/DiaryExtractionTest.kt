@@ -3,6 +3,7 @@ package com.mengyalife.app.advisor
 import com.mengyalife.app.data.FakeGrowthSignalDao
 import com.mengyalife.app.data.growth.DiaryExtractionOutcome
 import com.mengyalife.app.data.growth.DiaryExtractionService
+import com.mengyalife.app.data.restore.RestoreWriteBarrier
 import com.mengyalife.app.data.advisor.QaFaultInjector
 import com.mengyalife.app.data.growth.QaExtractionGate
 import com.mengyalife.app.data.local.JournalEntryDao
@@ -105,6 +106,7 @@ class DiaryExtractionTest {
             fakeEngine = null,
             now = { 1_000L },
             minIntervalMs = minInterval,
+            writeBarrier = RestoreWriteBarrier(initiallyReady = true),
         )
         return Env(dao, signalDao, journal, config, consent, engine, service)
     }
@@ -209,6 +211,29 @@ class DiaryExtractionTest {
             now = { 1_000L },
             minIntervalMs = 0,
             preRequestHook = { e.config.save("https://new.example.com/v1", "new", null) },
+            writeBarrier = RestoreWriteBarrier(initiallyReady = true),
+        )
+        val result = service.extract(id)
+        assertTrue(result is DiaryExtractionOutcome.Failed)
+        assertEquals(0, e.engine.calls.size)
+        assertTrue(e.signalDao.rows.value.isEmpty())
+    }
+
+    @Test
+    fun `请求前切换模型名不调用日记提取引擎`() = runTest {
+        val e = env()
+        val id = e.newDiary("今天完成了一次重要汇报")
+        val service = DiaryExtractionService(
+            journalRepository = e.journal,
+            growthSignalDao = e.signalDao,
+            configRepository = e.config,
+            consentRepository = e.consent,
+            networkEngine = e.engine,
+            fakeEngine = null,
+            now = { 1_000L },
+            minIntervalMs = 0,
+            preRequestHook = { e.config.save(endpoint, "changed-model", "sk-new") },
+            writeBarrier = RestoreWriteBarrier(initiallyReady = true),
         )
         val result = service.extract(id)
         assertTrue(result is DiaryExtractionOutcome.Failed)
@@ -230,6 +255,7 @@ class DiaryExtractionTest {
             now = { 1_000L },
             minIntervalMs = 0,
             preRequestHook = { e.journal.updateEntry(id, "已经换成新的内容", "标题") },
+            writeBarrier = RestoreWriteBarrier(initiallyReady = true),
         )
         val result = service.extract(id)
         assertTrue(result is DiaryExtractionOutcome.Failed || result is DiaryExtractionOutcome.Superseded)
@@ -280,6 +306,7 @@ class DiaryExtractionTest {
             fakeEngine = null,
             now = { 1_000L },
             minIntervalMs = 0,
+            writeBarrier = RestoreWriteBarrier(initiallyReady = true),
         )
         val result = service.extract(id)
         assertTrue(result is DiaryExtractionOutcome.Failed || result is DiaryExtractionOutcome.Superseded)
@@ -303,6 +330,7 @@ class DiaryExtractionTest {
             fakeEngine = null,
             now = { 1_000L },
             minIntervalMs = 0,
+            writeBarrier = RestoreWriteBarrier(initiallyReady = true),
             transaction = { block ->
                 val before = e.signalDao.rows.value
                 try {
@@ -360,6 +388,7 @@ class DiaryExtractionTest {
             fakeEngine = null,
             now = { 1_000L },
             minIntervalMs = 0,
+            writeBarrier = RestoreWriteBarrier(initiallyReady = true),
         )
         val result = service.extract(id)
         assertTrue(result is DiaryExtractionOutcome.Failed)

@@ -68,6 +68,7 @@ class CareViewModel(
     private val restoreGeneration: () -> Long = { 0L },
     private val database: com.mengyalife.app.data.local.MengyaDatabase? = null,
     private val writeBarrier: com.mengyalife.app.data.restore.RestoreWriteBarrier? = null,
+    private val restoreReady: () -> Boolean = { true },
     private val engine: AdvisorEngine,
     private val now: () -> Long = System::currentTimeMillis,
     private val zone: ZoneId = ZoneId.systemDefault(),
@@ -89,6 +90,7 @@ class CareViewModel(
         now = now,
         zone = zone,
         restoreGeneration = { restoreGeneration() },
+        restoreReady = restoreReady,
         database = database,
         writeBarrier = writeBarrier,
     )
@@ -232,6 +234,7 @@ class CareViewModel(
                     restoreGeneration = { app.container.restoreWriteBarrier.generation() },
                     database = app.container.databaseHandle,
                     writeBarrier = app.container.restoreWriteBarrier,
+                    restoreReady = { !app.container.restoreCoordinator.isGateActive() },
                     engine = app.container.networkAdvisorEngine,
                 )
             }

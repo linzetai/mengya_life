@@ -58,8 +58,9 @@ class InsightViewModel(
             try {
                 val input = service.currentInput()
                 val report = service.loadCurrent()
+                val staleReason = if (report == null) service.staleReportReason() else null
                 _state.update {
-                    it.copy(currentVersion = input.dataVersion, report = report, error = null, loading = false)
+                    it.copy(currentVersion = input.dataVersion, report = report, error = staleReason, loading = false)
                 }
             } catch (e: CancellationException) {
                 throw e

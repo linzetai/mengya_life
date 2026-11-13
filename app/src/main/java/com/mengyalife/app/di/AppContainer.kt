@@ -139,6 +139,7 @@ class AppContainer(context: Context) {
             transaction = { block -> database.withTransaction { block() } },
             onSignalsChanged = { growthMemoryService.rebuildAll() },
             beforeWrite = { if (restoreCoordinator.isGateActive()) throw IllegalStateException("恢复维护中") },
+            beforeRequest = { if (restoreCoordinator.isGateActive()) throw IllegalStateException("恢复维护中") },
             writeBarrier = restoreWriteBarrier,
         )
     }
@@ -340,7 +341,9 @@ class AppContainer(context: Context) {
     }
 
     val carePreferenceRepository: com.mengyalife.app.data.care.CarePreferenceRepository by lazy {
-        com.mengyalife.app.data.care.CarePreferenceRepository(database.carePreferenceDao())
+        com.mengyalife.app.data.care.CarePreferenceRepository(
+            database.carePreferenceDao(), writeBarrier = restoreWriteBarrier,
+        )
     }
 
     val networkAdvisorEngine: NetworkAdvisorEngine by lazy { NetworkAdvisorEngine() }

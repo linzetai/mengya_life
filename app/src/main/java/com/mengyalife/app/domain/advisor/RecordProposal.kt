@@ -1,6 +1,7 @@
 package com.mengyalife.app.domain.advisor
 
 import com.mengyalife.app.domain.goals.GoalRules
+import com.mengyalife.app.domain.insight.InsightReference
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -141,6 +142,12 @@ data class RecordProposalDraft(
     val diaryEntryId: Long? = null,
     /** 这条草稿引用了哪些消息（多轮对话整理）。 */
     val sourceMessageIds: List<String> = emptyList(),
+    /** New rows record whether Insight provenance was checked, including an explicit no-link result. */
+    val sourceLinkKnown: Boolean = false,
+    /** A corrupt provenance envelope is not silently treated as an unrelated legacy draft. */
+    val sourceLinkInvalid: Boolean = false,
+    /** Stable report/version/insight pointer; independent of message recency or transcript window. */
+    val sourceInsightReference: InsightReference? = null,
     // ---- 0.18 目标候选 ----
     val goalChange: GoalChangeDraft? = null,
     val appliedGoalIds: List<Long> = emptyList(),
