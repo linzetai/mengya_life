@@ -241,7 +241,33 @@ class CareRunner(
             }
             currentPrefs == prefs && preferences.active() == activePrefs &&
                 currentPending == pendingSourceSnapshot && currentSent == recentSentSnapshot &&
-                currentPendingStates == boundPendingStates
+                currentPendingStates == boundPendingStates && careRepository.silencedTopics() == silencedTopicsSnapshot
+        }
+        suspend fun deferForChangedPreference() {
+            val barrier = writeBarrier ?: return
+            runCatching {
+                barrier.withWrite(boundGeneration) {
+                    if (!boundOk()) return@withWrite
+                    val activeNow = preferences.active()
+                    val affected = pending.firstOrNull { opportunity ->
+                        activeNow.any { preference ->
+                            val topicMatches = preference.topicKey == opportunity.planId?.let { "plan:$it" } ||
+                                preference.topicKey == opportunity.goalId?.let { "goal:$it" } ||
+                                (preference.topicKey?.startsWith("topic:") == true &&
+                                    opportunity.title.contains(preference.topicKey.removePrefix("topic:")))
+                            (preference.kind == "BUSY" && preference.value == "BUSY" &&
+                                (preference.topicKey == null || topicMatches)) ||
+                                (preference.value in setOf("PAUSED", "SILENCED") && topicMatches)
+                        }
+                    } ?: return@withWrite
+                    careRepository.saveDecision(
+                        opportunityId = affected.id, action = "DEFER",
+                        reason = "模型处理期间关怀偏好发生变化；模型结果已丢弃",
+                        sourceRefs = "preference", suggestedText = null, avoidJson = null,
+                        nextStart = null, nextEnd = null, modelOk = false,
+                    )
+                }
+            }
         }
         val history = recentSentSnapshot
             .map { "已发过：机会#${it.opportunityId}｜${fmt(it.createdAt)}｜${it.suggestedText.orEmpty().take(24)}" }
@@ -283,7 +309,11 @@ class CareRunner(
             )
             return null
         }
-        if (!boundOk() || !promptInputsStillCurrent()) return null
+        if (!boundOk()) return null
+        if (!promptInputsStillCurrent()) {
+            deferForChangedPreference()
+            return null
+        }
         val decision = CareParser.parse(result.content, candidates.map { it.opportunityId }.toSet())
             ?: run {
                 saveDecisionFenced(

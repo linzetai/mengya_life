@@ -1,6 +1,6 @@
 # MengYa Life 0.25.2.1 — 验收记录
 
-基线：`1f8908105874c187a535b95da5ebbd32b8ec5e5c`；versionName 0.25.2.1 / versionCode 38。实现提交：`954fcde716dabe35c9fce97bda953c1fc0191d59`。
+基线：`1f8908105874c187a535b95da5ebbd32b8ec5e5c`；versionName 0.25.2.1 / versionCode 38。实现提交：`954fcde716dabe35c9fce97bda953c1fc0191d59`；先前报告提交：`1e6fd98fa88998b40fd21b44d8c0e9bf90190a88`。本次真机 QA 截图与报告补充随最终交付提交推送。
 
 ## 本地验证
 
@@ -10,8 +10,9 @@
 | `:app:assembleDebug` | **PASS** | Debug APK 构建成功。 |
 | `:app:assembleQa` | **PASS** | QA APK 构建成功。 |
 | `:app:assembleQaAndroidTest` | **PASS** | Instrumented 测试 APK 编译/打包成功。 |
+| AndroidJUnitRunner（ADB 直接执行） | **PASS** | `OK (24 tests)`；24/24 Instrumented 用例通过。 |
+| `:app:connectedQaAndroidTest` Gradle 任务 | **PARTIAL** | 首次运行发现 CareRunner BUSY 偏好测试缺少安全延期决策，修复后 24/24 tests 执行且 XML failures=0；UTP `onAfterAll` 无法执行 `/opt/android-sdk/build-tools/35.0.1/aapt`，Gradle 命令因此 exit 1。绕过清理钩子后 ADB AndroidJUnitRunner 直接执行，exit 0 / `OK (24 tests)`。 |
 | `:app:lintDebug` | **PASS** | 0 errors / 40 warnings（已有 API/依赖/资源告警）。 |
-| `:app:connectedQaAndroidTest` | **NOT RUN** | 用户在解锁交接中停止手机操作；遵照指示未再操控设备。Room instrumented tests 仅编译，未执行。 |
 
 ## AdvisorEngine.chat 调用计数
 
@@ -31,8 +32,14 @@
 
 `NetworkAdvisorEngineTest` 使用 `FakeTransport.calls` 断言单个 engine chat 对应一个模拟 POST。**真实外部模型调用数为 0**；未使用 QA FakeEngine 结果宣称真实模型通过，也未验证线上模型质量、真实 HTTP 延迟或服务端取消语义。
 
-## UI / 设备状态
+## QA 真机 UI 路径（离线合成夹具）
 
-- 旧版截图：[0.25.2 旧版顾问对话](../mengya-0.25.2/screenshots/03-advisor-discussion-qa.png)，可见旧消息中 fact IDs/内部指令、来源统计和逐条时间标签。
-- 新版代码与 JVM 测试覆盖简短自然 Handoff、可展开依据、精简时间标签与稳定来源 metadata；历史消息不会被重写。
-- **新版截图和真机完整流程未完成**：设备操作已被用户停止，本轮不能提供前后截图或声称建议→handoff→对话→草案编辑/确认→Today/Trajectory→重启通过。重新允许设备操作后需补做 `connectedQaAndroidTest` 和真机全路径。
+| Before · 0.25.2 | After · 0.25.2.1 QA Offline |
+|---|---|
+| ![旧版顾问对话，含技术字段与逐条统计](../mengya-0.25.2/screenshots/03-advisor-discussion-qa.png) | ![新版自然 Handoff 与可展开依据；QA 离线回复明确标记](screenshots/05-advisor-handoff-qa.png) |
+
+- 通过 QA-only `qa_growth_fake_engine` 与 `qa_seed_growth_loop_fixture` 初始化独立 `.qa` 包；日志确认“offline advisor configured; no network call”。所有截图中的 `QA 样例` 数据均为合成夹具，离线 FakeEngine 不代表真实模型能力。
+- 完成建议生成→依据详情→自然语言 handoff→“这周读三次书”→计划草案→修改为 `QA-edited-reading-plan`→用户确认→Today/Trajectory 检视→强制停止并重启 QA 包。重启后该计划仍显示为“进行中”，执行记录仍为空。
+- 旧版对照：[0.25.2 旧版顾问对话](../mengya-0.25.2/screenshots/03-advisor-discussion-qa.png)，可见旧消息中的 fact IDs/内部指令、来源统计和逐条时间标签。
+- 新版截图：[QA 初始态](screenshots/00-qa-home.png)、[QA fixture Today](screenshots/01-qa-home-seeded.png)、[Insight 建议](screenshots/03-insight-qa.png)、[依据详情](screenshots/04-insight-details-qa.png)、[自然语言 handoff](screenshots/05-advisor-handoff-qa.png)、[草案待确认](screenshots/06-plan-draft-qa.png)、[草案编辑弹窗](screenshots/07-plan-edit-qa.png)、[修改后的草案](screenshots/08-plan-edited-qa.png)、[确认结果](screenshots/09-plan-confirmed-qa.png)、[Today 更新](screenshots/10-today-after-confirm-qa.png)、[Trajectory 更新](screenshots/12-trajectory-plan-qa.png)、[重启后 Today](screenshots/13-after-restart-qa.png)、[重启后 Trajectory](screenshots/14-trajectory-after-restart-qa.png)。
+- 设备路径使用 QA 离线引擎；它只验证 UI/数据库数据流，不是外部模型体验证据。
