@@ -74,6 +74,7 @@ fun RecordProposalCard(
     onUpdateDraft: (RecordProposalDraft) -> Unit,
     onOpenDiary: (String) -> Unit,
     onOpenGoal: (String) -> Unit,
+    onReevaluateInsight: () -> Unit,
     onOpenPlans: () -> Unit = {},
 ) {
     val colors = MorrowTheme.colors
@@ -140,6 +141,7 @@ fun RecordProposalCard(
                     onConfirm = { onConfirm(draft) },
                     onEdit = { editing = true },
                     onCancel = onCancel,
+                    onReevaluate = onReevaluateInsight,
                 )
                 if (editing) {
                     PlanEditorDialog(
@@ -435,6 +437,7 @@ private fun PlanCardContent(
     onConfirm: () -> Unit,
     onEdit: () -> Unit,
     onCancel: () -> Unit,
+    onReevaluate: () -> Unit,
 ) {
     val colors = MorrowTheme.colors
     val change = draft.planChange ?: return
@@ -491,12 +494,18 @@ private fun PlanCardContent(
     }
     Spacer(Modifier.height(6.dp))
     if (proposal.isDraft) {
+        val needsReevaluation = actionState?.proposalId == proposal.id &&
+            recordNeedsReevaluation(actionState?.error)
         MorrowPrimaryButton(
-            text = if (change.change == com.mengyalife.app.domain.advisor.PlanChangeKind.STATUS) "保存变更" else "保存计划",
-            onClick = onConfirm,
+            text = when {
+                needsReevaluation -> "重新评估建议"
+                change.change == com.mengyalife.app.domain.advisor.PlanChangeKind.STATUS -> "保存变更"
+                else -> "保存计划"
+            },
+            onClick = if (needsReevaluation) onReevaluate else onConfirm,
             loading = actionState?.loading == true,
             modifier = Modifier.fillMaxWidth(),
-            testTag = "plan_confirm_${proposal.id}",
+            testTag = if (needsReevaluation) "advisor_reevaluate_insight" else "plan_confirm_${proposal.id}",
         )
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

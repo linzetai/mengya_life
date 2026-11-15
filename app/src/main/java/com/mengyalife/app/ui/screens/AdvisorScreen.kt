@@ -1087,10 +1087,11 @@ private fun MessageRow(
                 onOpenDiary = { proposalId -> onOpenDiary(proposalId) },
                 onOpenGoal = { proposalId -> onOpenGoal(proposalId) },
                 onOpenPlans = onOpenPlans,
+                onReevaluateInsight = onReevaluateInsight,
             )
-            if (recordAction?.proposalId == record.id && recordAction.error?.let {
-                    it.contains("来源") || it.contains("重新生成") || it.contains("重新评估")
-                } == true) {
+            if (!record.draft.isPlan && recordAction?.proposalId == record.id &&
+                com.mengyalife.app.ui.advisor.recordNeedsReevaluation(recordAction?.error)
+            ) {
                 MorrowSecondaryButton(
                     text = "重新评估建议",
                     onClick = onReevaluateInsight,
