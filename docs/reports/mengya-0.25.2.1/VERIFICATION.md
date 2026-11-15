@@ -1,6 +1,6 @@
 # MengYa Life 0.25.2.1 — 验收记录
 
-基线：`1f8908105874c187a535b95da5ebbd32b8ec5e5c`；versionName 0.25.2.1 / versionCode 38。实现提交：`954fcde716dabe35c9fce97bda953c1fc0191d59`；先前报告提交：`1e6fd98fa88998b40fd21b44d8c0e9bf90190a88`。本次真机 QA 截图与报告补充随最终交付提交推送。
+基线：`1f8908105874c187a535b95da5ebbd32b8ec5e5c`；versionName 0.25.2.1 / versionCode 38。实现提交：`954fcde716dabe35c9fce97bda953c1fc0191d59`；QA/Care fence 补充提交：`75bec28600a361b4c7f432d7781b740469f3d9cb`。
 
 ## 本地验证
 
