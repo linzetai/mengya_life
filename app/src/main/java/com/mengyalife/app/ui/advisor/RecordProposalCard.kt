@@ -7,6 +7,20 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
+import androidx.compose.runtime.SideEffect
+import com.mengyalife.app.ui.theme.isDarkTheme
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.mengyalife.app.ui.components.MorrowPrimaryButton
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -26,6 +40,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mengyalife.app.data.advisor.RecordProposalFormat
@@ -58,6 +74,7 @@ fun RecordProposalCard(
     onUpdateDraft: (RecordProposalDraft) -> Unit,
     onOpenDiary: (String) -> Unit,
     onOpenGoal: (String) -> Unit,
+    onOpenPlans: () -> Unit = {},
 ) {
     val colors = MorrowTheme.colors
     var editing by remember(proposal.id) { mutableStateOf(false) }
@@ -78,7 +95,8 @@ fun RecordProposalCard(
             if (compact) {
                 CompactOutcomeRow(
                     proposal = proposal,
-                    onExpand = { expanded = true },
+                    onExpand = if (draft.isPlan && proposal.isApplied) onOpenPlans else ({ expanded = true }),
+                    actionLabel = if (draft.isPlan && proposal.isApplied) "查看行动" else "查看",
                 )
             } else {
             if (draft.isDiary) {
@@ -439,10 +457,16 @@ private fun PlanCardContent(
             )
             Spacer(Modifier.height(3.dp))
             Text(
-                text = (change.timeScope ?: "时间未定") +
-                    (change.goalId?.let { " · 关联目标" } ?: ""),
-                style = MaterialTheme.typography.labelSmall,
-                color = colors.textTertiary,
+                text = "执行周期：${change.timeScope ?: "待安排"}",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "关联目标：" + (draft.goalTitle?.takeIf { it.isNotBlank() }
+                    ?: if (change.goalId != null) "已关联的成长目标" else "独立行动"),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary,
             )
         }
         else -> {
@@ -466,30 +490,33 @@ private fun PlanCardContent(
         Text(it, style = MaterialTheme.typography.labelSmall, color = colors.danger)
     }
     Spacer(Modifier.height(6.dp))
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Column(modifier = Modifier.weight(1f)) {
-            MorrowSecondaryButton(
-                text = if (change.change == com.mengyalife.app.domain.advisor.PlanChangeKind.STATUS) "确认更新" else "记下这个计划",
-                onClick = onConfirm,
-                enabled = actionState?.loading != true,
-                testTag = "plan_confirm_${proposal.id}",
-            )
-        }
-        if (change.change == com.mengyalife.app.domain.advisor.PlanChangeKind.CREATE) {
-            MorrowTertiaryButton(
-                text = "修改",
-                onClick = onEdit,
-                enabled = actionState?.loading != true,
-                testTag = "plan_edit_${proposal.id}",
-            )
-        }
-        MorrowTertiaryButton(
-            text = "放弃",
-            onClick = onCancel,
-            enabled = actionState?.loading != true,
-            contentColor = colors.danger,
-            testTag = "plan_cancel_${proposal.id}",
+    if (proposal.isDraft) {
+        MorrowPrimaryButton(
+            text = if (change.change == com.mengyalife.app.domain.advisor.PlanChangeKind.STATUS) "保存变更" else "保存计划",
+            onClick = onConfirm,
+            loading = actionState?.loading == true,
+            modifier = Modifier.fillMaxWidth(),
+            testTag = "plan_confirm_${proposal.id}",
         )
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (change.change == com.mengyalife.app.domain.advisor.PlanChangeKind.CREATE) {
+                MorrowSecondaryButton(
+                    text = "编辑",
+                    onClick = onEdit,
+                    enabled = actionState?.loading != true,
+                    modifier = Modifier.weight(1f),
+                    testTag = "plan_edit_${proposal.id}",
+                )
+            }
+            MorrowSecondaryButton(
+                text = "取消",
+                onClick = onCancel,
+                enabled = actionState?.loading != true,
+                modifier = Modifier.weight(1f),
+                testTag = "plan_cancel_${proposal.id}",
+            )
+        }
     }
 }
 
@@ -510,44 +537,79 @@ private fun PlanEditorDialog(
     val change = draft.planChange ?: return
     var title by remember(draft) { mutableStateOf(change.title.orEmpty()) }
     var scope by remember(draft) { mutableStateOf(change.timeScope.orEmpty()) }
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        containerColor = colors.card,
-        shape = RoundedCornerShape(20.dp),
-        title = { Text("修改小计划", style = MorrowType.CardTitle) },
-        text = {
-            Column {
-                MorrowTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    placeholder = "要做什么",
-                    singleLine = false,
-                    modifier = Modifier.testTag("plan_edit_title"),
-                )
-                Spacer(Modifier.height(8.dp))
-                MorrowTextField(
-                    value = scope,
-                    onValueChange = { scope = it },
-                    placeholder = "时间范围（这周/明天/周末）",
-                    singleLine = true,
-                    modifier = Modifier.testTag("plan_edit_scope"),
-                )
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+    ) {
+        val view = LocalView.current
+        val dark = isDarkTheme()
+        val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+        SideEffect {
+            (view.parent as? DialogWindowProvider)?.window?.let { window ->
+                WindowCompat.getInsetsController(window, view).apply {
+                    isAppearanceLightStatusBars = !dark
+                    isAppearanceLightNavigationBars = !dark
+                }
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (title.isBlank()) return@TextButton
-                    onSave(draft.copy(planChange = change.copy(
-                        title = title.trim(),
-                        timeScope = scope.trim().takeIf { it.isNotEmpty() },
-                    )))
-                },
-                modifier = Modifier.testTag("plan_edit_save"),
-            ) { Text("保存") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
-    )
+        }
+        Surface(
+            modifier = Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }.testTag("plan_editor"),
+            color = colors.canvas,
+        ) {
+            Column(Modifier.safeDrawingPadding().imePadding().padding(20.dp)) {
+                Text("编辑计划", style = MorrowType.CardTitle, color = colors.textPrimary)
+                if (!keyboardOpen) {
+                    Spacer(Modifier.height(8.dp))
+                    Text("先调整草案，回到对话后再保存计划。", style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+                }
+                Column(
+                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text("行动名称", style = MaterialTheme.typography.labelLarge, color = colors.textPrimary)
+                    MorrowTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        placeholder = "例如：晚饭后读十分钟书",
+                        singleLine = false,
+                        modifier = Modifier.testTag("plan_edit_title"),
+                    )
+                    if (title.isBlank()) Text("请填写行动名称", style = MaterialTheme.typography.bodySmall, color = colors.danger)
+                    Text("执行周期", style = MaterialTheme.typography.labelLarge, color = colors.textPrimary)
+                    MorrowTextField(
+                        value = scope,
+                        onValueChange = { scope = it },
+                        placeholder = "例如：这周三次，每次十分钟",
+                        singleLine = false,
+                        modifier = Modifier.testTag("plan_edit_scope"),
+                    )
+                    Text("关联目标", style = MaterialTheme.typography.labelLarge, color = colors.textPrimary)
+                    Text(
+                        draft.goalTitle?.takeIf { it.isNotBlank() }
+                            ?: if (change.goalId != null) "已关联的成长目标" else "独立行动，不要求关联目标",
+                        style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary,
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MorrowSecondaryButton(
+                        "放弃修改", onClick = onDismiss, modifier = Modifier.weight(1f), testTag = "plan_edit_dismiss",
+                    )
+                    MorrowPrimaryButton(
+                        text = "完成编辑",
+                        enabled = title.isNotBlank(),
+                        onClick = {
+                            onSave(draft.copy(planChange = change.copy(
+                                title = title.trim(),
+                                timeScope = scope.trim().takeIf { it.isNotEmpty() },
+                            )))
+                        },
+                        modifier = Modifier.weight(1f),
+                        testTag = "plan_edit_save",
+                    )
+                }
+            }
+        }
+    }
 }
 
 private fun goalLevelLabel(raw: String?): String = when (raw) {
@@ -1001,6 +1063,7 @@ private fun DiaryEditorDialog(
 private fun CompactOutcomeRow(
     proposal: StoredRecordProposal,
     onExpand: () -> Unit,
+    actionLabel: String = "查看",
 ) {
     val colors = MorrowTheme.colors
     val draft = proposal.draft
@@ -1008,11 +1071,12 @@ private fun CompactOutcomeRow(
         proposal.isCancelled -> when {
             draft.isDiary -> "已放弃这条日记草稿"
             draft.isGoal -> "已放弃这次目标建议"
+            draft.isPlan -> "已取消这条计划草案"
             else -> "已放弃这条记录建议"
         }
         proposal.isUndone -> "已撤销这条进展记录"
         draft.isDiary -> "✓ 已保存到日记" + (draft.diaryTitle?.let { "：$it" } ?: "")
-        draft.isPlan -> "✓ 已记下小计划" + (draft.planChange?.title?.let { "：$it" } ?: "")
+        draft.isPlan -> "✓ 已保存计划" + (draft.planChange?.title?.let { "：$it" } ?: "")
         draft.isPlanProgress -> "✓ 已记录一次执行" + (draft.planProgress?.planTitle?.let { "：$it" } ?: "")
         draft.isGoal -> {
             val change = draft.goalChange
@@ -1025,26 +1089,23 @@ private fun CompactOutcomeRow(
         }
         else -> "✓ 已记录进展" + (draft.note.take(24).takeIf { it.isNotBlank() }?.let { "：$it" } ?: "")
     }
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("compact_proposal_${proposal.id}"),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.bodySmall,
             color = if (proposal.isCancelled) colors.textTertiary else colors.textPrimary,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
         )
         TextButton(
             onClick = onExpand,
+            modifier = Modifier.align(Alignment.End),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
         ) {
             Text(
-                text = "查看",
+                text = actionLabel,
                 style = MaterialTheme.typography.labelSmall,
                 color = colors.forest,
             )

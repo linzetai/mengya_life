@@ -32,12 +32,13 @@ data class InsightUiState(
 
 class InsightViewModel(
     private val service: InsightService,
-    consentRepository: AiConsentRepository,
+    private val consentRepository: AiConsentRepository,
     configRepository: AdvisorConfigRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow(InsightUiState())
     val state: StateFlow<InsightUiState> = _state.asStateFlow()
     private var generationJob: Job? = null
+    private var evidenceConsentEpoch: Long? = null
 
     init {
         viewModelScope.launch {
@@ -48,6 +49,8 @@ class InsightViewModel(
                         generationJob?.cancel()
                         _state.update { it.copy(loading = false, error = "授权或模型配置已变化，本次洞察已取消") }
                     }
+                    // Never keep historical evidence across a consent/configuration change.
+                    _state.update { it.copy(report = null) }
                     refresh()
                 }
         }
@@ -56,12 +59,24 @@ class InsightViewModel(
     fun refresh() {
         viewModelScope.launch {
             try {
+                val consent = consentRepository.current()
                 val input = service.currentInput()
                 val report = service.loadCurrent()
                 val staleReason = if (report == null) service.staleReportReason() else null
+                val currentConsent = consentRepository.current()
+                // Keep only already-viewed evidence under the exact same authorization.
+                // It remains historical, never actionable; a consent epoch change clears it.
+                val sameConsent = currentConsent.granted && currentConsent == consent
                 _state.update {
-                    it.copy(currentVersion = input.dataVersion, report = report, error = staleReason, loading = false)
+                    val evidence = historicalInsightEvidence(it.report, evidenceConsentEpoch, consent, currentConsent)
+                    it.copy(
+                        currentVersion = input.dataVersion,
+                        report = if (sameConsent) report ?: evidence else null,
+                        error = staleReason,
+                        loading = false,
+                    )
                 }
+                evidenceConsentEpoch = if (sameConsent) consent.epoch else null
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -95,6 +110,7 @@ class InsightViewModel(
                 }
             }
             val input = service.currentInput()
+            evidenceConsentEpoch = consentRepository.current().epoch
             _state.update { it.copy(currentVersion = input.dataVersion) }
         }
     }

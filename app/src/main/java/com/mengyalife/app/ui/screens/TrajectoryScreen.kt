@@ -8,6 +8,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,10 +26,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -102,12 +107,13 @@ fun TrajectoryScreen(
     modifier: Modifier = Modifier,
 ) {
     val colors = MorrowTheme.colors
+    val scope = rememberCoroutineScope()
     var range by rememberSaveable { mutableStateOf(TrajectoryRange.MONTH) }
     val now = System.currentTimeMillis()
     val windowMillis = range.days * 24L * 60 * 60 * 1000
     val allTrends = trends.trends
     val filtered = allTrends.mapNotNull { item ->
-        val points = item.points.filter { now - it.recordedAt <= windowMillis }
+        val points = item.points.filter { it.recordedAt in (now - windowMillis)..now }
         if (points.isEmpty()) {
             null
         } else {
@@ -121,7 +127,7 @@ fun TrajectoryScreen(
     val shownTrends = filtered.take(2)
     val shownNodes = remember(goals.roots) { goals.roots.flatMap { flattenNode(it) } }
     val latestNode = shownNodes
-        .filter { (it.lastCheckinAt ?: 0L) > 0L }
+        .filter { (it.lastCheckinAt ?: 0L) in (now - windowMillis)..now }
         .maxByOrNull { it.lastCheckinAt ?: 0L }
     val weeklyReview = weekly.review
 
@@ -147,15 +153,15 @@ fun TrajectoryScreen(
         }
         item {
             Column {
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "原来，变化已经发生。",
-                    style = MorrowType.PageTitle,
+                    text = "看见真实变化",
+                    style = MorrowType.DisplaySmall,
                     color = colors.textPrimary,
                 )
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    text = "这里只画你亲手记录过的数值；日记和目标里的文字不会被推断成曲线。",
+                    text = "每条变化，都能回到原始记录。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = colors.textSecondary,
                 )
@@ -173,7 +179,33 @@ fun TrajectoryScreen(
                         )
                     }
                 }
+                if (plans.isNotEmpty()) {
+                    TextButton(
+                        // Header, introduction, changes, then the action-state section.
+                        onClick = { scope.launch { listState.animateScrollToItem(3) } },
+                        modifier = Modifier.testTag("trajectory_jump_actions"),
+                    ) { Text("查看行动状态 · ${plans.size} 个") }
+                }
             }
+        }
+
+        item {
+            Column(modifier = Modifier.testTag("trajectory_changes")) {
+                SectionHeading(title = "这段时间的变化")
+                Spacer(Modifier.height(8.dp))
+                ChangesCard(
+                    trends = filtered,
+                    latestNode = latestNode,
+                    entries = entries,
+                    rangeLabel = range.label,
+                    periodStart = now - windowMillis,
+                    periodEnd = now,
+                )
+            }
+        }
+
+        item {
+            ActionPlansSection(plans)
         }
 
         item {
@@ -215,9 +247,9 @@ fun TrajectoryScreen(
                             }
                             TrendBlock(trend = trend, index = index, onOpenGoal = onOpenGoal)
                         }
-                        if (allTrends.size > 2) {
-                            Spacer(Modifier.height(14.dp))
-                            InlineNote("这里展示最近 2 组；另有 ${allTrends.size - 2} 组记录可到目标进展历史查看。")
+                        if (filtered.size > 2) {
+                            Spacer(Modifier.height(12.dp))
+                            InlineNote("所选时段展示最近 2 组；另有 ${filtered.size - 2} 组记录可到目标进展历史查看。")
                         }
                     }
                 }
@@ -225,35 +257,13 @@ fun TrajectoryScreen(
         }
 
         item {
-            ActionPlansSection(plans)
-        }
-
-        item {
-            Column(modifier = Modifier.testTag("trajectory_weekly")) {
-                SectionHeading(title = "这段时间的变化")
-                Spacer(Modifier.height(10.dp))
-                ChangesCard(
-                    trends = filtered,
-                    latestNode = latestNode,
-                    entries = entries,
-                    rangeLabel = range.label,
-                )
-                Spacer(Modifier.height(10.dp))
-                WeeklyEntryCard(
-                    weekly = weekly,
-                    onOpen = onOpenWeeklyReview,
-                )
-            }
-        }
-
-        item {
             Column {
-                SectionHeading(title = "线索与回溯")
-                Spacer(Modifier.height(10.dp))
+                SectionHeading(title = "回顾与原始记录")
+                Spacer(Modifier.height(8.dp))
+                WeeklyEntryCard(weekly = weekly, onOpen = onOpenWeeklyReview)
+                Spacer(Modifier.height(8.dp))
                 EvidenceCard(
-                    weekly = weeklyReview,
                     entries = entries,
-                    onOpenWeekly = onOpenWeeklyReview,
                     onOpenDiary = onOpenDiaryEntry,
                     onOpenGoal = onOpenGoal,
                     latestNode = latestNode,
@@ -267,32 +277,35 @@ fun TrajectoryScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ActionPlansSection(plans: List<PlanTrajectoryItem>) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val ordered = plans.sortedWith(compareBy<PlanTrajectoryItem> { it.status != "ACTIVE" }.thenByDescending { it.createdAt })
     SectionCard(
-        title = "已确认的行动",
-        subtitle = "来自顾问讨论并由你确认的小计划；执行次数只统计你实际记录的进展",
+        title = "行动状态",
+        subtitle = "已确认计划的当前状态，与数值变化分开看；次数仅指执行记录，不推断实际执行或成长",
         modifier = Modifier.testTag("trajectory_action_plans"),
         trailing = { StatusPill(text = "真实计划") },
     ) {
         if (plans.isEmpty()) {
             InlineNote("确认行动后会在这里出现。没有执行记录不代表没有执行。")
         } else {
-            plans.take(8).forEachIndexed { index, plan ->
+            (if (expanded) ordered else ordered.take(2)).forEachIndexed { index, plan ->
                 if (index > 0) Spacer(Modifier.height(10.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
                         plan.title,
                         style = MaterialTheme.typography.titleSmall,
                         color = MorrowTheme.colors.textPrimary,
-                        modifier = Modifier.weight(1f),
                     )
                     StatusPill(
                         text = when (plan.status) {
                             "COMPLETED" -> "已完成"
                             "PAUSED" -> "已暂停"
                             "CANCELLED" -> "已取消"
-                            else -> "进行中"
+                            "ACTIVE" -> "进行中"
+                            else -> "状态待确认"
                         },
                     )
                 }
@@ -303,7 +316,7 @@ private fun ActionPlansSection(plans: List<PlanTrajectoryItem>) {
                 )
                 Text(
                     text = if (plan.progressCount > 0) {
-                        "已记录 ${plan.progressCount} 次执行"
+                        "${plan.progressCount} 条执行记录"
                     } else {
                         "尚无执行记录（不代表没有执行）"
                     },
@@ -312,10 +325,17 @@ private fun ActionPlansSection(plans: List<PlanTrajectoryItem>) {
                     modifier = Modifier.testTag("trajectory_plan_progress_${plan.id}"),
                 )
             }
+            if (plans.size > 2) {
+                TextButton(
+                    onClick = { expanded = !expanded },
+                    modifier = Modifier.testTag("trajectory_plans_expand"),
+                ) { Text(if (expanded) "收起行动" else "查看全部 ${plans.size} 个行动") }
+            }
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TrendBlock(trend: GoalTrend, index: Int, onOpenGoal: (Long) -> Unit) {
     val colors = MorrowTheme.colors
@@ -327,22 +347,18 @@ private fun TrendBlock(trend: GoalTrend, index: Int, onOpenGoal: (Long) -> Unit)
             .testTag("trend_block_$index")
             .clickable { onOpenGoal(trend.goalId) },
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 text = trend.goalTitle,
                 style = MaterialTheme.typography.titleSmall,
                 color = colors.textPrimary,
-                modifier = Modifier.weight(1f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.width(8.dp))
             StatusPill(
                 text = if (trend.unitLabel == GoalTrends.UNIT_NONE) kindLabel else "$kindLabel · ${trend.unitLabel}",
             )
         }
         Spacer(Modifier.height(4.dp))
-        Row(verticalAlignment = Alignment.Bottom) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 text = MetricFormat.withUnit(trend.latest.value, unit),
                 style = MorrowType.CardTitle,
@@ -433,17 +449,23 @@ private fun WeeklyEntryCard(
     }
 }
 
-private data class ChangeLine(val text: String, val source: String)
+internal data class ChangeLine(val text: String, val source: String)
 
-private fun buildChanges(
+internal fun buildChanges(
     trends: List<GoalTrend>,
     latestNode: GoalNode?,
     entries: List<JournalEntryEntity>,
+    periodStart: Long,
+    periodEnd: Long,
 ): List<ChangeLine> {
     val result = mutableListOf<ChangeLine>()
-    trends.firstOrNull { it.points.size >= 2 }?.let { trend ->
-        val first = trend.points.first()
-        val last = trend.points.last()
+    val numericChange = trends.firstOrNull {
+        it.series.kind == ProgressKind.SNAPSHOT && it.points.size >= 2 && it.points.map { point -> point.value }.distinct().size > 1
+    } ?: trends.firstOrNull { it.points.size >= 2 }
+    numericChange?.let { trend ->
+        val ordered = trend.points.sortedBy { it.recordedAt }
+        val first = ordered.first()
+        val last = ordered.last()
         val unit = trend.unitLabel.takeIf { it != GoalTrends.UNIT_NONE }
         val isDelta = trend.series.kind == ProgressKind.DELTA
         if (isDelta) {
@@ -461,16 +483,16 @@ private fun buildChanges(
             )
         }
     }
-    latestNode?.lastCheckinAt?.let { at ->
+    latestNode?.takeIf { it.goal.id != numericChange?.goalId }?.lastCheckinAt
+        ?.takeIf { it in periodStart..periodEnd }?.let { at ->
         result += ChangeLine(
             "你最近一次为「${latestNode.goal.title}」记录进展，是在 ${Timestamps.formatDate(at)}。",
             "来自你在目标里记录的进展",
         )
     }
-    val weekAgo = System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000
-    val recentEntries = entries.count { it.createdAt >= weekAgo }
+    val recentEntries = entries.count { it.createdAt in periodStart..periodEnd }
     if (recentEntries > 0) {
-        result += ChangeLine("这周你写下了 $recentEntries 篇日记。", "来自本机日记")
+        result += ChangeLine("所选时段留下了 $recentEntries 篇日记。", "记录数量 · 不推断情绪或成长程度")
     }
     return result.distinctBy { it.text }.take(4)
 }
@@ -481,11 +503,11 @@ private fun ChangesCard(
     latestNode: GoalNode?,
     entries: List<JournalEntryEntity>,
     rangeLabel: String,
+    periodStart: Long,
+    periodEnd: Long,
 ) {
     val colors = MorrowTheme.colors
-    val changes = remember(trends, latestNode?.goal?.id, entries.size, rangeLabel) {
-        buildChanges(trends, latestNode, entries)
-    }
+    val changes = buildChanges(trends, latestNode, entries, periodStart, periodEnd)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -543,9 +565,7 @@ private fun ChangesCard(
 
 @Composable
 private fun EvidenceCard(
-    weekly: com.mengyalife.app.domain.weekly.WeeklyReview?,
     entries: List<JournalEntryEntity>,
-    onOpenWeekly: () -> Unit,
     onOpenDiary: (JournalEntryEntity) -> Unit,
     onOpenGoal: (Long) -> Unit,
     latestNode: GoalNode?,
@@ -558,43 +578,11 @@ private fun EvidenceCard(
             .background(colors.card)
             .padding(18.dp),
     ) {
-        weekly?.facts?.take(2)?.forEachIndexed { index, fact ->
-            if (index > 0) Spacer(Modifier.height(10.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .clickable(onClick = onOpenWeekly)
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = fact.text,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.textPrimary,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(Modifier.width(8.dp))
-                MorrowIcon(
-                    kind = MorrowIconKind.ARROW_RIGHT,
-                    tint = colors.textTertiary,
-                    modifier = Modifier.size(16.dp),
-                )
-            }
-        }
-        if (weekly?.facts?.isNotEmpty() != true) {
+        if (entries.isEmpty() && latestNode == null) {
             Text(
-                text = "还没有可展开的回顾来源。打开每周回顾，看看本机记录怎样被整理。",
+                text = "还没有可回看的日记或进展；记录后会在这里保留入口。",
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.textSecondary,
-            )
-            Spacer(Modifier.height(12.dp))
-            MorrowPrimaryButton(
-                text = "打开一周回顾",
-                onClick = onOpenWeekly,
-                testTag = "trajectory_open_weekly",
             )
         }
         val recentEntries = entries.sortedByDescending { it.updatedAt }.take(2)

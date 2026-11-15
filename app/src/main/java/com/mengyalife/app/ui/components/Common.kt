@@ -402,7 +402,7 @@ fun MorrowPrimaryButton(
     }
 }
 
-/** Secondary：纸色/描边、50dp 高、与 Primary 同圆角。 */
+/** Secondary：纸色/描边、最小 52dp 高、与 Primary 同圆角，随文字增高。 */
 @Composable
 fun MorrowSecondaryButton(
     text: String,
@@ -425,7 +425,7 @@ fun MorrowSecondaryButton(
     )
     Surface(
         modifier = modifier
-            .defaultMinSize(minHeight = 50.dp)
+            .defaultMinSize(minHeight = 52.dp)
             .then(if (testTag != null) Modifier.testTag(testTag) else Modifier)
             .clip(RoundedCornerShape(MorrowSpacing.ButtonRadius))
             .clickable(

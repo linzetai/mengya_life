@@ -623,6 +623,20 @@ private fun MainShell(
                     state = advisorState,
                     onAction = onAdvisorAction,
                     onOpenSettings = onOpenSettings,
+                    onOpenPlans = {
+                        // Match the trajectory's own “行动状态” anchor, not a generic tab jump.
+                        trajectoryListState.requestScrollToItem(3)
+                        onTabChange(AppTab.PATH)
+                    },
+                    onReevaluateInsight = { onTabChange(AppTab.TODAY); onGenerateInsight() },
+                    goalTitles = remember(goalsState.snapshot) {
+                        buildMap {
+                            fun visit(nodes: List<com.mengyalife.app.data.repository.GoalNode>) {
+                                nodes.forEach { node -> put(node.goal.id, node.goal.title); visit(node.children) }
+                            }
+                            visit(goalsState.snapshot.roots)
+                        }
+                    },
                 )
             }
         }

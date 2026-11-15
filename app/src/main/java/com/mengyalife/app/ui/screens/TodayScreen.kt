@@ -27,6 +27,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -102,12 +103,15 @@ fun TodayScreen(
     onWriteDiary: () -> Unit,
     onOpenDecision: () -> Unit,
     onOpenTrends: () -> Unit,
-    onGenerateInsight: () -> Unit = {},
+    onGenerateInsight: () -> Unit,
     onDiscussInsight: (InsightReference) -> Unit = {},
     onTalkToAdvisor: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var detailInsight by remember { mutableStateOf<GrowthInsight?>(null) }
+    LaunchedEffect(insights.report?.id) {
+        if (insights.report?.insights?.none { it.id == detailInsight?.id } != false) detailInsight = null
+    }
     val today = rememberToday()
     val localeDate = remember(today) {
         "${today.year}年${today.monthValue}月${today.dayOfMonth}日 · " +
@@ -178,17 +182,21 @@ fun TodayScreen(
                 Spacer(Modifier.height(8.dp))
                 Text(
                     text = greetingFor(today),
-                    style = MorrowType.HomeTitle,
+                    style = MorrowType.DisplaySmall,
                     color = MorrowTheme.colors.textPrimary,
                     modifier = Modifier.testTag("today_title"),
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    text = "不必每天都进步，值得看见每一点真实的变化。",
+                    text = "真实的每一步，都值得看见。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MorrowTheme.colors.textSecondary,
                 )
             }
+        }
+
+        item {
+            NextStepCard(step = nextStep)
         }
 
         item {
@@ -207,10 +215,6 @@ fun TodayScreen(
                     }
                 },
             )
-        }
-
-        item {
-            NextStepCard(step = nextStep)
         }
 
         item {
@@ -242,6 +246,10 @@ fun TodayScreen(
             onOpenGoals = onOpenPanorama,
             onOpenGoal = onOpenGoal,
             onOpenTrends = onOpenTrends,
+            isCurrent = insights.hasReport,
+            loading = insights.loading,
+            staleReason = insights.error,
+            onReevaluate = onGenerateInsight,
             onDiscuss = { reference ->
                 onDiscussInsight(reference)
                 detailInsight = null
@@ -251,9 +259,9 @@ fun TodayScreen(
 }
 
 private fun greetingFor(today: LocalDate): String = when (today.dayOfWeek.value) {
-    1, 2, 3, 4, 5 -> "慢慢来，\n你已经走在路上。"
-    6, 7 -> "周末好，\n把这一周轻轻收个尾。"
-    else -> "慢慢来，\n你已经走在路上。"
+    1, 2, 3, 4, 5 -> "慢慢来，走好今天。"
+    6, 7 -> "周末好，慢慢来。"
+    else -> "慢慢来，走好今天。"
 }
 
 // ---------------------------------------------------------------------------
@@ -276,6 +284,16 @@ private fun buildInsightPresentation(
     entries: List<JournalEntryEntity>,
 ): InsightPresentation {
     val report = state.report
+    if (!state.hasReport && report != null) {
+        return InsightPresentation(
+            eyebrow = "历史观察 · 需重新评估",
+            quote = report.insights.firstOrNull()?.title ?: "上次的依据仍可回看。",
+            evidence = "来源或观察窗口已变化；旧结论不能直接作为当前行动依据。",
+            cta = "回看上次依据",
+            insight = report.insights.firstOrNull(),
+            isLocal = true,
+        )
+    }
     if (state.hasReport && report != null) {
         if (report.status == InsightReportStatus.READY && report.facts.any { it.id == "insufficient" }) {
             val fact = report.facts.first { it.id == "insufficient" }
@@ -301,7 +319,7 @@ private fun buildInsightPresentation(
                 },
                 quote = insight.title,
                 evidence = "引用 ${insight.factIds.size} 条依据 · $period",
-                cta = if (insight.type == InsightType.SUGGESTION) "和顾问讨论这条建议" else "查看依据与来源",
+                cta = "查看解释与依据",
                 insight = insight,
             )
         }
@@ -380,33 +398,18 @@ private fun FocusCard(
 ) {
     val colors = MorrowTheme.colors
     val shape = RoundedCornerShape(MorrowSpacing.InsightRadius)
-    val darkCard = !presentation.isLearning
-    val container = if (darkCard) colors.insightCard else colors.card
-    val titleColor = if (darkCard) colors.insightText else colors.textPrimary
-    val mutedColor = if (darkCard) colors.insightMuted else colors.textSecondary
+    // The action above is today's only primary focus; observations stay quiet.
+    val container = colors.nested
+    val titleColor = colors.textPrimary
+    val mutedColor = colors.textSecondary
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
             .background(container)
-            .clickable(onClick = onClick)
             .testTag("today_insight_card"),
     ) {
-        if (darkCard) {
-            Canvas(modifier = Modifier.matchParentSize()) {
-                val center = Offset(size.width * 1.04f, size.height * 0.06f)
-                val unit = size.width * 0.16f
-                listOf(1.2f, 1.9f, 2.6f).forEachIndexed { index, factor ->
-                    drawCircle(
-                        color = colors.insightText.copy(alpha = 0.10f + index * 0.012f),
-                        radius = unit * factor,
-                        center = center,
-                        style = Stroke(width = 1.dp.toPx()),
-                    )
-                }
-            }
-        }
-        Column(modifier = Modifier.padding(horizontal = 22.dp, vertical = 20.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 MorrowIcon(
                     kind = MorrowIconKind.SPARKLE,
@@ -423,7 +426,7 @@ private fun FocusCard(
             Spacer(Modifier.height(12.dp))
             Text(
                 text = presentation.quote,
-                style = MorrowType.InsightQuote,
+                style = MaterialTheme.typography.titleSmall,
                 color = titleColor,
             )
             presentation.evidence?.let {
@@ -435,31 +438,21 @@ private fun FocusCard(
                 )
             }
             Spacer(Modifier.height(14.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = presentation.cta,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = titleColor,
-                    modifier = Modifier.weight(1f),
-                )
-                MorrowIcon(
-                    kind = MorrowIconKind.ARROW_RIGHT,
-                    tint = titleColor,
-                    modifier = Modifier.size(16.dp),
-                )
+            TextButton(onClick = onClick, modifier = Modifier.testTag("today_insight_detail")) {
+                Text(presentation.cta, style = MaterialTheme.typography.labelLarge, color = colors.forest)
             }
             TextButton(
                 onClick = onGenerate,
                 enabled = !loading,
                 modifier = Modifier.testTag("today_insight_generate"),
             ) {
-                Text(if (loading) "正在重新评估…" else "生成 / 更新洞察")
+                Text(if (loading) "正在重新评估…" else if (error != null) "重新评估" else "更新观察")
             }
             error?.let {
                 Text(
                     it,
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (darkCard) colors.insightMuted else colors.textSecondary,
+                    color = colors.textSecondary,
                     modifier = Modifier.testTag("today_insight_error"),
                 )
             }
@@ -542,6 +535,7 @@ private fun buildNextStep(
     )
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun NextStepCard(step: NextStep) {
     val colors = MorrowTheme.colors
@@ -578,7 +572,7 @@ private fun NextStepCard(step: NextStep) {
                 testTag = "today_next_action",
             )
             if (step.secondary.isNotEmpty()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     step.secondary.forEach { (label, action) ->
                         TextButton(onClick = action) {
                             Text(
@@ -598,6 +592,7 @@ private fun NextStepCard(step: NextStep) {
 // 成长概览
 // ---------------------------------------------------------------------------
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun GrowthOverview(
     goals: GoalSnapshot,
@@ -616,11 +611,9 @@ private fun GrowthOverview(
             testTag = "today_open_panorama",
         )
         Spacer(Modifier.height(10.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OverviewStat(value = "${goals.longTermCount}", label = "个方向")
-            OverviewDot()
             OverviewStat(value = "${goals.stageCount}", label = "个阶段")
-            OverviewDot()
             OverviewStat(value = "${entries.size}", label = "篇日记")
         }
         Spacer(Modifier.height(6.dp))

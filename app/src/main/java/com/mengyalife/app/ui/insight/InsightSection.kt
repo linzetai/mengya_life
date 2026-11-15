@@ -3,6 +3,8 @@ package com.mengyalife.app.ui.insight
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,6 +37,7 @@ import com.mengyalife.app.domain.insight.InsightReportStatus
 import com.mengyalife.app.domain.insight.InsightType
 import com.mengyalife.app.domain.insight.InsightReference
 import com.mengyalife.app.ui.components.InlineNote
+import com.mengyalife.app.ui.components.MorrowPrimaryButton
 import com.mengyalife.app.ui.components.SectionCard
 import com.mengyalife.app.ui.components.StatusPill
 import com.mengyalife.app.util.Timestamps
@@ -51,8 +54,8 @@ fun InsightSection(
     var detail by remember { mutableStateOf<GrowthInsight?>(null) }
     val report = state.report
     val current = state.hasReport
-    LaunchedEffect(state.currentVersion, state.hasReport) {
-        if (!state.hasReport) detail = null
+    LaunchedEffect(report?.id) {
+        if (report?.insights?.none { it.id == detail?.id } != false) detail = null
     }
 
     SectionCard(
@@ -68,9 +71,14 @@ fun InsightSection(
     ) {
         if (!current) {
             InlineNote(
-                if (report != null) "数据已变化，旧洞察不再展示。请重新生成。"
+                if (report != null) "来源或观察窗口已变化。上次依据保留供回看，旧结论不再作为当前建议。"
                 else "还没有生成洞察。可以先记录几条目标进展或日记；生成时会先做可核验的规则分析。",
             )
+            report?.let { historical ->
+                distinctInsightCards(historical.insights).take(3).forEachIndexed { index, insight ->
+                    InsightCard(insight, index) { detail = insight }
+                }
+            }
         } else if (report?.status == InsightReportStatus.FAILED) {
             Text(
                 "AI 洞察未生成：${report.error ?: "未知错误"}",
@@ -87,26 +95,23 @@ fun InsightSection(
         } else if (report != null && report.insights.isEmpty()) {
             InlineNote("这次没有形成可靠的洞察；可以补充目标、进展或日记后再试。")
         } else if (report != null) {
-            report.insights.take(3).forEachIndexed { index, insight ->
+            distinctInsightCards(report.insights).take(3).forEachIndexed { index, insight ->
                 InsightCard(insight, index) { detail = insight }
             }
-            report.facts.firstOrNull()?.let {
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "判断依据（${report.facts.size} 条规则事实）：${it.text.take(90)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            Text(
+                "打开结论查看解释、依据与来源。建议需要讨论后由你决定。",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         Spacer(Modifier.height(10.dp))
-        Button(
+        MorrowPrimaryButton(
+            text = if (state.loading) "正在重新评估…" else if (state.error != null || report != null) "重新评估" else "生成洞察",
             onClick = onGenerate,
             enabled = !state.loading,
-            modifier = Modifier.fillMaxWidth().testTag("insight_generate"),
-        ) {
-            Text(if (state.loading) "正在分析…" else if (current) "生成 / 更新洞察" else "生成洞察")
-        }
+            loading = state.loading,
+            testTag = "insight_generate",
+        )
         state.error?.let {
             Spacer(Modifier.height(6.dp))
             Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
@@ -121,6 +126,10 @@ fun InsightSection(
             onOpenGoals = onOpenGoals,
             onOpenGoal = onOpenGoal,
             onOpenTrends = onOpenTrends,
+            isCurrent = current,
+            loading = state.loading,
+            staleReason = state.error,
+            onReevaluate = onGenerate,
             onDiscuss = { reference -> onDiscuss(reference); detail = null },
         )
     }
@@ -151,8 +160,8 @@ private fun InsightCard(insight: GrowthInsight, index: Int, onClick: () -> Unit)
         }
         Text(insight.title, style = MaterialTheme.typography.titleSmall)
         Text(
-            insight.body.take(160),
-            style = MaterialTheme.typography.bodySmall,
+            "查看解释与依据",
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
@@ -160,10 +169,7 @@ private fun InsightCard(insight: GrowthInsight, index: Int, onClick: () -> Unit)
 
 @Composable
 private fun FactLine(fact: InsightFact) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Text(
             if (fact.isInference) "AI 推测 · " else "规则事实 · ",
             style = MaterialTheme.typography.labelSmall,
@@ -178,6 +184,7 @@ private fun FactLine(fact: InsightFact) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun InsightDetailDialog(
     insight: GrowthInsight,
@@ -187,7 +194,13 @@ fun InsightDetailDialog(
     onOpenGoal: (Long) -> Unit,
     onOpenTrends: () -> Unit,
     onDiscuss: (InsightReference) -> Unit,
+    onReevaluate: () -> Unit,
+    isCurrent: Boolean,
+    loading: Boolean = false,
+    staleReason: String? = null,
 ) {
+    var evidenceExpanded by remember(insight.id) { mutableStateOf(false) }
+    val hasEvidence = insight.factIds.isNotEmpty() && insight.factIds.all { id -> report?.facts?.any { it.id == id } == true }
     AlertDialog(
         modifier = Modifier
             .semantics { testTagsAsResourceId = true }
@@ -204,7 +217,22 @@ fun InsightDetailDialog(
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(insight.body, style = MaterialTheme.typography.bodyMedium)
-                if (report != null) {
+                if (!isCurrent || !hasEvidence) {
+                    Spacer(Modifier.height(8.dp))
+                    InlineNote(staleReason ?: if (!hasEvidence) "关联依据不完整，请重新评估后再讨论行动。" else "来源或观察窗口已变化；以下是上次的依据，不代表当前结论。")
+                    MorrowPrimaryButton(
+                        text = if (loading) "正在重新评估…" else "重新评估",
+                        onClick = onReevaluate,
+                        enabled = !loading,
+                        loading = loading,
+                        testTag = "insight_retry",
+                    )
+                }
+                TextButton(
+                    onClick = { evidenceExpanded = !evidenceExpanded },
+                    modifier = Modifier.testTag("insight_evidence_toggle"),
+                ) { Text(if (evidenceExpanded) "收起依据与来源" else "展开依据与来源") }
+                if (evidenceExpanded && report != null) {
                     Spacer(Modifier.height(8.dp))
                     Text(
                         "数据区间：${Timestamps.formatDate(report.periodStart)} – ${Timestamps.formatDate(report.periodEnd)}" +
@@ -216,24 +244,35 @@ fun InsightDetailDialog(
                         style = MaterialTheme.typography.labelMedium,
                         modifier = Modifier.padding(top = 8.dp),
                     )
-                    val relevant = report.facts.filter { it.id in insight.factIds }
-                        .ifEmpty { report.facts }
-                    relevant.forEach { FactLine(it) }
+                    val relevant = report.facts.filter { it.id in insight.factIds }.distinctBy { it.text }
+                    if (relevant.isEmpty()) {
+                        InlineNote("这条结论没有可核验的关联依据，请重新评估；不以其他事实代替。")
+                    } else {
+                        val additional = additionalInsightFacts(insight.body, relevant)
+                        val included = relevant.size - additional.size
+                        if (included > 0) {
+                            Text(
+                                "上述解释已引用 $included 条记录事实，来源保留如下。",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        additional.forEach { FactLine(it) }
+                    }
                 }
-                if (insight.sources.isNotEmpty()) {
+                if (evidenceExpanded && insight.sources.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
                     Text("来源", style = MaterialTheme.typography.labelMedium)
-                    insight.sources.forEach {
-                        Text("• ${it.type} · ${it.label} (#${it.recordId})", style = MaterialTheme.typography.labelSmall)
+                    insight.sources.distinctBy { it.type to it.recordId }.forEach {
+                        Text("• ${friendlyInsightSource(it)}", style = MaterialTheme.typography.bodySmall)
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(
                         onClick = {
                             val goalId = insight.sources.firstOrNull { it.type == "GOAL" }?.recordId?.toLongOrNull()
                             onDismiss()
-                            if (goalId != null) onOpenGoal(goalId) else onOpenGoals()
+                            if (isCurrent && goalId != null) onOpenGoal(goalId) else onOpenGoals()
                         },
                         modifier = Modifier.testTag("insight_open_goals"),
                     ) {
@@ -246,15 +285,12 @@ fun InsightDetailDialog(
                         Text("趋势")
                     }
                 }
-                if (insight.type == InsightType.SUGGESTION && report != null) {
-                    TextButton(
-                        onClick = {
-                            onDiscuss(InsightReference(report.id, report.dataVersion, insight.id))
-                        },
-                        modifier = Modifier.testTag("insight_discuss"),
-                    ) {
-                        Text("和顾问讨论")
-                    }
+                if (isCurrent && hasEvidence && insight.type == InsightType.SUGGESTION && report != null) {
+                    MorrowPrimaryButton(
+                        text = "和顾问讨论",
+                        onClick = { onDiscuss(InsightReference(report.id, report.dataVersion, insight.id)) },
+                        testTag = "insight_discuss",
+                    )
                     Text(
                         "确认行动前会先讨论；这里不会直接修改目标或计划。",
                         style = MaterialTheme.typography.labelSmall,

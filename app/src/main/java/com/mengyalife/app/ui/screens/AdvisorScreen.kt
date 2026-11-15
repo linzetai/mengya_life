@@ -110,6 +110,9 @@ fun AdvisorScreen(
     onAction: (AdvisorAction) -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenPlans: () -> Unit = {},
+    goalTitles: Map<Long, String> = emptyMap(),
+    onReevaluateInsight: () -> Unit = {},
 ) {
     val colors = MorrowTheme.colors
     var sourceDialogFor by remember { mutableStateOf<AdvisorMessage?>(null) }
@@ -269,7 +272,7 @@ fun AdvisorScreen(
                                         it.status == AdvisorMessageStatus.FAILED ||
                                             it.status == AdvisorMessageStatus.CANCELLED
                                     }
-                                val showTimestamp = index == state.messages.lastIndex || index == 0 ||
+                                val showTimestamp = index == 0 ||
                                     Timestamps.formatDate(message.createdAt) != Timestamps.formatDate(state.messages[index - 1].createdAt)
                                 val proposal = state.proposals[message.id]
                                 val lastProposal = proposal != null &&
@@ -281,7 +284,12 @@ fun AdvisorScreen(
                                     showTimestamp = showTimestamp,
                                     lastProposal = lastProposal,
                                     proposal = proposal,
-                                    record = state.records[message.id],
+                                    record = state.records[message.id]?.let { stored ->
+                                        val linkedId = stored.draft.planChange?.goalId
+                                        if (linkedId == null) stored else stored.copy(
+                                            draft = stored.draft.copy(goalTitle = goalTitles[linkedId] ?: "关联目标已不可用"),
+                                        )
+                                    },
                                     recordAction = state.recordAction,
                                     onRetry = { onAction(AdvisorAction.Retry(message.id)) },
                                     onOpenSources = { sourceDialogFor = message },
@@ -296,6 +304,8 @@ fun AdvisorScreen(
                                     },
                                     onOpenDiary = { onAction(AdvisorAction.OpenDiary(it)) },
                                     onOpenGoal = { onAction(AdvisorAction.OpenGoal(it)) },
+                                    onOpenPlans = onOpenPlans,
+                                    onReevaluateInsight = onReevaluateInsight,
                                 )
                             }
 
@@ -418,7 +428,8 @@ private fun CompactStatusChip(
     val text = when {
         !state.configured -> "未配置模型"
         !state.consentValid -> "已配置 · 等待授权"
-        else -> "已配置 · ${state.config.model}"
+        state.config.useFakeEngine -> "QA 离线对话 · 非真实模型"
+        else -> "对话设置与授权"
     }
     val dotColor = when {
         !state.configured -> colors.danger
@@ -877,7 +888,7 @@ private fun Composer(
                 MorrowTextField(
                     value = state.input,
                     onValueChange = { onAction(AdvisorAction.InputChange(it)) },
-                    placeholder = "问点什么…",
+                    placeholder = "说说近况…",
                     maxLines = 4,
                     enabled = !state.sending,
                     testTag = "advisor_input",
@@ -940,6 +951,8 @@ private fun MessageRow(
     onUpdateRecordDraft: (String, RecordProposalDraft) -> Unit,
     onOpenDiary: (String) -> Unit,
     onOpenGoal: (String) -> Unit,
+    onOpenPlans: () -> Unit,
+    onReevaluateInsight: () -> Unit,
 ) {
     val colors = MorrowTheme.colors
     val dark = isDarkTheme()
@@ -948,6 +961,14 @@ private fun MessageRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
     ) {
+        if (showTimestamp) {
+            Text(
+                text = Timestamps.formatDate(message.createdAt),
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.textTertiary,
+                modifier = Modifier.align(Alignment.CenterHorizontally).padding(vertical = 8.dp),
+            )
+        }
         if (message.status == AdvisorMessageStatus.SENT) {
             Surface(
                 modifier = Modifier
@@ -1006,7 +1027,7 @@ private fun MessageRow(
             }
         }
 
-        if (message.sources.isNotEmpty()) {
+        if (!isUser && message.sources.isNotEmpty()) {
             val insightBacked = message.sources.any {
                 it.type == AdvisorSourceType.INSIGHT || it.type == AdvisorSourceType.INSIGHT_FACT
             }
@@ -1017,9 +1038,9 @@ private fun MessageRow(
                 ),
             ) {
                 Text(
-                    if (insightBacked) "查看建议依据" else "查看本轮依据",
+                    if (insightBacked) "建议依据 ›" else "参考依据 ›",
                     style = MaterialTheme.typography.labelSmall,
-                    color = colors.textSecondary,
+                    color = colors.textTertiary,
                 )
             }
         }
@@ -1065,15 +1086,17 @@ private fun MessageRow(
                 onUpdateDraft = { draft -> onUpdateRecordDraft(record.id, draft) },
                 onOpenDiary = { proposalId -> onOpenDiary(proposalId) },
                 onOpenGoal = { proposalId -> onOpenGoal(proposalId) },
+                onOpenPlans = onOpenPlans,
             )
-        }
-        if (showTimestamp) {
-            Text(
-                text = Timestamps.formatDateTime(message.createdAt),
-                style = MaterialTheme.typography.labelSmall,
-                color = colors.textTertiary,
-                modifier = Modifier.padding(top = 3.dp, start = 4.dp, end = 4.dp),
-            )
+            if (recordAction?.proposalId == record.id && recordAction.error?.let {
+                    it.contains("来源") || it.contains("重新生成") || it.contains("重新评估")
+                } == true) {
+                MorrowSecondaryButton(
+                    text = "重新评估建议",
+                    onClick = onReevaluateInsight,
+                    testTag = "advisor_reevaluate_insight",
+                )
+            }
         }
     }
 }
@@ -1091,7 +1114,7 @@ private fun SourceDialog(message: AdvisorMessage, onDismiss: () -> Unit) {
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 Text(
-                    "这里只保存来源 ID。继续讨论时，应用会按当前授权重新核验并仅发送本轮所需依据；不会复制或发送完整数据库。",
+                    "${Timestamps.formatDateTime(message.createdAt)}\n继续讨论时会重新核验这些依据，只使用你当前授权的内容。",
                     style = MaterialTheme.typography.labelSmall,
                     color = colors.textSecondary,
                 )
@@ -1100,7 +1123,7 @@ private fun SourceDialog(message: AdvisorMessage, onDismiss: () -> Unit) {
                     Text(type.label, style = MaterialTheme.typography.labelMedium)
                     sources.forEach { source ->
                         Text(
-                            "• #${source.recordId} ${source.label}",
+                            "• ${source.label}",
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.testTag("advisor_source_${type.name}_${source.recordId}"),
                         )
