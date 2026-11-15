@@ -1,0 +1,74 @@
+[
+  {
+    "text": "",
+    "id": "android:id/content",
+    "desc": "",
+    "bounds": "[0,0][960,2080]"
+  },
+  {
+    "text": "",
+    "id": "plan_editor",
+    "desc": "",
+    "bounds": "[0,0][960,2080]"
+  },
+  {
+    "text": "编辑计划",
+    "id": "",
+    "desc": "",
+    "bounds": "[60,204][303,212]"
+  },
+  {
+    "text": "这周读三次书",
+    "id": "plan_edit_title",
+    "desc": "",
+    "bounds": "[60,212][900,287]"
+  },
+  {
+    "text": "执行周期",
+    "id": "",
+    "desc": "",
+    "bounds": "[60,323][295,400]"
+  },
+  {
+    "text": "This-week-3-times",
+    "id": "plan_edit_scope",
+    "desc": "",
+    "bounds": "[60,436][900,609]"
+  },
+  {
+    "text": "关联目标",
+    "id": "",
+    "desc": "",
+    "bounds": "[60,645][295,722]"
+  },
+  {
+    "text": "独立行动，不要求关联目标",
+    "id": "",
+    "desc": "",
+    "bounds": "[60,758][740,833]"
+  },
+  {
+    "text": "",
+    "id": "plan_edit_dismiss",
+    "desc": "",
+    "bounds": "[60,881][468,1037]"
+  },
+  {
+    "text": "放弃修改",
+    "id": "",
+    "desc": "",
+    "bounds": "[147,921][382,998]"
+  },
+  {
+    "text": "",
+    "id": "plan_edit_save",
+    "desc": "",
+    "bounds": "[492,881][900,1042]"
+  },
+  {
+    "text": "完成编辑",
+    "id": "",
+    "desc": "",
+    "bounds": "[579,923][814,1000]"
+  }
+]

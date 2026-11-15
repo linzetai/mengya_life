@@ -1,0 +1,128 @@
+[
+  {
+    "text": "",
+    "id": "android:id/content",
+    "desc": "",
+    "bounds": "[0,0][960,2080]"
+  },
+  {
+    "text": "",
+    "id": "advisor_screen",
+    "desc": "",
+    "bounds": "[0,144][960,1102]"
+  },
+  {
+    "text": "顾问",
+    "id": "",
+    "desc": "",
+    "bounds": "[66,193][750,264]"
+  },
+  {
+    "text": "",
+    "id": "btn_settings",
+    "desc": "",
+    "bounds": "[750,156][894,300]"
+  },
+  {
+    "text": "设置",
+    "id": "",
+    "desc": "",
+    "bounds": "[808,200][894,256]"
+  },
+  {
+    "text": "",
+    "id": "advisor_status_chip",
+    "desc": "",
+    "bounds": "[66,280][626,403]"
+  },
+  {
+    "text": "QA 离线对话 · 非真实模型",
+    "id": "",
+    "desc": "",
+    "bounds": "[132,328][565,376]"
+  },
+  {
+    "text": "⌄",
+    "id": "",
+    "desc": "",
+    "bounds": "[577,327][596,376]"
+  },
+  {
+    "text": "",
+    "id": "record_proposal_f45da1d6-cb35-472b-aea0-5d092fe4ea1e",
+    "desc": "",
+    "bounds": "[66,403][894,856]"
+  },
+  {
+    "text": "执行周期：这周",
+    "id": "",
+    "desc": "",
+    "bounds": "[102,403][379,408]"
+  },
+  {
+    "text": "关联目标：独立行动",
+    "id": "",
+    "desc": "",
+    "bounds": "[102,420][458,472]"
+  },
+  {
+    "text": "",
+    "id": "plan_confirm_f45da1d6-cb35-472b-aea0-5d092fe4ea1e",
+    "desc": "",
+    "bounds": "[102,490][858,646]"
+  },
+  {
+    "text": "保存计划",
+    "id": "",
+    "desc": "",
+    "bounds": "[389,538][571,598]"
+  },
+  {
+    "text": "",
+    "id": "plan_edit_f45da1d6-cb35-472b-aea0-5d092fe4ea1e",
+    "desc": "",
+    "bounds": "[102,670][468,826]"
+  },
+  {
+    "text": "编辑",
+    "id": "",
+    "desc": "",
+    "bounds": "[239,718][331,778]"
+  },
+  {
+    "text": "",
+    "id": "plan_cancel_f45da1d6-cb35-472b-aea0-5d092fe4ea1e",
+    "desc": "",
+    "bounds": "[492,670][858,826]"
+  },
+  {
+    "text": "取消",
+    "id": "",
+    "desc": "",
+    "bounds": "[629,718][721,778]"
+  },
+  {
+    "text": "",
+    "id": "advisor_input",
+    "desc": "",
+    "bounds": "[66,898][720,1066]"
+  },
+  {
+    "text": "说说近况…",
+    "id": "",
+    "desc": "",
+    "bounds": "[114,954][327,1010]"
+  },
+  {
+    "text": "",
+    "id": "advisor_send",
+    "desc": "",
+    "bounds": "[750,910][894,1054]"
+  },
+  {
+    "text": "",
+    "id": "",
+    "desc": "发送",
+    "bounds": "[792,952][852,1012]"
+  }
+]

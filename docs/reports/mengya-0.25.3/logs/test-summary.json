@@ -1,0 +1,14 @@
+{
+  "testQaUnitTest": {
+    "tests": 440,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "testDebugUnitTest": {
+    "tests": 440,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  }
+}

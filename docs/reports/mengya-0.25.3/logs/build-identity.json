@@ -1,0 +1,44 @@
+{
+  "codeCommit": "dbf5f839248a5160da7fe78585356875a2d2ded3",
+  "versionName": "0.25.3",
+  "versionCode": 39,
+  "gate4": "PARTIAL",
+  "finalRecoveryPatchOnDevice": "NOT_VERIFIED_PHONE_OPERATIONS_STOPPED",
+  "deviceDisplayRestored": false,
+  "realExternalModelExperience": "NOT_VERIFIED",
+  "userIndependentUiAcceptance": "PENDING",
+  "instrumentedTests": {
+    "passed": 33,
+    "scope": "Earlier QA build; final UI-only recovery patch not rerun on device"
+  },
+  "apks": {
+    "qa": {
+      "sha256": "94b117a3b196ecaefab35a0eb809218f02a51b79741d880f4b8b6ea16bfa04a3",
+      "bytes": 13639839
+    },
+    "debug": {
+      "sha256": "85f7acdbdf6e76c0946dd602480b21bc5035ac9088b426a1081a325c8480e18e",
+      "bytes": 13772101
+    }
+  },
+  "unitTests": {
+    "testQaUnitTest": {
+      "tests": 440,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "testDebugUnitTest": {
+      "tests": 440,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "baseline": {
+    "repositoryCommit": "9a19932d21a375679fdfad4e93e8db43f6cff019",
+    "retainedQaVersion": "0.25.2.1-qa",
+    "retainedQaApkSha256": "662404d1af409088155369de2dacb79514f329432ab1fd72ee1d94f1bbd77c19",
+    "provenanceNote": "Retained pre-edit workspace APK and already-installed QA; that old APK has no embedded commit identifier."
+  }
+}
