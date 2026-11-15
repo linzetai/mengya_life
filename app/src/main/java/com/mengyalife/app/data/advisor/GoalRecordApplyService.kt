@@ -6,6 +6,7 @@ import com.mengyalife.app.data.local.proposal.RecordProposalDao
 import com.mengyalife.app.data.repository.GoalDraft
 import com.mengyalife.app.data.repository.GoalRepository
 import com.mengyalife.app.data.repository.GoalResult
+import com.mengyalife.app.data.restore.RestoreException
 import com.mengyalife.app.data.restore.RestoreWriteBarrier
 import com.mengyalife.app.domain.advisor.GoalChangeDraft
 import com.mengyalife.app.domain.advisor.GoalChangeKind
@@ -15,6 +16,9 @@ import com.mengyalife.app.domain.goals.GoalLevel
 import com.mengyalife.app.domain.goals.GoalStatus
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 sealed interface GoalApplyResult {
     data class Success(val goalIds: List<Long>) : GoalApplyResult
@@ -23,6 +27,13 @@ sealed interface GoalApplyResult {
 
 interface GoalRecordApply {
     suspend fun apply(proposalId: String): GoalApplyResult
+
+    /** Validator runs in the same Room transaction immediately before goal mutation. */
+    suspend fun applyValidated(
+        proposalId: String,
+        expectedRestoreGeneration: Long,
+        validateSource: suspend () -> String?,
+    ): GoalApplyResult = apply(proposalId)
 }
 
 /**
@@ -44,26 +55,43 @@ class GoalRecordApplyService(
 
     private val mutex = Mutex()
 
-    override suspend fun apply(proposalId: String): GoalApplyResult = mutex.withLock {
-        val entity = recordDao.findById(proposalId)
-            ?: return@withLock GoalApplyResult.Failure("这条目标候选不存在")
-        val existingIds = entity.appliedGoalIdsJson
-            ?.split(',')
-            ?.mapNotNull { it.trim().toLongOrNull() }
-            .orEmpty()
-        if (entity.status == RecordProposalStatus.APPLIED) {
-            return@withLock GoalApplyResult.Success(existingIds)
-        }
-        if (entity.status != RecordProposalStatus.DRAFT) {
-            return@withLock GoalApplyResult.Failure("这条目标候选已经取消")
-        }
-        val change = GoalChangeCodec.decode(entity.goalChangeJson)
-            ?: return@withLock GoalApplyResult.Failure("目标草稿不完整")
-        if (!canWrite()) return@withLock GoalApplyResult.Failure("恢复维护中，暂不能修改目标")
+    override suspend fun apply(proposalId: String): GoalApplyResult {
+        val expectedGeneration = writeBarrier?.generation()
+            ?: return GoalApplyResult.Failure("恢复安全边界不可用，目标未写入")
+        return applyInternal(proposalId, expectedGeneration, null)
+    }
 
-        val write: suspend () -> GoalApplyResult = {
-            try {
+    override suspend fun applyValidated(
+        proposalId: String,
+        expectedRestoreGeneration: Long,
+        validateSource: suspend () -> String?,
+    ): GoalApplyResult = applyInternal(proposalId, expectedRestoreGeneration, validateSource)
+
+    private suspend fun applyInternal(
+        proposalId: String,
+        expectedRestoreGeneration: Long,
+        validateSource: (suspend () -> String?)?,
+    ): GoalApplyResult = mutex.withLock {
+        val barrier = writeBarrier
+            ?: return@withLock GoalApplyResult.Failure("恢复安全边界不可用，目标未写入")
+        try {
+            barrier.withWrite(expectedRestoreGeneration) {
+                if (!canWrite()) return@withWrite GoalApplyResult.Failure("恢复维护中，暂不能修改目标")
                 database.withTransaction {
+                    val entity = recordDao.findById(proposalId)
+                        ?: throw GoalAbort("这条目标候选不存在")
+                    if (entity.status == RecordProposalStatus.APPLIED) {
+                        return@withTransaction GoalApplyResult.Success(
+                            entity.appliedGoalIdsJson?.split(',')?.mapNotNull { it.trim().toLongOrNull() }.orEmpty(),
+                        )
+                    }
+                    if (entity.status != RecordProposalStatus.DRAFT) throw GoalAbort("这条目标候选已经取消")
+                    if (validateSource == null && requiresInsightValidator(entity)) {
+                        throw GoalAbort("此来源相关草案必须经过 Insight 来源与 generation 验证")
+                    }
+                    val change = GoalChangeCodec.decode(entity.goalChangeJson)
+                        ?: throw GoalAbort("目标草稿不完整")
+                    validateSource?.invoke()?.let { throw GoalAbort(it) }
                     val created = mutableListOf<Long>()
                     when (change.change) {
                         GoalChangeKind.CREATE -> {
@@ -125,13 +153,35 @@ class GoalRecordApplyService(
                     if (moved == 0) throw GoalAbort("候选状态已变化")
                     GoalApplyResult.Success(created.distinct())
                 }
-            } catch (abort: GoalAbort) {
-                GoalApplyResult.Failure(abort.message ?: "保存目标失败")
-            } catch (error: Exception) {
-                GoalApplyResult.Failure(error.message ?: "保存目标失败")
             }
+        } catch (error: RestoreException) {
+            GoalApplyResult.Failure("${error.message ?: "恢复 generation 已变化"}；目标未写入")
+        } catch (abort: GoalAbort) {
+            GoalApplyResult.Failure(abort.message)
+        } catch (error: Exception) {
+            GoalApplyResult.Failure(error.message ?: "保存目标失败")
         }
-        writeBarrier?.withWrite(writeBarrier.generation()) { write() } ?: write()
+    }
+
+    private suspend fun requiresInsightValidator(
+        entity: com.mengyalife.app.data.local.proposal.RecordProposalEntity,
+    ): Boolean {
+        val source = RecordProposalSourceCodec.decode(entity.sourceMessageIdsJson)
+        if (source.invalid || source.insightReference != null) return true
+        val allowed = source.messageIds.toSet() + entity.messageId
+        val messages = database.advisorMessageDao().loadAll().filter { it.id in allowed }
+        if (source.messageIds.any { id -> messages.none { it.id == id } }) return true
+        return messages.any { message -> hasInsightSourceMarker(message.sourcesJson) }
+    }
+
+    private fun hasInsightSourceMarker(raw: String?): Boolean {
+        if (raw.isNullOrBlank()) return false
+        return runCatching {
+            kotlinx.serialization.json.Json.parseToJsonElement(raw).jsonArray.any { item ->
+                val type = item.jsonObject["type"]?.jsonPrimitive?.content
+                type == "INSIGHT" || type == "INSIGHT_FACT"
+            }
+        }.getOrElse { true }
     }
 
     private suspend fun createBreakdown(

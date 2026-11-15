@@ -1756,7 +1756,9 @@ class AdvisorViewModel(
             return
         }
         if (stored.draft.isGoal) {
-            val out = goalApplyService.apply(proposalId)
+            val out = goalApplyService.applyValidated(proposalId, expectedRestoreGeneration) {
+                insightReference?.let { insightReferenceError(it) }
+            }
             local.update { it.copy(recordAction = when (out) {
                 is GoalApplyResult.Success -> RecordActionUiState(
                     proposalId, message = "已保存到目标，可查看或继续调整", openGoalId = out.goalIds.firstOrNull(),
