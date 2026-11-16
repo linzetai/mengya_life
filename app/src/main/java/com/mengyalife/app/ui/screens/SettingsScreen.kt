@@ -147,7 +147,8 @@ fun SettingsScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding),
+                .padding(innerPadding)
+                .testTag("settings_screen"),
             contentPadding = ScreenPadding,
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {

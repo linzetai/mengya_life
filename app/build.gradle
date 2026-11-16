@@ -9,15 +9,15 @@ android {
     namespace 'com.mengyalife.app'
     compileSdk 35
     buildToolsVersion '35.0.1'
-    // Keep instrumented runs on the isolated QA package; never launch the user's production data.
-    testBuildType 'qa'
+    // Instrumented tests run only against a dedicated, empty package/database namespace.
+    testBuildType 'roomTest'
 
     defaultConfig {
         applicationId 'com.mengyalife.app'
         minSdk 26
         targetSdk 35
-        versionCode 39
-        versionName '0.25.3'
+        versionCode 40
+        versionName '0.25.4'
 
         // Gate 2C：QA 构建通过独立 applicationId + 独立库名做真机破坏性测试，
         // 保证测试永远不会碰正式版里用户自己的日记与目标。
@@ -71,6 +71,47 @@ android {
             buildConfigField 'String', 'AI_KEY_ALIAS', '"mengya_ai_key_qa"'
             buildConfigField 'String', 'CONSENT_PREFS_NAME', '"mengya_consent_qa"'
             buildConfigField 'boolean', 'QA_BUILD', 'true'
+        }
+
+        // Isolated design review app: keeps both production and previous QA data untouched.
+        create('designQa') {
+            initWith(getByName('qa'))
+            applicationIdSuffix '.qa0254'
+            versionNameSuffix '-design-qa'
+            matchingFallbacks = ['qa', 'debug']
+            manifestPlaceholders = [appLabel: '萌芽 UI 评审', careReceiverExported: 'true']
+            buildConfigField 'String', 'DATABASE_NAME', '"mengya-ui-0254.db"'
+            buildConfigField 'String', 'PREFS_NAME', '"mengya_settings_ui0254"'
+            buildConfigField 'String', 'AI_PREFS_NAME', '"mengya_ai_ui0254"'
+            buildConfigField 'String', 'AI_KEY_ALIAS', '"mengya_ai_key_ui0254"'
+            buildConfigField 'String', 'CONSENT_PREFS_NAME', '"mengya_consent_ui0254"'
+        }
+        // Empty-account acceptance uses another package and database; it cannot clear designQa/prod.
+        create('emptyDesignQa') {
+            initWith(getByName('qa'))
+            applicationIdSuffix '.qa0254.empty'
+            versionNameSuffix '-empty-design-qa'
+            matchingFallbacks = ['qa', 'debug']
+            manifestPlaceholders = [appLabel: '萌芽 UI 空账号评审', careReceiverExported: 'true']
+            buildConfigField 'String', 'DATABASE_NAME', '"mengya-ui-0254-empty.db"'
+            buildConfigField 'String', 'PREFS_NAME', '"mengya_settings_ui0254_empty"'
+            buildConfigField 'String', 'AI_PREFS_NAME', '"mengya_ai_ui0254_empty"'
+            buildConfigField 'String', 'AI_KEY_ALIAS', '"mengya_ai_key_ui0254_empty"'
+            buildConfigField 'String', 'CONSENT_PREFS_NAME', '"mengya_consent_ui0254_empty"'
+        }
+        // Room instrumentation runs on a throwaway package; startup reconcilers cannot touch
+        // the existing .qa or design-review databases even if the application process starts.
+        create('roomTest') {
+            initWith(getByName('qa'))
+            applicationIdSuffix '.roomtest'
+            versionNameSuffix '-room-test'
+            matchingFallbacks = ['qa', 'debug']
+            manifestPlaceholders = [appLabel: '萌芽 Room 测试', careReceiverExported: 'true']
+            buildConfigField 'String', 'DATABASE_NAME', '"mengya-room-test.db"'
+            buildConfigField 'String', 'PREFS_NAME', '"mengya_room_test_settings"'
+            buildConfigField 'String', 'AI_PREFS_NAME', '"mengya_room_test_ai"'
+            buildConfigField 'String', 'AI_KEY_ALIAS', '"mengya_room_test_key"'
+            buildConfigField 'String', 'CONSENT_PREFS_NAME', '"mengya_room_test_consent"'
         }
     }
 

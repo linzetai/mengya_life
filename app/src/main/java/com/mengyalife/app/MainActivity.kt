@@ -16,6 +16,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (BuildConfig.QA_BUILD) {
+            com.mengyalife.app.ui.candidates.DesignPreview.handleIntent(this, intent)
             com.mengyalife.app.data.backup.QaBackupFaultInjector.reset()
             com.mengyalife.app.data.restore.QaRestoreFaultInjector.reset()
             if (intent?.getBooleanExtra("qa_restore_fail_transaction", false) == true) {
@@ -221,6 +222,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         if (BuildConfig.QA_BUILD) {
+            com.mengyalife.app.ui.candidates.DesignPreview.handleIntent(this, intent)
             intent.getStringExtra("qa_advisor_prompt")?.let {
                 com.mengyalife.app.ui.advisor.AdvisorTestBus.offer(it)
             }

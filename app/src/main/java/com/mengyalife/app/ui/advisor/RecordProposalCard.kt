@@ -76,6 +76,7 @@ fun RecordProposalCard(
     onOpenGoal: (String) -> Unit,
     onReevaluateInsight: () -> Unit,
     onOpenPlans: () -> Unit = {},
+    onOpenPlanById: ((Long) -> Unit)? = null,
 ) {
     val colors = MorrowTheme.colors
     var editing by remember(proposal.id) { mutableStateOf(false) }
@@ -96,7 +97,10 @@ fun RecordProposalCard(
             if (compact) {
                 CompactOutcomeRow(
                     proposal = proposal,
-                    onExpand = if (draft.isPlan && proposal.isApplied) onOpenPlans else ({ expanded = true }),
+                    onExpand = if (draft.isPlan && proposal.isApplied) ({
+                        val id = proposal.appliedPlanId
+                        if (id != null && onOpenPlanById != null) onOpenPlanById(id) else onOpenPlans()
+                    }) else ({ expanded = true }),
                     actionLabel = if (draft.isPlan && proposal.isApplied) "查看行动" else "查看",
                 )
             } else {

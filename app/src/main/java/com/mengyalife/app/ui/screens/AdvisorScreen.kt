@@ -112,6 +112,9 @@ fun AdvisorScreen(
     modifier: Modifier = Modifier,
     onOpenPlans: () -> Unit = {},
     goalTitles: Map<Long, String> = emptyMap(),
+    candidateSubject: com.mengyalife.app.ui.presentation.InformationSubject? = null,
+    onOpenSubjectGoal: (Long) -> Unit = {},
+    onOpenPlanById: ((Long) -> Unit)? = null,
     onReevaluateInsight: () -> Unit = {},
 ) {
     val colors = MorrowTheme.colors
@@ -182,28 +185,23 @@ fun AdvisorScreen(
                 .imePadding()
                 .testTag("advisor_screen"),
         ) {
-            MorrowTopBar(
-                label = "顾问",
-                onSettingsClick = onOpenSettings,
-                horizontalPadding = 22.dp,
-            )
-            Column(modifier = Modifier.padding(horizontal = 22.dp)) {
-                CompactStatusChip(
-                    state = state,
-                    onClick = { statusExpanded = !statusExpanded },
+            if (com.mengyalife.app.ui.candidates.LocalUiDesignCandidate.current != com.mengyalife.app.ui.candidates.UiDesignCandidate.NONE) {
+                com.mengyalife.app.ui.candidates.CandidateConversationHeader(
+                    candidateSubject, onOpenSubjectGoal, onOpenSettings, imeVisible,
                 )
-                if (statusExpanded) {
-                    Spacer(Modifier.height(6.dp))
-                    AdvisorStatusCard(
-                        state = state,
-                        expanded = true,
-                        compact = hasMessages,
-                        keyboardOpen = imeVisible,
-                        onToggle = { statusExpanded = false },
-                        onOpenSettings = onOpenSettings,
-                    )
+            } else {
+                MorrowTopBar(label = "顾问", onSettingsClick = onOpenSettings, horizontalPadding = 22.dp)
+                Column(modifier = Modifier.padding(horizontal = 22.dp)) {
+                    CompactStatusChip(state = state, onClick = { statusExpanded = !statusExpanded })
+                    if (statusExpanded) {
+                        Spacer(Modifier.height(6.dp))
+                        AdvisorStatusCard(
+                            state = state, expanded = true, compact = hasMessages, keyboardOpen = imeVisible,
+                            onToggle = { statusExpanded = false }, onOpenSettings = onOpenSettings,
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
                 }
-                Spacer(Modifier.height(4.dp))
             }
 
             when {
@@ -305,6 +303,7 @@ fun AdvisorScreen(
                                     onOpenDiary = { onAction(AdvisorAction.OpenDiary(it)) },
                                     onOpenGoal = { onAction(AdvisorAction.OpenGoal(it)) },
                                     onOpenPlans = onOpenPlans,
+                                    onOpenPlanById = onOpenPlanById,
                                     onReevaluateInsight = onReevaluateInsight,
                                 )
                             }
@@ -952,6 +951,7 @@ private fun MessageRow(
     onOpenDiary: (String) -> Unit,
     onOpenGoal: (String) -> Unit,
     onOpenPlans: () -> Unit,
+    onOpenPlanById: ((Long) -> Unit)?,
     onReevaluateInsight: () -> Unit,
 ) {
     val colors = MorrowTheme.colors
@@ -970,7 +970,9 @@ private fun MessageRow(
             )
         }
         if (message.status == AdvisorMessageStatus.SENT) {
-            Surface(
+            if (com.mengyalife.app.ui.candidates.LocalUiDesignCandidate.current != com.mengyalife.app.ui.candidates.UiDesignCandidate.NONE) {
+                com.mengyalife.app.ui.candidates.CandidateMessageBody(message)
+            } else Surface(
                 modifier = Modifier
                     .widthIn(max = 320.dp)
                     .testTag(if (isUser) "advisor_user_message" else "advisor_assistant_message"),
@@ -1087,6 +1089,7 @@ private fun MessageRow(
                 onOpenDiary = { proposalId -> onOpenDiary(proposalId) },
                 onOpenGoal = { proposalId -> onOpenGoal(proposalId) },
                 onOpenPlans = onOpenPlans,
+                onOpenPlanById = onOpenPlanById,
                 onReevaluateInsight = onReevaluateInsight,
             )
             if (!record.draft.isPlan && recordAction?.proposalId == record.id &&

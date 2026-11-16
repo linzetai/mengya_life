@@ -28,6 +28,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
+import com.mengyalife.app.ui.candidates.*
+import com.mengyalife.app.ui.presentation.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CancellationException
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -68,6 +74,7 @@ import com.mengyalife.app.ui.screens.GoalOverlays
 import com.mengyalife.app.ui.screens.LifePanoramaScreen
 import com.mengyalife.app.ui.screens.SettingsScreen
 import com.mengyalife.app.ui.screens.TodayScreen
+import com.mengyalife.app.ui.screens.TodayProductScreen
 import com.mengyalife.app.ui.screens.TrajectoryScreen
 import com.mengyalife.app.ui.settings.AiSettingsViewModel
 import com.mengyalife.app.ui.settings.ExportViewModel
@@ -81,6 +88,7 @@ import com.mengyalife.app.ui.weekly.WeeklyReviewScreen
 import com.mengyalife.app.ui.weekly.WeeklyReviewViewModel
 import com.mengyalife.app.data.weekly.WeeklyReviewRouter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 
 /**
  * App 根组件：只负责**装配**。
@@ -102,6 +110,10 @@ fun MengyaLifeApp() {
     val themeViewModel: ThemeViewModel = viewModel(factory = ThemeViewModel.Factory)
     val persistedThemeMode by themeViewModel.themeMode.collectAsStateWithLifecycle()
     val themeMode: ThemeMode = persistedThemeMode ?: ThemeMode.SYSTEM
+    val requestedCandidate by DesignPreview.mode.collectAsStateWithLifecycle()
+    val designCandidate = if (BuildConfig.QA_BUILD && BuildConfig.APPLICATION_ID.endsWith(".qa0254")) {
+        requestedCandidate
+    } else UiDesignCandidate.NONE
 
     // ---- 真实数据 ----
     val journalViewModel: JournalViewModel = viewModel(factory = JournalViewModel.Factory)
@@ -146,11 +158,31 @@ fun MengyaLifeApp() {
     var showDecision by rememberSaveable { mutableStateOf(false) }
     // 今天页的近期小计划：只在 ACTIVE 且时间锚定在当下时出现。
     val planRepository = appContext.container.smallPlanRepository
-    val allPlans by planRepository.observeAll()
-        .collectAsStateWithLifecycle(initialValue = emptyList())
-    val planProgressCounts by planRepository.observeProgressCounts()
-        .collectAsStateWithLifecycle(initialValue = emptyMap())
-    val todayPlans = androidx.compose.runtime.remember(allPlans, planProgressCounts) {
+    val planDay = com.mengyalife.app.ui.components.rememberToday()
+    val allPlansState by remember(planRepository) { planRepository.observeAll().map { it to true } }
+        .collectAsStateWithLifecycle(initialValue = emptyList<com.mengyalife.app.data.local.plan.SmallPlanEntity>() to false)
+    val allPlans = allPlansState.first
+    val allPlansReady = allPlansState.second
+    val planProgressFlow = remember(planRepository) { planRepository.observeProgressCounts().map { it to true } }
+    val planProgressState by planProgressFlow.collectAsStateWithLifecycle(initialValue = emptyMap<Long, Int>() to false)
+    val planProgressCounts = planProgressState.first
+    val planProgressCountsReady = planProgressState.second
+    val weeklyProgressFlow = remember(planRepository, planDay) {
+        val currentZone = java.time.ZoneId.systemDefault()
+        val start = planDay.with(java.time.DayOfWeek.MONDAY).atStartOfDay(currentZone).toInstant().toEpochMilli()
+        planRepository.observeProgressBetween(start, System.currentTimeMillis()).map { it to true }
+    }
+    val weeklyProgressState by weeklyProgressFlow.collectAsStateWithLifecycle(
+        initialValue = emptyList<com.mengyalife.app.data.local.plan.PlanProgressEntity>() to false,
+    )
+    val weeklyPlanProgress = weeklyProgressState.first
+    val weeklyPlanProgressReady = weeklyProgressState.second
+    val homeCheckinState by remember(appContext.container) {
+        appContext.container.databaseHandle.goalDao().observeAllCheckins().map { it to true }
+    }.collectAsStateWithLifecycle(initialValue = emptyList<com.mengyalife.app.data.local.goal.GoalCheckinEntity>() to false)
+    val homeGoalCheckins = homeCheckinState.first
+    val homeGoalCheckinsReady = homeCheckinState.second
+    val todayPlans = androidx.compose.runtime.remember(allPlans, planProgressCounts, planDay) {
         val now = System.currentTimeMillis()
         allPlans
             .filter {
@@ -335,7 +367,7 @@ fun MengyaLifeApp() {
         advisorViewModel.onAction(AdvisorAction.InputChange(text))
     }
 
-    MengyaLifeTheme(darkTheme = darkTheme) {
+    DesignCandidateTheme(candidate = designCandidate, dark = darkTheme) {
         BackHandler(enabled = showSettings) { showSettings = false }
 
         Box(
@@ -438,6 +470,14 @@ fun MengyaLifeApp() {
                 }
 
                 else -> MainShell(
+                    candidate = designCandidate,
+                    allPlans = allPlans,
+                    allPlansReady = allPlansReady,
+                    progressCounts = planProgressCounts,
+                    weeklyPlanProgress = weeklyPlanProgress,
+                    weeklyPlanProgressReady = weeklyPlanProgressReady,
+                    planProgressCountsReady = planProgressCountsReady,
+                    onRefreshCare = { careViewModel.refresh() },
                     currentTab = currentTab,
                     onTabChange = { currentTab = it },
                     onOpenSettings = { showSettings = true },
@@ -446,6 +486,8 @@ fun MengyaLifeApp() {
                     onOpenDecision = { showDecision = true },
                     onOpenGoal = { id -> openPanorama(id) },
                     todayPlans = todayPlans,
+                    allGoalCheckins = homeGoalCheckins,
+                    allGoalCheckinsReady = homeGoalCheckinsReady,
                     trajectoryPlans = trajectoryPlans,
                     careCard = careState.card,
                     onCareEngage = careViewModel::engage,
@@ -463,6 +505,13 @@ fun MengyaLifeApp() {
                     onCreateGoalFromToday = {
                         showPanorama = true
                         goalsViewModel.onAction(GoalAction.NewGoal(GoalLevel.LONG_TERM, null))
+                    },
+                    onRecordGoalFromToday = { id ->
+                        findGoalInTree(goalsState.snapshot.roots, id)?.let { goalsViewModel.onAction(GoalAction.OpenCheckin(it)) }
+                            ?: openPanorama(id)
+                    },
+                    onOpenRecentCheckinFromToday = { checkin ->
+                        findGoalInTree(goalsState.snapshot.roots, checkin.goalId)?.let { goalsViewModel.onAction(GoalAction.OpenHistory(it)) }
                     },
                     todayListState = todayListState,
                     trajectoryListState = trajectoryListState,
@@ -507,6 +556,14 @@ fun MengyaLifeApp() {
 
 @Composable
 private fun MainShell(
+    candidate: UiDesignCandidate,
+    allPlans: List<com.mengyalife.app.data.local.plan.SmallPlanEntity>,
+    allPlansReady: Boolean,
+    progressCounts: Map<Long, Int>,
+    weeklyPlanProgress: List<com.mengyalife.app.data.local.plan.PlanProgressEntity>,
+    weeklyPlanProgressReady: Boolean,
+    planProgressCountsReady: Boolean,
+    onRefreshCare: () -> Unit,
     currentTab: AppTab,
     onTabChange: (AppTab) -> Unit,
     onOpenSettings: () -> Unit,
@@ -515,6 +572,10 @@ private fun MainShell(
     onOpenDecision: () -> Unit,
     onOpenGoal: (Long) -> Unit,
     todayPlans: List<com.mengyalife.app.ui.screens.PlanTodayItem>,
+    allGoalCheckins: List<com.mengyalife.app.data.local.goal.GoalCheckinEntity>,
+    allGoalCheckinsReady: Boolean,
+    onRecordGoalFromToday: (Long) -> Unit,
+    onOpenRecentCheckinFromToday: (com.mengyalife.app.data.local.goal.GoalCheckinEntity) -> Unit,
     trajectoryPlans: List<com.mengyalife.app.ui.screens.PlanTrajectoryItem>,
     onOpenPlan: (String) -> Unit,
     careCard: com.mengyalife.app.ui.care.CareCard?,
@@ -543,6 +604,69 @@ private fun MainShell(
 ) {
     val colors = MorrowTheme.colors
     val snackbarHostState = remember { SnackbarHostState() }
+    val container = (LocalContext.current.applicationContext as MengyaApplication).container
+    val preparation by DesignPreview.preparation.collectAsStateWithLifecycle()
+    val checkinFlow = remember(container) { container.databaseHandle.goalDao().observeAllCheckins() }
+    val candidateCheckins by checkinFlow.collectAsStateWithLifecycle(initialValue = emptyList())
+    var candidateError by remember { mutableStateOf<String?>(null) }
+    var lastCandidateSnapshot by remember { mutableStateOf<CandidateSnapshot?>(null) }
+    var displayedCandidateReport by remember { mutableStateOf<com.mengyalife.app.domain.insight.InsightReport?>(null) }
+    val presentationDay = com.mengyalife.app.ui.components.rememberToday()
+    val candidateSnapshot by produceState<CandidateSnapshot?>(
+        initialValue = null,
+        candidate, goalsState.snapshot, allPlans, progressCounts, candidateCheckins,
+        insightState.report, insightState.currentVersion, advisorState.consent, careCard, preparation, presentationDay,
+    ) {
+        if (candidate == UiDesignCandidate.NONE) { value = null; return@produceState }
+        val previous = lastCandidateSnapshot
+        value = null
+        try {
+            val loaded = withContext(Dispatchers.IO) {
+                loadCandidateSnapshot(container, goalsState.snapshot, candidateCheckins, allPlans, progressCounts,
+                    careCard, displayedCandidateReport ?: insightState.report, previous)
+            }
+            value = loaded
+            lastCandidateSnapshot = loaded
+            displayedCandidateReport = loaded.report
+            candidateError = null
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            candidateError = "当前观察暂不可用，请重新核对记录"
+            android.util.Log.w("UiDesignQA", "presentation snapshot unavailable", error)
+        }
+    }
+    val localContext = remember(goalsState.snapshot, candidateCheckins, allPlans, presentationDay) {
+        InformationContext(goalsState.snapshot, candidateCheckins, allPlans, InformationBinding(), now = System.currentTimeMillis())
+    }
+    val preview = candidateSnapshot ?: CandidateSnapshot(
+        localContext, null, emptyList(),
+        (if (candidate == UiDesignCandidate.NONE) emptyList() else allPlans.filter { it.status == "ACTIVE" }).sortedByDescending { it.updatedAt }.map {
+            InformationResolver.resolve(InformationInput.Plan(it.id, null), localContext)
+        }, null,
+    )
+    var previewPlanId by remember { mutableStateOf<Long?>(null) }
+    var previewSubjects by remember { mutableStateOf<List<InformationSubject>?>(null) }
+    var previewEvidence by remember { mutableStateOf<InformationPresentation?>(null) }
+    val navigatePreview: (InformationNextAction) -> Unit = { action ->
+        when (action) {
+            is InformationNextAction.OpenGoal -> onOpenGoal(action.goalId)
+            is InformationNextAction.OpenPlan -> previewPlanId = action.planId
+            is InformationNextAction.OpenSubjects -> previewSubjects = action.subjects
+            is InformationNextAction.DiscussInsight -> onDiscussInsight(action.reference)
+            is InformationNextAction.OpenCareConversation -> {
+                if (careCard?.opportunityId == action.opportunityId && careCard.decisionId == action.decisionId) onCareEngage()
+                else onRefreshCare()
+            }
+            is InformationNextAction.Reevaluate -> if (action.opportunityId != null) onRefreshCare() else onGenerateInsight()
+            InformationNextAction.None -> Unit
+        }
+    }
+    val openRecord: (com.mengyalife.app.data.local.goal.GoalCheckinEntity) -> Unit = { record ->
+        fun find(nodes: List<com.mengyalife.app.data.repository.GoalNode>): com.mengyalife.app.data.local.goal.GoalEntity? =
+            nodes.firstNotNullOfOrNull { node -> if (node.goal.id == record.goalId) node.goal else find(node.children) }
+        find(goalsState.snapshot.roots)?.let { onGoalAction(GoalAction.OpenHistory(it)) }
+    }
 
     LaunchedEffect(goalsState.message) {
         val message = goalsState.message ?: return@LaunchedEffect
@@ -569,34 +693,50 @@ private fun MainShell(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding),
+                .padding(innerPadding)
+                .then(if (candidate != UiDesignCandidate.NONE) Modifier.testTag(
+                    if (candidateSnapshot != null && preparation == null) "candidate_ready" else "candidate_loading",
+                ) else Modifier),
         ) {
             when (currentTab) {
-                AppTab.TODAY -> TodayScreen(
+                AppTab.TODAY -> if (candidate != UiDesignCandidate.NONE) CandidateTodayScreen(
+                    snapshot = preview,
+                    listState = todayListState,
+                    onAction = navigatePreview,
+                    onOpenGoals = onOpenPanorama,
+                    onWriteDiary = onWriteDiary,
+                    onTalk = { onTalkToAdvisor("想聊聊最近的近况。") },
+                    relatedUserContext = candidateUserContext(preview, advisorState),
+                    onReevaluate = onGenerateInsight,
+                    onOpenEvidence = { previewEvidence = it },
+                    onSettings = onOpenSettings,
+                    preparation = preparation ?: candidateError,
+                ) else TodayProductScreen(
                     listState = todayListState,
                     goals = goalsState.snapshot,
-                    plans = todayPlans,
-                    onOpenPlan = onOpenPlan,
-                    careCard = careCard,
-                    onCareEngage = onCareEngage,
-                    onCareIgnore = onCareIgnore,
-                    onCareSilence = onCareSilence,
-                    entries = diaryState.entries,
-                    insights = insightState,
-                    onOpenSettings = onOpenSettings,
-                    onOpenPanorama = onOpenPanorama,
+                    goalsReady = !goalsState.loading,
+                    plans = allPlans,
+                    plansReady = allPlansReady,
+                    weeklyPlanProgress = weeklyPlanProgress,
+                    weeklyPlanProgressReady = weeklyPlanProgressReady,
+                    checkins = allGoalCheckins,
+                    checkinsReady = allGoalCheckinsReady,
                     onOpenGoal = onOpenGoal,
+                    onOpenGoals = onOpenPanorama,
                     onCreateGoal = onCreateGoalFromToday,
-                    onOpenExplore = onOpenExplore,
-                    onWriteDiary = onWriteDiary,
-                    onOpenDecision = onOpenDecision,
-                    onOpenTrends = { onTabChange(AppTab.PATH) },
-                    onGenerateInsight = onGenerateInsight,
-                    onDiscussInsight = onDiscussInsight,
-                    onTalkToAdvisor = onTalkToAdvisor,
+                    onRecordGoal = onRecordGoalFromToday,
+                    onOpenRecord = onOpenRecentCheckinFromToday,
+                    onTalk = { text -> onTalkToAdvisor(text) },
                 )
 
-                AppTab.PATH -> TrajectoryScreen(
+                AppTab.PATH -> if (candidate != UiDesignCandidate.NONE) CandidateTrajectoryScreen(
+                    snapshot = preview,
+                    listState = trajectoryListState,
+                    onOpenGoal = onOpenGoal,
+                    onOpenRecord = openRecord,
+                    onOpenGoals = onOpenPanorama,
+                    onSettings = onOpenSettings,
+                ) else TrajectoryScreen(
                     listState = trajectoryListState,
                     trends = goalsState.trends,
                     goals = goalsState.snapshot,
@@ -623,6 +763,9 @@ private fun MainShell(
                     state = advisorState,
                     onAction = onAdvisorAction,
                     onOpenSettings = onOpenSettings,
+                    candidateSubject = if (candidate != UiDesignCandidate.NONE) candidateConversationSubject(preview, advisorState) else null,
+                    onOpenSubjectGoal = onOpenGoal,
+                    onOpenPlanById = if (candidate != UiDesignCandidate.NONE) ({ id -> previewPlanId = id }) else null,
                     onOpenPlans = {
                         // Match the trajectory's own “行动状态” anchor, not a generic tab jump.
                         trajectoryListState.requestScrollToItem(3)
@@ -641,7 +784,28 @@ private fun MainShell(
             }
         }
     }
+    if (candidate != UiDesignCandidate.NONE) {
+        previewPlanId?.let { id ->
+            allPlans.firstOrNull { it.id == id }?.let { plan ->
+                CandidatePlanDialog(plan, preview, preview.verifiedProgressCounts?.let { it[id] ?: 0 },
+                    onDismiss = { previewPlanId = null }, onOpenGoal = onOpenGoal)
+            }
+        }
+        previewSubjects?.let { subjects ->
+            CandidateSubjectsDialog(subjects, onDismiss = { previewSubjects = null }, onOpenGoal = onOpenGoal)
+        }
+        previewEvidence?.let { info ->
+            CandidateEvidenceDialog(info, preview, onDismiss = { previewEvidence = null }, onOpenGoal = onOpenGoal)
+        }
+    }
     RestoreResultHost()
+}
+
+private fun findGoalInTree(
+    roots: List<com.mengyalife.app.data.repository.GoalNode>,
+    id: Long,
+): com.mengyalife.app.data.local.goal.GoalEntity? = roots.firstNotNullOfOrNull { node ->
+    if (node.goal.id == id) node.goal else findGoalInTree(node.children, id)
 }
 
 /**

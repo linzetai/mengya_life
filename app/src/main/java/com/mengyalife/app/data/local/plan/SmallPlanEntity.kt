@@ -92,6 +92,9 @@ interface SmallPlanDao {
     @Query("SELECT * FROM plan_progress ORDER BY recorded_at ASC, id ASC")
     suspend fun loadAllProgress(): List<PlanProgressEntity>
 
+    @Query("SELECT * FROM plan_progress WHERE recorded_at BETWEEN :startAt AND :endAt ORDER BY recorded_at ASC, id ASC")
+    fun observeProgressBetween(startAt: Long, endAt: Long): Flow<List<PlanProgressEntity>>
+
     @Query("SELECT plan_id AS plan_id, COUNT(*) AS total FROM plan_progress GROUP BY plan_id")
     fun observeProgressCounts(): Flow<List<PlanProgressCount>>
 

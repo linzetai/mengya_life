@@ -33,6 +33,9 @@ class SmallPlanRepository(
     fun observeProgressCounts(): Flow<Map<Long, Int>> =
         dao.observeProgressCounts().map { rows -> rows.associate { it.planId to it.total } }
 
+    /** Actual plan execution rows inside the supplied local-time window; not goal checkins or lifetime totals. */
+    fun observeProgressBetween(startAt: Long, endAt: Long) = dao.observeProgressBetween(startAt, endAt)
+
     suspend fun active(): List<SmallPlanEntity> = dao.loadActive()
 
     suspend fun all(): List<SmallPlanEntity> = dao.loadAll()
